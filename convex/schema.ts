@@ -21,7 +21,7 @@ export default defineSchema({
 
   campaigns: defineTable(
     v.union(legacyCampaignValidator, newCampaignRecordValidator),
-  ),
+  ).index("by_campaignKey", ["campaignKey"]),
 
   events: defineTable({
     type: v.literal("month_changed"),

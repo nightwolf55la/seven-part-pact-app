@@ -9,8 +9,11 @@
  */
 
 import type * as campaign from "../campaign.js";
+import type * as canonicalCommit from "../canonicalCommit.js";
+import type * as executeMigration from "../executeMigration.js";
 import type * as migration from "../migration.js";
 import type * as validators from "../validators.js";
+import type * as verifyMigration from "../verifyMigration.js";
 
 import type {
   ApiFromModules,
@@ -20,8 +23,11 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   campaign: typeof campaign;
+  canonicalCommit: typeof canonicalCommit;
+  executeMigration: typeof executeMigration;
   migration: typeof migration;
   validators: typeof validators;
+  verifyMigration: typeof verifyMigration;
 }>;
 
 /**

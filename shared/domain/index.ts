@@ -54,3 +54,16 @@ export type {
   MigrationAnalysisResult,
 } from "./migration-analyzer";
 export { analyzeLegacyMigration } from "./migration-analyzer";
+
+export type { DomainErrorCode } from "./errors";
+export { DomainError } from "./errors";
+
+export { validateCampaignState } from "./state-validation";
+
+export type { MoveMonthTransitionResult } from "./transitions";
+export { applyMoveMonth } from "./transitions";
+
+export {
+  syntheticMigrationCommandId,
+  isSyntheticMigrationCommandId,
+} from "./command-ids";

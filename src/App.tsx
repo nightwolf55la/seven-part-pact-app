@@ -2,6 +2,10 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api.js";
 import { displayNameFromOrdinal } from "../shared/domain";
 
+function generateCommandId(): string {
+  return `cmd_${crypto.randomUUID()}`;
+}
+
 export default function App() {
   const campaign = useQuery(api.campaign.getCampaign, {});
   const events = useQuery(api.campaign.getRecentEvents, { count: 20 });
@@ -35,14 +39,14 @@ export default function App() {
         <section className="flex gap-3">
           <button
             disabled={isLoading}
-            onClick={() => moveMonth({ direction: "backward" })}
+            onClick={() => moveMonth({ direction: "backward", commandId: generateCommandId() })}
             className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             ← Previous Month
           </button>
           <button
             disabled={isLoading}
-            onClick={() => moveMonth({ direction: "forward" })}
+            onClick={() => moveMonth({ direction: "forward", commandId: generateCommandId() })}
             className="flex-1 bg-slate-800 dark:bg-slate-100 border border-slate-800 dark:border-slate-100 rounded-xl px-4 py-3 text-sm font-medium text-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
             Next Month →
