@@ -1,6 +1,6 @@
 import type { MutationCtx } from "./_generated/server";
-import type { CampaignCommandType, CurrentCampaignState, MonthChangedEventV1, MonthDirection } from "../shared/domain";
-import { validateCampaignState, DomainError, advanceOrdinal } from "../shared/domain";
+import type { CampaignCommandType, CurrentCampaignState, MonthChangedEventV1, MonthDirection, CampaignEvent } from "../shared/domain";
+import { validateCampaignState, DomainError, advanceOrdinal, validateMoveMonthTransaction } from "../shared/domain";
 import type { Id } from "./_generated/dataModel";
 
 export interface CanonicalCommitInput {
@@ -25,7 +25,25 @@ function validateEventCoherence(
   currentState: CurrentCampaignState,
   nextState: CurrentCampaignState,
   events: readonly MonthChangedEventV1[],
+  commandType: CampaignCommandType,
+  commandFingerprint: string,
 ): void {
+  if (commandType === "move_month") {
+    const moveErrors = validateMoveMonthTransaction(
+      currentState,
+      events as readonly CampaignEvent[],
+      nextState,
+      commandFingerprint,
+    );
+    if (moveErrors.length > 0) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `move_month transaction invariant violated: ${moveErrors.join("; ")}`,
+      );
+    }
+    return;
+  }
+
   if (events.length !== 1) return;
   const evt = events[0];
   if (evt.data.fromOrdinal as number !== currentState.calendar.monthOrdinal as number) {
@@ -99,7 +117,7 @@ export async function canonicalCommit(
   validateCampaignState(input.currentState);
   validateCampaignState(input.nextState);
 
-  validateEventCoherence(input.currentState, input.nextState, input.events);
+  validateEventCoherence(input.currentState, input.nextState, input.events, input.commandType, input.commandFingerprint);
 
   const existingCommand = await ctx.db
     .query("campaignRevisions")

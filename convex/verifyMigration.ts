@@ -1,6 +1,13 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
-import { validateCampaignState } from "../shared/domain";
+import {
+  validateCampaignState,
+  verifyMigrationInvariants,
+  type RevisionRecord,
+  type EventRecord,
+  type SnapshotRecord,
+  type CampaignDocument,
+} from "../shared/domain";
 
 const verificationResultValidator = v.union(
   v.object({
@@ -13,15 +20,7 @@ const verificationResultValidator = v.union(
     revisionRecordCount: v.number(),
     eventRecordCount: v.number(),
     snapshotCount: v.number(),
-    revisionsContiguous: v.boolean(),
-    snapshotsCoverAllRevisions: v.boolean(),
-    commandIdsUnique: v.boolean(),
-    allRevisionsHaveEvents: v.boolean(),
-    eventIndexesValid: v.boolean(),
-    finalSnapshotMatchesCampaign: v.boolean(),
-    noDuplicateRevisions: v.boolean(),
-    noDuplicateSnapshots: v.boolean(),
-    currentStateValid: v.boolean(),
+    campaignDocumentCount: v.number(),
   }),
   v.object({
     status: v.literal("invalid"),
@@ -38,25 +37,31 @@ export const verifyMigration = query({
       .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
       .unique();
 
-    if (maybeCanonical === null || !("campaignKey" in maybeCanonical) || maybeCanonical.campaignKey !== "default") {
+    if (
+      maybeCanonical === null ||
+      !("campaignKey" in maybeCanonical) ||
+      maybeCanonical.campaignKey !== "default"
+    ) {
       return { status: "no_canonical_campaign" as const };
     }
 
     const canonical = maybeCanonical as typeof maybeCanonical & {
       campaignId: string;
       campaignRevision: number;
-      state: { schemaVersion: 1; ruleset: { id: string; version: number }; calendar: { monthOrdinal: number } };
+      state: {
+        schemaVersion: 1;
+        ruleset: { id: string; version: number };
+        calendar: { monthOrdinal: number };
+      };
     };
 
     const campaignId = canonical.campaignId;
     const campaignRevision = canonical.campaignRevision;
     const errors: string[] = [];
 
-    let currentStateValid = true;
     try {
       validateCampaignState(canonical.state);
     } catch {
-      currentStateValid = false;
       errors.push("Current campaign state fails domain validation");
     }
 
@@ -64,123 +69,93 @@ export const verifyMigration = query({
       .query("campaignRevisions")
       .withIndex("by_campaign_revision", (q) => q.eq("campaignId", campaignId))
       .collect();
-    const revisionRecordCount = campaignRevisions.length;
 
     const campaignEvents = await ctx.db
       .query("campaignEvents")
-      .withIndex("by_campaign_revision_index", (q) => q.eq("campaignId", campaignId))
+      .withIndex("by_campaign_revision_index", (q) =>
+        q.eq("campaignId", campaignId),
+      )
       .collect();
-    const eventRecordCount = campaignEvents.length;
 
     const campaignSnapshots = await ctx.db
       .query("campaignSnapshots")
       .withIndex("by_campaign_revision", (q) => q.eq("campaignId", campaignId))
       .collect();
-    const snapshotCount = campaignSnapshots.length;
 
-    const revNums = campaignRevisions.map((r) => r.campaignRevision).sort((a, b) => a - b);
-    let revisionsContiguous = true;
-    for (let i = 0; i < revNums.length; i++) {
-      if (revNums[i] !== i + 1) {
-        revisionsContiguous = false;
-        errors.push(`Revision ${i + 1} missing; found ${revNums[i]}`);
-        break;
+    const allCampaignDocs = await ctx.db.query("campaigns").collect();
+
+    const revisionRecords: RevisionRecord[] = campaignRevisions.map((r) => ({
+      campaignRevision: r.campaignRevision,
+      commandType: r.commandType,
+      commandFingerprint: r.commandFingerprint,
+    }));
+
+    const eventRecords: EventRecord[] = campaignEvents.map((e) => ({
+      campaignRevision: e.campaignRevision,
+      eventIndex: e.eventIndex,
+      event: e.event,
+    }));
+
+    const snapshotRecords: SnapshotRecord[] = campaignSnapshots.map((s) => ({
+      campaignRevision: s.campaignRevision,
+      state: s.state,
+    }));
+
+    const campaignDocuments: CampaignDocument[] = allCampaignDocs.map((d) => {
+      if ("campaignKey" in d) {
+        return {
+          campaignKey: d.campaignKey,
+          campaignId: d.campaignId,
+          campaignRevision: d.campaignRevision,
+          state: d.state,
+        };
       }
-    }
-    if (revNums.length !== campaignRevision) {
-      revisionsContiguous = false;
-      errors.push(`Expected ${campaignRevision} revisions, found ${revNums.length}`);
-    }
+      return {
+        campaignKey: "__legacy__",
+        campaignId: "",
+        campaignRevision: d.revision,
+        state: {
+          schemaVersion: 1 as const,
+          ruleset: { id: "seven_part_pact_draft4", version: 1 },
+          calendar: { monthOrdinal: d.monthOrdinal },
+        },
+      };
+    });
 
-    const snapRevs = new Set(campaignSnapshots.map((s) => s.campaignRevision));
-    let snapshotsCoverAllRevisions = true;
-    for (let i = 0; i <= campaignRevision; i++) {
-      if (!snapRevs.has(i)) {
-        snapshotsCoverAllRevisions = false;
-        errors.push(`Missing snapshot for revision ${i}`);
-        break;
-      }
-    }
+    const invariantResult = verifyMigrationInvariants({
+      campaignRevision,
+      revisions: revisionRecords,
+      events: eventRecords,
+      snapshots: snapshotRecords,
+      campaignDocuments,
+    });
+    errors.push(...invariantResult.errors);
 
-    const commandIds = campaignRevisions.map((r) => r.commandId);
-    const commandIdsUnique = new Set(commandIds).size === commandIds.length;
-    if (!commandIdsUnique) {
-      errors.push("Duplicate command IDs found");
-    }
-
-    let allRevisionsHaveEvents = true;
-    const eventsByRev = new Map<number, number[]>();
-    for (const evt of campaignEvents) {
-      const list = eventsByRev.get(evt.campaignRevision) ?? [];
-      list.push(evt.eventIndex);
-      eventsByRev.set(evt.campaignRevision, list);
-    }
-
-    for (let rev = 1; rev <= campaignRevision; rev++) {
-      if (!eventsByRev.has(rev) || eventsByRev.get(rev)!.length === 0) {
-        allRevisionsHaveEvents = false;
-        errors.push(`Revision ${rev} has no events`);
-        break;
-      }
-    }
-
-    let eventIndexesValid = true;
-    for (const [rev, indexes] of eventsByRev) {
-      indexes.sort((a, b) => a - b);
-      for (let i = 0; i < indexes.length; i++) {
-        if (indexes[i] !== i) {
-          eventIndexesValid = false;
-          errors.push(`Revision ${rev}: eventIndex gap at position ${i}, found ${indexes[i]}`);
-          break;
-        }
-      }
-      if (!eventIndexesValid) break;
-    }
-
-    const finalSnapshot = campaignSnapshots.find((s) => s.campaignRevision === campaignRevision);
-    let finalSnapshotMatchesCampaign = false;
-    if (finalSnapshot) {
-      const canonicalState = canonical.state;
-      finalSnapshotMatchesCampaign =
-        finalSnapshot.state.schemaVersion === canonicalState.schemaVersion &&
-        finalSnapshot.state.ruleset.id === canonicalState.ruleset.id &&
-        finalSnapshot.state.ruleset.version === canonicalState.ruleset.version &&
-        finalSnapshot.state.calendar.monthOrdinal === canonicalState.calendar.monthOrdinal;
-
-      if (!finalSnapshotMatchesCampaign) {
-        errors.push("Final snapshot state does not match authoritative campaign state");
-      }
-
+    for (const snap of campaignSnapshots) {
       try {
-        validateCampaignState(finalSnapshot.state);
+        validateCampaignState(snap.state);
       } catch {
-        finalSnapshotMatchesCampaign = false;
-        errors.push("Final snapshot state fails domain validation");
+        errors.push(
+          `Snapshot at revision ${snap.campaignRevision} fails domain validation`,
+        );
+      }
+    }
+
+    const finalSnapshot = campaignSnapshots.find(
+      (s) => s.campaignRevision === campaignRevision,
+    );
+    if (finalSnapshot) {
+      const cs = canonical.state;
+      const matches =
+        finalSnapshot.state.schemaVersion === cs.schemaVersion &&
+        finalSnapshot.state.ruleset.id === cs.ruleset.id &&
+        finalSnapshot.state.ruleset.version === cs.ruleset.version &&
+        finalSnapshot.state.calendar.monthOrdinal === cs.calendar.monthOrdinal;
+      if (!matches) {
+        errors.push("Final snapshot state does not match authoritative campaign state");
       }
     } else {
       errors.push("Final snapshot not found");
-    }
-
-    const revSet = new Set<number>();
-    let noDuplicateRevisions = true;
-    for (const r of campaignRevisions) {
-      if (revSet.has(r.campaignRevision)) {
-        noDuplicateRevisions = false;
-        errors.push(`Duplicate revision record: ${r.campaignRevision}`);
-        break;
-      }
-      revSet.add(r.campaignRevision);
-    }
-
-    const snapKeySet = new Set<number>();
-    let noDuplicateSnapshots = true;
-    for (const s of campaignSnapshots) {
-      if (snapKeySet.has(s.campaignRevision)) {
-        noDuplicateSnapshots = false;
-        errors.push(`Duplicate snapshot for revision: ${s.campaignRevision}`);
-        break;
-      }
-      snapKeySet.add(s.campaignRevision);
     }
 
     if (errors.length > 0) {
@@ -191,18 +166,10 @@ export const verifyMigration = query({
       status: "valid" as const,
       campaignId,
       campaignRevision,
-      revisionRecordCount,
-      eventRecordCount,
-      snapshotCount,
-      revisionsContiguous,
-      snapshotsCoverAllRevisions,
-      commandIdsUnique,
-      allRevisionsHaveEvents,
-      eventIndexesValid,
-      finalSnapshotMatchesCampaign,
-      noDuplicateRevisions,
-      noDuplicateSnapshots,
-      currentStateValid,
+      revisionRecordCount: campaignRevisions.length,
+      eventRecordCount: campaignEvents.length,
+      snapshotCount: campaignSnapshots.length,
+      campaignDocumentCount: allCampaignDocs.length,
     };
   },
 });

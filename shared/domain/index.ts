@@ -75,3 +75,17 @@ export {
   migrationCommandFingerprint,
   moveMonthFingerprint,
 } from "./command-ids";
+
+export type {
+  RevisionRecord,
+  EventRecord,
+  SnapshotRecord,
+  VerificationResult,
+  CampaignDocument,
+  MigrationVerificationInput,
+  SerializableCampaignState,
+} from "./verification";
+export {
+  validateMoveMonthTransaction,
+  verifyMigrationInvariants,
+} from "./verification";
