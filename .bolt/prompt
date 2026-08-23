@@ -24,3 +24,111 @@ CHANGE DISCIPLINE:
 - If asked only to inspect, diagnose, or analyze, make NO file changes.
 - Do not perform additional cleanup, migration, refactoring, deployment, or architectural changes unless explicitly requested.
 - If a blocker requires changing architecture or tooling, stop and explain the blocker before making that change.
+
+Bolt's GitHub integration is managed through Bolt's GitHub UI and may not expose a .git repository inside the project filesystem. Do not run terminal Git commands or infer GitHub connection/branch status from the presence or absence of .git. Branch selection and synchronization are controlled through Bolt's GitHub integration.
+
+SEVEN-PART PACT — PROJECT ENGINEERING RULES
+
+PROJECT PURPOSE
+This is a persistent multiplayer web application for the tabletop RPG Seven-Part Pact. Reliability, recoverability, maintainability, and preservation of campaign state are higher priorities than rapid feature delivery.
+
+CURRENT ARCHITECTURE
+- Frontend: React + Vite + TypeScript.
+- Backend and authoritative persistent state: Convex.
+- Hosting/deployment: Vercel.
+- Source control: GitHub.
+- Bolt is a development environment only.
+- Do not introduce Bolt Database, Bolt Hosting, Supabase, Firebase, or another backend/database unless explicitly requested.
+- Development, Preview, and Production Convex deployments must remain isolated from one another.
+
+SOURCE CONTROL — USER CONTROLLED
+- Git history and repository administration are controlled by the user.
+- Never initialize or recreate the Git repository.
+- Never rewrite Git history.
+- Never force-push.
+- Never rebase, reset, or create orphan histories.
+- Never delete, rename, or replace branches or tags.
+- Never change the default branch.
+- Never commit, push, merge, or create/delete branches unless explicitly requested for that specific operation.
+- Do not modify .gitignore unless the requested task requires it.
+- Preserve existing repository history and branch structure.
+- Work must be compatible with protected-main / pull-request workflows.
+
+CHANGE DISCIPLINE
+- Make only changes necessary for the requested task.
+- If asked to inspect, review, diagnose, analyze, explain, or propose a solution, make NO file changes unless explicitly asked to implement.
+- Do not perform unrelated cleanup, refactoring, dependency upgrades, migrations, deployments, or architectural changes.
+- If the requested work appears to require an architectural change outside the stated scope, stop and explain why before making it.
+- Prefer small, reviewable changes over broad rewrites.
+- Preserve currently working behavior unless the task explicitly changes it.
+- Do not deploy to Production unless explicitly instructed.
+
+SECRETS AND ENVIRONMENTS
+- Never commit secrets, deploy keys, tokens, or local environment files.
+- CONVEX_DEPLOY_KEY is server/build infrastructure and must never receive a VITE_ prefix or be exposed to browser code.
+- Never use Production credentials in Bolt.
+- Do not manually point Preview or Development code at Production data.
+- Environment isolation is a safety requirement, not an optional convenience.
+
+CONVEX AND AUTHORITATIVE STATE
+- Convex is the authoritative source of persistent game state.
+- Clients send intent to server-side mutations; clients must not calculate and directly submit authoritative final state when the server can derive it.
+- Persistent game-state changes must occur through explicit Convex mutations.
+- Related state changes must be atomic whenever consistency requires it.
+- Every meaningful committed game-state change must have an immutable audit/event record.
+- Revisions are monotonically increasing and are never reused or rewritten.
+- Historical events and recovery records must never be mutated or deleted by normal application operations.
+- Recovery operations must create new history rather than rewriting old history.
+- Operations such as restore/import that depend on previously viewed state must use optimistic concurrency protection such as expectedRevision.
+- Failed validation or failed mutations must leave persistent state unchanged.
+
+DOMAIN MODELING AND TYPE SAFETY
+- TypeScript strict mode must remain enabled.
+- Do not use magic numbers or arbitrary strings for game concepts.
+- Use named constants, literal unions, typed identifiers, shared validators, and domain helper functions.
+- Prefer stable machine identifiers for persisted game concepts and separate them from user-facing display names.
+- Never use display text as a persistent identifier.
+- Example: use a stable ID such as "necromancer" and a separate display name "Necromancer".
+- Month ordinal represents position on the continuing game timeline, not the identity of a calendar month.
+- Never write game logic that assumes a raw ordinal such as 0 or 5 means a particular named month. Use centralized month/domain helpers.
+- Finite values such as event types, directions, wizard types, states, etc. should be constrained with TypeScript literal unions and corresponding Convex validators rather than unrestricted strings.
+- Persistent data structures must be explicitly validated.
+- Public Convex functions should have argument and return validators.
+- Prefer discriminated unions for events and other variant data structures.
+- Invalid domain states should be made difficult or impossible to represent.
+
+DOMAIN LOGIC
+- Pure game rules and calculations should be implemented as pure functions wherever practical.
+- Shared pure domain logic should live in a framework-independent shared/domain layer rather than being coupled to React or Convex.
+- UI components should display state and express user intent; they should not contain authoritative game rules.
+- Server mutations should orchestrate persistence but should delegate pure calculations to testable domain functions where practical.
+- Centralize important invariants rather than relying on every caller to remember them.
+
+PERSISTED DATA EVOLUTION
+- Persisted state formats must be designed for future schema evolution.
+- Version portable/snapshotted persistent formats where appropriate.
+- Never blindly cast old persisted JSON into a newer TypeScript type.
+- When persisted formats evolve, validate and explicitly migrate older supported versions.
+- Maintain backward compatibility when reasonable, especially for saved campaign data.
+
+GENERATED FILES
+- Never manually edit files under convex/_generated/.
+- Generate Convex-generated files using the Convex CLI.
+- Do not hand-create substitutes for missing generated files.
+- Treat generated files as outputs, not application source.
+
+TESTING AND QUALITY
+- Preserve and extend automated tests when behavior changes.
+- Every bug fix should include a regression test when practical.
+- Game-rule edge cases should preferably be tested through pure domain functions.
+- Important persistent-state mutations should test both successful behavior and invariants.
+- Recovery/import/restore operations must test failure cases and prove that rejected operations make zero persistent changes.
+- Before considering implementation complete, run applicable type checking, tests, linting, and production build.
+- Do not claim success merely because code compiles; verify the requested behavior.
+
+STATE SAFETY PRINCIPLE
+When choosing between a simpler implementation and one that better protects long-lived campaign state, favor correctness, auditability, recoverability, and explicit invariants. A campaign may last a long time, so silent corruption or irreversible loss of valid state is considered a severe failure.
+
+WHEN UNCERTAIN
+Do not invent architectural conventions or game rules merely to complete a task.
+If an important requirement is genuinely ambiguous and cannot safely be inferred from existing code or project instructions, explain the ambiguity before making a consequential change.
