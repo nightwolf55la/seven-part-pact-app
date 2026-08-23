@@ -1,10 +1,8 @@
-"use client";
-
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { monthNameFromOrdinal } from "../convex/monthLogic";
 
-export default function Home() {
+export default function App() {
   const campaign = useQuery(api.campaign.getCampaign, {});
   const events = useQuery(api.campaign.getRecentEvents, { count: 20 });
   const moveMonth = useMutation(api.campaign.moveMonth);
