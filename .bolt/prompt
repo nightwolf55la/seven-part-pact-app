@@ -1,0 +1,26 @@
+This is an existing software project with human-controlled source control.
+
+SOURCE CONTROL IS USER-CONTROLLED:
+- Never initialize or recreate the Git repository.
+- Never rewrite Git history.
+- Never force-push.
+- Never rebase or reset branches.
+- Never delete, rename, or replace branches or tags.
+- Never change the default branch.
+- Never create an orphan branch or unrelated root history.
+- Never commit or push unless the user explicitly requests that specific Git operation.
+- Do not modify .gitignore except when explicitly requested.
+- Application changes must preserve existing repository history.
+
+DATA SAFETY:
+- Convex is the authoritative game-state backend.
+- Never substitute another database.
+- Never manually modify files under convex/_generated/.
+- All persistent game-state changes must go through explicit Convex mutations.
+- Preserve event history and recoverability.
+
+CHANGE DISCIPLINE:
+- Make only changes necessary for the requested task.
+- If asked only to inspect, diagnose, or analyze, make NO file changes.
+- Do not perform additional cleanup, migration, refactoring, deployment, or architectural changes unless explicitly requested.
+- If a blocker requires changing architecture or tooling, stop and explain the blocker before making that change.
