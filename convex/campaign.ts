@@ -3,17 +3,12 @@ import { query, mutation } from "./_generated/server";
 import {
   displayNameFromOrdinal,
   advanceOrdinal,
-  MONTH_DISPLAY_NAMES,
+  INITIAL_MONTH_ORDINAL,
 } from "../shared/domain";
-
-const monthDirectionValidator = v.union(
-  v.literal("forward"),
-  v.literal("backward"),
-);
-
-const monthDisplayNameValidator = v.union(
-  ...MONTH_DISPLAY_NAMES.map((name) => v.literal(name)),
-);
+import {
+  monthDirectionValidator,
+  monthDisplayNameValidator,
+} from "./validators";
 
 export const getCampaign = query({
   args: {},
@@ -66,7 +61,7 @@ export const moveMonth = mutation({
     let campaign = await ctx.db.query("campaigns").first();
 
     if (campaign === null) {
-      const monthOrdinal = 0;
+      const monthOrdinal = INITIAL_MONTH_ORDINAL;
       const revision = 0;
       const id = await ctx.db.insert("campaigns", {
         monthOrdinal,

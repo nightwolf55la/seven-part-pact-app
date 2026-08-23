@@ -2,67 +2,31 @@ import type { Brand } from "./brand";
 
 export type MonthOrdinal = Brand<number, "MonthOrdinal">;
 
-export type MonthId =
-  | "april"
-  | "may"
-  | "june"
-  | "july"
-  | "august"
-  | "september"
-  | "october"
-  | "november"
-  | "december"
-  | "january"
-  | "february"
-  | "march";
-
 export type MonthDirection = "forward" | "backward";
 
-export type MonthDisplayName =
-  | "April"
-  | "May"
-  | "June"
-  | "July"
-  | "August"
-  | "September"
-  | "October"
-  | "November"
-  | "December"
-  | "January"
-  | "February"
-  | "March";
-
-export const MONTH_IDS: readonly MonthId[] = [
-  "april",
-  "may",
-  "june",
-  "july",
-  "august",
-  "september",
-  "october",
-  "november",
-  "december",
-  "january",
-  "february",
-  "march",
+const MONTH_DEFINITIONS = [
+  { id: "april", displayName: "April" },
+  { id: "may", displayName: "May" },
+  { id: "june", displayName: "June" },
+  { id: "july", displayName: "July" },
+  { id: "august", displayName: "August" },
+  { id: "september", displayName: "September" },
+  { id: "october", displayName: "October" },
+  { id: "november", displayName: "November" },
+  { id: "december", displayName: "December" },
+  { id: "january", displayName: "January" },
+  { id: "february", displayName: "February" },
+  { id: "march", displayName: "March" },
 ] as const;
 
-export const MONTH_DISPLAY_NAMES: readonly MonthDisplayName[] = [
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-  "January",
-  "February",
-  "March",
-] as const;
+export type MonthId = (typeof MONTH_DEFINITIONS)[number]["id"];
+export type MonthDisplayName = (typeof MONTH_DEFINITIONS)[number]["displayName"];
 
-export const MONTH_COUNT = 12;
+export const MONTH_IDS: readonly MonthId[] = MONTH_DEFINITIONS.map((m) => m.id);
+export const MONTH_DISPLAY_NAMES: readonly MonthDisplayName[] =
+  MONTH_DEFINITIONS.map((m) => m.displayName);
+
+export const MONTH_COUNT = MONTH_DEFINITIONS.length;
 
 export const INITIAL_MONTH_ORDINAL = 0 as MonthOrdinal;
 
@@ -75,8 +39,7 @@ export function monthIdFromOrdinal(ordinal: MonthOrdinal | number): MonthId {
 }
 
 export function displayNameFromMonthId(id: MonthId): MonthDisplayName {
-  const index = MONTH_IDS.indexOf(id);
-  return MONTH_DISPLAY_NAMES[index];
+  return MONTH_DEFINITIONS[MONTH_IDS.indexOf(id)].displayName;
 }
 
 export function displayNameFromOrdinal(

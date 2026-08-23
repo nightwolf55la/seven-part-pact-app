@@ -1,25 +1,9 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-
-const monthDirectionValidator = v.union(
-  v.literal("forward"),
-  v.literal("backward"),
-);
-
-const monthDisplayNameValidator = v.union(
-  v.literal("April"),
-  v.literal("May"),
-  v.literal("June"),
-  v.literal("July"),
-  v.literal("August"),
-  v.literal("September"),
-  v.literal("October"),
-  v.literal("November"),
-  v.literal("December"),
-  v.literal("January"),
-  v.literal("February"),
-  v.literal("March"),
-);
+import {
+  monthDirectionValidator,
+  monthDisplayNameValidator,
+} from "./validators";
 
 export default defineSchema({
   numbers: defineTable({
