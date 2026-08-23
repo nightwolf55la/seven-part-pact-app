@@ -10,7 +10,6 @@
 
 import type * as campaign from "../campaign.js";
 import type * as monthLogic from "../monthLogic.js";
-import type * as myFunctions from "../myFunctions.js";
 
 import type {
   ApiFromModules,
@@ -21,7 +20,6 @@ import type {
 declare const fullApi: ApiFromModules<{
   campaign: typeof campaign;
   monthLogic: typeof monthLogic;
-  myFunctions: typeof myFunctions;
 }>;
 
 /**

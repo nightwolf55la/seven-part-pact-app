@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/main.tsx","./src/vite-env.d.ts","./convex/campaign.ts","./convex/monthLogic.ts","./convex/schema.ts","./convex/_generated/api.d.ts","./convex/_generated/dataModel.d.ts","./convex/_generated/server.d.ts","./tests/monthLogic.test.ts"],"version":"5.8.3"}
