@@ -57,6 +57,7 @@ export const campaignRevisionRecordValidator = v.object({
   campaignRevision: v.number(),
   commandId: v.string(),
   commandType: campaignCommandTypeValidator,
+  commandFingerprint: v.string(),
 });
 
 export const campaignEventRecordValidator = v.object({

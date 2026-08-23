@@ -6,8 +6,10 @@ import {
   INITIAL_MONTH_ORDINAL,
   applyMoveMonth,
   validateCampaignState,
+  parseLiveCommandId,
+  moveMonthFingerprint,
 } from "../shared/domain";
-import type { CurrentCampaignState, MonthDirection } from "../shared/domain";
+import type { MonthDirection } from "../shared/domain";
 import {
   monthDirectionValidator,
   monthDisplayNameValidator,
@@ -86,7 +88,9 @@ export const getRecentEvents = query({
     if (maybeCanonical !== null && isCanonical(maybeCanonical)) {
       const events = await ctx.db
         .query("campaignEvents")
-        .withIndex("by_campaign_revision_index")
+        .withIndex("by_campaign_revision_index", (q) =>
+          q.eq("campaignId", maybeCanonical.campaignId),
+        )
         .order("desc")
         .take(args.count);
 
@@ -111,7 +115,7 @@ export const getRecentEvents = query({
 export const moveMonth = mutation({
   args: {
     direction: monthDirectionValidator,
-    commandId: v.optional(v.string()),
+    commandId: v.string(),
   },
   returns: v.object({
     revision: v.number(),
@@ -125,11 +129,11 @@ export const moveMonth = mutation({
       .unique();
 
     if (maybeCanonical !== null && isCanonical(maybeCanonical)) {
+      const commandId = parseLiveCommandId(args.commandId);
       const currentState = validateCampaignState(maybeCanonical.state);
       const direction = args.direction as MonthDirection;
       const { nextState, events } = applyMoveMonth(currentState, direction);
-
-      const commandId = args.commandId ?? crypto.randomUUID();
+      const fingerprint = moveMonthFingerprint(direction);
 
       const receipt = await canonicalCommit(ctx, {
         campaignDocId: maybeCanonical._id,
@@ -138,6 +142,7 @@ export const moveMonth = mutation({
         currentState,
         commandId,
         commandType: "move_month",
+        commandFingerprint: fingerprint,
         nextState,
         events,
       });

@@ -1,6 +1,12 @@
 export type { Brand } from "./brand";
 
 export type { CampaignId, CommandId } from "./ids";
+export {
+  isValidCampaignId,
+  parseCampaignId,
+  isValidLiveCommandId,
+  parseLiveCommandId,
+} from "./ids";
 
 export type {
   MonthOrdinal,
@@ -66,4 +72,6 @@ export { applyMoveMonth } from "./transitions";
 export {
   syntheticMigrationCommandId,
   isSyntheticMigrationCommandId,
+  migrationCommandFingerprint,
+  moveMonthFingerprint,
 } from "./command-ids";

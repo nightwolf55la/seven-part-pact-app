@@ -3,12 +3,14 @@ import { internalMutation } from "./_generated/server";
 import {
   analyzeLegacyMigration,
   syntheticMigrationCommandId,
+  migrationCommandFingerprint,
   DomainError,
+  parseCampaignId,
   CURRENT_STATE_SCHEMA_VERSION,
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
 } from "../shared/domain";
-import type { CampaignId } from "../shared/domain";
+import type { MonthDirection } from "../shared/domain";
 
 export const executeMigration = internalMutation({
   args: {
@@ -23,11 +25,7 @@ export const executeMigration = internalMutation({
     eventsCreated: v.number(),
   }),
   handler: async (ctx, args) => {
-    const campaignId = args.campaignId as CampaignId;
-
-    if (!campaignId || typeof campaignId !== "string" || campaignId.trim() === "") {
-      throw new DomainError("MIGRATION_NOT_READY", "campaignId must be a non-empty string");
-    }
+    const campaignId = parseCampaignId(args.campaignId);
 
     const existingCanonical = await ctx.db
       .query("campaigns")
@@ -101,12 +99,15 @@ export const executeMigration = internalMutation({
 
     for (const rev of analysis.revisions) {
       const commandId = syntheticMigrationCommandId(rev.campaignRevision);
+      const direction = rev.event.data.direction as MonthDirection;
+      const fingerprint = migrationCommandFingerprint(rev.campaignRevision, direction);
 
       await ctx.db.insert("campaignRevisions", {
         campaignId: campaignId as string,
         campaignRevision: rev.campaignRevision,
         commandId: commandId as string,
         commandType: rev.commandType,
+        commandFingerprint: fingerprint,
       });
 
       await ctx.db.insert("campaignEvents", {

@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
+import { validateCampaignState } from "../shared/domain";
 
 const verificationResultValidator = v.union(
   v.object({
@@ -15,11 +16,12 @@ const verificationResultValidator = v.union(
     revisionsContiguous: v.boolean(),
     snapshotsCoverAllRevisions: v.boolean(),
     commandIdsUnique: v.boolean(),
-    allEventsHaveRevision: v.boolean(),
+    allRevisionsHaveEvents: v.boolean(),
     eventIndexesValid: v.boolean(),
     finalSnapshotMatchesCampaign: v.boolean(),
     noDuplicateRevisions: v.boolean(),
     noDuplicateSnapshots: v.boolean(),
+    currentStateValid: v.boolean(),
   }),
   v.object({
     status: v.literal("invalid"),
@@ -50,26 +52,30 @@ export const verifyMigration = query({
     const campaignRevision = canonical.campaignRevision;
     const errors: string[] = [];
 
-    const revisionRecords = await ctx.db
-      .query("campaignRevisions")
-      .withIndex("by_campaign_revision")
-      .collect();
+    let currentStateValid = true;
+    try {
+      validateCampaignState(canonical.state);
+    } catch {
+      currentStateValid = false;
+      errors.push("Current campaign state fails domain validation");
+    }
 
-    const campaignRevisions = revisionRecords.filter((r) => r.campaignId === campaignId);
+    const campaignRevisions = await ctx.db
+      .query("campaignRevisions")
+      .withIndex("by_campaign_revision", (q) => q.eq("campaignId", campaignId))
+      .collect();
     const revisionRecordCount = campaignRevisions.length;
 
-    const eventRecords = await ctx.db
+    const campaignEvents = await ctx.db
       .query("campaignEvents")
-      .withIndex("by_campaign_revision_index")
+      .withIndex("by_campaign_revision_index", (q) => q.eq("campaignId", campaignId))
       .collect();
-    const campaignEvents = eventRecords.filter((e) => e.campaignId === campaignId);
     const eventRecordCount = campaignEvents.length;
 
-    const snapshotRecords = await ctx.db
+    const campaignSnapshots = await ctx.db
       .query("campaignSnapshots")
-      .withIndex("by_campaign_revision")
+      .withIndex("by_campaign_revision", (q) => q.eq("campaignId", campaignId))
       .collect();
-    const campaignSnapshots = snapshotRecords.filter((s) => s.campaignId === campaignId);
     const snapshotCount = campaignSnapshots.length;
 
     const revNums = campaignRevisions.map((r) => r.campaignRevision).sort((a, b) => a - b);
@@ -102,29 +108,29 @@ export const verifyMigration = query({
       errors.push("Duplicate command IDs found");
     }
 
-    const revisionSet = new Set(revNums);
-    let allEventsHaveRevision = true;
-    for (const evt of campaignEvents) {
-      if (!revisionSet.has(evt.campaignRevision)) {
-        allEventsHaveRevision = false;
-        errors.push(`Event at revision ${evt.campaignRevision} has no matching revision record`);
-        break;
-      }
-    }
-
-    let eventIndexesValid = true;
+    let allRevisionsHaveEvents = true;
     const eventsByRev = new Map<number, number[]>();
     for (const evt of campaignEvents) {
       const list = eventsByRev.get(evt.campaignRevision) ?? [];
       list.push(evt.eventIndex);
       eventsByRev.set(evt.campaignRevision, list);
     }
+
+    for (let rev = 1; rev <= campaignRevision; rev++) {
+      if (!eventsByRev.has(rev) || eventsByRev.get(rev)!.length === 0) {
+        allRevisionsHaveEvents = false;
+        errors.push(`Revision ${rev} has no events`);
+        break;
+      }
+    }
+
+    let eventIndexesValid = true;
     for (const [rev, indexes] of eventsByRev) {
       indexes.sort((a, b) => a - b);
       for (let i = 0; i < indexes.length; i++) {
         if (indexes[i] !== i) {
           eventIndexesValid = false;
-          errors.push(`Revision ${rev}: eventIndex gap at position ${i}`);
+          errors.push(`Revision ${rev}: eventIndex gap at position ${i}, found ${indexes[i]}`);
           break;
         }
       }
@@ -136,8 +142,21 @@ export const verifyMigration = query({
     if (finalSnapshot) {
       const canonicalState = canonical.state;
       finalSnapshotMatchesCampaign =
-        finalSnapshot.state.calendar.monthOrdinal === canonicalState.calendar.monthOrdinal &&
-        finalSnapshot.state.schemaVersion === canonicalState.schemaVersion;
+        finalSnapshot.state.schemaVersion === canonicalState.schemaVersion &&
+        finalSnapshot.state.ruleset.id === canonicalState.ruleset.id &&
+        finalSnapshot.state.ruleset.version === canonicalState.ruleset.version &&
+        finalSnapshot.state.calendar.monthOrdinal === canonicalState.calendar.monthOrdinal;
+
+      if (!finalSnapshotMatchesCampaign) {
+        errors.push("Final snapshot state does not match authoritative campaign state");
+      }
+
+      try {
+        validateCampaignState(finalSnapshot.state);
+      } catch {
+        finalSnapshotMatchesCampaign = false;
+        errors.push("Final snapshot state fails domain validation");
+      }
     } else {
       errors.push("Final snapshot not found");
     }
@@ -178,11 +197,12 @@ export const verifyMigration = query({
       revisionsContiguous,
       snapshotsCoverAllRevisions,
       commandIdsUnique,
-      allEventsHaveRevision,
+      allRevisionsHaveEvents,
       eventIndexesValid,
       finalSnapshotMatchesCampaign,
       noDuplicateRevisions,
       noDuplicateSnapshots,
+      currentStateValid,
     };
   },
 });
