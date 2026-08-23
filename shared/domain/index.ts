@@ -1,5 +1,7 @@
 export type { Brand } from "./brand";
 
+export type { CampaignId, CommandId } from "./ids";
+
 export type {
   MonthOrdinal,
   MonthId,
@@ -17,6 +19,15 @@ export {
   advanceOrdinal,
 } from "./calendar";
 
+export type { CampaignCommandType } from "./commands";
+export { CAMPAIGN_COMMAND_TYPES } from "./commands";
+
+export type {
+  MonthChangedDataV1,
+  MonthChangedEventV1,
+  CampaignEvent,
+} from "./events";
+
 export type { RulesetRef } from "./ruleset";
 export {
   SEVEN_PART_PACT_DRAFT4_ID,
@@ -28,5 +39,18 @@ export type {
   CampaignRevision,
   CampaignStateV1,
   CurrentCampaignState,
+  AnyCampaignState,
 } from "./campaign-state";
 export { CURRENT_STATE_SCHEMA_VERSION } from "./campaign-state";
+
+export type {
+  LegacyCampaignInput,
+  LegacyEventInput,
+  MigrationSnapshotPlan,
+  MigrationRevisionPlan,
+  MigrationNotNeeded,
+  MigrationReady,
+  MigrationInvalid,
+  MigrationAnalysisResult,
+} from "./migration-analyzer";
+export { analyzeLegacyMigration } from "./migration-analyzer";

@@ -1,6 +1,5 @@
 import type { Brand } from "./brand";
 import type { MonthOrdinal } from "./calendar";
-import type { RulesetRef } from "./ruleset";
 import {
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
@@ -20,5 +19,6 @@ export interface CampaignStateV1 {
 }
 
 export type CurrentCampaignState = CampaignStateV1;
+export type AnyCampaignState = CampaignStateV1;
 
 export const CURRENT_STATE_SCHEMA_VERSION: CurrentCampaignState["schemaVersion"] = 1;

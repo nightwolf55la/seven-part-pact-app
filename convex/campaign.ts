@@ -10,20 +10,29 @@ import {
   monthDisplayNameValidator,
 } from "./validators";
 
+const legacyCampaignReturnValidator = v.union(
+  v.object({
+    _id: v.id("campaigns"),
+    _creationTime: v.number(),
+    monthOrdinal: v.number(),
+    revision: v.number(),
+  }),
+  v.null(),
+);
+
 export const getCampaign = query({
   args: {},
-  returns: v.union(
-    v.object({
-      _id: v.id("campaigns"),
-      _creationTime: v.number(),
-      monthOrdinal: v.number(),
-      revision: v.number(),
-    }),
-    v.null(),
-  ),
+  returns: legacyCampaignReturnValidator,
   handler: async (ctx) => {
     const campaign = await ctx.db.query("campaigns").first();
-    return campaign ?? null;
+    if (campaign === null) return null;
+    if (!("monthOrdinal" in campaign)) return null;
+    return {
+      _id: campaign._id,
+      _creationTime: campaign._creationTime,
+      monthOrdinal: campaign.monthOrdinal,
+      revision: campaign.revision,
+    };
   },
 });
 
@@ -71,6 +80,10 @@ export const moveMonth = mutation({
       if (campaign === null) {
         throw new Error("Failed to initialize campaign");
       }
+    }
+
+    if (!("monthOrdinal" in campaign)) {
+      throw new Error("Campaign has been migrated to new format");
     }
 
     const previousMonthOrdinal = campaign.monthOrdinal;

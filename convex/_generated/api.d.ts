@@ -9,6 +9,7 @@
  */
 
 import type * as campaign from "../campaign.js";
+import type * as migration from "../migration.js";
 import type * as validators from "../validators.js";
 
 import type {
@@ -19,6 +20,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   campaign: typeof campaign;
+  migration: typeof migration;
   validators: typeof validators;
 }>;
 
