@@ -1,13 +1,31 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import {
-  monthNameFromOrdinal,
-  nextOrdinal,
-  previousOrdinal,
-} from "./monthLogic";
+  displayNameFromOrdinal,
+  advanceOrdinal,
+  MONTH_DISPLAY_NAMES,
+} from "../shared/domain";
+
+const monthDirectionValidator = v.union(
+  v.literal("forward"),
+  v.literal("backward"),
+);
+
+const monthDisplayNameValidator = v.union(
+  ...MONTH_DISPLAY_NAMES.map((name) => v.literal(name)),
+);
 
 export const getCampaign = query({
   args: {},
+  returns: v.union(
+    v.object({
+      _id: v.id("campaigns"),
+      _creationTime: v.number(),
+      monthOrdinal: v.number(),
+      revision: v.number(),
+    }),
+    v.null(),
+  ),
   handler: async (ctx) => {
     const campaign = await ctx.db.query("campaigns").first();
     return campaign ?? null;
@@ -16,6 +34,19 @@ export const getCampaign = query({
 
 export const getRecentEvents = query({
   args: { count: v.number() },
+  returns: v.array(
+    v.object({
+      _id: v.id("events"),
+      _creationTime: v.number(),
+      type: v.literal("month_changed"),
+      revision: v.number(),
+      direction: monthDirectionValidator,
+      previousMonthOrdinal: v.number(),
+      newMonthOrdinal: v.number(),
+      previousMonth: monthDisplayNameValidator,
+      newMonth: monthDisplayNameValidator,
+    }),
+  ),
   handler: async (ctx, args) => {
     const events = await ctx.db.query("events").order("desc").take(args.count);
     return events;
@@ -24,8 +55,13 @@ export const getRecentEvents = query({
 
 export const moveMonth = mutation({
   args: {
-    direction: v.union(v.literal("forward"), v.literal("backward")),
+    direction: monthDirectionValidator,
   },
+  returns: v.object({
+    revision: v.number(),
+    monthOrdinal: v.number(),
+    month: monthDisplayNameValidator,
+  }),
   handler: async (ctx, args) => {
     let campaign = await ctx.db.query("campaigns").first();
 
@@ -43,14 +79,10 @@ export const moveMonth = mutation({
     }
 
     const previousMonthOrdinal = campaign.monthOrdinal;
-    const previousMonth = monthNameFromOrdinal(previousMonthOrdinal);
+    const previousMonth = displayNameFromOrdinal(previousMonthOrdinal);
 
-    const newMonthOrdinal =
-      args.direction === "forward"
-        ? nextOrdinal(previousMonthOrdinal)
-        : previousOrdinal(previousMonthOrdinal);
-
-    const newMonth = monthNameFromOrdinal(newMonthOrdinal);
+    const newMonthOrdinal = advanceOrdinal(previousMonthOrdinal, args.direction);
+    const newMonth = displayNameFromOrdinal(newMonthOrdinal);
     const newRevision = campaign.revision + 1;
 
     await ctx.db.patch(campaign._id, {
@@ -70,7 +102,7 @@ export const moveMonth = mutation({
 
     return {
       revision: newRevision,
-      monthOrdinal: newMonthOrdinal,
+      monthOrdinal: newMonthOrdinal as number,
       month: newMonth,
     };
   },

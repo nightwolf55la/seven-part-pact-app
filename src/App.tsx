@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api.js";
-import { monthNameFromOrdinal } from "../convex/monthLogic";
+import { displayNameFromOrdinal } from "../shared/domain";
 
 export default function App() {
   const campaign = useQuery(api.campaign.getCampaign, {});
@@ -9,7 +9,7 @@ export default function App() {
 
   const isLoading = campaign === undefined;
   const monthName = campaign
-    ? monthNameFromOrdinal(campaign.monthOrdinal)
+    ? displayNameFromOrdinal(campaign.monthOrdinal)
     : "—";
   const revision = campaign?.revision ?? 0;
 
