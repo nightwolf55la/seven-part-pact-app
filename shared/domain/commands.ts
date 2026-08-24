@@ -1,6 +1,29 @@
-export type CampaignCommandType = "move_month" | "legacy_month_change";
+export type CampaignCommandType =
+  | "move_month"
+  | "legacy_month_change"
+  | "undo"
+  | "redo";
 
 export const CAMPAIGN_COMMAND_TYPES: readonly CampaignCommandType[] = [
   "move_month",
   "legacy_month_change",
+  "undo",
+  "redo",
 ] as const;
+
+export function isLogicalStateCommandType(commandType: CampaignCommandType): boolean {
+  switch (commandType) {
+    case "move_month":
+      return true;
+    case "legacy_month_change":
+      return true;
+    case "undo":
+      return false;
+    case "redo":
+      return false;
+  }
+}
+
+export function isHistoryNavigationCommandType(commandType: CampaignCommandType): boolean {
+  return !isLogicalStateCommandType(commandType);
+}

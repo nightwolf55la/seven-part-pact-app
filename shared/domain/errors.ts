@@ -4,7 +4,11 @@ export type DomainErrorCode =
   | "MIGRATION_NOT_READY"
   | "MIGRATION_ALREADY_APPLIED"
   | "MIGRATION_CANONICAL_DATA_NOT_EMPTY"
-  | "CAMPAIGN_STATE_CORRUPT";
+  | "CAMPAIGN_STATE_CORRUPT"
+  | "STALE_CAMPAIGN_REVISION"
+  | "UNDO_UNAVAILABLE"
+  | "REDO_UNAVAILABLE"
+  | "HISTORY_CONTROL_NOT_INITIALIZED";
 
 export class DomainError extends Error {
   public readonly code: DomainErrorCode;

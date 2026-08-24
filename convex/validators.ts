@@ -5,6 +5,7 @@ import {
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
   CURRENT_STATE_SCHEMA_VERSION,
+  CURRENT_HISTORY_CONTROL_VERSION,
 } from "../shared/domain";
 
 export const monthDirectionValidator = v.union(
@@ -30,7 +31,29 @@ export const monthChangedEventV1Validator = v.object({
   }),
 });
 
-export const campaignEventValidator = monthChangedEventV1Validator;
+export const undoAppliedEventV1Validator = v.object({
+  type: v.literal("undo_applied"),
+  version: v.literal(1),
+  data: v.object({
+    fromRevision: v.number(),
+    targetRevision: v.number(),
+  }),
+});
+
+export const redoAppliedEventV1Validator = v.object({
+  type: v.literal("redo_applied"),
+  version: v.literal(1),
+  data: v.object({
+    fromRevision: v.number(),
+    targetRevision: v.number(),
+  }),
+});
+
+export const campaignEventValidator = v.union(
+  monthChangedEventV1Validator,
+  undoAppliedEventV1Validator,
+  redoAppliedEventV1Validator,
+);
 
 export const campaignStateV1Validator = v.object({
   schemaVersion: v.literal(CURRENT_STATE_SCHEMA_VERSION),
@@ -71,4 +94,11 @@ export const campaignSnapshotRecordValidator = v.object({
   campaignId: v.string(),
   campaignRevision: v.number(),
   state: anyCampaignStateValidator,
+});
+
+export const campaignHistoryControlValidator = v.object({
+  historyControlVersion: v.literal(CURRENT_HISTORY_CONTROL_VERSION),
+  campaignId: v.string(),
+  undoStack: v.array(v.number()),
+  redoStack: v.array(v.number()),
 });

@@ -1,6 +1,6 @@
 import type { MutationCtx } from "./_generated/server";
-import type { CampaignCommandType, CurrentCampaignState, MonthChangedEventV1, MonthDirection, CampaignEvent } from "../shared/domain";
-import { validateCampaignState, DomainError, advanceOrdinal, validateMoveMonthTransaction } from "../shared/domain";
+import type { CampaignCommandType, CurrentCampaignState, MonthChangedEventV1, MonthDirection, EventRecord } from "../shared/domain";
+import { validateCampaignState, DomainError, advanceOrdinal, validateMoveMonthTransaction, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION } from "../shared/domain";
 import type { Id } from "./_generated/dataModel";
 
 export interface CanonicalCommitInput {
@@ -31,7 +31,7 @@ function validateEventCoherence(
   if (commandType === "move_month") {
     const moveErrors = validateMoveMonthTransaction(
       currentState,
-      events as readonly CampaignEvent[],
+      events as unknown as readonly EventRecord["event"][],
       nextState,
       commandFingerprint,
     );
@@ -206,6 +206,35 @@ export async function canonicalCommit(
     campaignRevision: newRevision,
     state: snapshotState,
   });
+
+  // Transitional history-control maintenance:
+  // If a valid control record exists, update it atomically within this transaction.
+  // If none exists, proceed without history-control writes (pre-migration).
+  if (isLogicalStateCommandType(input.commandType)) {
+    const controlDoc = await ctx.db
+      .query("campaignHistoryControl")
+      .withIndex("by_campaignId", (q) => q.eq("campaignId", input.campaignId))
+      .unique();
+
+    if (controlDoc !== null) {
+      if (controlDoc.historyControlVersion !== CURRENT_HISTORY_CONTROL_VERSION) {
+        throw new DomainError(
+          "CAMPAIGN_STATE_CORRUPT",
+          `Unrecognized historyControlVersion ${controlDoc.historyControlVersion}`,
+        );
+      }
+      if (controlDoc.campaignId !== input.campaignId) {
+        throw new DomainError(
+          "CAMPAIGN_STATE_CORRUPT",
+          `History control campaignId mismatch`,
+        );
+      }
+      await ctx.db.patch(controlDoc._id, {
+        undoStack: [...controlDoc.undoStack, newRevision],
+        redoStack: [],
+      });
+    }
+  }
 
   return {
     newRevision,

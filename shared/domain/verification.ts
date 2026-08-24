@@ -22,11 +22,7 @@ export interface EventRecord {
   readonly event: {
     readonly type: string;
     readonly version: number;
-    readonly data: {
-      readonly direction: MonthDirection;
-      readonly fromOrdinal: number;
-      readonly toOrdinal: number;
-    };
+    readonly data: object;
   };
 }
 
@@ -55,7 +51,13 @@ export interface MigrationVerificationInput {
   readonly campaignDocuments: readonly CampaignDocument[];
 }
 
-function isMonthChangedEventV1(evt: EventRecord["event"]): boolean {
+interface MonthChangedEventData {
+  readonly direction: MonthDirection;
+  readonly fromOrdinal: number;
+  readonly toOrdinal: number;
+}
+
+function isMonthChangedEventV1(evt: EventRecord["event"]): evt is EventRecord["event"] & { data: MonthChangedEventData } {
   return evt.type === "month_changed" && evt.version === 1;
 }
 

@@ -3,10 +3,16 @@ import { query } from "./_generated/server";
 import {
   validateCampaignState,
   verifyMigrationInvariants,
+  verifyHistoryControl,
+  CURRENT_HISTORY_CONTROL_VERSION,
   type RevisionRecord,
   type EventRecord,
   type SnapshotRecord,
   type CampaignDocument,
+  type CampaignHistoryControlV1,
+  type RevisionCommandInfo,
+  type ReplayEventInfo,
+  type SerializableCampaignState,
 } from "../shared/domain";
 
 const verificationResultValidator = v.union(
@@ -21,6 +27,12 @@ const verificationResultValidator = v.union(
     eventRecordCount: v.number(),
     snapshotCount: v.number(),
     campaignDocumentCount: v.number(),
+    historyControlStatus: v.union(
+      v.literal("not_initialized"),
+      v.literal("valid"),
+      v.literal("invalid"),
+    ),
+    historyControlErrors: v.array(v.string()),
   }),
   v.object({
     status: v.literal("invalid"),
@@ -93,7 +105,11 @@ export const verifyMigration = query({
     const eventRecords: EventRecord[] = campaignEvents.map((e) => ({
       campaignRevision: e.campaignRevision,
       eventIndex: e.eventIndex,
-      event: e.event,
+      event: {
+        type: e.event.type,
+        version: e.event.version,
+        data: e.event.data as object,
+      },
     }));
 
     const snapshotRecords: SnapshotRecord[] = campaignSnapshots.map((s) => ({
@@ -162,6 +178,69 @@ export const verifyMigration = query({
       return { status: "invalid" as const, errors };
     }
 
+    // History control verification (separate from core migration validity)
+    const controlDoc = await ctx.db
+      .query("campaignHistoryControl")
+      .withIndex("by_campaignId", (q) => q.eq("campaignId", campaignId))
+      .unique();
+
+    let historyControlStatus: "not_initialized" | "valid" | "invalid" = "not_initialized";
+    let historyControlErrors: string[] = [];
+
+    if (controlDoc !== null) {
+      const control: CampaignHistoryControlV1 = {
+        historyControlVersion: controlDoc.historyControlVersion as 1,
+        campaignId: controlDoc.campaignId,
+        undoStack: controlDoc.undoStack,
+        redoStack: controlDoc.redoStack,
+      };
+
+      if (controlDoc.historyControlVersion !== CURRENT_HISTORY_CONTROL_VERSION) {
+        historyControlStatus = "invalid";
+        historyControlErrors = [`Unrecognized historyControlVersion: ${controlDoc.historyControlVersion}`];
+      } else {
+        const revCommandInfos: RevisionCommandInfo[] = campaignRevisions.map((r) => ({
+          campaignRevision: r.campaignRevision,
+          commandType: r.commandType,
+        }));
+
+        const replayEvents: ReplayEventInfo[] = campaignEvents.map((e) => ({
+          campaignRevision: e.campaignRevision,
+          event: {
+            type: e.event.type,
+            version: e.event.version,
+            data: e.event.data as { fromRevision?: number; targetRevision?: number },
+          },
+        }));
+
+        const snapshotRevisions = campaignSnapshots.map((s) => s.campaignRevision);
+
+        const undoTop = control.undoStack[control.undoStack.length - 1];
+        const undoTopSnapshot = campaignSnapshots.find((s) => s.campaignRevision === undoTop);
+        const snapshotAtUndoTop: SerializableCampaignState | null = undoTopSnapshot
+          ? undoTopSnapshot.state
+          : null;
+
+        const hcErrors = verifyHistoryControl({
+          control,
+          campaignId,
+          campaignRevision,
+          campaignState: canonical.state,
+          revisions: revCommandInfos,
+          events: replayEvents,
+          snapshotRevisions,
+          snapshotAtUndoTop,
+        });
+
+        if (hcErrors.length > 0) {
+          historyControlStatus = "invalid";
+          historyControlErrors = hcErrors;
+        } else {
+          historyControlStatus = "valid";
+        }
+      }
+    }
+
     return {
       status: "valid" as const,
       campaignId,
@@ -170,6 +249,8 @@ export const verifyMigration = query({
       eventRecordCount: campaignEvents.length,
       snapshotCount: campaignSnapshots.length,
       campaignDocumentCount: allCampaignDocs.length,
+      historyControlStatus,
+      historyControlErrors,
     };
   },
 });

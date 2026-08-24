@@ -18,3 +18,17 @@ export function migrationCommandFingerprint(revision: number, direction: MonthDi
 export function moveMonthFingerprint(direction: MonthDirection): string {
   return `move_month:v1:${direction}`;
 }
+
+export function undoFingerprint(expectedRevision: number): string {
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+    throw new Error(`undoFingerprint requires a non-negative safe integer, got ${expectedRevision}`);
+  }
+  return `undo:v1:expectedRevision=${expectedRevision}`;
+}
+
+export function redoFingerprint(expectedRevision: number): string {
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+    throw new Error(`redoFingerprint requires a non-negative safe integer, got ${expectedRevision}`);
+  }
+  return `redo:v1:expectedRevision=${expectedRevision}`;
+}

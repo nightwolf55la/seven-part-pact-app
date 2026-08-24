@@ -26,11 +26,19 @@ export {
 } from "./calendar";
 
 export type { CampaignCommandType } from "./commands";
-export { CAMPAIGN_COMMAND_TYPES } from "./commands";
+export {
+  CAMPAIGN_COMMAND_TYPES,
+  isLogicalStateCommandType,
+  isHistoryNavigationCommandType,
+} from "./commands";
 
 export type {
   MonthChangedDataV1,
   MonthChangedEventV1,
+  UndoAppliedDataV1,
+  UndoAppliedEventV1,
+  RedoAppliedDataV1,
+  RedoAppliedEventV1,
   CampaignEvent,
 } from "./events";
 
@@ -76,6 +84,8 @@ export {
   isSyntheticMigrationCommandId,
   migrationCommandFingerprint,
   moveMonthFingerprint,
+  undoFingerprint,
+  redoFingerprint,
 } from "./command-ids";
 
 export type {
@@ -91,3 +101,19 @@ export {
   validateMoveMonthTransaction,
   verifyMigrationInvariants,
 } from "./verification";
+
+export type {
+  CampaignHistoryControlV1,
+  HistoryControlValidationInput,
+  RevisionCommandInfo,
+  ReplayEventInfo,
+  HistoryReplayInput,
+  HistoryReplayResult,
+  HistoryControlVerificationInput,
+} from "./history-control";
+export {
+  CURRENT_HISTORY_CONTROL_VERSION,
+  validateHistoryControlStructure,
+  replayHistoryControl,
+  verifyHistoryControl,
+} from "./history-control";

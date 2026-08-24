@@ -177,6 +177,14 @@ export const ensureCampaign = mutation({
       );
     }
 
+    const orphanHistoryControl = await ctx.db.query("campaignHistoryControl").first();
+    if (orphanHistoryControl !== null) {
+      throw new DomainError(
+        "CAMPAIGN_STATE_CORRUPT",
+        "Orphan campaignHistoryControl exist but no campaign document found",
+      );
+    }
+
     const state = initialCampaignState();
     validateCampaignState(state);
 
@@ -199,6 +207,13 @@ export const ensureCampaign = mutation({
       campaignId: campaignId as string,
       campaignRevision: 0,
       state: persistState,
+    });
+
+    await ctx.db.insert("campaignHistoryControl", {
+      campaignId: campaignId as string,
+      historyControlVersion: 1,
+      undoStack: [0],
+      redoStack: [],
     });
 
     const doc = await ctx.db.get(docId);
@@ -240,12 +255,17 @@ export const getRecentEvents = query({
         .order("desc")
         .take(args.count);
 
-      return events.map((e) => ({
-        _id: e._id,
-        revision: e.campaignRevision,
-        previousMonth: displayNameFromOrdinal(e.event.data.fromOrdinal),
-        newMonth: displayNameFromOrdinal(e.event.data.toOrdinal),
-      }));
+      return events.map((e) => {
+        if (e.event.type !== "month_changed") {
+          return null;
+        }
+        return {
+          _id: e._id,
+          revision: e.campaignRevision,
+          previousMonth: displayNameFromOrdinal(e.event.data.fromOrdinal),
+          newMonth: displayNameFromOrdinal(e.event.data.toOrdinal),
+        };
+      }).filter((e): e is NonNullable<typeof e> => e !== null);
     }
 
     const legacyEvents = await ctx.db.query("events").order("desc").take(args.count);

@@ -7,6 +7,7 @@ import {
   campaignRevisionRecordValidator,
   campaignEventRecordValidator,
   campaignSnapshotRecordValidator,
+  campaignHistoryControlValidator,
 } from "./validators";
 
 const legacyCampaignValidator = v.object({
@@ -46,4 +47,7 @@ export default defineSchema({
 
   campaignSnapshots: defineTable(campaignSnapshotRecordValidator)
     .index("by_campaign_revision", ["campaignId", "campaignRevision"]),
+
+  campaignHistoryControl: defineTable(campaignHistoryControlValidator)
+    .index("by_campaignId", ["campaignId"]),
 });
