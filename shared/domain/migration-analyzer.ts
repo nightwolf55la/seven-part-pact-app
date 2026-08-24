@@ -1,6 +1,5 @@
 import type { MonthOrdinal, MonthDirection, MonthDisplayName } from "./calendar";
 import {
-  MONTH_COUNT,
   INITIAL_MONTH_ORDINAL,
   advanceOrdinal,
   displayNameFromOrdinal,
@@ -12,7 +11,6 @@ import {
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
 } from "./ruleset";
-import { moveMonthFingerprint } from "./command-ids";
 
 export interface LegacyCampaignInput {
   readonly monthOrdinal: number;
@@ -80,14 +78,6 @@ function makeState(monthOrdinal: MonthOrdinal): CampaignStateV1 {
       monthOrdinal,
     },
   };
-}
-
-function inferDirection(from: number, to: number): MonthDirection | null {
-  if (to === from + 1) return "forward";
-  if (to === from - 1) return "backward";
-  if (from === MONTH_COUNT - 1 && to === 0) return "forward";
-  if (from === 0 && to === MONTH_COUNT - 1) return "backward";
-  return null;
 }
 
 export function analyzeLegacyMigration(
@@ -161,6 +151,28 @@ export function analyzeLegacyMigration(
     };
   }
 
+  const sorted = [...events].sort((a, b) => a.revision - b.revision);
+
+  const seenRevisions = new Set<number>();
+  for (const evt of sorted) {
+    if (seenRevisions.has(evt.revision)) {
+      return {
+        status: "invalid",
+        reason: `Duplicate revision ${evt.revision}`,
+      };
+    }
+    seenRevisions.add(evt.revision);
+  }
+
+  for (let i = 0; i < sorted.length; i++) {
+    if (sorted[i].revision !== i + 1) {
+      return {
+        status: "invalid",
+        reason: `Events are not contiguous: expected revision ${i + 1} at position ${i}, got ${sorted[i].revision}`,
+      };
+    }
+  }
+
   const snapshots: MigrationSnapshotPlan[] = [];
   const revisions: MigrationRevisionPlan[] = [];
 
@@ -170,31 +182,14 @@ export function analyzeLegacyMigration(
     state: makeState(currentOrdinal),
   });
 
-  const seenRevisions = new Set<number>();
-
-  for (let i = 0; i < events.length; i++) {
-    const evt = events[i];
+  for (let i = 0; i < sorted.length; i++) {
+    const evt = sorted[i];
     const expectedRevision = i + 1;
-
-    if (evt.revision !== expectedRevision) {
-      if (seenRevisions.has(evt.revision)) {
-        return {
-          status: "invalid",
-          reason: `Duplicate revision ${evt.revision} at index ${i}`,
-        };
-      }
-      return {
-        status: "invalid",
-        reason: `Events are not contiguous: expected revision ${expectedRevision} at index ${i}, got ${evt.revision}`,
-      };
-    }
-
-    seenRevisions.add(evt.revision);
 
     if (evt.type !== "month_changed") {
       return {
         status: "invalid",
-        reason: `Event at index ${i} has unexpected type "${evt.type}"`,
+        reason: `Event at revision ${expectedRevision} has unexpected type "${evt.type}"`,
       };
     }
 
@@ -227,9 +222,10 @@ export function analyzeLegacyMigration(
     }
 
     const direction = evt.direction as MonthDirection;
+    const fromOrdinal = evt.previousMonthOrdinal as MonthOrdinal;
+    const expectedNewOrdinal = advanceOrdinal(fromOrdinal, direction);
 
-    const expectedNewOrdinal = (evt.previousMonthOrdinal + (direction === "forward" ? 1 : -1));
-    if (evt.newMonthOrdinal !== expectedNewOrdinal) {
+    if (evt.newMonthOrdinal as number !== expectedNewOrdinal as number) {
       return {
         status: "invalid",
         reason: `Event at revision ${expectedRevision} newMonthOrdinal ${evt.newMonthOrdinal} is inconsistent with direction "${direction}" from ${evt.previousMonthOrdinal}`,
@@ -252,7 +248,6 @@ export function analyzeLegacyMigration(
       };
     }
 
-    const fromOrdinal = evt.previousMonthOrdinal as MonthOrdinal;
     const toOrdinal = evt.newMonthOrdinal as MonthOrdinal;
 
     const newEvent: MonthChangedEventV1 = {
