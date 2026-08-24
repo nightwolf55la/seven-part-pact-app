@@ -321,3 +321,188 @@ export function verifyHistoryControl(
 
   return errors;
 }
+
+// ============================================================
+// Shared pure history-control initialization analysis
+// ============================================================
+
+export function statesDeepEqual(
+  a: SerializableCampaignState,
+  b: SerializableCampaignState,
+): boolean {
+  return (
+    a.schemaVersion === b.schemaVersion &&
+    a.ruleset.id === b.ruleset.id &&
+    a.ruleset.version === b.ruleset.version &&
+    a.calendar.monthOrdinal === b.calendar.monthOrdinal
+  );
+}
+
+export interface InitializationRevisionInfo {
+  readonly campaignRevision: number;
+  readonly commandType: CampaignCommandType;
+}
+
+export interface InitializationEventInfo {
+  readonly campaignRevision: number;
+  readonly eventIndex: number;
+}
+
+export interface InitializationSnapshotInfo {
+  readonly campaignRevision: number;
+  readonly state: SerializableCampaignState;
+}
+
+export interface HistoryControlInitInput {
+  readonly campaignId: string;
+  readonly campaignRevision: number;
+  readonly campaignState: SerializableCampaignState;
+  readonly revisions: readonly InitializationRevisionInfo[];
+  readonly events: readonly InitializationEventInfo[];
+  readonly snapshots: readonly InitializationSnapshotInfo[];
+  readonly existingControl: CampaignHistoryControlV1 | null;
+}
+
+export type HistoryControlInitResult =
+  | { readonly status: "ready"; readonly campaignId: string; readonly campaignRevision: number; readonly undoStack: readonly number[]; readonly redoStack: readonly number[] }
+  | { readonly status: "already_applied"; readonly campaignId: string; readonly undoStackLength: number; readonly redoStackLength: number }
+  | { readonly status: "invalid"; readonly errors: readonly string[] };
+
+export function analyzeHistoryControlInitialization(
+  input: HistoryControlInitInput,
+): HistoryControlInitResult {
+  const errors: string[] = [];
+  const { campaignId, campaignRevision, campaignState, revisions, events, snapshots, existingControl } = input;
+
+  // --- Basic campaign validation ---
+  if (!Number.isSafeInteger(campaignRevision) || campaignRevision < 0) {
+    errors.push(`campaignRevision ${campaignRevision} is not a non-negative safe integer`);
+    return { status: "invalid", errors };
+  }
+
+  // --- Revision records: unique, complete 1..N ---
+  const N = campaignRevision;
+  const revisionSet = new Map<number, InitializationRevisionInfo>();
+  for (const rev of revisions) {
+    if (revisionSet.has(rev.campaignRevision)) {
+      errors.push(`Duplicate revision record: ${rev.campaignRevision}`);
+    }
+    revisionSet.set(rev.campaignRevision, rev);
+  }
+
+  for (let r = 1; r <= N; r++) {
+    if (!revisionSet.has(r)) {
+      errors.push(`Missing revision record: ${r}`);
+    }
+  }
+
+  if (revisionSet.size !== N) {
+    errors.push(`Expected ${N} revision records, found ${revisionSet.size}`);
+  }
+
+  // --- All must be logical-state (no undo/redo in pre-migration history) ---
+  for (const rev of revisions) {
+    if (!isLogicalStateCommandType(rev.commandType)) {
+      errors.push(`Revision ${rev.campaignRevision} has non-logical-state commandType "${rev.commandType}" — cannot initialize history control from mixed history`);
+    }
+  }
+
+  // --- Events: every revision must have at least one, indexes contiguous ---
+  const eventsByRev = new Map<number, InitializationEventInfo[]>();
+  for (const evt of events) {
+    const list = eventsByRev.get(evt.campaignRevision) ?? [];
+    list.push(evt);
+    eventsByRev.set(evt.campaignRevision, list);
+  }
+
+  for (let r = 1; r <= N; r++) {
+    const evts = eventsByRev.get(r);
+    if (!evts || evts.length === 0) {
+      errors.push(`Revision ${r} has no events`);
+    } else {
+      const sorted = [...evts].sort((a, b) => a.eventIndex - b.eventIndex);
+      for (let i = 0; i < sorted.length; i++) {
+        if (sorted[i].eventIndex !== i) {
+          errors.push(`Revision ${r}: event indexes not contiguous (expected ${i}, got ${sorted[i].eventIndex})`);
+          break;
+        }
+      }
+    }
+  }
+
+  // --- Snapshots: unique, complete 0..N, all valid ---
+  const snapshotMap = new Map<number, InitializationSnapshotInfo>();
+  for (const snap of snapshots) {
+    if (snapshotMap.has(snap.campaignRevision)) {
+      errors.push(`Duplicate snapshot for revision: ${snap.campaignRevision}`);
+    }
+    snapshotMap.set(snap.campaignRevision, snap);
+  }
+
+  if (!snapshotMap.has(0)) {
+    errors.push("Missing snapshot for revision 0 (initial state)");
+  }
+
+  for (let r = 1; r <= N; r++) {
+    if (!snapshotMap.has(r)) {
+      errors.push(`Missing snapshot for revision ${r}`);
+    }
+  }
+
+  if (snapshotMap.size !== N + 1) {
+    errors.push(`Expected ${N + 1} snapshots, found ${snapshotMap.size}`);
+  }
+
+  // --- Snapshot at N must deep-equal authoritative campaign state ---
+  const snapshotN = snapshotMap.get(N);
+  if (snapshotN) {
+    if (!statesDeepEqual(snapshotN.state, campaignState)) {
+      errors.push(`Snapshot at revision ${N} does not match authoritative campaign state`);
+    }
+  }
+
+  // --- If errors so far, cannot determine readiness ---
+  if (errors.length > 0) {
+    return { status: "invalid", errors };
+  }
+
+  // --- Derive expected stacks: for linear pre-Undo history it's [0,1,...,N], [] ---
+  const expectedUndoStack: number[] = [];
+  for (let r = 0; r <= N; r++) {
+    expectedUndoStack.push(r);
+  }
+  const expectedRedoStack: number[] = [];
+
+  // --- Handle existing control record ---
+  if (existingControl !== null) {
+    const verificationErrors = verifyHistoryControl({
+      control: existingControl,
+      campaignId,
+      campaignRevision,
+      campaignState,
+      revisions: revisions.map((r) => ({ campaignRevision: r.campaignRevision, commandType: r.commandType })),
+      events: [],
+      snapshotRevisions: [...snapshotMap.keys()],
+      snapshotAtUndoTop: snapshotMap.get(existingControl.undoStack[existingControl.undoStack.length - 1])?.state ?? null,
+    });
+
+    if (verificationErrors.length > 0) {
+      return { status: "invalid", errors: verificationErrors.map((e) => `existing control: ${e}`) };
+    }
+
+    return {
+      status: "already_applied",
+      campaignId,
+      undoStackLength: existingControl.undoStack.length,
+      redoStackLength: existingControl.redoStack.length,
+    };
+  }
+
+  return {
+    status: "ready",
+    campaignId,
+    campaignRevision,
+    undoStack: expectedUndoStack,
+    redoStack: expectedRedoStack,
+  };
+}

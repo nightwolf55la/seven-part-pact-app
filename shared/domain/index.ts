@@ -110,10 +110,17 @@ export type {
   HistoryReplayInput,
   HistoryReplayResult,
   HistoryControlVerificationInput,
+  InitializationRevisionInfo,
+  InitializationEventInfo,
+  InitializationSnapshotInfo,
+  HistoryControlInitInput,
+  HistoryControlInitResult,
 } from "./history-control";
 export {
   CURRENT_HISTORY_CONTROL_VERSION,
   validateHistoryControlStructure,
   replayHistoryControl,
   verifyHistoryControl,
+  statesDeepEqual,
+  analyzeHistoryControlInitialization,
 } from "./history-control";

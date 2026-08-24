@@ -1,6 +1,6 @@
 import type { MutationCtx } from "./_generated/server";
 import type { CampaignCommandType, CurrentCampaignState, MonthChangedEventV1, MonthDirection, EventRecord } from "../shared/domain";
-import { validateCampaignState, DomainError, advanceOrdinal, validateMoveMonthTransaction, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION } from "../shared/domain";
+import { validateCampaignState, DomainError, advanceOrdinal, validateMoveMonthTransaction, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION, validateHistoryControlStructure, statesDeepEqual } from "../shared/domain";
 import type { Id } from "./_generated/dataModel";
 
 export interface CanonicalCommitInput {
@@ -211,24 +211,91 @@ export async function canonicalCommit(
   // If a valid control record exists, update it atomically within this transaction.
   // If none exists, proceed without history-control writes (pre-migration).
   if (isLogicalStateCommandType(input.commandType)) {
-    const controlDoc = await ctx.db
+    const controlDocs = await ctx.db
       .query("campaignHistoryControl")
       .withIndex("by_campaignId", (q) => q.eq("campaignId", input.campaignId))
-      .unique();
+      .collect();
 
-    if (controlDoc !== null) {
-      if (controlDoc.historyControlVersion !== CURRENT_HISTORY_CONTROL_VERSION) {
+    if (controlDocs.length > 1) {
+      throw new DomainError(
+        "CAMPAIGN_STATE_CORRUPT",
+        `Found ${controlDocs.length} history control documents for campaign — expected at most 1`,
+      );
+    }
+
+    if (controlDocs.length === 1) {
+      const controlDoc = controlDocs[0];
+
+      // Structural validation against PRE-COMMIT revision
+      const structuralErrors = validateHistoryControlStructure({
+        control: {
+          historyControlVersion: controlDoc.historyControlVersion as 1,
+          campaignId: controlDoc.campaignId,
+          undoStack: controlDoc.undoStack,
+          redoStack: controlDoc.redoStack,
+        },
+        campaignId: input.campaignId,
+        campaignRevision: input.currentRevision,
+      });
+      if (structuralErrors.length > 0) {
         throw new DomainError(
           "CAMPAIGN_STATE_CORRUPT",
-          `Unrecognized historyControlVersion ${controlDoc.historyControlVersion}`,
+          `History control failed structural validation: ${structuralErrors.join("; ")}`,
         );
       }
-      if (controlDoc.campaignId !== input.campaignId) {
+
+      // undoStack.last must reference an existing snapshot
+      const undoTop = controlDoc.undoStack[controlDoc.undoStack.length - 1];
+      const topSnapshot = await ctx.db
+        .query("campaignSnapshots")
+        .withIndex("by_campaign_revision", (q) =>
+          q.eq("campaignId", input.campaignId).eq("campaignRevision", undoTop),
+        )
+        .unique();
+
+      if (topSnapshot === null) {
         throw new DomainError(
           "CAMPAIGN_STATE_CORRUPT",
-          `History control campaignId mismatch`,
+          `History control undoStack top (revision ${undoTop}) has no snapshot`,
         );
       }
+
+      // Snapshot at undoStack top must deep-equal the PRE-COMMIT authoritative state
+      if (!statesDeepEqual(topSnapshot.state, {
+        schemaVersion: input.currentState.schemaVersion,
+        ruleset: { id: input.currentState.ruleset.id, version: input.currentState.ruleset.version },
+        calendar: { monthOrdinal: input.currentState.calendar.monthOrdinal as number },
+      })) {
+        throw new DomainError(
+          "CAMPAIGN_STATE_CORRUPT",
+          `History control undoStack top snapshot (revision ${undoTop}) does not match pre-commit campaign state`,
+        );
+      }
+
+      // undoStack top must be a logical-state revision (or 0)
+      if (undoTop !== 0) {
+        const topRevision = await ctx.db
+          .query("campaignRevisions")
+          .withIndex("by_campaign_revision", (q) =>
+            q.eq("campaignId", input.campaignId).eq("campaignRevision", undoTop),
+          )
+          .unique();
+
+        if (topRevision === null) {
+          throw new DomainError(
+            "CAMPAIGN_STATE_CORRUPT",
+            `History control undoStack top revision ${undoTop} has no revision record`,
+          );
+        }
+
+        if (!isLogicalStateCommandType(topRevision.commandType)) {
+          throw new DomainError(
+            "CAMPAIGN_STATE_CORRUPT",
+            `History control undoStack top revision ${undoTop} has non-logical-state commandType "${topRevision.commandType}"`,
+          );
+        }
+      }
+
       await ctx.db.patch(controlDoc._id, {
         undoStack: [...controlDoc.undoStack, newRevision],
         redoStack: [],

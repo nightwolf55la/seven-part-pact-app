@@ -8,13 +8,18 @@ import {
   undoFingerprint,
   redoFingerprint,
   CURRENT_HISTORY_CONTROL_VERSION,
+  analyzeHistoryControlInitialization,
+  statesDeepEqual,
   type CampaignHistoryControlV1,
   type HistoryControlValidationInput,
   type HistoryReplayInput,
   type HistoryControlVerificationInput,
-  type RevisionCommandInfo,
-  type ReplayEventInfo,
+  type HistoryControlInitInput,
+  type HistoryControlInitResult,
   type SerializableCampaignState,
+  type InitializationRevisionInfo,
+  type InitializationEventInfo,
+  type InitializationSnapshotInfo,
 } from "../shared/domain";
 
 // --- Command Classification ---
@@ -450,5 +455,337 @@ describe("verifyHistoryControl", () => {
 describe("CURRENT_HISTORY_CONTROL_VERSION", () => {
   it("is 1", () => {
     expect(CURRENT_HISTORY_CONTROL_VERSION).toBe(1);
+  });
+});
+
+// --- statesDeepEqual ---
+
+describe("statesDeepEqual", () => {
+  const s1: SerializableCampaignState = {
+    schemaVersion: 1,
+    ruleset: { id: "seven_part_pact_draft4", version: 1 },
+    calendar: { monthOrdinal: 5 },
+  };
+
+  it("returns true for identical states", () => {
+    expect(statesDeepEqual(s1, { ...s1 })).toBe(true);
+  });
+
+  it("returns false for different monthOrdinal", () => {
+    expect(statesDeepEqual(s1, { ...s1, calendar: { monthOrdinal: 6 } })).toBe(false);
+  });
+
+  it("returns false for different schemaVersion", () => {
+    expect(statesDeepEqual(s1, { ...s1, schemaVersion: 2 })).toBe(false);
+  });
+
+  it("returns false for different ruleset", () => {
+    expect(statesDeepEqual(s1, { ...s1, ruleset: { id: "other", version: 1 } })).toBe(false);
+  });
+});
+
+// --- analyzeHistoryControlInitialization ---
+
+describe("analyzeHistoryControlInitialization", () => {
+  const baseState: SerializableCampaignState = {
+    schemaVersion: 1,
+    ruleset: { id: "seven_part_pact_draft4", version: 1 },
+    calendar: { monthOrdinal: 3 },
+  };
+
+  function makeSnap(rev: number, monthOrdinal: number): InitializationSnapshotInfo {
+    return {
+      campaignRevision: rev,
+      state: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal } },
+    };
+  }
+
+  function makeRevision(rev: number): InitializationRevisionInfo {
+    return { campaignRevision: rev, commandType: "move_month" };
+  }
+
+  function makeEvent(rev: number, idx: number = 0): InitializationEventInfo {
+    return { campaignRevision: rev, eventIndex: idx };
+  }
+
+  function makeValidInput(N: number = 3): HistoryControlInitInput {
+    const revisions: InitializationRevisionInfo[] = [];
+    const events: InitializationEventInfo[] = [];
+    const snapshots: InitializationSnapshotInfo[] = [makeSnap(0, 0)];
+    for (let r = 1; r <= N; r++) {
+      revisions.push(makeRevision(r));
+      events.push(makeEvent(r));
+      snapshots.push(makeSnap(r, r));
+    }
+    return {
+      campaignId: "camp-1",
+      campaignRevision: N,
+      campaignState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: N } },
+      revisions,
+      events,
+      snapshots,
+      existingControl: null,
+    };
+  }
+
+  // --- READY state ---
+
+  it("returns ready with undoStack [0..N] for valid linear history", () => {
+    const result = analyzeHistoryControlInitialization(makeValidInput(3));
+    expect(result.status).toBe("ready");
+    if (result.status === "ready") {
+      expect(result.undoStack).toEqual([0, 1, 2, 3]);
+      expect(result.redoStack).toEqual([]);
+      expect(result.campaignId).toBe("camp-1");
+      expect(result.campaignRevision).toBe(3);
+    }
+  });
+
+  it("returns ready for revision 0 (empty history)", () => {
+    const result = analyzeHistoryControlInitialization({
+      campaignId: "camp-1",
+      campaignRevision: 0,
+      campaignState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 0 } },
+      revisions: [],
+      events: [],
+      snapshots: [makeSnap(0, 0)],
+      existingControl: null,
+    });
+    expect(result.status).toBe("ready");
+    if (result.status === "ready") {
+      expect(result.undoStack).toEqual([0]);
+      expect(result.redoStack).toEqual([]);
+    }
+  });
+
+  it("same authoritative history deterministically derives [0..N], []", () => {
+    const input = makeValidInput(5);
+    const r1 = analyzeHistoryControlInitialization(input);
+    const r2 = analyzeHistoryControlInitialization(input);
+    expect(r1).toEqual(r2);
+    if (r1.status === "ready") {
+      expect(r1.undoStack).toEqual([0, 1, 2, 3, 4, 5]);
+    }
+  });
+
+  // --- Rejections ---
+
+  it("rejects missing snapshot 0", () => {
+    const input = makeValidInput(2);
+    const withoutSnap0 = {
+      ...input,
+      snapshots: input.snapshots.filter((s) => s.campaignRevision !== 0),
+    };
+    const result = analyzeHistoryControlInitialization(withoutSnap0);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("revision 0"))).toBe(true);
+    }
+  });
+
+  it("rejects missing intermediate snapshot", () => {
+    const input = makeValidInput(3);
+    const withoutSnap2 = {
+      ...input,
+      snapshots: input.snapshots.filter((s) => s.campaignRevision !== 2),
+    };
+    const result = analyzeHistoryControlInitialization(withoutSnap2);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("revision 2"))).toBe(true);
+    }
+  });
+
+  it("rejects duplicate snapshot", () => {
+    const input = makeValidInput(2);
+    const withDupe = {
+      ...input,
+      snapshots: [...input.snapshots, makeSnap(1, 1)],
+    };
+    const result = analyzeHistoryControlInitialization(withDupe);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("Duplicate snapshot"))).toBe(true);
+    }
+  });
+
+  it("rejects missing revision record", () => {
+    const input = makeValidInput(3);
+    const withoutRev2 = {
+      ...input,
+      revisions: input.revisions.filter((r) => r.campaignRevision !== 2),
+    };
+    const result = analyzeHistoryControlInitialization(withoutRev2);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("Missing revision record: 2"))).toBe(true);
+    }
+  });
+
+  it("rejects missing event history", () => {
+    const input = makeValidInput(3);
+    const withoutEvents = {
+      ...input,
+      events: input.events.filter((e) => e.campaignRevision !== 2),
+    };
+    const result = analyzeHistoryControlInitialization(withoutEvents);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("Revision 2 has no events"))).toBe(true);
+    }
+  });
+
+  it("rejects invalid event indexes", () => {
+    const input = makeValidInput(2);
+    const withBadIdx = {
+      ...input,
+      events: input.events.map((e) =>
+        e.campaignRevision === 2 ? { ...e, eventIndex: 5 } : e,
+      ),
+    };
+    const result = analyzeHistoryControlInitialization(withBadIdx);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("event indexes not contiguous"))).toBe(true);
+    }
+  });
+
+  it("rejects current campaign state != snapshot N", () => {
+    const input = makeValidInput(3);
+    const withBadState = {
+      ...input,
+      campaignState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 99 } },
+    };
+    const result = analyzeHistoryControlInitialization(withBadState);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("does not match authoritative"))).toBe(true);
+    }
+  });
+
+  it("rejects undo command already in pre-migration history", () => {
+    const input = makeValidInput(3);
+    const withUndo = {
+      ...input,
+      revisions: input.revisions.map((r) =>
+        r.campaignRevision === 2 ? { ...r, commandType: "undo" as const } : r,
+      ),
+    };
+    const result = analyzeHistoryControlInitialization(withUndo);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("non-logical-state"))).toBe(true);
+    }
+  });
+
+  it("rejects redo command already in pre-migration history", () => {
+    const input = makeValidInput(3);
+    const withRedo = {
+      ...input,
+      revisions: input.revisions.map((r) =>
+        r.campaignRevision === 3 ? { ...r, commandType: "redo" as const } : r,
+      ),
+    };
+    const result = analyzeHistoryControlInitialization(withRedo);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("non-logical-state"))).toBe(true);
+    }
+  });
+
+  it("rejects non-safe-integer campaignRevision", () => {
+    const input = makeValidInput(3);
+    const bad = { ...input, campaignRevision: -1 };
+    const result = analyzeHistoryControlInitialization(bad);
+    expect(result.status).toBe("invalid");
+  });
+
+  // --- Existing control: already_applied ---
+
+  it("valid existing control returns already_applied", () => {
+    const input = makeValidInput(3);
+    const withControl = {
+      ...input,
+      existingControl: {
+        historyControlVersion: 1 as const,
+        campaignId: "camp-1",
+        undoStack: [0, 1, 2, 3],
+        redoStack: [],
+      },
+    };
+    const result = analyzeHistoryControlInitialization(withControl);
+    expect(result.status).toBe("already_applied");
+    if (result.status === "already_applied") {
+      expect(result.undoStackLength).toBe(4);
+      expect(result.redoStackLength).toBe(0);
+    }
+  });
+
+  it("invalid existing control returns invalid, not already_applied", () => {
+    const input = makeValidInput(3);
+    const withBadControl = {
+      ...input,
+      existingControl: {
+        historyControlVersion: 1 as const,
+        campaignId: "camp-1",
+        undoStack: [0, 2],
+        redoStack: [],
+      },
+    };
+    const result = analyzeHistoryControlInitialization(withBadControl);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("existing control"))).toBe(true);
+    }
+  });
+
+  it("existing control with wrong campaignId returns invalid", () => {
+    const input = makeValidInput(3);
+    const withBadControl = {
+      ...input,
+      existingControl: {
+        historyControlVersion: 1 as const,
+        campaignId: "wrong-camp",
+        undoStack: [0, 1, 2, 3],
+        redoStack: [],
+      },
+    };
+    const result = analyzeHistoryControlInitialization(withBadControl);
+    expect(result.status).toBe("invalid");
+  });
+
+  it("existing control with wrong version returns invalid", () => {
+    const input = makeValidInput(3);
+    const withBadControl = {
+      ...input,
+      existingControl: {
+        historyControlVersion: 99 as any,
+        campaignId: "camp-1",
+        undoStack: [0, 1, 2, 3],
+        redoStack: [],
+      },
+    };
+    const result = analyzeHistoryControlInitialization(withBadControl);
+    expect(result.status).toBe("invalid");
+  });
+
+  // --- Executor cannot accept caller-supplied arbitrary stack ---
+
+  it("undoStack is deterministically [0..N] — not caller-controlled", () => {
+    const input = makeValidInput(3);
+    const result = analyzeHistoryControlInitialization(input);
+    expect(result.status).toBe("ready");
+    if (result.status === "ready") {
+      expect(result.undoStack).toEqual([0, 1, 2, 3]);
+    }
+  });
+
+  it("redoStack is deterministically [] — not caller-controlled", () => {
+    const input = makeValidInput(3);
+    const result = analyzeHistoryControlInitialization(input);
+    expect(result.status).toBe("ready");
+    if (result.status === "ready") {
+      expect(result.redoStack).toEqual([]);
+    }
   });
 });
