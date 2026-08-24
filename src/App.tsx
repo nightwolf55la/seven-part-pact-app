@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api.js";
 import { displayNameFromOrdinal } from "../shared/domain";
+import { useEffect, useRef } from "react";
 
 function generateCommandId(): string {
   return `cmd_${crypto.randomUUID()}`;
@@ -10,8 +11,19 @@ export default function App() {
   const campaign = useQuery(api.campaign.getCampaign, {});
   const events = useQuery(api.campaign.getRecentEvents, { count: 20 });
   const moveMonth = useMutation(api.campaign.moveMonth);
+  const ensureCampaign = useMutation(api.campaign.ensureCampaign);
+  const initAttempted = useRef(false);
 
-  const isLoading = campaign === undefined;
+  useEffect(() => {
+    if (campaign === null && !initAttempted.current) {
+      initAttempted.current = true;
+      ensureCampaign({}).catch(() => {
+        initAttempted.current = false;
+      });
+    }
+  }, [campaign, ensureCampaign]);
+
+  const isLoading = campaign === undefined || campaign === null;
   const monthName = campaign
     ? displayNameFromOrdinal(campaign.monthOrdinal)
     : "—";

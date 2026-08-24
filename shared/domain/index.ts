@@ -66,6 +66,8 @@ export { DomainError } from "./errors";
 
 export { validateCampaignState } from "./state-validation";
 
+export { initialCampaignState } from "./initial-state";
+
 export type { MoveMonthTransitionResult } from "./transitions";
 export { applyMoveMonth } from "./transitions";
 
