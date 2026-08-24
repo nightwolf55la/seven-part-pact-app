@@ -1,16 +1,17 @@
-import type { MonthOrdinal, MonthDirection, MonthDisplayName } from "./calendar";
+import type { MonthDirection, MonthOrdinal } from "./calendar";
 import {
-  INITIAL_MONTH_ORDINAL,
   advanceOrdinal,
   displayNameFromOrdinal,
+  INITIAL_MONTH_ORDINAL,
 } from "./calendar";
-import type { CampaignStateV1 } from "./campaign-state";
+import type { CampaignRevision } from "./campaign-state";
 import { CURRENT_STATE_SCHEMA_VERSION } from "./campaign-state";
-import type { MonthChangedEventV1 } from "./events";
 import {
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
 } from "./ruleset";
+import type { CampaignStateV1 } from "./campaign-state";
+import type { MonthChangedEventV1 } from "./events";
 
 export interface LegacyCampaignInput {
   readonly monthOrdinal: number;
@@ -23,8 +24,8 @@ export interface LegacyEventInput {
   readonly direction: string;
   readonly previousMonthOrdinal: number;
   readonly newMonthOrdinal: number;
-  readonly previousMonth: MonthDisplayName;
-  readonly newMonth: MonthDisplayName;
+  readonly previousMonth: string;
+  readonly newMonth: string;
 }
 
 export interface MigrationSnapshotPlan {
@@ -67,7 +68,7 @@ export type MigrationAnalysisResult =
   | MigrationReady
   | MigrationInvalid;
 
-function makeState(monthOrdinal: MonthOrdinal): CampaignStateV1 {
+function buildStateForOrdinal(monthOrdinal: number): CampaignStateV1 {
   return {
     schemaVersion: CURRENT_STATE_SCHEMA_VERSION,
     ruleset: {
@@ -75,7 +76,7 @@ function makeState(monthOrdinal: MonthOrdinal): CampaignStateV1 {
       version: SEVEN_PART_PACT_DRAFT4_VERSION,
     },
     calendar: {
-      monthOrdinal,
+      monthOrdinal: monthOrdinal as MonthOrdinal,
     },
   };
 }
@@ -89,86 +90,80 @@ export function analyzeLegacyMigration(
   }
 
   if (campaigns.length === 0 && events.length > 0) {
-    return {
-      status: "invalid",
-      reason: `Found ${events.length} legacy event(s) but no campaign document`,
-    };
+    return { status: "invalid", reason: "Events exist but no campaign record found" };
   }
 
   if (campaigns.length > 1) {
-    return {
-      status: "invalid",
-      reason: `Expected 0 or 1 legacy campaigns, found ${campaigns.length}`,
-    };
+    return { status: "invalid", reason: `Expected at most 1 campaign, found ${campaigns.length}` };
   }
 
   const campaign = campaigns[0];
+  const revision = campaign.revision;
 
-  if (
-    !Number.isSafeInteger(campaign.revision) ||
-    campaign.revision < 0
-  ) {
-    return {
-      status: "invalid",
-      reason: `Campaign revision is not a non-negative safe integer: ${campaign.revision}`,
-    };
+  if (!Number.isSafeInteger(revision) || revision < 0) {
+    return { status: "invalid", reason: `Campaign revision is not a valid non-negative integer: ${revision}` };
   }
 
   if (!Number.isSafeInteger(campaign.monthOrdinal)) {
-    return {
-      status: "invalid",
-      reason: `Campaign monthOrdinal ${campaign.monthOrdinal} is not a safe integer`,
-    };
+    return { status: "invalid", reason: `Campaign monthOrdinal is not a safe integer: ${campaign.monthOrdinal}` };
   }
 
-  if (campaign.revision === 0 && events.length === 0) {
-    if (campaign.monthOrdinal as number !== INITIAL_MONTH_ORDINAL as number) {
-      return {
-        status: "invalid",
-        reason: `Campaign at revision 0 has monthOrdinal ${campaign.monthOrdinal} but expected initial ${INITIAL_MONTH_ORDINAL}`,
-      };
+  if (revision === 0) {
+    if (events.length > 0) {
+      return { status: "invalid", reason: `Campaign is at revision 0 but ${events.length} events exist` };
     }
+
+    if (campaign.monthOrdinal !== INITIAL_MONTH_ORDINAL) {
+      return { status: "invalid", reason: `Campaign at revision 0 has monthOrdinal ${campaign.monthOrdinal}, expected ${INITIAL_MONTH_ORDINAL}` };
+    }
+
+    const snapshot: MigrationSnapshotPlan = {
+      campaignRevision: 0,
+      state: buildStateForOrdinal(INITIAL_MONTH_ORDINAL),
+    };
+
     return {
       status: "ready",
       legacyCampaignRevision: 0,
-      initialMonthOrdinal: INITIAL_MONTH_ORDINAL as number,
-      finalMonthOrdinal: INITIAL_MONTH_ORDINAL as number,
+      initialMonthOrdinal: INITIAL_MONTH_ORDINAL,
+      finalMonthOrdinal: INITIAL_MONTH_ORDINAL,
       legacyEventCount: 0,
       revisionRecordCount: 0,
       newEventRecordCount: 0,
       snapshotCount: 1,
-      snapshots: [{ campaignRevision: 0, state: makeState(INITIAL_MONTH_ORDINAL) }],
+      snapshots: [snapshot],
       revisions: [],
       migrationCommandType: "legacy_month_change",
       idsDeferred: true,
     };
   }
 
-  if (events.length !== campaign.revision) {
+  if (events.length !== revision) {
     return {
       status: "invalid",
-      reason: `Event count ${events.length} does not match campaign revision ${campaign.revision}`,
+      reason: `Campaign revision is ${revision} but found ${events.length} events (expected exactly ${revision})`,
     };
   }
 
-  const sorted = [...events].sort((a, b) => a.revision - b.revision);
+  const sortedEvents = [...events].sort((a, b) => a.revision - b.revision);
 
   const seenRevisions = new Set<number>();
-  for (const evt of sorted) {
+  for (const evt of sortedEvents) {
+    if (!Number.isSafeInteger(evt.revision)) {
+      return { status: "invalid", reason: `Event has non-safe-integer revision: ${evt.revision}` };
+    }
     if (seenRevisions.has(evt.revision)) {
-      return {
-        status: "invalid",
-        reason: `Duplicate revision ${evt.revision}`,
-      };
+      return { status: "invalid", reason: `Duplicate event revision: ${evt.revision}` };
     }
     seenRevisions.add(evt.revision);
   }
 
-  for (let i = 0; i < sorted.length; i++) {
-    if (sorted[i].revision !== i + 1) {
+  for (let i = 0; i < sortedEvents.length; i++) {
+    const expected = i + 1;
+    if (sortedEvents[i].revision !== expected) {
       return {
         status: "invalid",
-        reason: `Events are not contiguous: expected revision ${i + 1} at position ${i}, got ${sorted[i].revision}`,
+        reason: `Expected contiguous revision ${expected}, found ${sortedEvents[i].revision}`,
       };
     }
   }
@@ -176,120 +171,112 @@ export function analyzeLegacyMigration(
   const snapshots: MigrationSnapshotPlan[] = [];
   const revisions: MigrationRevisionPlan[] = [];
 
-  let currentOrdinal: MonthOrdinal = INITIAL_MONTH_ORDINAL;
+  let currentOrdinal: number = INITIAL_MONTH_ORDINAL;
+
   snapshots.push({
     campaignRevision: 0,
-    state: makeState(currentOrdinal),
+    state: buildStateForOrdinal(currentOrdinal),
   });
 
-  for (let i = 0; i < sorted.length; i++) {
-    const evt = sorted[i];
-    const expectedRevision = i + 1;
-
+  for (const evt of sortedEvents) {
     if (evt.type !== "month_changed") {
-      return {
-        status: "invalid",
-        reason: `Event at revision ${expectedRevision} has unexpected type "${evt.type}"`,
-      };
+      return { status: "invalid", reason: `Event at revision ${evt.revision} has unexpected type "${evt.type}"` };
     }
 
     if (!Number.isSafeInteger(evt.previousMonthOrdinal)) {
-      return {
-        status: "invalid",
-        reason: `Event at revision ${expectedRevision} has invalid previousMonthOrdinal ${evt.previousMonthOrdinal}`,
-      };
+      return { status: "invalid", reason: `Event revision ${evt.revision}: previousMonthOrdinal is not a safe integer` };
     }
-
     if (!Number.isSafeInteger(evt.newMonthOrdinal)) {
-      return {
-        status: "invalid",
-        reason: `Event at revision ${expectedRevision} has invalid newMonthOrdinal ${evt.newMonthOrdinal}`,
-      };
+      return { status: "invalid", reason: `Event revision ${evt.revision}: newMonthOrdinal is not a safe integer` };
     }
 
-    if (evt.previousMonthOrdinal as number !== currentOrdinal as number) {
+    if (evt.previousMonthOrdinal !== currentOrdinal) {
       return {
         status: "invalid",
-        reason: `Event at revision ${expectedRevision} previousMonthOrdinal ${evt.previousMonthOrdinal} does not match expected current ordinal ${currentOrdinal}`,
+        reason: `Event revision ${evt.revision}: previousMonthOrdinal is ${evt.previousMonthOrdinal}, expected ${currentOrdinal}`,
       };
     }
 
     if (evt.direction !== "forward" && evt.direction !== "backward") {
       return {
         status: "invalid",
-        reason: `Event at revision ${expectedRevision} has invalid direction "${evt.direction}"`,
+        reason: `Event revision ${evt.revision}: direction "${evt.direction}" is not "forward" or "backward"`,
       };
     }
 
-    const direction = evt.direction as MonthDirection;
-    const fromOrdinal = evt.previousMonthOrdinal as MonthOrdinal;
-    const expectedNewOrdinal = advanceOrdinal(fromOrdinal, direction);
+    const direction: MonthDirection = evt.direction;
+    const expectedNew = advanceOrdinal(currentOrdinal, direction) as number;
 
-    if (evt.newMonthOrdinal as number !== expectedNewOrdinal as number) {
+    if (evt.newMonthOrdinal !== expectedNew) {
       return {
         status: "invalid",
-        reason: `Event at revision ${expectedRevision} newMonthOrdinal ${evt.newMonthOrdinal} is inconsistent with direction "${direction}" from ${evt.previousMonthOrdinal}`,
+        reason: `Event revision ${evt.revision}: newMonthOrdinal is ${evt.newMonthOrdinal}, expected ${expectedNew} for direction "${direction}"`,
       };
     }
 
-    const expectedPreviousMonth = displayNameFromOrdinal(evt.previousMonthOrdinal);
-    if (evt.previousMonth !== expectedPreviousMonth) {
+    const expectedPrevDisplayName = displayNameFromOrdinal(evt.previousMonthOrdinal);
+    if (evt.previousMonth !== expectedPrevDisplayName) {
       return {
         status: "invalid",
-        reason: `Event at revision ${expectedRevision} previousMonth "${evt.previousMonth}" does not match expected "${expectedPreviousMonth}" for ordinal ${evt.previousMonthOrdinal}`,
+        reason: `Event revision ${evt.revision}: previousMonth is "${evt.previousMonth}", expected "${expectedPrevDisplayName}"`,
       };
     }
 
-    const expectedNewMonth = displayNameFromOrdinal(evt.newMonthOrdinal);
-    if (evt.newMonth !== expectedNewMonth) {
+    const expectedNewDisplayName = displayNameFromOrdinal(evt.newMonthOrdinal);
+    if (evt.newMonth !== expectedNewDisplayName) {
       return {
         status: "invalid",
-        reason: `Event at revision ${expectedRevision} newMonth "${evt.newMonth}" does not match expected "${expectedNewMonth}" for ordinal ${evt.newMonthOrdinal}`,
+        reason: `Event revision ${evt.revision}: newMonth is "${evt.newMonth}", expected "${expectedNewDisplayName}"`,
       };
     }
 
-    const toOrdinal = evt.newMonthOrdinal as MonthOrdinal;
+    currentOrdinal = evt.newMonthOrdinal;
 
-    const newEvent: MonthChangedEventV1 = {
+    const normalizedEvent: MonthChangedEventV1 = {
       type: "month_changed",
       version: 1,
       data: {
         direction,
-        fromOrdinal,
-        toOrdinal,
+        fromOrdinal: evt.previousMonthOrdinal as MonthOrdinal,
+        toOrdinal: evt.newMonthOrdinal as MonthOrdinal,
       },
     };
 
     revisions.push({
-      campaignRevision: expectedRevision,
+      campaignRevision: evt.revision,
       commandType: "legacy_month_change",
-      event: newEvent,
+      event: normalizedEvent,
     });
 
-    currentOrdinal = toOrdinal;
-
     snapshots.push({
-      campaignRevision: expectedRevision,
-      state: makeState(currentOrdinal),
+      campaignRevision: evt.revision,
+      state: buildStateForOrdinal(currentOrdinal),
     });
   }
 
-  if (currentOrdinal as number !== campaign.monthOrdinal) {
+  if (campaign.revision !== revision) {
     return {
       status: "invalid",
-      reason: `Replayed events end at ordinal ${currentOrdinal}, but campaign document has monthOrdinal ${campaign.monthOrdinal}`,
+      reason: `Campaign revision ${campaign.revision} does not match event count ${revision}`,
+    };
+  }
+
+  if (campaign.monthOrdinal !== currentOrdinal) {
+    return {
+      status: "invalid",
+      reason: `Campaign monthOrdinal is ${campaign.monthOrdinal}, but chain produces ${currentOrdinal}`,
     };
   }
 
   return {
     status: "ready",
-    legacyCampaignRevision: campaign.revision,
-    initialMonthOrdinal: INITIAL_MONTH_ORDINAL as number,
-    finalMonthOrdinal: currentOrdinal as number,
+    legacyCampaignRevision: revision,
+    initialMonthOrdinal: INITIAL_MONTH_ORDINAL,
+    finalMonthOrdinal: currentOrdinal,
     legacyEventCount: events.length,
-    revisionRecordCount: revisions.length,
-    newEventRecordCount: revisions.length,
-    snapshotCount: snapshots.length,
+    revisionRecordCount: revision,
+    newEventRecordCount: revision,
+    snapshotCount: revision + 1,
     snapshots,
     revisions,
     migrationCommandType: "legacy_month_change",
