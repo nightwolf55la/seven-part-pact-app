@@ -1,6 +1,8 @@
 import type { CampaignCommandType } from "./commands";
 import { isLogicalStateCommandType } from "./commands";
 import type { SerializableCampaignState } from "./verification";
+import { advanceOrdinal } from "./calendar";
+import { moveMonthFingerprint, migrationCommandFingerprint } from "./command-ids";
 
 export const CURRENT_HISTORY_CONTROL_VERSION = 1 as const;
 
@@ -341,11 +343,17 @@ export function statesDeepEqual(
 export interface InitializationRevisionInfo {
   readonly campaignRevision: number;
   readonly commandType: CampaignCommandType;
+  readonly commandFingerprint: string;
 }
 
 export interface InitializationEventInfo {
   readonly campaignRevision: number;
   readonly eventIndex: number;
+  readonly event: {
+    readonly type: string;
+    readonly version: number;
+    readonly data: Record<string, unknown>;
+  };
 }
 
 export interface InitializationSnapshotInfo {
@@ -360,7 +368,7 @@ export interface HistoryControlInitInput {
   readonly revisions: readonly InitializationRevisionInfo[];
   readonly events: readonly InitializationEventInfo[];
   readonly snapshots: readonly InitializationSnapshotInfo[];
-  readonly existingControl: CampaignHistoryControlV1 | null;
+  readonly existingControlDocs: readonly CampaignHistoryControlV1[];
 }
 
 export type HistoryControlInitResult =
@@ -368,46 +376,135 @@ export type HistoryControlInitResult =
   | { readonly status: "already_applied"; readonly campaignId: string; readonly undoStackLength: number; readonly redoStackLength: number }
   | { readonly status: "invalid"; readonly errors: readonly string[] };
 
+function validateLogicalStateEventSemantics(
+  revisions: ReadonlyMap<number, InitializationRevisionInfo>,
+  eventsByRev: ReadonlyMap<number, InitializationEventInfo[]>,
+  snapshotMap: ReadonlyMap<number, InitializationSnapshotInfo>,
+  N: number,
+  advanceOrdinalFn: (ordinal: number, direction: "forward" | "backward") => number,
+  moveMonthFingerprintFn: (direction: "forward" | "backward") => string,
+  migrationCommandFingerprintFn: (revision: number, direction: "forward" | "backward") => string,
+): string[] {
+  const errors: string[] = [];
+
+  for (let r = 1; r <= N; r++) {
+    const rev = revisions.get(r);
+    if (!rev) continue;
+
+    const evts = eventsByRev.get(r);
+    if (!evts || evts.length === 0) continue;
+
+    if (evts.length !== 1) {
+      errors.push(`Revision ${r}: expected exactly 1 event for ${rev.commandType}, found ${evts.length}`);
+      continue;
+    }
+
+    const evt = evts[0];
+
+    if (evt.event.type !== "month_changed") {
+      errors.push(`Revision ${r}: expected event type "month_changed", got "${evt.event.type}"`);
+      continue;
+    }
+
+    if (evt.event.version !== 1) {
+      errors.push(`Revision ${r}: expected event version 1, got ${evt.event.version}`);
+      continue;
+    }
+
+    const data = evt.event.data;
+    const direction = data.direction as string | undefined;
+    const fromOrdinal = data.fromOrdinal as number | undefined;
+    const toOrdinal = data.toOrdinal as number | undefined;
+
+    if (direction !== "forward" && direction !== "backward") {
+      errors.push(`Revision ${r}: invalid event direction "${direction}"`);
+      continue;
+    }
+
+    if (typeof fromOrdinal !== "number" || !Number.isSafeInteger(fromOrdinal)) {
+      errors.push(`Revision ${r}: invalid event fromOrdinal`);
+      continue;
+    }
+
+    if (typeof toOrdinal !== "number" || !Number.isSafeInteger(toOrdinal)) {
+      errors.push(`Revision ${r}: invalid event toOrdinal`);
+      continue;
+    }
+
+    const prevSnap = snapshotMap.get(r - 1);
+    if (prevSnap && fromOrdinal !== prevSnap.state.calendar.monthOrdinal) {
+      errors.push(`Revision ${r}: event fromOrdinal ${fromOrdinal} does not match snapshot(${r - 1}).monthOrdinal ${prevSnap.state.calendar.monthOrdinal}`);
+    }
+
+    const expectedTo = advanceOrdinalFn(fromOrdinal, direction);
+    if (toOrdinal !== expectedTo) {
+      errors.push(`Revision ${r}: event toOrdinal ${toOrdinal} does not match advanceOrdinal(${fromOrdinal}, "${direction}") = ${expectedTo}`);
+    }
+
+    const currSnap = snapshotMap.get(r);
+    if (currSnap && toOrdinal !== currSnap.state.calendar.monthOrdinal) {
+      errors.push(`Revision ${r}: event toOrdinal ${toOrdinal} does not match snapshot(${r}).monthOrdinal ${currSnap.state.calendar.monthOrdinal}`);
+    }
+
+    if (rev.commandType === "move_month") {
+      const expectedFp = moveMonthFingerprintFn(direction);
+      if (rev.commandFingerprint !== expectedFp) {
+        errors.push(`Revision ${r}: move_month fingerprint "${rev.commandFingerprint}" does not match expected "${expectedFp}"`);
+      }
+    } else if (rev.commandType === "legacy_month_change") {
+      const expectedFp = migrationCommandFingerprintFn(r, direction);
+      if (rev.commandFingerprint !== expectedFp) {
+        errors.push(`Revision ${r}: legacy_month_change fingerprint "${rev.commandFingerprint}" does not match expected "${expectedFp}"`);
+      }
+    }
+  }
+
+  return errors;
+}
+
 export function analyzeHistoryControlInitialization(
   input: HistoryControlInitInput,
 ): HistoryControlInitResult {
-  const errors: string[] = [];
-  const { campaignId, campaignRevision, campaignState, revisions, events, snapshots, existingControl } = input;
+  const { campaignId, campaignRevision, campaignState, revisions, events, snapshots, existingControlDocs } = input;
+
+  // --- Duplicate control detection ---
+  if (existingControlDocs.length > 1) {
+    return {
+      status: "invalid",
+      errors: [`Found ${existingControlDocs.length} history control documents — expected at most 1 (corrupt state)`],
+    };
+  }
+
+  const existingControl = existingControlDocs.length === 1 ? existingControlDocs[0] : null;
 
   // --- Basic campaign validation ---
   if (!Number.isSafeInteger(campaignRevision) || campaignRevision < 0) {
-    errors.push(`campaignRevision ${campaignRevision} is not a non-negative safe integer`);
-    return { status: "invalid", errors };
+    return { status: "invalid", errors: [`campaignRevision ${campaignRevision} is not a non-negative safe integer`] };
   }
 
-  // --- Revision records: unique, complete 1..N ---
   const N = campaignRevision;
-  const revisionSet = new Map<number, InitializationRevisionInfo>();
+
+  // --- Revision records: unique, complete 1..N ---
+  const errors: string[] = [];
+  const revisionMap = new Map<number, InitializationRevisionInfo>();
   for (const rev of revisions) {
-    if (revisionSet.has(rev.campaignRevision)) {
+    if (revisionMap.has(rev.campaignRevision)) {
       errors.push(`Duplicate revision record: ${rev.campaignRevision}`);
     }
-    revisionSet.set(rev.campaignRevision, rev);
+    revisionMap.set(rev.campaignRevision, rev);
   }
 
   for (let r = 1; r <= N; r++) {
-    if (!revisionSet.has(r)) {
+    if (!revisionMap.has(r)) {
       errors.push(`Missing revision record: ${r}`);
     }
   }
 
-  if (revisionSet.size !== N) {
-    errors.push(`Expected ${N} revision records, found ${revisionSet.size}`);
+  if (revisionMap.size !== N) {
+    errors.push(`Expected ${N} revision records, found ${revisionMap.size}`);
   }
 
-  // --- All must be logical-state (no undo/redo in pre-migration history) ---
-  for (const rev of revisions) {
-    if (!isLogicalStateCommandType(rev.commandType)) {
-      errors.push(`Revision ${rev.campaignRevision} has non-logical-state commandType "${rev.commandType}" — cannot initialize history control from mixed history`);
-    }
-  }
-
-  // --- Events: every revision must have at least one, indexes contiguous ---
+  // --- Events: group by revision ---
   const eventsByRev = new Map<number, InitializationEventInfo[]>();
   for (const evt of events) {
     const list = eventsByRev.get(evt.campaignRevision) ?? [];
@@ -415,6 +512,14 @@ export function analyzeHistoryControlInitialization(
     eventsByRev.set(evt.campaignRevision, list);
   }
 
+  // Check for orphan events outside revisions 1..N
+  for (const [rev] of eventsByRev) {
+    if (rev < 1 || rev > N) {
+      errors.push(`Orphan event(s) at revision ${rev} outside valid range 1..${N}`);
+    }
+  }
+
+  // Event index contiguity for each revision
   for (let r = 1; r <= N; r++) {
     const evts = eventsByRev.get(r);
     if (!evts || evts.length === 0) {
@@ -430,7 +535,7 @@ export function analyzeHistoryControlInitialization(
     }
   }
 
-  // --- Snapshots: unique, complete 0..N, all valid ---
+  // --- Snapshots: unique, complete 0..N ---
   const snapshotMap = new Map<number, InitializationSnapshotInfo>();
   for (const snap of snapshots) {
     if (snapshotMap.has(snap.campaignRevision)) {
@@ -461,27 +566,45 @@ export function analyzeHistoryControlInitialization(
     }
   }
 
-  // --- If errors so far, cannot determine readiness ---
+  // --- If structural errors, cannot proceed ---
   if (errors.length > 0) {
     return { status: "invalid", errors };
   }
 
-  // --- Derive expected stacks: for linear pre-Undo history it's [0,1,...,N], [] ---
-  const expectedUndoStack: number[] = [];
-  for (let r = 0; r <= N; r++) {
-    expectedUndoStack.push(r);
-  }
-  const expectedRedoStack: number[] = [];
-
-  // --- Handle existing control record ---
+  // ==================================================================
+  // CASE B: existingControl !== null → verify against current history
+  // ==================================================================
   if (existingControl !== null) {
+    const replayEvents: ReplayEventInfo[] = [];
+    for (let r = 1; r <= N; r++) {
+      const rev = revisionMap.get(r);
+      if (!rev) continue;
+      if (!isLogicalStateCommandType(rev.commandType)) {
+        const evts = eventsByRev.get(r);
+        if (evts && evts.length > 0) {
+          const evt = evts[0];
+          replayEvents.push({
+            campaignRevision: r,
+            event: {
+              type: evt.event.type,
+              version: evt.event.version,
+              data: {
+                fromRevision: evt.event.data.fromRevision as number | undefined,
+                targetRevision: evt.event.data.targetRevision as number | undefined,
+              },
+            },
+          });
+        }
+      }
+    }
+
     const verificationErrors = verifyHistoryControl({
       control: existingControl,
       campaignId,
       campaignRevision,
       campaignState,
       revisions: revisions.map((r) => ({ campaignRevision: r.campaignRevision, commandType: r.commandType })),
-      events: [],
+      events: replayEvents,
       snapshotRevisions: [...snapshotMap.keys()],
       snapshotAtUndoTop: snapshotMap.get(existingControl.undoStack[existingControl.undoStack.length - 1])?.state ?? null,
     });
@@ -498,11 +621,47 @@ export function analyzeHistoryControlInitialization(
     };
   }
 
+  // ==================================================================
+  // CASE A: existingControl === null → initialization candidate
+  // ==================================================================
+
+  // All revisions must be logical-state (no undo/redo in pre-initialization history)
+  const initErrors: string[] = [];
+  for (const rev of revisions) {
+    if (!isLogicalStateCommandType(rev.commandType)) {
+      initErrors.push(`Revision ${rev.campaignRevision} has non-logical-state commandType "${rev.commandType}" — cannot initialize history control from mixed history`);
+    }
+  }
+  if (initErrors.length > 0) {
+    return { status: "invalid", errors: initErrors };
+  }
+
+  // Semantic event validation
+  const semanticErrors = validateLogicalStateEventSemantics(
+    revisionMap,
+    eventsByRev,
+    snapshotMap,
+    N,
+    (ordinal, direction) => advanceOrdinal(ordinal, direction) as number,
+    moveMonthFingerprint,
+    migrationCommandFingerprint,
+  );
+  if (semanticErrors.length > 0) {
+    return { status: "invalid", errors: semanticErrors };
+  }
+
+  // Derive expected stacks: for linear pre-Undo history it's [0,1,...,N], []
+  const expectedUndoStack: number[] = [];
+  for (let r = 0; r <= N; r++) {
+    expectedUndoStack.push(r);
+  }
+
   return {
     status: "ready",
     campaignId,
     campaignRevision,
     undoStack: expectedUndoStack,
-    redoStack: expectedRedoStack,
+    redoStack: [],
   };
 }
+

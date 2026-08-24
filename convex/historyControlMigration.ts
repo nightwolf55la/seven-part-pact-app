@@ -5,8 +5,6 @@ import {
   CURRENT_HISTORY_CONTROL_VERSION,
   validateCampaignState,
   analyzeHistoryControlInitialization,
-  statesDeepEqual,
-  verifyHistoryControl,
 } from "../shared/domain";
 import type {
   InitializationRevisionInfo,
@@ -14,18 +12,22 @@ import type {
   InitializationSnapshotInfo,
   SerializableCampaignState,
   CampaignHistoryControlV1,
+  HistoryControlInitResult,
 } from "../shared/domain";
 
 // Shared helper: loads authoritative records from the database and invokes the
 // pure analyzeHistoryControlInitialization function.
-async function loadAndAnalyze(ctx: { db: any }) {
+async function loadAndAnalyze(ctx: { db: any }): Promise<
+  | { found: false }
+  | { found: true; result: HistoryControlInitResult }
+> {
   const canonical = await ctx.db
     .query("campaigns")
     .withIndex("by_campaignKey", (q: any) => q.eq("campaignKey", "default"))
     .unique();
 
   if (canonical === null || !("campaignKey" in canonical)) {
-    return { found: false as const };
+    return { found: false };
   }
 
   const campaignId: string = canonical.campaignId;
@@ -39,13 +41,13 @@ async function loadAndAnalyze(ctx: { db: any }) {
   );
   if (nonCanonical.length > 0) {
     return {
-      found: true as const,
+      found: true,
       result: { status: "invalid" as const, errors: [`Found ${nonCanonical.length} non-canonical campaign document(s) — complete legacy migration first`] },
     };
   }
   if (allCampaigns.length !== 1) {
     return {
-      found: true as const,
+      found: true,
       result: { status: "invalid" as const, errors: [`Expected exactly 1 canonical campaign, found ${allCampaigns.length}`] },
     };
   }
@@ -65,10 +67,11 @@ async function loadAndAnalyze(ctx: { db: any }) {
     .withIndex("by_campaign_revision", (q: any) => q.eq("campaignId", campaignId))
     .collect();
 
-  const existingControlDoc = await ctx.db
+  // Load ALL control docs (do not use .unique()) to detect duplicates
+  const controlDocs = await ctx.db
     .query("campaignHistoryControl")
     .withIndex("by_campaignId", (q: any) => q.eq("campaignId", campaignId))
-    .unique();
+    .collect();
 
   // Validate each snapshot's state
   const snapshotValidationErrors: string[] = [];
@@ -81,7 +84,7 @@ async function loadAndAnalyze(ctx: { db: any }) {
   }
   if (snapshotValidationErrors.length > 0) {
     return {
-      found: true as const,
+      found: true,
       result: { status: "invalid" as const, errors: snapshotValidationErrors },
     };
   }
@@ -89,11 +92,17 @@ async function loadAndAnalyze(ctx: { db: any }) {
   const revisions: InitializationRevisionInfo[] = revisionDocs.map((r: any) => ({
     campaignRevision: r.campaignRevision,
     commandType: r.commandType,
+    commandFingerprint: r.commandFingerprint,
   }));
 
   const events: InitializationEventInfo[] = eventDocs.map((e: any) => ({
     campaignRevision: e.campaignRevision,
     eventIndex: e.eventIndex,
+    event: {
+      type: e.event.type,
+      version: e.event.version,
+      data: e.event.data,
+    },
   }));
 
   const snapshots: InitializationSnapshotInfo[] = snapshotDocs.map((s: any) => ({
@@ -101,14 +110,12 @@ async function loadAndAnalyze(ctx: { db: any }) {
     state: s.state,
   }));
 
-  const existingControl: CampaignHistoryControlV1 | null = existingControlDoc
-    ? {
-        historyControlVersion: existingControlDoc.historyControlVersion as 1,
-        campaignId: existingControlDoc.campaignId,
-        undoStack: existingControlDoc.undoStack,
-        redoStack: existingControlDoc.redoStack,
-      }
-    : null;
+  const existingControlDocs: CampaignHistoryControlV1[] = controlDocs.map((d: any) => ({
+    historyControlVersion: d.historyControlVersion as 1,
+    campaignId: d.campaignId,
+    undoStack: d.undoStack,
+    redoStack: d.redoStack,
+  }));
 
   const result = analyzeHistoryControlInitialization({
     campaignId,
@@ -117,10 +124,10 @@ async function loadAndAnalyze(ctx: { db: any }) {
     revisions,
     events,
     snapshots,
-    existingControl,
+    existingControlDocs,
   });
 
-  return { found: true as const, result };
+  return { found: true, result };
 }
 
 // --- READ-ONLY ANALYZER ---

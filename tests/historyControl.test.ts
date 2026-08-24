@@ -21,6 +21,8 @@ import {
   type InitializationEventInfo,
   type InitializationSnapshotInfo,
 } from "../shared/domain";
+import type { CampaignCommandType } from "../shared/domain/commands";
+import { moveMonthFingerprint, migrationCommandFingerprint } from "../shared/domain/command-ids";
 
 // --- Command Classification ---
 
@@ -500,12 +502,33 @@ describe("analyzeHistoryControlInitialization", () => {
     };
   }
 
-  function makeRevision(rev: number): InitializationRevisionInfo {
-    return { campaignRevision: rev, commandType: "move_month" };
+  function makeRevision(
+    rev: number,
+    commandType: CampaignCommandType = "move_month",
+    fingerprint?: string,
+  ): InitializationRevisionInfo {
+    const fp = fingerprint ?? (commandType === "move_month"
+      ? moveMonthFingerprint("forward")
+      : migrationCommandFingerprint(rev, "forward"));
+    return { campaignRevision: rev, commandType, commandFingerprint: fp };
   }
 
-  function makeEvent(rev: number, idx: number = 0): InitializationEventInfo {
-    return { campaignRevision: rev, eventIndex: idx };
+  function makeMonthEvent(
+    rev: number,
+    fromOrdinal: number,
+    direction: "forward" | "backward" = "forward",
+    idx: number = 0,
+  ): InitializationEventInfo {
+    const toOrdinal = direction === "forward" ? fromOrdinal + 1 : fromOrdinal - 1;
+    return {
+      campaignRevision: rev,
+      eventIndex: idx,
+      event: {
+        type: "month_changed",
+        version: 1,
+        data: { direction, fromOrdinal, toOrdinal },
+      },
+    };
   }
 
   function makeValidInput(N: number = 3): HistoryControlInitInput {
@@ -514,7 +537,7 @@ describe("analyzeHistoryControlInitialization", () => {
     const snapshots: InitializationSnapshotInfo[] = [makeSnap(0, 0)];
     for (let r = 1; r <= N; r++) {
       revisions.push(makeRevision(r));
-      events.push(makeEvent(r));
+      events.push(makeMonthEvent(r, r - 1, "forward"));
       snapshots.push(makeSnap(r, r));
     }
     return {
@@ -524,7 +547,7 @@ describe("analyzeHistoryControlInitialization", () => {
       revisions,
       events,
       snapshots,
-      existingControl: null,
+      existingControlDocs: [],
     };
   }
 
@@ -549,7 +572,7 @@ describe("analyzeHistoryControlInitialization", () => {
       revisions: [],
       events: [],
       snapshots: [makeSnap(0, 0)],
-      existingControl: null,
+      existingControlDocs: [],
     });
     expect(result.status).toBe("ready");
     if (result.status === "ready") {
@@ -650,6 +673,19 @@ describe("analyzeHistoryControlInitialization", () => {
     }
   });
 
+  it("rejects orphan event outside valid range", () => {
+    const input = makeValidInput(2);
+    const withOrphan = {
+      ...input,
+      events: [...input.events, makeMonthEvent(99, 98)],
+    };
+    const result = analyzeHistoryControlInitialization(withOrphan);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("Orphan event") && e.includes("99"))).toBe(true);
+    }
+  });
+
   it("rejects current campaign state != snapshot N", () => {
     const input = makeValidInput(3);
     const withBadState = {
@@ -668,7 +704,9 @@ describe("analyzeHistoryControlInitialization", () => {
     const withUndo = {
       ...input,
       revisions: input.revisions.map((r) =>
-        r.campaignRevision === 2 ? { ...r, commandType: "undo" as const } : r,
+        r.campaignRevision === 2
+          ? { ...r, commandType: "undo" as const, commandFingerprint: "undo:v1:expectedRevision=1" }
+          : r,
       ),
     };
     const result = analyzeHistoryControlInitialization(withUndo);
@@ -683,7 +721,9 @@ describe("analyzeHistoryControlInitialization", () => {
     const withRedo = {
       ...input,
       revisions: input.revisions.map((r) =>
-        r.campaignRevision === 3 ? { ...r, commandType: "redo" as const } : r,
+        r.campaignRevision === 3
+          ? { ...r, commandType: "redo" as const, commandFingerprint: "redo:v1:expectedRevision=2" }
+          : r,
       ),
     };
     const result = analyzeHistoryControlInitialization(withRedo);
@@ -700,18 +740,166 @@ describe("analyzeHistoryControlInitialization", () => {
     expect(result.status).toBe("invalid");
   });
 
-  // --- Existing control: already_applied ---
+  // --- Semantic event validation (CASE A) ---
 
-  it("valid existing control returns already_applied", () => {
+  it("rejects wrong event type", () => {
+    const input = makeValidInput(2);
+    const withBadType = {
+      ...input,
+      events: input.events.map((e) =>
+        e.campaignRevision === 1
+          ? { ...e, event: { ...e.event, type: "wrong_type" } }
+          : e,
+      ),
+    };
+    const result = analyzeHistoryControlInitialization(withBadType);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("month_changed") && e.includes("wrong_type"))).toBe(true);
+    }
+  });
+
+  it("rejects wrong event version", () => {
+    const input = makeValidInput(2);
+    const withBadVer = {
+      ...input,
+      events: input.events.map((e) =>
+        e.campaignRevision === 1
+          ? { ...e, event: { ...e.event, version: 99 } }
+          : e,
+      ),
+    };
+    const result = analyzeHistoryControlInitialization(withBadVer);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("version 1") && e.includes("99"))).toBe(true);
+    }
+  });
+
+  it("rejects extra event for a revision", () => {
+    const input = makeValidInput(2);
+    const extraEvt = makeMonthEvent(1, 0, "forward", 1);
+    const withExtra = {
+      ...input,
+      events: [...input.events, extraEvt],
+    };
+    const result = analyzeHistoryControlInitialization(withExtra);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("exactly 1 event"))).toBe(true);
+    }
+  });
+
+  it("rejects fromOrdinal mismatch with previous snapshot", () => {
+    const input = makeValidInput(2);
+    const withBadFrom = {
+      ...input,
+      events: input.events.map((e) =>
+        e.campaignRevision === 2
+          ? makeMonthEvent(2, 99, "forward")
+          : e,
+      ),
+    };
+    const result = analyzeHistoryControlInitialization(withBadFrom);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("fromOrdinal"))).toBe(true);
+    }
+  });
+
+  it("rejects toOrdinal mismatch with advanceOrdinal", () => {
+    const input = makeValidInput(2);
+    const badEvt: InitializationEventInfo = {
+      campaignRevision: 1,
+      eventIndex: 0,
+      event: {
+        type: "month_changed",
+        version: 1,
+        data: { direction: "forward", fromOrdinal: 0, toOrdinal: 5 },
+      },
+    };
+    const withBadTo = {
+      ...input,
+      events: input.events.map((e) =>
+        e.campaignRevision === 1 ? badEvt : e,
+      ),
+    };
+    const result = analyzeHistoryControlInitialization(withBadTo);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("toOrdinal") && e.includes("advanceOrdinal"))).toBe(true);
+    }
+  });
+
+  it("rejects snapshot transition mismatch", () => {
+    const input = makeValidInput(2);
+    const withBadSnap = {
+      ...input,
+      snapshots: input.snapshots.map((s) =>
+        s.campaignRevision === 1 ? makeSnap(1, 99) : s,
+      ),
+    };
+    const result = analyzeHistoryControlInitialization(withBadSnap);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("toOrdinal") && e.includes("snapshot"))).toBe(true);
+    }
+  });
+
+  it("rejects move_month fingerprint mismatch", () => {
+    const input = makeValidInput(2);
+    const withBadFp = {
+      ...input,
+      revisions: input.revisions.map((r) =>
+        r.campaignRevision === 1
+          ? { ...r, commandFingerprint: "move_month:v1:backward" }
+          : r,
+      ),
+    };
+    const result = analyzeHistoryControlInitialization(withBadFp);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("fingerprint"))).toBe(true);
+    }
+  });
+
+  it("accepts mixed legacy_month_change + move_month history as READY", () => {
+    const result = analyzeHistoryControlInitialization({
+      campaignId: "camp-1",
+      campaignRevision: 3,
+      campaignState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 3 } },
+      revisions: [
+        makeRevision(1, "legacy_month_change", migrationCommandFingerprint(1, "forward")),
+        makeRevision(2, "move_month", moveMonthFingerprint("forward")),
+        makeRevision(3, "legacy_month_change", migrationCommandFingerprint(3, "forward")),
+      ],
+      events: [
+        makeMonthEvent(1, 0, "forward"),
+        makeMonthEvent(2, 1, "forward"),
+        makeMonthEvent(3, 2, "forward"),
+      ],
+      snapshots: [makeSnap(0, 0), makeSnap(1, 1), makeSnap(2, 2), makeSnap(3, 3)],
+      existingControlDocs: [],
+    });
+    expect(result.status).toBe("ready");
+    if (result.status === "ready") {
+      expect(result.undoStack).toEqual([0, 1, 2, 3]);
+      expect(result.redoStack).toEqual([]);
+    }
+  });
+
+  // --- Existing control: already_applied (CASE B) ---
+
+  it("valid existing control (linear) returns already_applied", () => {
     const input = makeValidInput(3);
     const withControl = {
       ...input,
-      existingControl: {
+      existingControlDocs: [{
         historyControlVersion: 1 as const,
         campaignId: "camp-1",
         undoStack: [0, 1, 2, 3],
         redoStack: [],
-      },
+      }],
     };
     const result = analyzeHistoryControlInitialization(withControl);
     expect(result.status).toBe("already_applied");
@@ -721,16 +909,156 @@ describe("analyzeHistoryControlInitialization", () => {
     }
   });
 
-  it("invalid existing control returns invalid, not already_applied", () => {
+  it("valid existing control with undo returns already_applied", () => {
+    const result = analyzeHistoryControlInitialization({
+      campaignId: "camp-1",
+      campaignRevision: 3,
+      campaignState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 1 } },
+      revisions: [
+        makeRevision(1, "move_month"),
+        makeRevision(2, "move_month"),
+        makeRevision(3, "undo", "undo:v1:expectedRevision=2"),
+      ],
+      events: [
+        makeMonthEvent(1, 0, "forward"),
+        makeMonthEvent(2, 1, "forward"),
+        {
+          campaignRevision: 3, eventIndex: 0,
+          event: { type: "undo_applied", version: 1, data: { fromRevision: 2, targetRevision: 1 } },
+        },
+      ],
+      snapshots: [makeSnap(0, 0), makeSnap(1, 1), makeSnap(2, 2), makeSnap(3, 1)],
+      existingControlDocs: [{
+        historyControlVersion: 1 as const,
+        campaignId: "camp-1",
+        undoStack: [0, 1],
+        redoStack: [2],
+      }],
+    });
+    expect(result.status).toBe("already_applied");
+    if (result.status === "already_applied") {
+      expect(result.undoStackLength).toBe(2);
+      expect(result.redoStackLength).toBe(1);
+    }
+  });
+
+  it("valid existing control with undo+redo returns already_applied", () => {
+    const result = analyzeHistoryControlInitialization({
+      campaignId: "camp-1",
+      campaignRevision: 4,
+      campaignState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 2 } },
+      revisions: [
+        makeRevision(1, "move_month"),
+        makeRevision(2, "move_month"),
+        makeRevision(3, "undo", "undo:v1:expectedRevision=2"),
+        makeRevision(4, "redo", "redo:v1:expectedRevision=1"),
+      ],
+      events: [
+        makeMonthEvent(1, 0, "forward"),
+        makeMonthEvent(2, 1, "forward"),
+        {
+          campaignRevision: 3, eventIndex: 0,
+          event: { type: "undo_applied", version: 1, data: { fromRevision: 2, targetRevision: 1 } },
+        },
+        {
+          campaignRevision: 4, eventIndex: 0,
+          event: { type: "redo_applied", version: 1, data: { fromRevision: 1, targetRevision: 2 } },
+        },
+      ],
+      snapshots: [makeSnap(0, 0), makeSnap(1, 1), makeSnap(2, 2), makeSnap(3, 1), makeSnap(4, 2)],
+      existingControlDocs: [{
+        historyControlVersion: 1 as const,
+        campaignId: "camp-1",
+        undoStack: [0, 1, 2],
+        redoStack: [],
+      }],
+    });
+    expect(result.status).toBe("already_applied");
+    if (result.status === "already_applied") {
+      expect(result.undoStackLength).toBe(3);
+      expect(result.redoStackLength).toBe(0);
+    }
+  });
+
+  it("existing control with invalid undo_applied fromRevision returns invalid", () => {
+    const result = analyzeHistoryControlInitialization({
+      campaignId: "camp-1",
+      campaignRevision: 3,
+      campaignState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 1 } },
+      revisions: [
+        makeRevision(1, "move_month"),
+        makeRevision(2, "move_month"),
+        makeRevision(3, "undo", "undo:v1:expectedRevision=2"),
+      ],
+      events: [
+        makeMonthEvent(1, 0, "forward"),
+        makeMonthEvent(2, 1, "forward"),
+        {
+          campaignRevision: 3, eventIndex: 0,
+          event: { type: "undo_applied", version: 1, data: { fromRevision: 99, targetRevision: 1 } },
+        },
+      ],
+      snapshots: [makeSnap(0, 0), makeSnap(1, 1), makeSnap(2, 2), makeSnap(3, 1)],
+      existingControlDocs: [{
+        historyControlVersion: 1 as const,
+        campaignId: "camp-1",
+        undoStack: [0, 1],
+        redoStack: [2],
+      }],
+    });
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("fromRevision"))).toBe(true);
+    }
+  });
+
+  it("existing control with invalid redo_applied targetRevision returns invalid", () => {
+    const result = analyzeHistoryControlInitialization({
+      campaignId: "camp-1",
+      campaignRevision: 4,
+      campaignState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 2 } },
+      revisions: [
+        makeRevision(1, "move_month"),
+        makeRevision(2, "move_month"),
+        makeRevision(3, "undo", "undo:v1:expectedRevision=2"),
+        makeRevision(4, "redo", "redo:v1:expectedRevision=1"),
+      ],
+      events: [
+        makeMonthEvent(1, 0, "forward"),
+        makeMonthEvent(2, 1, "forward"),
+        {
+          campaignRevision: 3, eventIndex: 0,
+          event: { type: "undo_applied", version: 1, data: { fromRevision: 2, targetRevision: 1 } },
+        },
+        {
+          campaignRevision: 4, eventIndex: 0,
+          event: { type: "redo_applied", version: 1, data: { fromRevision: 1, targetRevision: 99 } },
+        },
+      ],
+      snapshots: [makeSnap(0, 0), makeSnap(1, 1), makeSnap(2, 2), makeSnap(3, 1), makeSnap(4, 2)],
+      existingControlDocs: [{
+        historyControlVersion: 1 as const,
+        campaignId: "camp-1",
+        undoStack: [0, 1, 2],
+        redoStack: [],
+      }],
+    });
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("targetRevision"))).toBe(true);
+    }
+  });
+
+  it("existing control with persisted stack != replay returns invalid", () => {
     const input = makeValidInput(3);
     const withBadControl = {
       ...input,
-      existingControl: {
+      existingControlDocs: [{
         historyControlVersion: 1 as const,
         campaignId: "camp-1",
         undoStack: [0, 2],
         redoStack: [],
-      },
+      }],
     };
     const result = analyzeHistoryControlInitialization(withBadControl);
     expect(result.status).toBe("invalid");
@@ -743,12 +1071,12 @@ describe("analyzeHistoryControlInitialization", () => {
     const input = makeValidInput(3);
     const withBadControl = {
       ...input,
-      existingControl: {
+      existingControlDocs: [{
         historyControlVersion: 1 as const,
         campaignId: "wrong-camp",
         undoStack: [0, 1, 2, 3],
         redoStack: [],
-      },
+      }],
     };
     const result = analyzeHistoryControlInitialization(withBadControl);
     expect(result.status).toBe("invalid");
@@ -758,15 +1086,36 @@ describe("analyzeHistoryControlInitialization", () => {
     const input = makeValidInput(3);
     const withBadControl = {
       ...input,
-      existingControl: {
+      existingControlDocs: [{
         historyControlVersion: 99 as any,
         campaignId: "camp-1",
         undoStack: [0, 1, 2, 3],
         redoStack: [],
-      },
+      }],
     };
     const result = analyzeHistoryControlInitialization(withBadControl);
     expect(result.status).toBe("invalid");
+  });
+
+  // --- Duplicate control documents ---
+
+  it("duplicate control documents returns invalid", () => {
+    const input = makeValidInput(3);
+    const ctl: CampaignHistoryControlV1 = {
+      historyControlVersion: 1,
+      campaignId: "camp-1",
+      undoStack: [0, 1, 2, 3],
+      redoStack: [],
+    };
+    const withDupes = {
+      ...input,
+      existingControlDocs: [ctl, ctl],
+    };
+    const result = analyzeHistoryControlInitialization(withDupes);
+    expect(result.status).toBe("invalid");
+    if (result.status === "invalid") {
+      expect(result.errors.some((e) => e.includes("2 history control documents"))).toBe(true);
+    }
   });
 
   // --- Executor cannot accept caller-supplied arbitrary stack ---
