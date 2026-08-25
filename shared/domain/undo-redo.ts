@@ -101,7 +101,13 @@ export function deriveUndoTransition(
 
   validateCampaignState(targetSnapshotState);
 
-  if (targetRevision !== 0 && targetRevisionCommandType !== null) {
+  if (targetRevision !== 0) {
+    if (targetRevisionCommandType === null) {
+      throw new DomainError(
+        "CAMPAIGN_STATE_CORRUPT",
+        `Undo target revision ${targetRevision} has no revision record (missing commandType)`,
+      );
+    }
     if (!isLogicalStateCommandType(targetRevisionCommandType)) {
       throw new DomainError(
         "CAMPAIGN_STATE_CORRUPT",
@@ -153,13 +159,17 @@ export function deriveRedoTransition(
 
   validateCampaignState(targetSnapshotState);
 
-  if (targetRevisionCommandType !== null) {
-    if (!isLogicalStateCommandType(targetRevisionCommandType)) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        `Redo target revision ${targetRevision} has non-logical-state commandType "${targetRevisionCommandType}"`,
-      );
-    }
+  if (targetRevisionCommandType === null) {
+    throw new DomainError(
+      "CAMPAIGN_STATE_CORRUPT",
+      `Redo target revision ${targetRevision} has no revision record (missing commandType)`,
+    );
+  }
+  if (!isLogicalStateCommandType(targetRevisionCommandType)) {
+    throw new DomainError(
+      "CAMPAIGN_STATE_CORRUPT",
+      `Redo target revision ${targetRevision} has non-logical-state commandType "${targetRevisionCommandType}"`,
+    );
   }
 
   const nextUndoStack = [...control.undoStack, targetRevision];

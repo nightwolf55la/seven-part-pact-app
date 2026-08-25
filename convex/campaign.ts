@@ -12,6 +12,7 @@ import {
   redoFingerprint,
   initialCampaignState,
   isValidCampaignId,
+  isLogicalStateCommandType,
   DomainError,
   CURRENT_HISTORY_CONTROL_VERSION,
   validateHistoryControlStructure,
@@ -726,11 +727,59 @@ export const getUndoRedoState = query({
       );
     }
 
+    const logicalRevision = doc.undoStack[doc.undoStack.length - 1];
+
+    const logicalSnapshot = await ctx.db
+      .query("campaignSnapshots")
+      .withIndex("by_campaign_revision", (q) =>
+        q.eq("campaignId", campaignId).eq("campaignRevision", logicalRevision),
+      )
+      .unique();
+
+    if (logicalSnapshot === null) {
+      throw new DomainError(
+        "CAMPAIGN_STATE_CORRUPT",
+        `History control undoStack top (revision ${logicalRevision}) has no snapshot`,
+      );
+    }
+
+    validateCampaignState(logicalSnapshot.state);
+
+    if (!statesDeepEqual(logicalSnapshot.state, maybeCanonical.state)) {
+      throw new DomainError(
+        "CAMPAIGN_STATE_CORRUPT",
+        `Snapshot at undoStack top (revision ${logicalRevision}) does not match authoritative campaign state`,
+      );
+    }
+
+    if (logicalRevision > 0) {
+      const logicalRevRec = await ctx.db
+        .query("campaignRevisions")
+        .withIndex("by_campaign_revision", (q) =>
+          q.eq("campaignId", campaignId).eq("campaignRevision", logicalRevision),
+        )
+        .unique();
+
+      if (logicalRevRec === null) {
+        throw new DomainError(
+          "CAMPAIGN_STATE_CORRUPT",
+          `History control undoStack top revision ${logicalRevision} has no revision record`,
+        );
+      }
+
+      if (!isLogicalStateCommandType(logicalRevRec.commandType)) {
+        throw new DomainError(
+          "CAMPAIGN_STATE_CORRUPT",
+          `History control undoStack top revision ${logicalRevision} has non-logical-state commandType "${logicalRevRec.commandType}"`,
+        );
+      }
+    }
+
     return {
       canUndo: doc.undoStack.length > 1,
       canRedo: doc.redoStack.length > 0,
       campaignRevision: maybeCanonical.campaignRevision,
-      logicalRevision: doc.undoStack[doc.undoStack.length - 1],
+      logicalRevision,
     };
   },
 });
