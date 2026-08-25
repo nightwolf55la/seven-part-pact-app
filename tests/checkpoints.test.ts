@@ -640,3 +640,222 @@ describe("Checkpoint collection verification: orphan campaign detection", () => 
     expect(errors.some((e) => e.includes("campaignId"))).toBe(true);
   });
 });
+
+// ============================================================
+// listCheckpoints full validation (domain helper coverage)
+// ============================================================
+
+describe("listCheckpoints full validation via verifyCheckpoint", () => {
+  const campaignId = "cmp_00000000-0000-0000-0000-000000000001";
+  const baseCheckpoint: CampaignCheckpointV1 = {
+    checkpointVersion: 1,
+    checkpointId: "chk_00000000-0000-0000-0000-000000000001",
+    campaignId,
+    label: "Before Ritual",
+    sourceRevision: 5,
+    createdAtMs: 1700000000000,
+  };
+
+  const makeInput = (overrides: Partial<CampaignCheckpointV1> = {}) => ({
+    checkpoint: { ...baseCheckpoint, ...overrides },
+    campaignId,
+    campaignRevision: 10,
+    snapshotExists: true,
+    snapshotState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 3 } } as any,
+    revisionCommandType: "move_month" as const,
+  });
+
+  it("rejects non-normalized label in persisted checkpoint", () => {
+    const errors = verifyCheckpoint(makeInput({ label: "  Before Ritual" }));
+    expect(errors.some((e) => e.includes("not normalized"))).toBe(true);
+  });
+
+  it("rejects invalid createdAtMs (NaN)", () => {
+    const errors = verifyCheckpoint(makeInput({ createdAtMs: NaN }));
+    expect(errors.some((e) => e.includes("createdAtMs"))).toBe(true);
+  });
+
+  it("rejects missing source snapshot", () => {
+    const errors = verifyCheckpoint({
+      ...makeInput(),
+      snapshotExists: false,
+    });
+    expect(errors.some((e) => e.includes("No snapshot exists"))).toBe(true);
+  });
+
+  it("rejects navigation source revision command type", () => {
+    const errors = verifyCheckpoint({
+      ...makeInput(),
+      revisionCommandType: "undo" as any,
+    });
+    expect(errors.some((e) => e.includes("non-logical-state"))).toBe(true);
+  });
+
+  it("detects duplicate checkpointId across campaigns via collection", () => {
+    const chk1: CampaignCheckpointV1 = { ...baseCheckpoint };
+    const chk2: CampaignCheckpointV1 = { ...baseCheckpoint, campaignId: "cmp_99999999-9999-9999-9999-999999999999" };
+    const errors = verifyCheckpointCollection({
+      checkpoints: [chk1, chk2],
+      campaignId,
+      campaignRevision: 10,
+      snapshotRevisions: new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+      revisionCommandTypes: new Map([[5, "move_month"]]),
+    });
+    expect(errors.some((e) => e.includes("Duplicate"))).toBe(true);
+  });
+
+  it("detects wrong-campaign checkpoint via collection", () => {
+    const chk: CampaignCheckpointV1 = { ...baseCheckpoint, campaignId: "cmp_99999999-9999-9999-9999-999999999999" };
+    const errors = verifyCheckpointCollection({
+      checkpoints: [chk],
+      campaignId,
+      campaignRevision: 10,
+      snapshotRevisions: new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+      revisionCommandTypes: new Map([[5, "move_month"]]),
+    });
+    expect(errors.some((e) => e.includes("campaignId"))).toBe(true);
+  });
+
+  it("valid zero checkpoints produces no errors via collection", () => {
+    const errors = verifyCheckpointCollection({
+      checkpoints: [],
+      campaignId,
+      campaignRevision: 10,
+      snapshotRevisions: new Set([0]),
+      revisionCommandTypes: new Map(),
+    });
+    expect(errors).toEqual([]);
+  });
+
+  it("valid normal checkpoint produces no errors", () => {
+    const errors = verifyCheckpoint(makeInput());
+    expect(errors).toEqual([]);
+  });
+});
+
+// ============================================================
+// verifyCheckpoint: invalid CampaignState snapshot rejection
+// ============================================================
+
+describe("verifyCheckpoint: CampaignState validation", () => {
+  const campaignId = "cmp_00000000-0000-0000-0000-000000000001";
+  const baseCheckpoint: CampaignCheckpointV1 = {
+    checkpointVersion: 1,
+    checkpointId: "chk_00000000-0000-0000-0000-000000000001",
+    campaignId,
+    label: "Before Ritual",
+    sourceRevision: 5,
+    createdAtMs: 1700000000000,
+  };
+
+  it("rejects invalid CampaignState in source snapshot", () => {
+    const errors = verifyCheckpoint({
+      checkpoint: baseCheckpoint,
+      campaignId,
+      campaignRevision: 10,
+      snapshotExists: true,
+      snapshotState: { schemaVersion: 99, ruleset: { id: "bogus", version: 1 }, calendar: { monthOrdinal: 3 } } as any,
+      revisionCommandType: "move_month",
+    });
+    expect(errors.some((e) => e.includes("invalid CampaignState"))).toBe(true);
+  });
+
+  it("rejects snapshot with missing fields", () => {
+    const errors = verifyCheckpoint({
+      checkpoint: baseCheckpoint,
+      campaignId,
+      campaignRevision: 10,
+      snapshotExists: true,
+      snapshotState: { schemaVersion: 1 } as any,
+      revisionCommandType: "move_month",
+    });
+    expect(errors.some((e) => e.includes("invalid CampaignState"))).toBe(true);
+  });
+
+  it("accepts valid CampaignState in source snapshot", () => {
+    const errors = verifyCheckpoint({
+      checkpoint: baseCheckpoint,
+      campaignId,
+      campaignRevision: 10,
+      snapshotExists: true,
+      snapshotState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 3 } } as any,
+      revisionCommandType: "move_month",
+    });
+    expect(errors).toEqual([]);
+  });
+
+  it("still works when snapshotState is null (no deep validation)", () => {
+    const errors = verifyCheckpoint({
+      checkpoint: baseCheckpoint,
+      campaignId,
+      campaignRevision: 10,
+      snapshotExists: true,
+      snapshotState: null,
+      revisionCommandType: "move_month",
+    });
+    expect(errors).toEqual([]);
+  });
+});
+
+// ============================================================
+// canonicalCommit restore: persisted metadata validation (via domain helper proxy)
+// ============================================================
+
+describe("canonicalCommit restore persisted checkpoint metadata", () => {
+  it("non-normalized persisted label is detectable by verifyCheckpoint", () => {
+    const errors = verifyCheckpoint({
+      checkpoint: {
+        checkpointVersion: 1,
+        checkpointId: "chk_00000000-0000-0000-0000-000000000001",
+        campaignId: "cmp_00000000-0000-0000-0000-000000000001",
+        label: " Leading Space",
+        sourceRevision: 5,
+        createdAtMs: 1700000000000,
+      },
+      campaignId: "cmp_00000000-0000-0000-0000-000000000001",
+      campaignRevision: 10,
+      snapshotExists: true,
+      snapshotState: null,
+      revisionCommandType: "move_month",
+    });
+    expect(errors.some((e) => e.includes("not normalized"))).toBe(true);
+  });
+
+  it("invalid createdAtMs is detectable by verifyCheckpoint", () => {
+    const errors = verifyCheckpoint({
+      checkpoint: {
+        checkpointVersion: 1,
+        checkpointId: "chk_00000000-0000-0000-0000-000000000001",
+        campaignId: "cmp_00000000-0000-0000-0000-000000000001",
+        label: "Valid Label",
+        sourceRevision: 5,
+        createdAtMs: Infinity,
+      },
+      campaignId: "cmp_00000000-0000-0000-0000-000000000001",
+      campaignRevision: 10,
+      snapshotExists: true,
+      snapshotState: null,
+      revisionCommandType: "move_month",
+    });
+    expect(errors.some((e) => e.includes("createdAtMs"))).toBe(true);
+  });
+
+  it("valid canonical checkpoint produces no errors", () => {
+    const errors = verifyCheckpoint({
+      checkpoint: {
+        checkpointVersion: 1,
+        checkpointId: "chk_00000000-0000-0000-0000-000000000001",
+        campaignId: "cmp_00000000-0000-0000-0000-000000000001",
+        label: "Valid Label",
+        sourceRevision: 5,
+        createdAtMs: 1700000000000,
+      },
+      campaignId: "cmp_00000000-0000-0000-0000-000000000001",
+      campaignRevision: 10,
+      snapshotExists: true,
+      snapshotState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 3 } } as any,
+      revisionCommandType: "move_month",
+    });
+    expect(errors).toEqual([]);
+  });
+});

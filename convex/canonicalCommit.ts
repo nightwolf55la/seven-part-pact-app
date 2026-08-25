@@ -1,6 +1,6 @@
 import type { MutationCtx } from "./_generated/server";
 import type { CampaignCommandType, CurrentCampaignState, CampaignEvent, MonthDirection, EventRecord } from "../shared/domain";
-import { validateCampaignState, DomainError, advanceOrdinal, validateMoveMonthTransaction, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION, validateHistoryControlStructure, statesDeepEqual, isValidCheckpointId, validateCheckpointLabel, checkpointRestoreFingerprint, CURRENT_CHECKPOINT_VERSION } from "../shared/domain";
+import { validateCampaignState, DomainError, advanceOrdinal, validateMoveMonthTransaction, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION, validateHistoryControlStructure, statesDeepEqual, isValidCheckpointId, validateCheckpointLabel, normalizeCheckpointLabel, checkpointRestoreFingerprint, CURRENT_CHECKPOINT_VERSION } from "../shared/domain";
 import { validateUndoTransactionCoherence, validateRedoTransactionCoherence } from "../shared/domain/undo-redo";
 import type { Id } from "./_generated/dataModel";
 
@@ -150,24 +150,40 @@ async function validateCheckpointRestoreCoherence(
 
   const checkpoint = checkpointDocs[0];
 
-  if (checkpoint.campaignId !== input.campaignId) {
-    throw new DomainError("CHECKPOINT_NOT_FOUND", `Checkpoint "${evt.data.checkpointId}" does not belong to this campaign`);
-  }
-
+  // Validate persisted checkpoint metadata is canonical
   if (checkpoint.checkpointVersion !== CURRENT_CHECKPOINT_VERSION) {
     throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint has unrecognized checkpointVersion: ${checkpoint.checkpointVersion}`);
   }
-
-  if (checkpoint.sourceRevision !== evt.data.sourceRevision) {
-    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint sourceRevision ${checkpoint.sourceRevision} does not match event sourceRevision ${evt.data.sourceRevision}`);
+  if (!isValidCheckpointId(checkpoint.checkpointId)) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Persisted checkpoint has invalid checkpointId format: "${checkpoint.checkpointId}"`);
   }
-
+  if (checkpoint.checkpointId !== evt.data.checkpointId) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Persisted checkpointId "${checkpoint.checkpointId}" does not match event checkpointId "${evt.data.checkpointId}"`);
+  }
+  if (checkpoint.campaignId !== input.campaignId) {
+    throw new DomainError("CHECKPOINT_NOT_FOUND", `Checkpoint "${evt.data.checkpointId}" does not belong to this campaign`);
+  }
+  if (checkpoint.label !== normalizeCheckpointLabel(checkpoint.label)) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Persisted checkpoint label is not normalized: "${checkpoint.label}"`);
+  }
+  const storedLabelErr = validateCheckpointLabel(checkpoint.label);
+  if (storedLabelErr !== null) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Persisted checkpoint label invalid: ${storedLabelErr}`);
+  }
   if (checkpoint.label !== evt.data.labelAtRestore) {
     throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint label "${checkpoint.label}" does not match event labelAtRestore "${evt.data.labelAtRestore}"`);
   }
-
+  if (!Number.isSafeInteger(checkpoint.createdAtMs) || checkpoint.createdAtMs < 0) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Persisted checkpoint createdAtMs is not a non-negative safe integer: ${checkpoint.createdAtMs}`);
+  }
+  if (!Number.isSafeInteger(checkpoint.sourceRevision) || checkpoint.sourceRevision < 0) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Persisted checkpoint sourceRevision is not a non-negative safe integer: ${checkpoint.sourceRevision}`);
+  }
   if (checkpoint.sourceRevision > input.currentRevision) {
     throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint sourceRevision ${checkpoint.sourceRevision} exceeds current campaignRevision ${input.currentRevision}`);
+  }
+  if (checkpoint.sourceRevision !== evt.data.sourceRevision) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint sourceRevision ${checkpoint.sourceRevision} does not match event sourceRevision ${evt.data.sourceRevision}`);
   }
 
   if (checkpoint.sourceRevision > 0) {
