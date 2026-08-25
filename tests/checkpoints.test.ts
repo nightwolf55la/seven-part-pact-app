@@ -447,3 +447,196 @@ describe("Checkpoint creation targets undoStack.last", () => {
     expect(result.expectedUndoStack[result.expectedUndoStack.length - 1]).not.toBe(6);
   });
 });
+
+// ============================================================
+// Hardened checkpoint verification (createdAtMs + label normalization)
+// ============================================================
+
+describe("Checkpoint verification hardening", () => {
+  const baseCheckpoint: CampaignCheckpointV1 = {
+    checkpointVersion: 1,
+    checkpointId: "chk_00000000-0000-0000-0000-000000000001",
+    campaignId: "cmp_00000000-0000-0000-0000-000000000001",
+    label: "Before Ritual",
+    sourceRevision: 5,
+    createdAtMs: 1700000000000,
+  };
+
+  const baseInput = {
+    campaignId: "cmp_00000000-0000-0000-0000-000000000001",
+    campaignRevision: 10,
+    snapshotExists: true,
+    snapshotState: null,
+    revisionCommandType: "move_month" as const,
+  };
+
+  it("rejects fractional createdAtMs", () => {
+    const errors = verifyCheckpoint({
+      checkpoint: { ...baseCheckpoint, createdAtMs: 1700000000000.5 },
+      ...baseInput,
+    });
+    expect(errors.some((e) => e.includes("createdAtMs"))).toBe(true);
+  });
+
+  it("rejects unsafe large createdAtMs", () => {
+    const errors = verifyCheckpoint({
+      checkpoint: { ...baseCheckpoint, createdAtMs: Number.MAX_SAFE_INTEGER + 1 },
+      ...baseInput,
+    });
+    expect(errors.some((e) => e.includes("createdAtMs"))).toBe(true);
+  });
+
+  it("rejects negative createdAtMs", () => {
+    const errors = verifyCheckpoint({
+      checkpoint: { ...baseCheckpoint, createdAtMs: -1 },
+      ...baseInput,
+    });
+    expect(errors.some((e) => e.includes("createdAtMs"))).toBe(true);
+  });
+
+  it("rejects non-normalized label (leading whitespace)", () => {
+    const errors = verifyCheckpoint({
+      checkpoint: { ...baseCheckpoint, label: " Before Ritual" },
+      ...baseInput,
+    });
+    expect(errors.some((e) => e.includes("not normalized"))).toBe(true);
+  });
+
+  it("rejects non-normalized label (trailing whitespace)", () => {
+    const errors = verifyCheckpoint({
+      checkpoint: { ...baseCheckpoint, label: "Before Ritual " },
+      ...baseInput,
+    });
+    expect(errors.some((e) => e.includes("not normalized"))).toBe(true);
+  });
+
+  it("accepts valid checkpoint with safe integer createdAtMs", () => {
+    const errors = verifyCheckpoint({
+      checkpoint: baseCheckpoint,
+      ...baseInput,
+    });
+    expect(errors).toEqual([]);
+  });
+});
+
+// ============================================================
+// Checkpoint-restore history verification
+// ============================================================
+
+import { verifyCheckpointRestoreRevision, checkpointRestoreFingerprint as fpFn } from "../shared/domain";
+
+describe("verifyCheckpointRestoreRevision", () => {
+  const validChkId = "chk_00000000-0000-0000-0000-000000000001";
+
+  const validInput = {
+    campaignRevision: 21,
+    commandFingerprint: fpFn(validChkId, 20),
+    eventType: "checkpoint_restored",
+    eventVersion: 1,
+    eventCheckpointId: validChkId,
+    eventSourceRevision: 7,
+    eventLabelAtRestore: "Before Ritual",
+    sourceSnapshotExists: true,
+    sourceSnapshotState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 3 } } as any,
+    resultSnapshotExists: true,
+    resultSnapshotState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 3 } } as any,
+    sourceRevisionCommandType: "move_month" as const,
+  };
+
+  it("passes for valid restore revision", () => {
+    const errors = verifyCheckpointRestoreRevision(validInput);
+    expect(errors).toEqual([]);
+  });
+
+  it("rejects wrong event type", () => {
+    const errors = verifyCheckpointRestoreRevision({ ...validInput, eventType: "month_changed" });
+    expect(errors.some((e) => e.includes("checkpoint_restored"))).toBe(true);
+  });
+
+  it("rejects wrong event version", () => {
+    const errors = verifyCheckpointRestoreRevision({ ...validInput, eventVersion: 2 });
+    expect(errors.some((e) => e.includes("version"))).toBe(true);
+  });
+
+  it("rejects wrong fingerprint", () => {
+    const errors = verifyCheckpointRestoreRevision({ ...validInput, commandFingerprint: "wrong:fingerprint" });
+    expect(errors.some((e) => e.includes("commandFingerprint"))).toBe(true);
+  });
+
+  it("rejects missing source snapshot", () => {
+    const errors = verifyCheckpointRestoreRevision({ ...validInput, sourceSnapshotExists: false });
+    expect(errors.some((e) => e.includes("source snapshot"))).toBe(true);
+  });
+
+  it("rejects result snapshot differing from source snapshot", () => {
+    const errors = verifyCheckpointRestoreRevision({
+      ...validInput,
+      resultSnapshotState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 99 } } as any,
+    });
+    expect(errors.some((e) => e.includes("result snapshot state does not match"))).toBe(true);
+  });
+
+  it("rejects source navigation revision", () => {
+    const errors = verifyCheckpointRestoreRevision({ ...validInput, sourceRevisionCommandType: "undo" as any });
+    expect(errors.some((e) => e.includes("non-logical-state"))).toBe(true);
+  });
+
+  it("rejects missing source revision record for non-zero source", () => {
+    const errors = verifyCheckpointRestoreRevision({ ...validInput, sourceRevisionCommandType: null });
+    expect(errors.some((e) => e.includes("no revision record"))).toBe(true);
+  });
+
+  it("accepts sourceRevision 0 without revision record", () => {
+    const input = {
+      ...validInput,
+      eventSourceRevision: 0,
+      commandFingerprint: fpFn(validChkId, 20),
+      sourceRevisionCommandType: null,
+    };
+    const errors = verifyCheckpointRestoreRevision(input);
+    expect(errors).toEqual([]);
+  });
+
+  it("labelAtRestore does NOT depend on current checkpoint label (no check)", () => {
+    // labelAtRestore is historical — verification only checks it's a valid label string
+    // It does NOT require it to match any current checkpoint document
+    const errors = verifyCheckpointRestoreRevision({
+      ...validInput,
+      eventLabelAtRestore: "Old Name That Changed",
+    });
+    expect(errors).toEqual([]);
+  });
+
+  it("rejects sourceRevision exceeding revision - 1", () => {
+    const errors = verifyCheckpointRestoreRevision({
+      ...validInput,
+      eventSourceRevision: 21, // equals campaignRevision, exceeds rev - 1 = 20
+    });
+    expect(errors.some((e) => e.includes("exceeds prior revision"))).toBe(true);
+  });
+});
+
+// ============================================================
+// Collection verification: orphan campaign detection
+// ============================================================
+
+describe("Checkpoint collection verification: orphan campaign detection", () => {
+  it("detects checkpoint with wrong campaignId", () => {
+    const chk: CampaignCheckpointV1 = {
+      checkpointVersion: 1,
+      checkpointId: "chk_00000000-0000-0000-0000-000000000001",
+      campaignId: "cmp_99999999-9999-9999-9999-999999999999",
+      label: "Orphan",
+      sourceRevision: 1,
+      createdAtMs: 1700000000000,
+    };
+    const errors = verifyCheckpointCollection({
+      checkpoints: [chk],
+      campaignId: "cmp_00000000-0000-0000-0000-000000000001",
+      campaignRevision: 10,
+      snapshotRevisions: new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+      revisionCommandTypes: new Map([[1, "move_month"]]),
+    });
+    expect(errors.some((e) => e.includes("campaignId"))).toBe(true);
+  });
+});

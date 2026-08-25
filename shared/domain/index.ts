@@ -156,9 +156,11 @@ export type {
   CampaignCheckpointV1,
   CheckpointVerificationInput,
   CheckpointCollectionVerificationInput,
+  RestoreRevisionVerificationInput,
 } from "./checkpoints";
 export {
   CURRENT_CHECKPOINT_VERSION,
   verifyCheckpoint,
   verifyCheckpointCollection,
+  verifyCheckpointRestoreRevision,
 } from "./checkpoints";

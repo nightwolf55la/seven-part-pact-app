@@ -4,12 +4,17 @@ import {
   validateCampaignState,
   verifyMigrationInvariants,
   verifyHistoryControl,
+  verifyCheckpointCollection,
+  verifyCheckpointRestoreRevision,
+  isValidCheckpointId,
   CURRENT_HISTORY_CONTROL_VERSION,
+  CURRENT_CHECKPOINT_VERSION,
   type RevisionRecord,
   type EventRecord,
   type SnapshotRecord,
   type CampaignDocument,
   type CampaignHistoryControlV1,
+  type CampaignCheckpointV1,
   type RevisionCommandInfo,
   type ReplayEventInfo,
   type SerializableCampaignState,
@@ -33,6 +38,9 @@ const verificationResultValidator = v.union(
       v.literal("invalid"),
     ),
     historyControlErrors: v.array(v.string()),
+    checkpointCount: v.number(),
+    checkpointStatus: v.union(v.literal("valid"), v.literal("invalid")),
+    checkpointErrors: v.array(v.string()),
   }),
   v.object({
     status: v.literal("invalid"),
@@ -174,6 +182,65 @@ export const verifyMigration = query({
       errors.push("Final snapshot not found");
     }
 
+    // --- Verify checkpoint_restore revisions in immutable history ---
+    const snapshotMap = new Map<number, SerializableCampaignState>();
+    for (const s of campaignSnapshots) {
+      snapshotMap.set(s.campaignRevision, s.state);
+    }
+
+    const revisionMap = new Map<number, { commandType: string; commandFingerprint: string }>();
+    for (const r of campaignRevisions) {
+      revisionMap.set(r.campaignRevision, { commandType: r.commandType, commandFingerprint: r.commandFingerprint });
+    }
+
+    const eventsByRev = new Map<number, typeof campaignEvents>();
+    for (const e of campaignEvents) {
+      const list = eventsByRev.get(e.campaignRevision) ?? [];
+      list.push(e);
+      eventsByRev.set(e.campaignRevision, list);
+    }
+
+    for (const rev of campaignRevisions) {
+      if (rev.commandType !== "checkpoint_restore") continue;
+
+      const r = rev.campaignRevision;
+      const evts = eventsByRev.get(r) ?? [];
+
+      if (evts.length !== 1) {
+        errors.push(`Revision ${r} (checkpoint_restore): expected exactly 1 event, found ${evts.length}`);
+        continue;
+      }
+
+      const evt = evts[0];
+      if (evt.eventIndex !== 0) {
+        errors.push(`Revision ${r} (checkpoint_restore): expected eventIndex 0, got ${evt.eventIndex}`);
+        continue;
+      }
+
+      const evtData = evt.event.data as { checkpointId?: string; sourceRevision?: number; labelAtRestore?: string };
+      const sourceRev = typeof evtData.sourceRevision === "number" ? evtData.sourceRevision : -1;
+      const sourceRevCommandType = sourceRev > 0
+        ? (revisionMap.get(sourceRev)?.commandType ?? null) as any
+        : null;
+
+      const restoreErrors = verifyCheckpointRestoreRevision({
+        campaignRevision: r,
+        commandFingerprint: rev.commandFingerprint,
+        eventType: evt.event.type,
+        eventVersion: evt.event.version,
+        eventCheckpointId: (evtData.checkpointId ?? "") as string,
+        eventSourceRevision: sourceRev,
+        eventLabelAtRestore: (evtData.labelAtRestore ?? "") as string,
+        sourceSnapshotExists: snapshotMap.has(sourceRev),
+        sourceSnapshotState: snapshotMap.get(sourceRev) ?? null,
+        resultSnapshotExists: snapshotMap.has(r),
+        resultSnapshotState: snapshotMap.get(r) ?? null,
+        sourceRevisionCommandType: sourceRevCommandType,
+      });
+
+      errors.push(...restoreErrors);
+    }
+
     if (errors.length > 0) {
       return { status: "invalid" as const, errors };
     }
@@ -241,6 +308,45 @@ export const verifyMigration = query({
       }
     }
 
+    // --- Checkpoint verification ---
+    // Load ALL checkpoint documents (not just this campaign) to detect orphans
+    const allCheckpoints = await ctx.db
+      .query("campaignCheckpoints")
+      .collect();
+
+    const checkpointErrors: string[] = [];
+
+    // Detect orphan checkpoints (wrong campaignId)
+    const orphanCheckpoints = allCheckpoints.filter((c) => c.campaignId !== campaignId);
+    if (orphanCheckpoints.length > 0) {
+      checkpointErrors.push(`Found ${orphanCheckpoints.length} checkpoint(s) with unexpected campaignId (not "${campaignId}")`);
+    }
+
+    // Convert to domain type for verification
+    const campaignCheckpoints: CampaignCheckpointV1[] = allCheckpoints.map((c) => ({
+      checkpointVersion: c.checkpointVersion as 1,
+      checkpointId: c.checkpointId,
+      campaignId: c.campaignId,
+      label: c.label,
+      sourceRevision: c.sourceRevision,
+      createdAtMs: c.createdAtMs,
+    }));
+
+    const snapshotRevisionSet = new Set(campaignSnapshots.map((s) => s.campaignRevision));
+    const revCommandTypeMap = new Map(campaignRevisions.map((r) => [r.campaignRevision, r.commandType as any]));
+
+    const collectionErrors = verifyCheckpointCollection({
+      checkpoints: campaignCheckpoints,
+      campaignId,
+      campaignRevision,
+      snapshotRevisions: snapshotRevisionSet,
+      revisionCommandTypes: revCommandTypeMap,
+    });
+    checkpointErrors.push(...collectionErrors);
+
+    const checkpointCount = allCheckpoints.length;
+    const checkpointStatus = checkpointErrors.length === 0 ? "valid" as const : "invalid" as const;
+
     return {
       status: "valid" as const,
       campaignId,
@@ -251,6 +357,9 @@ export const verifyMigration = query({
       campaignDocumentCount: allCampaignDocs.length,
       historyControlStatus,
       historyControlErrors,
+      checkpointCount,
+      checkpointStatus,
+      checkpointErrors,
     };
   },
 });

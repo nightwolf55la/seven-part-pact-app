@@ -200,6 +200,14 @@ export const ensureCampaign = mutation({
       );
     }
 
+    const orphanCheckpoints = await ctx.db.query("campaignCheckpoints").first();
+    if (orphanCheckpoints !== null) {
+      throw new DomainError(
+        "CAMPAIGN_STATE_CORRUPT",
+        "Orphan campaignCheckpoints exist but no campaign document found",
+      );
+    }
+
     const state = initialCampaignState();
     validateCampaignState(state);
 
@@ -818,16 +826,55 @@ export const createCheckpoint = mutation({
 
     if (existingDocs.length === 1) {
       const existing = existingDocs[0];
-      if (existing.campaignId === campaignId && existing.label === normalizedLabel) {
-        return {
-          checkpointId: existing.checkpointId,
-          label: existing.label,
-          sourceRevision: existing.sourceRevision,
-          createdAtMs: existing.createdAtMs,
-          alreadyApplied: true,
-        };
+      if (existing.campaignId !== campaignId || existing.label !== normalizedLabel) {
+        throw new DomainError("CHECKPOINT_ID_REUSED", `CheckpointId "${checkpointId}" already exists with different campaign or label`);
       }
-      throw new DomainError("CHECKPOINT_ID_REUSED", `CheckpointId "${checkpointId}" already exists with different campaign or label`);
+
+      // Validate the persisted checkpoint before returning idempotent success
+      if (existing.checkpointVersion !== CURRENT_CHECKPOINT_VERSION) {
+        throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Existing checkpoint "${checkpointId}" has unrecognized checkpointVersion: ${existing.checkpointVersion}`);
+      }
+      if (!isValidCheckpointId(existing.checkpointId)) {
+        throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Existing checkpoint has invalid checkpointId format`);
+      }
+      if (existing.label !== normalizeCheckpointLabel(existing.label)) {
+        throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Existing checkpoint "${checkpointId}" has non-normalized label`);
+      }
+      const existingLabelError = validateCheckpointLabel(existing.label);
+      if (existingLabelError !== null) {
+        throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Existing checkpoint "${checkpointId}" has invalid label: ${existingLabelError}`);
+      }
+      if (!Number.isSafeInteger(existing.createdAtMs) || existing.createdAtMs < 0) {
+        throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Existing checkpoint "${checkpointId}" has invalid createdAtMs: ${existing.createdAtMs}`);
+      }
+      if (!Number.isSafeInteger(existing.sourceRevision) || existing.sourceRevision < 0) {
+        throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Existing checkpoint "${checkpointId}" has invalid sourceRevision: ${existing.sourceRevision}`);
+      }
+      if (existing.sourceRevision > campaign.campaignRevision) {
+        throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Existing checkpoint "${checkpointId}" sourceRevision ${existing.sourceRevision} exceeds campaignRevision ${campaign.campaignRevision}`);
+      }
+      const existingSnapshot = await loadSnapshotState(ctx, campaignId, existing.sourceRevision);
+      if (existingSnapshot === null) {
+        throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Existing checkpoint "${checkpointId}" sourceRevision ${existing.sourceRevision} has no snapshot`);
+      }
+      validateCampaignState(existingSnapshot);
+      if (existing.sourceRevision > 0) {
+        const existingRevType = await loadRevisionCommandType(ctx, campaignId, existing.sourceRevision);
+        if (existingRevType === null) {
+          throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Existing checkpoint "${checkpointId}" sourceRevision ${existing.sourceRevision} has no revision record`);
+        }
+        if (!isLogicalStateCommandType(existingRevType as any)) {
+          throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Existing checkpoint "${checkpointId}" sourceRevision ${existing.sourceRevision} has non-logical-state commandType "${existingRevType}"`);
+        }
+      }
+
+      return {
+        checkpointId: existing.checkpointId,
+        label: existing.label,
+        sourceRevision: existing.sourceRevision,
+        createdAtMs: existing.createdAtMs,
+        alreadyApplied: true,
+      };
     }
 
     // Load history control
@@ -909,12 +956,38 @@ export const listCheckpoints = query({
       return [];
     }
 
+    const campaignId = maybeCanonical.campaignId;
+
     const checkpoints = await ctx.db
       .query("campaignCheckpoints")
-      .withIndex("by_campaignId", (q) => q.eq("campaignId", maybeCanonical.campaignId))
+      .withIndex("by_campaignId", (q) => q.eq("campaignId", campaignId))
       .collect();
 
-    return checkpoints.map((c) => ({
+    // Fail closed on corruption: duplicate IDs or wrong-campaign records
+    const seenIds = new Set<string>();
+    for (const c of checkpoints) {
+      if (seenIds.has(c.checkpointId)) {
+        throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Duplicate checkpointId "${c.checkpointId}" in campaignCheckpoints`);
+      }
+      seenIds.add(c.checkpointId);
+      if (c.campaignId !== campaignId) {
+        throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint "${c.checkpointId}" has wrong campaignId "${c.campaignId}"`);
+      }
+      if (c.checkpointVersion !== CURRENT_CHECKPOINT_VERSION) {
+        throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint "${c.checkpointId}" has unrecognized checkpointVersion: ${c.checkpointVersion}`);
+      }
+      if (!isValidCheckpointId(c.checkpointId)) {
+        throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint has invalid checkpointId format: "${c.checkpointId}"`);
+      }
+    }
+
+    // Sort newest-first by createdAtMs, tie-break by checkpointId (stable)
+    const sorted = [...checkpoints].sort((a, b) => {
+      if (b.createdAtMs !== a.createdAtMs) return b.createdAtMs - a.createdAtMs;
+      return a.checkpointId < b.checkpointId ? -1 : a.checkpointId > b.checkpointId ? 1 : 0;
+    });
+
+    return sorted.map((c) => ({
       checkpointId: c.checkpointId,
       label: c.label,
       sourceRevision: c.sourceRevision,
