@@ -391,6 +391,20 @@ function validateLogicalStateEventSemantics(
     const rev = revisions.get(r);
     if (!rev) continue;
 
+    // checkpoint_restore has its own event type; validated separately
+    if (rev.commandType === "checkpoint_restore") {
+      const evts = eventsByRev.get(r);
+      if (!evts || evts.length !== 1) {
+        errors.push(`Revision ${r}: checkpoint_restore expected exactly 1 event, found ${evts?.length ?? 0}`);
+        continue;
+      }
+      const evt = evts[0];
+      if (evt.event.type !== "checkpoint_restored" || evt.event.version !== 1) {
+        errors.push(`Revision ${r}: checkpoint_restore event must be checkpoint_restored v1, got type="${evt.event.type}" version=${evt.event.version}`);
+      }
+      continue;
+    }
+
     const evts = eventsByRev.get(r);
     if (!evts || evts.length === 0) continue;
 

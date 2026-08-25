@@ -8,7 +8,10 @@ export type DomainErrorCode =
   | "STALE_CAMPAIGN_REVISION"
   | "UNDO_UNAVAILABLE"
   | "REDO_UNAVAILABLE"
-  | "HISTORY_CONTROL_NOT_INITIALIZED";
+  | "HISTORY_CONTROL_NOT_INITIALIZED"
+  | "CHECKPOINT_ID_REUSED"
+  | "CHECKPOINT_NOT_FOUND"
+  | "INVALID_CHECKPOINT";
 
 export class DomainError extends Error {
   public readonly code: DomainErrorCode;

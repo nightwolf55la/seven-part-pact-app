@@ -8,6 +8,7 @@ import {
   campaignEventRecordValidator,
   campaignSnapshotRecordValidator,
   campaignHistoryControlValidator,
+  campaignCheckpointValidator,
 } from "./validators";
 
 const legacyCampaignValidator = v.object({
@@ -50,4 +51,8 @@ export default defineSchema({
 
   campaignHistoryControl: defineTable(campaignHistoryControlValidator)
     .index("by_campaignId", ["campaignId"]),
+
+  campaignCheckpoints: defineTable(campaignCheckpointValidator)
+    .index("by_campaignId", ["campaignId"])
+    .index("by_checkpointId", ["checkpointId"]),
 });

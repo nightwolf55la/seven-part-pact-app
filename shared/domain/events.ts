@@ -34,7 +34,20 @@ export interface RedoAppliedEventV1 {
   readonly data: RedoAppliedDataV1;
 }
 
+export interface CheckpointRestoredDataV1 {
+  readonly checkpointId: string;
+  readonly sourceRevision: number;
+  readonly labelAtRestore: string;
+}
+
+export interface CheckpointRestoredEventV1 {
+  readonly type: "checkpoint_restored";
+  readonly version: 1;
+  readonly data: CheckpointRestoredDataV1;
+}
+
 export type CampaignEvent =
   | MonthChangedEventV1
   | UndoAppliedEventV1
-  | RedoAppliedEventV1;
+  | RedoAppliedEventV1
+  | CheckpointRestoredEventV1;

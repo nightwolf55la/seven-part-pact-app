@@ -6,6 +6,7 @@ import {
   SEVEN_PART_PACT_DRAFT4_VERSION,
   CURRENT_STATE_SCHEMA_VERSION,
   CURRENT_HISTORY_CONTROL_VERSION,
+  CURRENT_CHECKPOINT_VERSION,
 } from "../shared/domain";
 
 export const monthDirectionValidator = v.union(
@@ -49,10 +50,21 @@ export const redoAppliedEventV1Validator = v.object({
   }),
 });
 
+export const checkpointRestoredEventV1Validator = v.object({
+  type: v.literal("checkpoint_restored"),
+  version: v.literal(1),
+  data: v.object({
+    checkpointId: v.string(),
+    sourceRevision: v.number(),
+    labelAtRestore: v.string(),
+  }),
+});
+
 export const campaignEventValidator = v.union(
   monthChangedEventV1Validator,
   undoAppliedEventV1Validator,
   redoAppliedEventV1Validator,
+  checkpointRestoredEventV1Validator,
 );
 
 export const campaignStateV1Validator = v.object({
@@ -103,6 +115,15 @@ export const campaignHistoryControlValidator = v.object({
   redoStack: v.array(v.number()),
 });
 
+export const campaignCheckpointValidator = v.object({
+  checkpointVersion: v.literal(CURRENT_CHECKPOINT_VERSION),
+  checkpointId: v.string(),
+  campaignId: v.string(),
+  label: v.string(),
+  sourceRevision: v.number(),
+  createdAtMs: v.number(),
+});
+
 export const activityEntryValidator = v.union(
   v.object({
     id: v.string(),
@@ -124,5 +145,13 @@ export const activityEntryValidator = v.union(
     type: v.literal("redo_applied"),
     fromRevision: v.number(),
     targetRevision: v.number(),
+  }),
+  v.object({
+    id: v.string(),
+    revision: v.number(),
+    type: v.literal("checkpoint_restored"),
+    checkpointId: v.string(),
+    labelAtRestore: v.string(),
+    sourceRevision: v.number(),
   }),
 );

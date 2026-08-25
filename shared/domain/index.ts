@@ -1,11 +1,13 @@
 export type { Brand } from "./brand";
 
-export type { CampaignId, CommandId } from "./ids";
+export type { CampaignId, CommandId, CheckpointId } from "./ids";
 export {
   isValidCampaignId,
   parseCampaignId,
   isValidLiveCommandId,
   parseLiveCommandId,
+  isValidCheckpointId,
+  parseCheckpointId,
 } from "./ids";
 
 export type {
@@ -39,6 +41,8 @@ export type {
   UndoAppliedEventV1,
   RedoAppliedDataV1,
   RedoAppliedEventV1,
+  CheckpointRestoredDataV1,
+  CheckpointRestoredEventV1,
   CampaignEvent,
 } from "./events";
 
@@ -100,6 +104,9 @@ export {
   moveMonthFingerprint,
   undoFingerprint,
   redoFingerprint,
+  checkpointRestoreFingerprint,
+  normalizeCheckpointLabel,
+  validateCheckpointLabel,
 } from "./command-ids";
 
 export type {
@@ -144,3 +151,14 @@ export {
   statesDeepEqual,
   analyzeHistoryControlInitialization,
 } from "./history-control";
+
+export type {
+  CampaignCheckpointV1,
+  CheckpointVerificationInput,
+  CheckpointCollectionVerificationInput,
+} from "./checkpoints";
+export {
+  CURRENT_CHECKPOINT_VERSION,
+  verifyCheckpoint,
+  verifyCheckpointCollection,
+} from "./checkpoints";

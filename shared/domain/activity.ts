@@ -22,6 +22,14 @@ export type ActivityEntry =
       readonly type: "redo_applied";
       readonly fromRevision: number;
       readonly targetRevision: number;
+    }
+  | {
+      readonly id: string;
+      readonly revision: number;
+      readonly type: "checkpoint_restored";
+      readonly checkpointId: string;
+      readonly labelAtRestore: string;
+      readonly sourceRevision: number;
     };
 
 export function mapEventToActivityEntry(
@@ -72,6 +80,21 @@ export function mapEventToActivityEntry(
         targetRevision: event.data.targetRevision,
       };
     }
+    case "checkpoint_restored": {
+      if (event.version !== 1) {
+        throw new Error(
+          `Unsupported checkpoint_restored event version ${event.version}`,
+        );
+      }
+      return {
+        id,
+        revision,
+        type: "checkpoint_restored",
+        checkpointId: event.data.checkpointId,
+        labelAtRestore: event.data.labelAtRestore,
+        sourceRevision: event.data.sourceRevision,
+      };
+    }
   }
 }
 
@@ -83,5 +106,7 @@ export function describeActivityEntry(entry: ActivityEntry): string {
       return `Revision ${entry.revision} — Undo: revision ${entry.fromRevision} → ${entry.targetRevision}`;
     case "redo_applied":
       return `Revision ${entry.revision} — Redo: revision ${entry.fromRevision} → ${entry.targetRevision}`;
+    case "checkpoint_restored":
+      return `Revision ${entry.revision} — Restored "${entry.labelAtRestore}" from revision ${entry.sourceRevision}`;
   }
 }

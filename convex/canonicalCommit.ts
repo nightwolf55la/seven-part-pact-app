@@ -1,6 +1,6 @@
 import type { MutationCtx } from "./_generated/server";
 import type { CampaignCommandType, CurrentCampaignState, CampaignEvent, MonthDirection, EventRecord } from "../shared/domain";
-import { validateCampaignState, DomainError, advanceOrdinal, validateMoveMonthTransaction, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION, validateHistoryControlStructure, statesDeepEqual } from "../shared/domain";
+import { validateCampaignState, DomainError, advanceOrdinal, validateMoveMonthTransaction, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION, validateHistoryControlStructure, statesDeepEqual, isValidCheckpointId, validateCheckpointLabel, checkpointRestoreFingerprint, CURRENT_CHECKPOINT_VERSION } from "../shared/domain";
 import { validateUndoTransactionCoherence, validateRedoTransactionCoherence } from "../shared/domain/undo-redo";
 import type { Id } from "./_generated/dataModel";
 
@@ -69,6 +69,33 @@ function validateEventCoherence(
       }
       break;
     }
+    case "checkpoint_restore": {
+      if (events.length !== 1) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "checkpoint_restore must produce exactly one event");
+      }
+      const evt = events[0];
+      if (evt.type !== "checkpoint_restored" || evt.version !== 1) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `checkpoint_restore event must be checkpoint_restored v1, got type="${evt.type}" version=${evt.version}`);
+      }
+      if (!isValidCheckpointId(evt.data.checkpointId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `checkpoint_restore event has invalid checkpointId: "${evt.data.checkpointId}"`);
+      }
+      if (!Number.isSafeInteger(evt.data.sourceRevision) || evt.data.sourceRevision < 0) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `checkpoint_restore event sourceRevision is not a non-negative safe integer: ${evt.data.sourceRevision}`);
+      }
+      const labelError = validateCheckpointLabel(evt.data.labelAtRestore);
+      if (labelError !== null) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `checkpoint_restore event labelAtRestore invalid: ${labelError}`);
+      }
+      const expectedFingerprint = checkpointRestoreFingerprint(evt.data.checkpointId, input.currentRevision);
+      if (commandFingerprint !== expectedFingerprint) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `checkpoint_restore fingerprint "${commandFingerprint}" does not match expected "${expectedFingerprint}"`);
+      }
+      if (input.historyControlUpdate.kind !== "logical_state_append") {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "checkpoint_restore must use logical_state_append history update");
+      }
+      break;
+    }
     case "undo": {
       if (events.length !== 1) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", "undo must produce exactly one event");
@@ -99,6 +126,85 @@ function validateEventCoherence(
       const _exhaustive: never = commandType;
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown command type: ${_exhaustive}`);
     }
+  }
+}
+
+async function validateCheckpointRestoreCoherence(
+  ctx: MutationCtx,
+  input: CanonicalCommitInput,
+): Promise<void> {
+  const evt = input.events[0];
+  if (evt.type !== "checkpoint_restored") return;
+
+  const checkpointDocs = await ctx.db
+    .query("campaignCheckpoints")
+    .withIndex("by_checkpointId", (q) => q.eq("checkpointId", evt.data.checkpointId))
+    .collect();
+
+  if (checkpointDocs.length === 0) {
+    throw new DomainError("CHECKPOINT_NOT_FOUND", `No checkpoint found with id "${evt.data.checkpointId}"`);
+  }
+  if (checkpointDocs.length > 1) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Found ${checkpointDocs.length} checkpoint documents for id "${evt.data.checkpointId}" — expected exactly 1`);
+  }
+
+  const checkpoint = checkpointDocs[0];
+
+  if (checkpoint.campaignId !== input.campaignId) {
+    throw new DomainError("CHECKPOINT_NOT_FOUND", `Checkpoint "${evt.data.checkpointId}" does not belong to this campaign`);
+  }
+
+  if (checkpoint.checkpointVersion !== CURRENT_CHECKPOINT_VERSION) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint has unrecognized checkpointVersion: ${checkpoint.checkpointVersion}`);
+  }
+
+  if (checkpoint.sourceRevision !== evt.data.sourceRevision) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint sourceRevision ${checkpoint.sourceRevision} does not match event sourceRevision ${evt.data.sourceRevision}`);
+  }
+
+  if (checkpoint.label !== evt.data.labelAtRestore) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint label "${checkpoint.label}" does not match event labelAtRestore "${evt.data.labelAtRestore}"`);
+  }
+
+  if (checkpoint.sourceRevision > input.currentRevision) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint sourceRevision ${checkpoint.sourceRevision} exceeds current campaignRevision ${input.currentRevision}`);
+  }
+
+  if (checkpoint.sourceRevision > 0) {
+    const sourceRevRec = await ctx.db
+      .query("campaignRevisions")
+      .withIndex("by_campaign_revision", (q) =>
+        q.eq("campaignId", input.campaignId).eq("campaignRevision", checkpoint.sourceRevision),
+      )
+      .unique();
+
+    if (sourceRevRec === null) {
+      throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint sourceRevision ${checkpoint.sourceRevision} has no revision record`);
+    }
+    if (!isLogicalStateCommandType(sourceRevRec.commandType)) {
+      throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint sourceRevision ${checkpoint.sourceRevision} has non-logical-state commandType "${sourceRevRec.commandType}"`);
+    }
+  }
+
+  const sourceSnapshot = await ctx.db
+    .query("campaignSnapshots")
+    .withIndex("by_campaign_revision", (q) =>
+      q.eq("campaignId", input.campaignId).eq("campaignRevision", checkpoint.sourceRevision),
+    )
+    .unique();
+
+  if (sourceSnapshot === null) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `No snapshot exists for checkpoint sourceRevision ${checkpoint.sourceRevision}`);
+  }
+
+  validateCampaignState(sourceSnapshot.state as CurrentCampaignState);
+
+  if (!statesDeepEqual(sourceSnapshot.state, {
+    schemaVersion: input.nextState.schemaVersion,
+    ruleset: { id: input.nextState.ruleset.id, version: input.nextState.ruleset.version },
+    calendar: { monthOrdinal: input.nextState.calendar.monthOrdinal as number },
+  })) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `checkpoint_restore nextState does not match source snapshot at revision ${checkpoint.sourceRevision}`);
   }
 }
 
@@ -184,6 +290,20 @@ export async function canonicalCommit(
           throw new DomainError("INVALID_CAMPAIGN_STATE", "redo_applied targetRevision is not valid");
         }
         break;
+      case "checkpoint_restored":
+        if (evt.version !== 1) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Unsupported checkpoint_restored version: ${evt.version}`);
+        }
+        if (!isValidCheckpointId(evt.data.checkpointId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", "checkpoint_restored checkpointId is not valid");
+        }
+        if (!Number.isSafeInteger(evt.data.sourceRevision) || evt.data.sourceRevision < 0) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", "checkpoint_restored sourceRevision is not valid");
+        }
+        if (typeof evt.data.labelAtRestore !== "string" || evt.data.labelAtRestore.length === 0) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", "checkpoint_restored labelAtRestore is not valid");
+        }
+        break;
       default: {
         const _exhaustive: never = evt;
         throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown event type: ${(_exhaustive as any).type}`);
@@ -195,6 +315,11 @@ export async function canonicalCommit(
   validateCampaignState(input.nextState);
 
   validateEventCoherence(input, newRevision);
+
+  // --- Checkpoint restore coherence (independent DB verification) ---
+  if (input.commandType === "checkpoint_restore") {
+    await validateCheckpointRestoreCoherence(ctx, input);
+  }
 
   // --- Idempotency ---
   const existingCommand = await ctx.db
@@ -288,6 +413,20 @@ export async function canonicalCommit(
             data: {
               fromRevision: evt.data.fromRevision,
               targetRevision: evt.data.targetRevision,
+            },
+          },
+        });
+        break;
+      case "checkpoint_restored":
+        await ctx.db.insert("campaignEvents", {
+          ...baseRecord,
+          event: {
+            type: "checkpoint_restored" as const,
+            version: 1 as const,
+            data: {
+              checkpointId: evt.data.checkpointId,
+              sourceRevision: evt.data.sourceRevision,
+              labelAtRestore: evt.data.labelAtRestore,
             },
           },
         });
