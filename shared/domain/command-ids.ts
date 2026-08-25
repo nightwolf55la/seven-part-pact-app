@@ -59,3 +59,13 @@ export function checkpointRestoreFingerprint(checkpointId: string, expectedRevis
   }
   return `checkpoint_restore:v1:checkpoint=${checkpointId}:expectedRevision=${expectedRevision}`;
 }
+
+export function backupImportFingerprint(expectedRevision: number, payloadDigest: string): string {
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+    throw new Error(`backupImportFingerprint requires a non-negative safe integer expectedRevision, got ${expectedRevision}`);
+  }
+  if (!/^[0-9a-f]{64}$/.test(payloadDigest)) {
+    throw new Error(`backupImportFingerprint requires a valid sha256 hex digest, got "${payloadDigest}"`);
+  }
+  return `backup_import:v1:expectedRevision=${expectedRevision}:payloadDigest=${payloadDigest}`;
+}

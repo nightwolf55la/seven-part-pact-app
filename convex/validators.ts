@@ -60,11 +60,25 @@ export const checkpointRestoredEventV1Validator = v.object({
   }),
 });
 
+export const backupImportedEventV1Validator = v.object({
+  type: v.literal("backup_imported"),
+  version: v.literal(1),
+  data: v.object({
+    backupFormatVersion: v.literal(1),
+    sourceCampaignId: v.string(),
+    sourceCampaignRevision: v.number(),
+    sourceLogicalRevision: v.number(),
+    exportedAtMs: v.number(),
+    payloadDigest: v.string(),
+  }),
+});
+
 export const campaignEventValidator = v.union(
   monthChangedEventV1Validator,
   undoAppliedEventV1Validator,
   redoAppliedEventV1Validator,
   checkpointRestoredEventV1Validator,
+  backupImportedEventV1Validator,
 );
 
 export const campaignStateV1Validator = v.object({
@@ -153,5 +167,13 @@ export const activityEntryValidator = v.union(
     checkpointId: v.string(),
     labelAtRestore: v.string(),
     sourceRevision: v.number(),
+  }),
+  v.object({
+    id: v.string(),
+    revision: v.number(),
+    type: v.literal("backup_imported"),
+    sourceCampaignRevision: v.number(),
+    sourceLogicalRevision: v.number(),
+    exportedAtMs: v.number(),
   }),
 );

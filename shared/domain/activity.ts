@@ -30,6 +30,14 @@ export type ActivityEntry =
       readonly checkpointId: string;
       readonly labelAtRestore: string;
       readonly sourceRevision: number;
+    }
+  | {
+      readonly id: string;
+      readonly revision: number;
+      readonly type: "backup_imported";
+      readonly sourceCampaignRevision: number;
+      readonly sourceLogicalRevision: number;
+      readonly exportedAtMs: number;
     };
 
 export function mapEventToActivityEntry(
@@ -95,6 +103,21 @@ export function mapEventToActivityEntry(
         sourceRevision: event.data.sourceRevision,
       };
     }
+    case "backup_imported": {
+      if (event.version !== 1) {
+        throw new Error(
+          `Unsupported backup_imported event version ${event.version}`,
+        );
+      }
+      return {
+        id,
+        revision,
+        type: "backup_imported",
+        sourceCampaignRevision: event.data.sourceCampaignRevision,
+        sourceLogicalRevision: event.data.sourceLogicalRevision,
+        exportedAtMs: event.data.exportedAtMs,
+      };
+    }
   }
 }
 
@@ -108,5 +131,7 @@ export function describeActivityEntry(entry: ActivityEntry): string {
       return `Revision ${entry.revision} — Redo: revision ${entry.fromRevision} → ${entry.targetRevision}`;
     case "checkpoint_restored":
       return `Revision ${entry.revision} — Restored "${entry.labelAtRestore}" from revision ${entry.sourceRevision}`;
+    case "backup_imported":
+      return `Revision ${entry.revision} — Imported backup from logical revision ${entry.sourceLogicalRevision}`;
   }
 }

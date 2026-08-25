@@ -43,6 +43,8 @@ export type {
   RedoAppliedEventV1,
   CheckpointRestoredDataV1,
   CheckpointRestoredEventV1,
+  BackupImportedDataV1,
+  BackupImportedEventV1,
   CampaignEvent,
 } from "./events";
 
@@ -105,6 +107,7 @@ export {
   undoFingerprint,
   redoFingerprint,
   checkpointRestoreFingerprint,
+  backupImportFingerprint,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
 } from "./command-ids";
@@ -164,3 +167,40 @@ export {
   verifyCheckpointCollection,
   verifyCheckpointRestoreRevision,
 } from "./checkpoints";
+
+export type {
+  CampaignBackupV1,
+  CampaignBackupProvenanceV1,
+  CampaignBackupIntegrityV1,
+  BackupIntegrityPayload,
+  BackupValidationError,
+  ValidatedBackupV1,
+  ExportSourceData,
+} from "./backup";
+export {
+  BACKUP_FORMAT_TYPE,
+  CURRENT_BACKUP_FORMAT_VERSION,
+  MAX_PORTABLE_BACKUP_BYTES,
+  buildIntegrityPayload,
+  buildIntegrityPayloadFromParts,
+  computeBackupPayloadDigest,
+  parseAndValidateBackupStructure,
+  validateBackupState,
+  validateBackupCompatibility,
+  fullyValidateBackup,
+  buildExportBackup,
+} from "./backup";
+
+export {
+  canonicalJsonStringify,
+  sha256Hex,
+  computeDigestFromCanonicalJson,
+  CanonicalJsonError,
+} from "./canonical-json";
+
+export type { BackupImportRevisionVerificationInput } from "./backup-verification";
+export {
+  verifyBackupImportRevisionStructure,
+  verifyBackupImportRevisionDigest,
+} from "./backup-verification";
+

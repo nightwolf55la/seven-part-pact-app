@@ -11,7 +11,12 @@ export type DomainErrorCode =
   | "HISTORY_CONTROL_NOT_INITIALIZED"
   | "CHECKPOINT_ID_REUSED"
   | "CHECKPOINT_NOT_FOUND"
-  | "INVALID_CHECKPOINT";
+  | "INVALID_CHECKPOINT"
+  | "INVALID_BACKUP_FORMAT"
+  | "UNSUPPORTED_BACKUP_VERSION"
+  | "BACKUP_INTEGRITY_FAILED"
+  | "BACKUP_INCOMPATIBLE"
+  | "CAMPAIGN_NOT_FOUND";
 
 export class DomainError extends Error {
   public readonly code: DomainErrorCode;

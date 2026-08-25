@@ -1,12 +1,15 @@
 import type { MutationCtx } from "./_generated/server";
 import type { CampaignCommandType, CurrentCampaignState, CampaignEvent, MonthDirection, EventRecord } from "../shared/domain";
-import { validateCampaignState, DomainError, advanceOrdinal, validateMoveMonthTransaction, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION, validateHistoryControlStructure, statesDeepEqual, isValidCheckpointId, validateCheckpointLabel, normalizeCheckpointLabel, checkpointRestoreFingerprint, CURRENT_CHECKPOINT_VERSION } from "../shared/domain";
+import { validateCampaignState, DomainError, advanceOrdinal, validateMoveMonthTransaction, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION, validateHistoryControlStructure, statesDeepEqual, isValidCheckpointId, validateCheckpointLabel, normalizeCheckpointLabel, checkpointRestoreFingerprint, CURRENT_CHECKPOINT_VERSION, isValidCampaignId, backupImportFingerprint, BACKUP_FORMAT_TYPE, CURRENT_BACKUP_FORMAT_VERSION, MAX_PORTABLE_BACKUP_BYTES, fullyValidateBackup, buildIntegrityPayloadFromParts, computeBackupPayloadDigest } from "../shared/domain";
 import { validateUndoTransactionCoherence, validateRedoTransactionCoherence } from "../shared/domain/undo-redo";
 import type { Id } from "./_generated/dataModel";
 
 export type HistoryControlUpdate =
   | { readonly kind: "logical_state_append" }
   | { readonly kind: "history_navigation"; readonly nextUndoStack: readonly number[]; readonly nextRedoStack: readonly number[] };
+
+export type CommandContext =
+  | { readonly kind: "backup_import"; readonly backupJson: string };
 
 export interface CanonicalCommitInput {
   campaignDocId: Id<"campaigns">;
@@ -19,6 +22,7 @@ export interface CanonicalCommitInput {
   nextState: CurrentCampaignState;
   events: readonly CampaignEvent[];
   historyControlUpdate: HistoryControlUpdate;
+  commandContext?: CommandContext;
 }
 
 export interface CanonicalCommitReceipt {
@@ -96,6 +100,22 @@ function validateEventCoherence(
       }
       break;
     }
+    case "backup_import": {
+      if (events.length !== 1) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_import must produce exactly one event");
+      }
+      const evt = events[0];
+      if (evt.type !== "backup_imported" || evt.version !== 1) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `backup_import event must be backup_imported v1, got type="${evt.type}" version=${evt.version}`);
+      }
+      if (input.historyControlUpdate.kind !== "logical_state_append") {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_import must use logical_state_append history update");
+      }
+      if (!input.commandContext || input.commandContext.kind !== "backup_import") {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_import requires commandContext with kind backup_import");
+      }
+      break;
+    }
     case "undo": {
       if (events.length !== 1) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", "undo must produce exactly one event");
@@ -126,6 +146,113 @@ function validateEventCoherence(
       const _exhaustive: never = commandType;
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown command type: ${_exhaustive}`);
     }
+  }
+}
+
+async function validateBackupImportCoherence(
+  input: CanonicalCommitInput,
+  evt: CampaignEvent & { type: "backup_imported" },
+): Promise<void> {
+  const ctx = input.commandContext;
+  if (!ctx || ctx.kind !== "backup_import") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_import requires commandContext");
+  }
+
+  const rawJson = ctx.backupJson;
+
+  // Size check
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(rawJson);
+  if (bytes.length > MAX_PORTABLE_BACKUP_BYTES) {
+    throw new DomainError("INVALID_BACKUP_FORMAT", `Backup exceeds maximum size of ${MAX_PORTABLE_BACKUP_BYTES} bytes`);
+  }
+
+  // Parse
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawJson);
+  } catch (e: unknown) {
+    throw new DomainError("INVALID_BACKUP_FORMAT", `Invalid JSON in backup: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  // Validate structure
+  const obj = parsed as Record<string, unknown>;
+  if (obj.formatType !== BACKUP_FORMAT_TYPE) {
+    throw new DomainError("INVALID_BACKUP_FORMAT", `Expected formatType "${BACKUP_FORMAT_TYPE}"`);
+  }
+  if (obj.backupFormatVersion !== CURRENT_BACKUP_FORMAT_VERSION) {
+    throw new DomainError("INVALID_BACKUP_FORMAT", `Expected backupFormatVersion ${CURRENT_BACKUP_FORMAT_VERSION}`);
+  }
+
+  const prov = obj.provenance as Record<string, unknown>;
+  const state = obj.state;
+
+  // Validate CampaignState from backup
+  validateCampaignState(state);
+  const backupState = state as CurrentCampaignState;
+
+  // Compute server-side digest independently
+  const integrityPayload = buildIntegrityPayloadFromParts(
+    {
+      sourceCampaignId: prov.sourceCampaignId as any,
+      sourceCampaignRevision: prov.sourceCampaignRevision as any,
+      sourceLogicalRevision: prov.sourceLogicalRevision as any,
+      exportedAtMs: prov.exportedAtMs as any,
+    },
+    backupState,
+  );
+  const computedDigest = await computeBackupPayloadDigest(integrityPayload);
+
+  // Verify claimed integrity digest
+  const integrityObj = obj.integrity as Record<string, unknown>;
+  if (computedDigest !== integrityObj.digest) {
+    throw new DomainError("BACKUP_INTEGRITY_FAILED", "Backup integrity check failed in canonicalCommit");
+  }
+
+  // Verify event provenance matches backup provenance
+  if (evt.data.backupFormatVersion !== CURRENT_BACKUP_FORMAT_VERSION) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Event backupFormatVersion ${evt.data.backupFormatVersion} does not match expected ${CURRENT_BACKUP_FORMAT_VERSION}`);
+  }
+  if (evt.data.sourceCampaignId !== prov.sourceCampaignId) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Event sourceCampaignId does not match backup provenance");
+  }
+  if (evt.data.sourceCampaignRevision !== prov.sourceCampaignRevision) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Event sourceCampaignRevision does not match backup provenance");
+  }
+  if (evt.data.sourceLogicalRevision !== prov.sourceLogicalRevision) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Event sourceLogicalRevision does not match backup provenance");
+  }
+  if (evt.data.exportedAtMs !== prov.exportedAtMs) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Event exportedAtMs does not match backup provenance");
+  }
+  if (evt.data.payloadDigest !== computedDigest) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Event payloadDigest does not match server-computed digest");
+  }
+
+  // Verify fingerprint matches expected
+  const expectedFingerprint = backupImportFingerprint(input.currentRevision, computedDigest);
+  if (input.commandFingerprint !== expectedFingerprint) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `backup_import fingerprint "${input.commandFingerprint}" does not match expected "${expectedFingerprint}"`);
+  }
+
+  // Verify nextState deep-equals backup state
+  if (!statesDeepEqual(input.nextState, {
+    schemaVersion: backupState.schemaVersion,
+    ruleset: { id: backupState.ruleset.id, version: backupState.ruleset.version },
+    calendar: { monthOrdinal: backupState.calendar.monthOrdinal as number },
+  })) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_import nextState does not match backup state");
+  }
+
+  // Verify imported ruleset/schema compatibility with current state
+  if (backupState.schemaVersion !== input.currentState.schemaVersion) {
+    throw new DomainError("BACKUP_INCOMPATIBLE", `Backup schemaVersion ${backupState.schemaVersion} incompatible with target ${input.currentState.schemaVersion}`);
+  }
+  if (backupState.ruleset.id !== input.currentState.ruleset.id) {
+    throw new DomainError("BACKUP_INCOMPATIBLE", `Backup ruleset "${backupState.ruleset.id}" incompatible with target "${input.currentState.ruleset.id}"`);
+  }
+  if (backupState.ruleset.version !== input.currentState.ruleset.version) {
+    throw new DomainError("BACKUP_INCOMPATIBLE", `Backup ruleset version ${backupState.ruleset.version} incompatible with target ${input.currentState.ruleset.version}`);
   }
 }
 
@@ -320,6 +447,32 @@ export async function canonicalCommit(
           throw new DomainError("INVALID_CAMPAIGN_STATE", "checkpoint_restored labelAtRestore is not valid");
         }
         break;
+      case "backup_imported":
+        if (evt.version !== 1) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Unsupported backup_imported version: ${evt.version}`);
+        }
+        if (evt.data.backupFormatVersion !== 1) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported backupFormatVersion is not valid");
+        }
+        if (typeof evt.data.sourceCampaignId !== "string" || !isValidCampaignId(evt.data.sourceCampaignId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported sourceCampaignId is not valid");
+        }
+        if (!Number.isSafeInteger(evt.data.sourceCampaignRevision) || evt.data.sourceCampaignRevision < 0) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported sourceCampaignRevision is not valid");
+        }
+        if (!Number.isSafeInteger(evt.data.sourceLogicalRevision) || evt.data.sourceLogicalRevision < 0) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported sourceLogicalRevision is not valid");
+        }
+        if (evt.data.sourceLogicalRevision > evt.data.sourceCampaignRevision) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported sourceLogicalRevision exceeds sourceCampaignRevision");
+        }
+        if (!Number.isSafeInteger(evt.data.exportedAtMs) || evt.data.exportedAtMs < 0) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported exportedAtMs is not valid");
+        }
+        if (typeof evt.data.payloadDigest !== "string" || !/^[0-9a-f]{64}$/.test(evt.data.payloadDigest)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported payloadDigest is not a valid sha256 hex string");
+        }
+        break;
       default: {
         const _exhaustive: never = evt;
         throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown event type: ${(_exhaustive as any).type}`);
@@ -335,6 +488,11 @@ export async function canonicalCommit(
   // --- Checkpoint restore coherence (independent DB verification) ---
   if (input.commandType === "checkpoint_restore") {
     await validateCheckpointRestoreCoherence(ctx, input);
+  }
+
+  // --- Backup import coherence (independent validation) ---
+  if (input.commandType === "backup_import") {
+    await validateBackupImportCoherence(input, input.events[0] as CampaignEvent & { type: "backup_imported" });
   }
 
   // --- Idempotency ---
@@ -443,6 +601,23 @@ export async function canonicalCommit(
               checkpointId: evt.data.checkpointId,
               sourceRevision: evt.data.sourceRevision,
               labelAtRestore: evt.data.labelAtRestore,
+            },
+          },
+        });
+        break;
+      case "backup_imported":
+        await ctx.db.insert("campaignEvents", {
+          ...baseRecord,
+          event: {
+            type: "backup_imported" as const,
+            version: 1 as const,
+            data: {
+              backupFormatVersion: evt.data.backupFormatVersion,
+              sourceCampaignId: evt.data.sourceCampaignId,
+              sourceCampaignRevision: evt.data.sourceCampaignRevision,
+              sourceLogicalRevision: evt.data.sourceLogicalRevision,
+              exportedAtMs: evt.data.exportedAtMs,
+              payloadDigest: evt.data.payloadDigest,
             },
           },
         });

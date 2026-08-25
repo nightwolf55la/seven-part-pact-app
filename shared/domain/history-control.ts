@@ -405,6 +405,20 @@ function validateLogicalStateEventSemantics(
       continue;
     }
 
+    // backup_import has its own event type; validated separately
+    if (rev.commandType === "backup_import") {
+      const evts = eventsByRev.get(r);
+      if (!evts || evts.length !== 1) {
+        errors.push(`Revision ${r}: backup_import expected exactly 1 event, found ${evts?.length ?? 0}`);
+        continue;
+      }
+      const evt = evts[0];
+      if (evt.event.type !== "backup_imported" || evt.event.version !== 1) {
+        errors.push(`Revision ${r}: backup_import event must be backup_imported v1, got type="${evt.event.type}" version=${evt.event.version}`);
+      }
+      continue;
+    }
+
     const evts = eventsByRev.get(r);
     if (!evts || evts.length === 0) continue;
 

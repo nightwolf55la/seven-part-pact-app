@@ -2,6 +2,7 @@ export type CampaignCommandType =
   | "move_month"
   | "legacy_month_change"
   | "checkpoint_restore"
+  | "backup_import"
   | "undo"
   | "redo";
 
@@ -9,6 +10,7 @@ export const CAMPAIGN_COMMAND_TYPES: readonly CampaignCommandType[] = [
   "move_month",
   "legacy_month_change",
   "checkpoint_restore",
+  "backup_import",
   "undo",
   "redo",
 ] as const;
@@ -20,6 +22,8 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "legacy_month_change":
       return true;
     case "checkpoint_restore":
+      return true;
+    case "backup_import":
       return true;
     case "undo":
       return false;
