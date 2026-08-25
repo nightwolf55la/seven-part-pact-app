@@ -116,6 +116,12 @@ export {
   verifyMigrationInvariants,
 } from "./verification";
 
+export type { ActivityEntry } from "./activity";
+export {
+  mapEventToActivityEntry,
+  describeActivityEntry,
+} from "./activity";
+
 export type {
   CampaignHistoryControlV1,
   HistoryControlValidationInput,

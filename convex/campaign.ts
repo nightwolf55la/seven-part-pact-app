@@ -17,12 +17,14 @@ import {
   CURRENT_HISTORY_CONTROL_VERSION,
   validateHistoryControlStructure,
   statesDeepEqual,
+  mapEventToActivityEntry,
 } from "../shared/domain";
-import type { MonthDirection, CampaignId, CampaignHistoryControlV1, CurrentCampaignState } from "../shared/domain";
+import type { MonthDirection, CampaignId, CampaignHistoryControlV1, CurrentCampaignState, CampaignEvent } from "../shared/domain";
 import { deriveUndoTransition, deriveRedoTransition } from "../shared/domain/undo-redo";
 import {
   monthDirectionValidator,
   monthDisplayNameValidator,
+  activityEntryValidator,
 } from "./validators";
 import { canonicalCommit } from "./canonicalCommit";
 
@@ -237,16 +239,9 @@ export const ensureCampaign = mutation({
   },
 });
 
-const eventViewValidator = v.object({
-  _id: v.string(),
-  revision: v.number(),
-  previousMonth: v.string(),
-  newMonth: v.string(),
-});
-
 export const getRecentEvents = query({
   args: { count: v.number() },
-  returns: v.array(eventViewValidator),
+  returns: v.array(activityEntryValidator),
   handler: async (ctx, args) => {
     const maybeCanonical = await ctx.db
       .query("campaigns")
@@ -262,23 +257,16 @@ export const getRecentEvents = query({
         .order("desc")
         .take(args.count);
 
-      return events.map((e) => {
-        if (e.event.type !== "month_changed") {
-          return null;
-        }
-        return {
-          _id: e._id,
-          revision: e.campaignRevision,
-          previousMonth: displayNameFromOrdinal(e.event.data.fromOrdinal),
-          newMonth: displayNameFromOrdinal(e.event.data.toOrdinal),
-        };
-      }).filter((e): e is NonNullable<typeof e> => e !== null);
+      return events.map((e) =>
+        mapEventToActivityEntry(e._id, e.campaignRevision, e.event as CampaignEvent),
+      );
     }
 
     const legacyEvents = await ctx.db.query("events").order("desc").take(args.count);
     return legacyEvents.map((e) => ({
-      _id: e._id,
+      id: e._id,
       revision: e.revision,
+      type: "month_changed" as const,
       previousMonth: e.previousMonth,
       newMonth: e.newMonth,
     }));

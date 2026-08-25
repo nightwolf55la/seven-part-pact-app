@@ -102,3 +102,27 @@ export const campaignHistoryControlValidator = v.object({
   undoStack: v.array(v.number()),
   redoStack: v.array(v.number()),
 });
+
+export const activityEntryValidator = v.union(
+  v.object({
+    id: v.string(),
+    revision: v.number(),
+    type: v.literal("month_changed"),
+    previousMonth: v.string(),
+    newMonth: v.string(),
+  }),
+  v.object({
+    id: v.string(),
+    revision: v.number(),
+    type: v.literal("undo_applied"),
+    fromRevision: v.number(),
+    targetRevision: v.number(),
+  }),
+  v.object({
+    id: v.string(),
+    revision: v.number(),
+    type: v.literal("redo_applied"),
+    fromRevision: v.number(),
+    targetRevision: v.number(),
+  }),
+);
