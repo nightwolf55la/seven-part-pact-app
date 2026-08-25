@@ -8,11 +8,17 @@ import {
   validateCampaignState,
   parseLiveCommandId,
   moveMonthFingerprint,
+  undoFingerprint,
+  redoFingerprint,
   initialCampaignState,
   isValidCampaignId,
   DomainError,
+  CURRENT_HISTORY_CONTROL_VERSION,
+  validateHistoryControlStructure,
+  statesDeepEqual,
 } from "../shared/domain";
-import type { MonthDirection, CampaignId } from "../shared/domain";
+import type { MonthDirection, CampaignId, CampaignHistoryControlV1, CurrentCampaignState } from "../shared/domain";
+import { deriveUndoTransition, deriveRedoTransition } from "../shared/domain/undo-redo";
 import {
   monthDirectionValidator,
   monthDisplayNameValidator,
@@ -311,6 +317,7 @@ export const moveMonth = mutation({
         commandFingerprint: fingerprint,
         nextState,
         events,
+        historyControlUpdate: { kind: "logical_state_append" },
       });
 
       return {
@@ -359,6 +366,371 @@ export const moveMonth = mutation({
       revision: newRevision,
       monthOrdinal: newMonthOrdinal as number,
       month: newMonth,
+    };
+  },
+});
+
+// ============================================================
+// Undo / Redo
+// ============================================================
+
+async function loadCanonicalCampaign(ctx: any) {
+  const maybeCanonical = await ctx.db
+    .query("campaigns")
+    .withIndex("by_campaignKey", (q: any) => q.eq("campaignKey", "default"))
+    .unique();
+
+  if (maybeCanonical === null || !isCanonical(maybeCanonical)) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", "No canonical campaign found");
+  }
+  return maybeCanonical;
+}
+
+async function loadHistoryControl(ctx: any, campaignId: string): Promise<{ doc: any; control: CampaignHistoryControlV1 }> {
+  const controlDocs = await ctx.db
+    .query("campaignHistoryControl")
+    .withIndex("by_campaignId", (q: any) => q.eq("campaignId", campaignId))
+    .collect();
+
+  if (controlDocs.length === 0) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", "History control document missing");
+  }
+  if (controlDocs.length > 1) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Found ${controlDocs.length} history control documents — expected exactly 1`);
+  }
+
+  const doc = controlDocs[0];
+  if (doc.historyControlVersion !== CURRENT_HISTORY_CONTROL_VERSION) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Unrecognized historyControlVersion: ${doc.historyControlVersion}`);
+  }
+
+  const control: CampaignHistoryControlV1 = {
+    historyControlVersion: doc.historyControlVersion as 1,
+    campaignId: doc.campaignId,
+    undoStack: doc.undoStack,
+    redoStack: doc.redoStack,
+  };
+
+  return { doc, control };
+}
+
+async function loadSnapshotState(ctx: any, campaignId: string, revision: number): Promise<CurrentCampaignState | null> {
+  const snap = await ctx.db
+    .query("campaignSnapshots")
+    .withIndex("by_campaign_revision", (q: any) =>
+      q.eq("campaignId", campaignId).eq("campaignRevision", revision),
+    )
+    .unique();
+
+  if (snap === null) return null;
+  return snap.state as CurrentCampaignState;
+}
+
+async function loadRevisionCommandType(ctx: any, campaignId: string, revision: number): Promise<string | null> {
+  if (revision === 0) return null;
+  const rec = await ctx.db
+    .query("campaignRevisions")
+    .withIndex("by_campaign_revision", (q: any) =>
+      q.eq("campaignId", campaignId).eq("campaignRevision", revision),
+    )
+    .unique();
+  return rec?.commandType ?? null;
+}
+
+const undoRedoReturnValidator = v.object({
+  revision: v.number(),
+  monthOrdinal: v.number(),
+  month: monthDisplayNameValidator,
+  alreadyApplied: v.boolean(),
+});
+
+export const undo = mutation({
+  args: {
+    commandId: v.string(),
+    expectedRevision: v.number(),
+  },
+  returns: undoRedoReturnValidator,
+  handler: async (ctx, args) => {
+    const commandId = parseLiveCommandId(args.commandId);
+    const fingerprint = undoFingerprint(args.expectedRevision);
+
+    // Load campaign first solely to resolve campaignId for idempotency lookup
+    const campaign = await loadCanonicalCampaign(ctx);
+    const campaignId = campaign.campaignId;
+
+    // STEP 1: Idempotency BEFORE CAS
+    const existingCommand = await ctx.db
+      .query("campaignRevisions")
+      .withIndex("by_campaign_commandId", (q) =>
+        q.eq("campaignId", campaignId).eq("commandId", commandId as string),
+      )
+      .unique();
+
+    if (existingCommand !== null) {
+      if (existingCommand.commandType !== "undo" || existingCommand.commandFingerprint !== fingerprint) {
+        throw new DomainError(
+          "COMMAND_ID_REUSED",
+          `CommandId "${commandId}" already committed with type="${existingCommand.commandType}" fingerprint="${existingCommand.commandFingerprint}", cannot reuse for type="undo" fingerprint="${fingerprint}"`,
+        );
+      }
+      const snap = await loadSnapshotState(ctx, campaignId, existingCommand.campaignRevision);
+      if (snap === null) {
+        throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Snapshot missing for committed revision ${existingCommand.campaignRevision}`);
+      }
+      validateCampaignState(snap);
+      return {
+        revision: existingCommand.campaignRevision,
+        monthOrdinal: snap.calendar.monthOrdinal as number,
+        month: displayNameFromOrdinal(snap.calendar.monthOrdinal),
+        alreadyApplied: true,
+      };
+    }
+
+    // STEP 2: CAS
+    if (campaign.campaignRevision !== args.expectedRevision) {
+      throw new DomainError(
+        "STALE_CAMPAIGN_REVISION",
+        `Expected revision ${args.expectedRevision}, current is ${campaign.campaignRevision}`,
+      );
+    }
+
+    // STEP 3: Load history control
+    const { control } = await loadHistoryControl(ctx, campaignId);
+
+    // STEP 4: Load snapshots for transition
+    const currentLogicalRevision = control.undoStack[control.undoStack.length - 1];
+    const targetRevision = control.undoStack.length > 1
+      ? control.undoStack[control.undoStack.length - 2]
+      : undefined;
+
+    const currentLogicalSnapshotState = await loadSnapshotState(ctx, campaignId, currentLogicalRevision);
+    const targetSnapshotState = targetRevision !== undefined
+      ? await loadSnapshotState(ctx, campaignId, targetRevision)
+      : null;
+    const targetCommandType = targetRevision !== undefined
+      ? await loadRevisionCommandType(ctx, campaignId, targetRevision)
+      : null;
+
+    // STEP 5: Pure domain transition
+    const currentState = validateCampaignState(campaign.state);
+    const result = deriveUndoTransition(
+      {
+        control,
+        campaignRevision: campaign.campaignRevision,
+        campaignState: currentState,
+        targetSnapshotState,
+        currentLogicalSnapshotState,
+        targetRevisionCommandType: targetCommandType as any,
+      },
+      campaignId,
+    );
+
+    // STEP 6: Canonical commit
+    const receipt = await canonicalCommit(ctx, {
+      campaignDocId: campaign._id,
+      campaignId,
+      currentRevision: campaign.campaignRevision,
+      currentState,
+      commandId: commandId as string,
+      commandType: "undo",
+      commandFingerprint: fingerprint,
+      nextState: result.nextState,
+      events: [result.event],
+      historyControlUpdate: {
+        kind: "history_navigation",
+        nextUndoStack: result.nextUndoStack,
+        nextRedoStack: result.nextRedoStack,
+      },
+    });
+
+    return {
+      revision: receipt.newRevision,
+      monthOrdinal: receipt.state.calendar.monthOrdinal as number,
+      month: displayNameFromOrdinal(receipt.state.calendar.monthOrdinal),
+      alreadyApplied: receipt.alreadyApplied,
+    };
+  },
+});
+
+export const redo = mutation({
+  args: {
+    commandId: v.string(),
+    expectedRevision: v.number(),
+  },
+  returns: undoRedoReturnValidator,
+  handler: async (ctx, args) => {
+    const commandId = parseLiveCommandId(args.commandId);
+    const fingerprint = redoFingerprint(args.expectedRevision);
+
+    const campaign = await loadCanonicalCampaign(ctx);
+    const campaignId = campaign.campaignId;
+
+    // STEP 1: Idempotency BEFORE CAS
+    const existingCommand = await ctx.db
+      .query("campaignRevisions")
+      .withIndex("by_campaign_commandId", (q) =>
+        q.eq("campaignId", campaignId).eq("commandId", commandId as string),
+      )
+      .unique();
+
+    if (existingCommand !== null) {
+      if (existingCommand.commandType !== "redo" || existingCommand.commandFingerprint !== fingerprint) {
+        throw new DomainError(
+          "COMMAND_ID_REUSED",
+          `CommandId "${commandId}" already committed with type="${existingCommand.commandType}" fingerprint="${existingCommand.commandFingerprint}", cannot reuse for type="redo" fingerprint="${fingerprint}"`,
+        );
+      }
+      const snap = await loadSnapshotState(ctx, campaignId, existingCommand.campaignRevision);
+      if (snap === null) {
+        throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Snapshot missing for committed revision ${existingCommand.campaignRevision}`);
+      }
+      validateCampaignState(snap);
+      return {
+        revision: existingCommand.campaignRevision,
+        monthOrdinal: snap.calendar.monthOrdinal as number,
+        month: displayNameFromOrdinal(snap.calendar.monthOrdinal),
+        alreadyApplied: true,
+      };
+    }
+
+    // STEP 2: CAS
+    if (campaign.campaignRevision !== args.expectedRevision) {
+      throw new DomainError(
+        "STALE_CAMPAIGN_REVISION",
+        `Expected revision ${args.expectedRevision}, current is ${campaign.campaignRevision}`,
+      );
+    }
+
+    // STEP 3: Load history control
+    const { control } = await loadHistoryControl(ctx, campaignId);
+
+    // STEP 4: Load snapshots for transition
+    const currentLogicalRevision = control.undoStack[control.undoStack.length - 1];
+    const targetRevision = control.redoStack.length > 0
+      ? control.redoStack[control.redoStack.length - 1]
+      : undefined;
+
+    const currentLogicalSnapshotState = await loadSnapshotState(ctx, campaignId, currentLogicalRevision);
+    const targetSnapshotState = targetRevision !== undefined
+      ? await loadSnapshotState(ctx, campaignId, targetRevision)
+      : null;
+    const targetCommandType = targetRevision !== undefined
+      ? await loadRevisionCommandType(ctx, campaignId, targetRevision)
+      : null;
+
+    // STEP 5: Pure domain transition
+    const currentState = validateCampaignState(campaign.state);
+    const result = deriveRedoTransition(
+      {
+        control,
+        campaignRevision: campaign.campaignRevision,
+        campaignState: currentState,
+        targetSnapshotState,
+        currentLogicalSnapshotState,
+        targetRevisionCommandType: targetCommandType as any,
+      },
+      campaignId,
+    );
+
+    // STEP 6: Canonical commit
+    const receipt = await canonicalCommit(ctx, {
+      campaignDocId: campaign._id,
+      campaignId,
+      currentRevision: campaign.campaignRevision,
+      currentState,
+      commandId: commandId as string,
+      commandType: "redo",
+      commandFingerprint: fingerprint,
+      nextState: result.nextState,
+      events: [result.event],
+      historyControlUpdate: {
+        kind: "history_navigation",
+        nextUndoStack: result.nextUndoStack,
+        nextRedoStack: result.nextRedoStack,
+      },
+    });
+
+    return {
+      revision: receipt.newRevision,
+      monthOrdinal: receipt.state.calendar.monthOrdinal as number,
+      month: displayNameFromOrdinal(receipt.state.calendar.monthOrdinal),
+      alreadyApplied: receipt.alreadyApplied,
+    };
+  },
+});
+
+// ============================================================
+// Read Model: Undo/Redo State
+// ============================================================
+
+export const getUndoRedoState = query({
+  args: {},
+  returns: v.union(
+    v.object({
+      canUndo: v.boolean(),
+      canRedo: v.boolean(),
+      campaignRevision: v.number(),
+      logicalRevision: v.number(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx) => {
+    const maybeCanonical = await ctx.db
+      .query("campaigns")
+      .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
+      .unique();
+
+    if (maybeCanonical === null || !isCanonical(maybeCanonical)) {
+      return null;
+    }
+
+    const campaignId = maybeCanonical.campaignId;
+
+    const controlDocs = await ctx.db
+      .query("campaignHistoryControl")
+      .withIndex("by_campaignId", (q) => q.eq("campaignId", campaignId))
+      .collect();
+
+    if (controlDocs.length !== 1) {
+      throw new DomainError(
+        "CAMPAIGN_STATE_CORRUPT",
+        controlDocs.length === 0
+          ? "History control document missing"
+          : `Found ${controlDocs.length} history control documents — expected exactly 1`,
+      );
+    }
+
+    const doc = controlDocs[0];
+    if (doc.historyControlVersion !== CURRENT_HISTORY_CONTROL_VERSION) {
+      throw new DomainError(
+        "CAMPAIGN_STATE_CORRUPT",
+        `Unrecognized historyControlVersion: ${doc.historyControlVersion}`,
+      );
+    }
+
+    const structErrors = validateHistoryControlStructure({
+      control: {
+        historyControlVersion: doc.historyControlVersion as 1,
+        campaignId: doc.campaignId,
+        undoStack: doc.undoStack,
+        redoStack: doc.redoStack,
+      },
+      campaignId,
+      campaignRevision: maybeCanonical.campaignRevision,
+    });
+
+    if (structErrors.length > 0) {
+      throw new DomainError(
+        "CAMPAIGN_STATE_CORRUPT",
+        `History control structural validation failed: ${structErrors.join("; ")}`,
+      );
+    }
+
+    return {
+      canUndo: doc.undoStack.length > 1,
+      canRedo: doc.redoStack.length > 0,
+      campaignRevision: maybeCanonical.campaignRevision,
+      logicalRevision: doc.undoStack[doc.undoStack.length - 1],
     };
   },
 });

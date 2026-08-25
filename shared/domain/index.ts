@@ -79,6 +79,20 @@ export { initialCampaignState } from "./initial-state";
 export type { MoveMonthTransitionResult } from "./transitions";
 export { applyMoveMonth } from "./transitions";
 
+export type {
+  UndoTransitionInput,
+  RedoTransitionInput,
+  HistoryNavigationResult,
+  UndoCoherenceInput,
+  RedoCoherenceInput,
+} from "./undo-redo";
+export {
+  deriveUndoTransition,
+  deriveRedoTransition,
+  validateUndoTransactionCoherence,
+  validateRedoTransactionCoherence,
+} from "./undo-redo";
+
 export {
   syntheticMigrationCommandId,
   isSyntheticMigrationCommandId,
