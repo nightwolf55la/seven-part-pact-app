@@ -295,13 +295,72 @@ export async function fullyValidateBackup(
 
 /**
  * Performs strict structural validation and integrity verification sufficient
- * to derive a trustworthy server-computed fingerprint. Does NOT check domain
- * compatibility with a target campaign (that happens after idempotency).
+ * to derive a trustworthy server-computed fingerprint. Does NOT perform
+ * CampaignState domain validation (validateCampaignState) — that happens
+ * after idempotency via fullyValidateBackup with a target state.
+ *
+ * This allows a compatible retry of an already-committed command to be
+ * identified before current domain/schema compatibility checks.
  */
 export async function parseAndVerifyBackupIntegrityForFingerprint(
   rawJson: string,
 ): Promise<{ backup: ValidatedBackupV1; serverDigest: string } | { error: BackupValidationError }> {
-  return fullyValidateBackup(rawJson, null);
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(rawJson);
+  if (bytes.length > MAX_PORTABLE_BACKUP_BYTES) {
+    return { error: validationError("INVALID_BACKUP_FORMAT", `Backup exceeds maximum size of ${MAX_PORTABLE_BACKUP_BYTES} bytes (got ${bytes.length})`) };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawJson);
+  } catch (e: unknown) {
+    return { error: validationError("INVALID_BACKUP_FORMAT", `Invalid JSON: ${e instanceof Error ? e.message : String(e)}`) };
+  }
+
+  const structError = parseAndValidateBackupStructure(parsed);
+  if (structError !== null) return { error: structError };
+
+  const obj = parsed as Record<string, unknown>;
+  const provObj = obj.provenance as Record<string, unknown>;
+  const integrityObj = obj.integrity as Record<string, unknown>;
+
+  const provenance: CampaignBackupProvenanceV1 = {
+    sourceCampaignId: provObj.sourceCampaignId as CampaignId,
+    sourceCampaignRevision: provObj.sourceCampaignRevision as CampaignRevision,
+    sourceLogicalRevision: provObj.sourceLogicalRevision as CampaignRevision,
+    exportedAtMs: provObj.exportedAtMs as number,
+  };
+
+  // State must be a plain object sufficient for canonical hashing — but we do
+  // NOT call validateCampaignState here.
+  if (!isPlainObject(obj.state)) {
+    return { error: validationError("INVALID_BACKUP_FORMAT", "state must be a JSON object") };
+  }
+
+  // Cast through unknown — we intentionally skip domain validation here
+  const state = obj.state as unknown as CampaignStateV1;
+
+  const integrityPayload = buildIntegrityPayloadFromParts(provenance, state);
+  const serverDigest = await computeBackupPayloadDigest(integrityPayload);
+
+  const claimedDigest = integrityObj.digest as string;
+  if (serverDigest !== claimedDigest) {
+    return { error: validationError("BACKUP_INTEGRITY_FAILED", "Integrity check failed: computed digest does not match claimed digest") };
+  }
+
+  const validated: ValidatedBackupV1 = {
+    formatType: BACKUP_FORMAT_TYPE,
+    backupFormatVersion: CURRENT_BACKUP_FORMAT_VERSION,
+    provenance,
+    state,
+    integrity: {
+      algorithm: "sha256",
+      digest: serverDigest,
+    },
+  };
+
+  return { backup: validated, serverDigest };
 }
 
 export interface ExportSourceData {

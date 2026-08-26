@@ -397,9 +397,7 @@ export async function canonicalCommit(
     };
   }
 
-  // --- Undo/Redo transaction coherence (validated after stacks are resolved) ---
-
-  // --- History control update ---
+  // --- Load and validate history control ---
   const controlDocs = await ctx.db
     .query("campaignHistoryControl")
     .withIndex("by_campaignId", (q) => q.eq("campaignId", input.campaignId))
@@ -433,6 +431,42 @@ export async function canonicalCommit(
     throw new DomainError("CAMPAIGN_STATE_CORRUPT", `History control structural validation failed: ${structErrors.join("; ")}`);
   }
 
+  // --- Pre-commit logical state coherence (Section 1) ---
+  const logicalRevision = control.undoStack[control.undoStack.length - 1];
+
+  const logicalSnapshot = await ctx.db
+    .query("campaignSnapshots")
+    .withIndex("by_campaign_revision", (q) =>
+      q.eq("campaignId", input.campaignId).eq("campaignRevision", logicalRevision),
+    )
+    .unique();
+
+  if (logicalSnapshot === null) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `No snapshot exists for current logical revision ${logicalRevision}`);
+  }
+
+  validateCampaignState(logicalSnapshot.state);
+
+  if (!statesDeepEqual(logicalSnapshot.state as CurrentCampaignState, input.currentState)) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Snapshot at undoStack top (revision ${logicalRevision}) does not match input.currentState`);
+  }
+
+  if (logicalRevision > 0) {
+    const logicalRevRecord = await ctx.db
+      .query("campaignRevisions")
+      .withIndex("by_campaign_revision", (q) =>
+        q.eq("campaignId", input.campaignId).eq("campaignRevision", logicalRevision),
+      )
+      .unique();
+    if (logicalRevRecord === null) {
+      throw new DomainError("CAMPAIGN_STATE_CORRUPT", `No revision record for current logical revision ${logicalRevision}`);
+    }
+    if (!isLogicalStateCommandType(logicalRevRecord.commandType)) {
+      throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Current logical revision ${logicalRevision} has non-logical-state commandType "${logicalRevRecord.commandType}"`);
+    }
+  }
+
+  // --- Derive next stacks ---
   let nextUndoStack: number[];
   let nextRedoStack: number[];
 
@@ -444,16 +478,44 @@ export async function canonicalCommit(
     nextRedoStack = [...input.historyControlUpdate.nextRedoStack];
   }
 
+  // --- Undo target validation (Section 2) ---
   if (input.commandType === "undo") {
     const undoEvt = input.events[0];
     if (undoEvt.type === "undo_applied") {
       const targetRev = undoEvt.data.targetRevision;
+
       const targetSnap = await ctx.db
         .query("campaignSnapshots")
         .withIndex("by_campaign_revision", (q) =>
           q.eq("campaignId", input.campaignId).eq("campaignRevision", targetRev),
         )
         .unique();
+
+      if (targetSnap === null) {
+        throw new DomainError("CAMPAIGN_STATE_CORRUPT", `No snapshot exists for undo target revision ${targetRev}`);
+      }
+
+      validateCampaignState(targetSnap.state);
+
+      if (!statesDeepEqual(input.nextState, targetSnap.state as CurrentCampaignState)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `nextState does not match undo target snapshot at revision ${targetRev}`);
+      }
+
+      if (targetRev > 0) {
+        const targetRevRecord = await ctx.db
+          .query("campaignRevisions")
+          .withIndex("by_campaign_revision", (q) =>
+            q.eq("campaignId", input.campaignId).eq("campaignRevision", targetRev),
+          )
+          .unique();
+        if (targetRevRecord === null) {
+          throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Undo target revision ${targetRev} has no revision record`);
+        }
+        if (!isLogicalStateCommandType(targetRevRecord.commandType)) {
+          throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Undo target revision ${targetRev} has non-logical-state commandType "${targetRevRecord.commandType}"`);
+        }
+      }
+
       const ucErrors = validateUndoTransactionCoherence({
         priorUndoStack: control.undoStack,
         priorRedoStack: control.redoStack,
@@ -461,7 +523,7 @@ export async function canonicalCommit(
         nextRedoStack,
         event: undoEvt,
         restoredState: input.nextState,
-        targetSnapshotState: (targetSnap?.state ?? input.nextState) as CurrentCampaignState,
+        targetSnapshotState: targetSnap.state as CurrentCampaignState,
         newAuditRevision: newRevision,
       });
       if (ucErrors.length > 0) {
@@ -470,16 +532,46 @@ export async function canonicalCommit(
     }
   }
 
+  // --- Redo target validation (Section 3) ---
   if (input.commandType === "redo") {
     const redoEvt = input.events[0];
     if (redoEvt.type === "redo_applied") {
       const targetRev = redoEvt.data.targetRevision;
+
+      if (targetRev === 0) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "Redo target revision 0 is not legal");
+      }
+
       const targetSnap = await ctx.db
         .query("campaignSnapshots")
         .withIndex("by_campaign_revision", (q) =>
           q.eq("campaignId", input.campaignId).eq("campaignRevision", targetRev),
         )
         .unique();
+
+      if (targetSnap === null) {
+        throw new DomainError("CAMPAIGN_STATE_CORRUPT", `No snapshot exists for redo target revision ${targetRev}`);
+      }
+
+      validateCampaignState(targetSnap.state);
+
+      if (!statesDeepEqual(input.nextState, targetSnap.state as CurrentCampaignState)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `nextState does not match redo target snapshot at revision ${targetRev}`);
+      }
+
+      const targetRevRecord = await ctx.db
+        .query("campaignRevisions")
+        .withIndex("by_campaign_revision", (q) =>
+          q.eq("campaignId", input.campaignId).eq("campaignRevision", targetRev),
+        )
+        .unique();
+      if (targetRevRecord === null) {
+        throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Redo target revision ${targetRev} has no revision record`);
+      }
+      if (!isLogicalStateCommandType(targetRevRecord.commandType)) {
+        throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Redo target revision ${targetRev} has non-logical-state commandType "${targetRevRecord.commandType}"`);
+      }
+
       const rcErrors = validateRedoTransactionCoherence({
         priorUndoStack: control.undoStack,
         priorRedoStack: control.redoStack,
@@ -487,12 +579,36 @@ export async function canonicalCommit(
         nextRedoStack,
         event: redoEvt,
         restoredState: input.nextState,
-        targetSnapshotState: (targetSnap?.state ?? input.nextState) as CurrentCampaignState,
+        targetSnapshotState: targetSnap.state as CurrentCampaignState,
         newAuditRevision: newRevision,
       });
       if (rcErrors.length > 0) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `redo coherence: ${rcErrors.join("; ")}`);
       }
+    }
+  }
+
+  // --- Final history-control validation (Section 4) ---
+  const proposedControlStructErrors = validateHistoryControlStructure({
+    control: {
+      historyControlVersion: 1,
+      campaignId: input.campaignId,
+      undoStack: nextUndoStack,
+      redoStack: nextRedoStack,
+    },
+    campaignId: input.campaignId,
+    campaignRevision: newRevision,
+  });
+  if (proposedControlStructErrors.length > 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Proposed history control validation failed: ${proposedControlStructErrors.join("; ")}`);
+  }
+
+  if (input.historyControlUpdate.kind === "history_navigation") {
+    if (nextUndoStack.includes(newRevision)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `New audit revision ${newRevision} must not appear in nextUndoStack for history_navigation`);
+    }
+    if (nextRedoStack.includes(newRevision)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `New audit revision ${newRevision} must not appear in nextRedoStack for history_navigation`);
     }
   }
 
