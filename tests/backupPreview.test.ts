@@ -63,34 +63,87 @@ describe("extractBackupPreview", () => {
     expect(extractBackupPreview(rest)).toBeNull();
   });
 
-  it("handles missing state gracefully", () => {
+  it("returns null for missing state", () => {
     const b = validBackup();
     const { state: _, ...rest } = b;
-    const preview = extractBackupPreview(rest);
-    expect(preview).not.toBeNull();
-    expect(preview!.monthOrdinal).toBeNull();
-    expect(preview!.monthDisplayName).toBeNull();
+    expect(extractBackupPreview(rest)).toBeNull();
   });
 
-  it("handles missing monthOrdinal gracefully", () => {
+  it("returns null for missing calendar", () => {
+    const b = validBackup();
+    const preview = extractBackupPreview({
+      ...b,
+      state: { ...b.state, calendar: undefined },
+    });
+    expect(preview).toBeNull();
+  });
+
+  it("returns null for missing monthOrdinal", () => {
     const b = validBackup();
     const preview = extractBackupPreview({
       ...b,
       state: { ...b.state, calendar: {} },
     });
-    expect(preview).not.toBeNull();
-    expect(preview!.monthOrdinal).toBeNull();
-    expect(preview!.monthDisplayName).toBeNull();
+    expect(preview).toBeNull();
   });
 
-  it("handles non-integer provenance fields", () => {
+  it("returns null for non-integer provenance fields", () => {
     const b = validBackup();
     const preview = extractBackupPreview({
       ...b,
       provenance: { ...b.provenance, sourceCampaignRevision: "ten" as any },
     });
+    expect(preview).toBeNull();
+  });
+
+  it("returns null for negative exportedAtMs", () => {
+    const b = validBackup();
+    const preview = extractBackupPreview({
+      ...b,
+      provenance: { ...b.provenance, exportedAtMs: -1 },
+    });
+    expect(preview).toBeNull();
+  });
+
+  it("returns null when sourceLogicalRevision exceeds sourceCampaignRevision", () => {
+    const b = validBackup();
+    const preview = extractBackupPreview({
+      ...b,
+      provenance: { ...b.provenance, sourceLogicalRevision: 99, sourceCampaignRevision: 5 },
+    });
+    expect(preview).toBeNull();
+  });
+
+  it("accepts negative monthOrdinal and resolves the correct month", () => {
+    const b = validBackup();
+    const preview = extractBackupPreview({
+      ...b,
+      state: { ...b.state, calendar: { monthOrdinal: -16 } },
+    });
     expect(preview).not.toBeNull();
-    expect(preview!.sourceCampaignRevision).toBeNull();
+    expect(preview!.monthOrdinal).toBe(-16);
+    // -16 normalizes to index 8 within the 12-month cycle (April=0) -> December
+    expect(preview!.monthDisplayName).toBe("December");
+  });
+
+  it("accepts zero monthOrdinal", () => {
+    const b = validBackup();
+    const preview = extractBackupPreview({
+      ...b,
+      state: { ...b.state, calendar: { monthOrdinal: 0 } },
+    });
+    expect(preview).not.toBeNull();
+    expect(preview!.monthOrdinal).toBe(0);
+    expect(preview!.monthDisplayName).toBe("April");
+  });
+
+  it("rejects non-integer monthOrdinal", () => {
+    const b = validBackup();
+    const preview = extractBackupPreview({
+      ...b,
+      state: { ...b.state, calendar: { monthOrdinal: 3.5 } },
+    });
+    expect(preview).toBeNull();
   });
 });
 

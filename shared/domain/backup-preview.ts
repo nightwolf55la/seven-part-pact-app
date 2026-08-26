@@ -2,12 +2,12 @@ import { BACKUP_FORMAT_TYPE, CURRENT_BACKUP_FORMAT_VERSION } from "./backup";
 import { displayNameFromOrdinal } from "./calendar";
 
 export interface BackupPreview {
-  readonly exportedAtMs: number | null;
-  readonly sourceCampaignRevision: number | null;
-  readonly sourceLogicalRevision: number | null;
-  readonly monthOrdinal: number | null;
-  readonly monthDisplayName: string | null;
-  readonly backupFormatVersion: number | null;
+  readonly exportedAtMs: number;
+  readonly sourceCampaignRevision: number;
+  readonly sourceLogicalRevision: number;
+  readonly monthOrdinal: number;
+  readonly monthDisplayName: string;
+  readonly backupFormatVersion: number;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -17,6 +17,10 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 function asSafeInteger(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) ? value : null;
+}
+
+function asNonNegativeSafeInteger(value: unknown): number | null {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
     ? value
     : null;
@@ -30,22 +34,27 @@ export function extractBackupPreview(parsed: unknown): BackupPreview | null {
   const prov = parsed.provenance;
   if (!isPlainObject(prov)) return null;
 
-  const sourceCampaignRevision = asSafeInteger(prov.sourceCampaignRevision);
-  const sourceLogicalRevision = asSafeInteger(prov.sourceLogicalRevision);
-  const exportedAtMs = asSafeInteger(prov.exportedAtMs);
+  const sourceCampaignRevision = asNonNegativeSafeInteger(prov.sourceCampaignRevision);
+  if (sourceCampaignRevision === null) return null;
+
+  const sourceLogicalRevision = asNonNegativeSafeInteger(prov.sourceLogicalRevision);
+  if (sourceLogicalRevision === null) return null;
+
+  if (sourceLogicalRevision > sourceCampaignRevision) return null;
+
+  const exportedAtMs = asNonNegativeSafeInteger(prov.exportedAtMs);
+  if (exportedAtMs === null) return null;
 
   const state = parsed.state;
-  let monthOrdinal: number | null = null;
-  let monthDisplayName: string | null = null;
-  if (isPlainObject(state)) {
-    const cal = state.calendar;
-    if (isPlainObject(cal)) {
-      monthOrdinal = asSafeInteger(cal.monthOrdinal);
-      if (monthOrdinal !== null) {
-        monthDisplayName = displayNameFromOrdinal(monthOrdinal);
-      }
-    }
-  }
+  if (!isPlainObject(state)) return null;
+
+  const cal = state.calendar;
+  if (!isPlainObject(cal)) return null;
+
+  const monthOrdinal = asSafeInteger(cal.monthOrdinal);
+  if (monthOrdinal === null) return null;
+
+  const monthDisplayName = displayNameFromOrdinal(monthOrdinal);
 
   return {
     exportedAtMs,
