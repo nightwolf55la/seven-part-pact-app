@@ -216,7 +216,7 @@ export const importPortableBackup = mutation({
       throw new DomainError(integrityResult.error.code, integrityResult.error.message);
     }
 
-    const { backup: validatedBackup, serverDigest } = integrityResult;
+    const { serverDigest } = integrityResult;
 
     // STEP 8: Construct fingerprint from SERVER-COMPUTED digest
     const fingerprint = backupImportFingerprint(args.expectedRevision, serverDigest);
@@ -277,31 +277,40 @@ export const importPortableBackup = mutation({
       );
     }
 
-    // STEP 13: Full CampaignState + target schema/ruleset compatibility validation
+    // STEP 13: Full CampaignState + domain + target compatibility validation
+    // The pre-idempotency helper only verified envelope structure and integrity.
+    // Now that idempotency and CAS have passed, run the full validation pipeline.
     const currentState = validateCampaignState(campaign.state);
-    const importedState = validatedBackup.state;
 
-    if (importedState.schemaVersion !== currentState.schemaVersion) {
-      throw new DomainError("BACKUP_INCOMPATIBLE", `Backup schemaVersion ${importedState.schemaVersion} does not match target ${currentState.schemaVersion}`);
-    }
-    if (importedState.ruleset.id !== currentState.ruleset.id) {
-      throw new DomainError("BACKUP_INCOMPATIBLE", `Backup ruleset "${importedState.ruleset.id}" does not match target "${currentState.ruleset.id}"`);
-    }
-    if (importedState.ruleset.version !== currentState.ruleset.version) {
-      throw new DomainError("BACKUP_INCOMPATIBLE", `Backup ruleset version ${importedState.ruleset.version} does not match target ${currentState.ruleset.version}`);
+    const fullResult = await fullyValidateBackup(args.backupJson, currentState);
+    if ("error" in fullResult) {
+      throw new DomainError(fullResult.error.code, fullResult.error.message);
     }
 
-    // Build event
+    const { backup: fullyValidatedBackup, serverDigest: fullServerDigest } = fullResult;
+
+    // Internal invariant: the digest from full validation must equal the digest
+    // used to construct the pre-idempotency fingerprint.
+    if (fullServerDigest !== serverDigest) {
+      throw new DomainError(
+        "CAMPAIGN_STATE_CORRUPT",
+        `Backup digest mismatch between pre-idempotency (${serverDigest}) and post-CAS (${fullServerDigest}) validation`,
+      );
+    }
+
+    const importedState = fullyValidatedBackup.state;
+
+    // Build event from the FULLY validated result only
     const event: BackupImportedEventV1 = {
       type: "backup_imported",
       version: 1,
       data: {
-        backupFormatVersion: validatedBackup.backupFormatVersion,
-        sourceCampaignId: validatedBackup.provenance.sourceCampaignId,
-        sourceCampaignRevision: validatedBackup.provenance.sourceCampaignRevision as number,
-        sourceLogicalRevision: validatedBackup.provenance.sourceLogicalRevision as number,
-        exportedAtMs: validatedBackup.provenance.exportedAtMs,
-        payloadDigest: serverDigest,
+        backupFormatVersion: fullyValidatedBackup.backupFormatVersion,
+        sourceCampaignId: fullyValidatedBackup.provenance.sourceCampaignId,
+        sourceCampaignRevision: fullyValidatedBackup.provenance.sourceCampaignRevision as number,
+        sourceLogicalRevision: fullyValidatedBackup.provenance.sourceLogicalRevision as number,
+        exportedAtMs: fullyValidatedBackup.provenance.exportedAtMs,
+        payloadDigest: fullServerDigest,
       },
     };
 

@@ -175,6 +175,7 @@ export type {
   BackupIntegrityPayload,
   BackupValidationError,
   ValidatedBackupV1,
+  IntegrityVerifiedBackupV1,
   ExportSourceData,
 } from "./backup";
 export {

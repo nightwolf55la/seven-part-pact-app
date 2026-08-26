@@ -222,6 +222,22 @@ export interface ValidatedBackupV1 {
   };
 }
 
+/**
+ * Result of structural + integrity authentication WITHOUT CampaignState domain
+ * validation. The `state` field is an unvalidated plain JSON object — callers
+ * must NOT treat it as a CampaignStateV1 until fullyValidateBackup has run.
+ */
+export interface IntegrityVerifiedBackupV1 {
+  readonly formatType: typeof BACKUP_FORMAT_TYPE;
+  readonly backupFormatVersion: 1;
+  readonly provenance: CampaignBackupProvenanceV1;
+  readonly state: Record<string, unknown>;
+  readonly integrity: {
+    readonly algorithm: "sha256";
+    readonly digest: string;
+  };
+}
+
 export async function fullyValidateBackup(
   rawJson: string,
   targetState: CampaignStateV1 | null,
@@ -299,12 +315,16 @@ export async function fullyValidateBackup(
  * CampaignState domain validation (validateCampaignState) — that happens
  * after idempotency via fullyValidateBackup with a target state.
  *
+ * Returns an IntegrityVerifiedBackupV1 whose `state` is an unvalidated plain
+ * JSON object. Callers must NOT treat it as CampaignStateV1 until
+ * fullyValidateBackup has run.
+ *
  * This allows a compatible retry of an already-committed command to be
  * identified before current domain/schema compatibility checks.
  */
 export async function parseAndVerifyBackupIntegrityForFingerprint(
   rawJson: string,
-): Promise<{ backup: ValidatedBackupV1; serverDigest: string } | { error: BackupValidationError }> {
+): Promise<{ backup: IntegrityVerifiedBackupV1; serverDigest: string } | { error: BackupValidationError }> {
   const encoder = new TextEncoder();
   const bytes = encoder.encode(rawJson);
   if (bytes.length > MAX_PORTABLE_BACKUP_BYTES) {
@@ -338,10 +358,10 @@ export async function parseAndVerifyBackupIntegrityForFingerprint(
     return { error: validationError("INVALID_BACKUP_FORMAT", "state must be a JSON object") };
   }
 
-  // Cast through unknown — we intentionally skip domain validation here
-  const state = obj.state as unknown as CampaignStateV1;
+  const state = obj.state as Record<string, unknown>;
 
-  const integrityPayload = buildIntegrityPayloadFromParts(provenance, state);
+  // Build integrity payload using the plain-object state for canonical hashing
+  const integrityPayload = buildIntegrityPayloadFromParts(provenance, state as unknown as CampaignStateV1);
   const serverDigest = await computeBackupPayloadDigest(integrityPayload);
 
   const claimedDigest = integrityObj.digest as string;
@@ -349,7 +369,7 @@ export async function parseAndVerifyBackupIntegrityForFingerprint(
     return { error: validationError("BACKUP_INTEGRITY_FAILED", "Integrity check failed: computed digest does not match claimed digest") };
   }
 
-  const validated: ValidatedBackupV1 = {
+  const verified: IntegrityVerifiedBackupV1 = {
     formatType: BACKUP_FORMAT_TYPE,
     backupFormatVersion: CURRENT_BACKUP_FORMAT_VERSION,
     provenance,
@@ -360,7 +380,7 @@ export async function parseAndVerifyBackupIntegrityForFingerprint(
     },
   };
 
-  return { backup: validated, serverDigest };
+  return { backup: verified, serverDigest };
 }
 
 export interface ExportSourceData {

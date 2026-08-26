@@ -435,3 +435,155 @@ describe("parseAndVerifyBackupIntegrityForFingerprint — pre-idempotency split"
     }
   });
 });
+
+// ============================================================
+// Section 7: Pre-idempotency result type is NOT ValidatedBackupV1
+// ============================================================
+
+describe("pre-idempotency result type does not claim CampaignState validation", () => {
+  it("returns IntegrityVerifiedBackupV1 with plain-object state, not CampaignStateV1", async () => {
+    const validState: CampaignStateV1 = makeState(3);
+    const backup = await buildExportBackup({
+      sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000001",
+      sourceCampaignRevision: 10,
+      sourceLogicalRevision: 8,
+      state: validState,
+    }, 1700000000000);
+
+    const result = await parseAndVerifyBackupIntegrityForFingerprint(JSON.stringify(backup));
+    expect("backup" in result).toBe(true);
+    if ("backup" in result) {
+      // state is Record<string, unknown>, not CampaignStateV1
+      expect(typeof result.backup.state).toBe("object");
+      expect(result.backup.state).not.toBeNull();
+      // Accessing a CampaignState field should require a cast — the type is
+      // intentionally opaque at this stage.
+      expect((result.backup.state as Record<string, unknown>).schemaVersion).toBe(1);
+    }
+  });
+
+  it("accepts empty-object state {} with correct digest (no domain validation)", async () => {
+    const { computeBackupPayloadDigest, buildIntegrityPayloadFromParts, BACKUP_FORMAT_TYPE, CURRENT_BACKUP_FORMAT_VERSION } = await import("../shared/domain");
+    const provenance = {
+      sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000001",
+      sourceCampaignRevision: 10,
+      sourceLogicalRevision: 8,
+      exportedAtMs: 1700000000000,
+    };
+    const emptyState = {};
+    const integrityPayload = buildIntegrityPayloadFromParts(provenance as any, emptyState as any);
+    const digest = await computeBackupPayloadDigest(integrityPayload);
+    const backup = {
+      formatType: BACKUP_FORMAT_TYPE,
+      backupFormatVersion: CURRENT_BACKUP_FORMAT_VERSION,
+      provenance,
+      state: emptyState,
+      integrity: { algorithm: "sha256" as const, digest },
+    };
+
+    const result = await parseAndVerifyBackupIntegrityForFingerprint(JSON.stringify(backup));
+    expect("backup" in result).toBe(true);
+    if ("backup" in result) {
+      expect(result.serverDigest).toBe(digest);
+    }
+  });
+
+  it("fullyValidateBackup rejects empty-object state with stable DomainError", async () => {
+    const { computeBackupPayloadDigest, buildIntegrityPayloadFromParts, BACKUP_FORMAT_TYPE, CURRENT_BACKUP_FORMAT_VERSION } = await import("../shared/domain");
+    const provenance = {
+      sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000001",
+      sourceCampaignRevision: 10,
+      sourceLogicalRevision: 8,
+      exportedAtMs: 1700000000000,
+    };
+    const emptyState = {};
+    const integrityPayload = buildIntegrityPayloadFromParts(provenance as any, emptyState as any);
+    const digest = await computeBackupPayloadDigest(integrityPayload);
+    const backup = {
+      formatType: BACKUP_FORMAT_TYPE,
+      backupFormatVersion: CURRENT_BACKUP_FORMAT_VERSION,
+      provenance,
+      state: emptyState,
+      integrity: { algorithm: "sha256" as const, digest },
+    };
+
+    const result = await fullyValidateBackup(JSON.stringify(backup), null);
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      // Must be a stable backup-specific error code, not TypeError
+      expect(["INVALID_BACKUP_FORMAT", "BACKUP_INCOMPATIBLE"]).toContain(result.error.code);
+    }
+  });
+
+  it("fullyValidateBackup rejects { schemaVersion: 1 } state with stable DomainError", async () => {
+    const { computeBackupPayloadDigest, buildIntegrityPayloadFromParts, BACKUP_FORMAT_TYPE, CURRENT_BACKUP_FORMAT_VERSION } = await import("../shared/domain");
+    const provenance = {
+      sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000001",
+      sourceCampaignRevision: 10,
+      sourceLogicalRevision: 8,
+      exportedAtMs: 1700000000000,
+    };
+    const partialState = { schemaVersion: 1 };
+    const integrityPayload = buildIntegrityPayloadFromParts(provenance as any, partialState as any);
+    const digest = await computeBackupPayloadDigest(integrityPayload);
+    const backup = {
+      formatType: BACKUP_FORMAT_TYPE,
+      backupFormatVersion: CURRENT_BACKUP_FORMAT_VERSION,
+      provenance,
+      state: partialState,
+      integrity: { algorithm: "sha256" as const, digest },
+    };
+
+    const result = await fullyValidateBackup(JSON.stringify(backup), null);
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(["INVALID_BACKUP_FORMAT", "BACKUP_INCOMPATIBLE"]).toContain(result.error.code);
+    }
+  });
+
+  it("pre-idempotency and full validation produce same digest for valid backup", async () => {
+    const validState: CampaignStateV1 = makeState(7);
+    const backup = await buildExportBackup({
+      sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000001",
+      sourceCampaignRevision: 20,
+      sourceLogicalRevision: 15,
+      state: validState,
+    }, 1700000000000);
+
+    const preResult = await parseAndVerifyBackupIntegrityForFingerprint(JSON.stringify(backup));
+    const fullResult = await fullyValidateBackup(JSON.stringify(backup), validState);
+
+    expect("backup" in preResult).toBe(true);
+    expect("backup" in fullResult).toBe(true);
+
+    if ("backup" in preResult && "backup" in fullResult) {
+      expect(preResult.serverDigest).toBe(fullResult.serverDigest);
+      expect(preResult.serverDigest).toBe(backup.integrity.digest);
+    }
+  });
+
+  it("valid backup behavior remains unchanged through full pipeline", async () => {
+    const validState: CampaignStateV1 = makeState(4);
+    const backup = await buildExportBackup({
+      sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000001",
+      sourceCampaignRevision: 12,
+      sourceLogicalRevision: 10,
+      state: validState,
+    }, 1700000000000);
+
+    const preResult = await parseAndVerifyBackupIntegrityForFingerprint(JSON.stringify(backup));
+    expect("backup" in preResult).toBe(true);
+
+    if ("backup" in preResult) {
+      const fp = backupImportFingerprint(11, preResult.serverDigest);
+      expect(fp).toBe(`backup_import:v1:expectedRevision=11:payloadDigest=${preResult.serverDigest}`);
+    }
+
+    const fullResult = await fullyValidateBackup(JSON.stringify(backup), validState);
+    expect("backup" in fullResult).toBe(true);
+    if ("backup" in fullResult) {
+      expect(fullResult.backup.state.schemaVersion).toBe(1);
+      expect(fullResult.backup.state.ruleset.id).toBe(SEVEN_PART_PACT_DRAFT4_ID);
+    }
+  });
+});
