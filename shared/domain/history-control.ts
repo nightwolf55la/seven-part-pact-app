@@ -3,6 +3,9 @@ import { isLogicalStateCommandType } from "./commands";
 import type { SerializableCampaignState } from "./verification";
 import { advanceOrdinal } from "./calendar";
 import { moveMonthFingerprint, migrationCommandFingerprint } from "./command-ids";
+import { statesDeepEqual } from "./state-equality";
+
+export { statesDeepEqual } from "./state-equality";
 
 export const CURRENT_HISTORY_CONTROL_VERSION = 1 as const;
 
@@ -286,14 +289,7 @@ export function verifyHistoryControl(
 
   if (input.snapshotAtUndoTop !== null) {
     const undoTop = input.control.undoStack[input.control.undoStack.length - 1];
-    const snap = input.snapshotAtUndoTop;
-    const state = input.campaignState;
-    if (
-      snap.schemaVersion !== state.schemaVersion ||
-      snap.ruleset.id !== state.ruleset.id ||
-      snap.ruleset.version !== state.ruleset.version ||
-      snap.calendar.monthOrdinal !== state.calendar.monthOrdinal
-    ) {
+    if (!statesDeepEqual(input.snapshotAtUndoTop, input.campaignState)) {
       errors.push(`snapshot(undoStack.last=${undoTop}).state does not match authoritative campaign state`);
     }
   }
@@ -327,18 +323,6 @@ export function verifyHistoryControl(
 // ============================================================
 // Shared pure history-control initialization analysis
 // ============================================================
-
-export function statesDeepEqual(
-  a: SerializableCampaignState,
-  b: SerializableCampaignState,
-): boolean {
-  return (
-    a.schemaVersion === b.schemaVersion &&
-    a.ruleset.id === b.ruleset.id &&
-    a.ruleset.version === b.ruleset.version &&
-    a.calendar.monthOrdinal === b.calendar.monthOrdinal
-  );
-}
 
 export interface InitializationRevisionInfo {
   readonly campaignRevision: number;

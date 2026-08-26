@@ -151,9 +151,10 @@ export {
   validateHistoryControlStructure,
   replayHistoryControl,
   verifyHistoryControl,
-  statesDeepEqual,
   analyzeHistoryControlInitialization,
 } from "./history-control";
+
+export { statesDeepEqual, toPersistableState } from "./state-equality";
 
 export type {
   CampaignCheckpointV1,

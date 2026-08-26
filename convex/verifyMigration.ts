@@ -7,6 +7,7 @@ import {
   verifyCheckpointCollection,
   verifyCheckpointRestoreRevision,
   isValidCheckpointId,
+  statesDeepEqual,
   CURRENT_HISTORY_CONTROL_VERSION,
   CURRENT_CHECKPOINT_VERSION,
   type RevisionRecord,
@@ -173,13 +174,7 @@ export const verifyMigration = query({
       (s) => s.campaignRevision === campaignRevision,
     );
     if (finalSnapshot) {
-      const cs = canonical.state;
-      const matches =
-        finalSnapshot.state.schemaVersion === cs.schemaVersion &&
-        finalSnapshot.state.ruleset.id === cs.ruleset.id &&
-        finalSnapshot.state.ruleset.version === cs.ruleset.version &&
-        finalSnapshot.state.calendar.monthOrdinal === cs.calendar.monthOrdinal;
-      if (!matches) {
+      if (!statesDeepEqual(finalSnapshot.state, canonical.state)) {
         errors.push("Final snapshot state does not match authoritative campaign state");
       }
     } else {

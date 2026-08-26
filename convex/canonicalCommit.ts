@@ -1,6 +1,7 @@
 import type { MutationCtx } from "./_generated/server";
 import type { CampaignCommandType, CurrentCampaignState, CampaignEvent, MonthDirection, EventRecord } from "../shared/domain";
 import { validateCampaignState, DomainError, advanceOrdinal, validateMoveMonthTransaction, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION, validateHistoryControlStructure, statesDeepEqual, isValidCheckpointId, validateCheckpointLabel, normalizeCheckpointLabel, checkpointRestoreFingerprint, CURRENT_CHECKPOINT_VERSION, isValidCampaignId, backupImportFingerprint, fullyValidateBackup } from "../shared/domain";
+import { toPersistableState } from "../shared/domain/state-equality";
 import { validateUndoTransactionCoherence, validateRedoTransactionCoherence } from "../shared/domain/undo-redo";
 import type { Id } from "./_generated/dataModel";
 
@@ -709,11 +710,7 @@ export async function canonicalCommit(
     }
   }
 
-  const snapshotState = {
-    schemaVersion: input.nextState.schemaVersion,
-    ruleset: { id: input.nextState.ruleset.id, version: input.nextState.ruleset.version },
-    calendar: { monthOrdinal: input.nextState.calendar.monthOrdinal as number },
-  };
+  const snapshotState = toPersistableState(input.nextState);
 
   await ctx.db.insert("campaignSnapshots", {
     campaignId: input.campaignId,

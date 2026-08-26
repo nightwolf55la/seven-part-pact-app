@@ -3,12 +3,18 @@ import { advanceOrdinal } from "./calendar";
 import type { CurrentCampaignState } from "./campaign-state";
 import type { CampaignCommandType } from "./commands";
 import { moveMonthFingerprint } from "./command-ids";
+import type { PersistableCampaignState } from "./state-equality";
 
-export interface SerializableCampaignState {
-  readonly schemaVersion: number;
-  readonly ruleset: { readonly id: string; readonly version: number };
-  readonly calendar: { readonly monthOrdinal: number };
-}
+/**
+ * SerializableCampaignState is the persistence-level representation of campaign
+ * state as stored in Convex documents and used by verification interfaces.
+ *
+ * It is defined as PersistableCampaignState — structurally identical to
+ * AnyCampaignState but without branded types (which don't survive persistence).
+ * Adding a required field to a supported CampaignState schema requires updating
+ * PersistableCampaignState, which propagates here automatically.
+ */
+export type SerializableCampaignState = PersistableCampaignState;
 
 export interface RevisionRecord {
   readonly campaignRevision: number;
