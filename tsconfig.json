@@ -16,5 +16,5 @@
     "resolveJsonModule": true,
     "esModuleInterop": true
   },
-  "include": ["src", "convex", "tests"]
+  "include": ["src", "shared", "convex", "tests"]
 }
