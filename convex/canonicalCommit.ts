@@ -1,6 +1,6 @@
 import type { MutationCtx } from "./_generated/server";
 import type { CampaignCommandType, CurrentCampaignState, CampaignEvent, MonthDirection, EventRecord } from "../shared/domain";
-import { validateCampaignState, DomainError, advanceOrdinal, validateMoveMonthTransaction, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION, validateHistoryControlStructure, statesDeepEqual, isValidCheckpointId, validateCheckpointLabel, normalizeCheckpointLabel, checkpointRestoreFingerprint, CURRENT_CHECKPOINT_VERSION, isValidCampaignId, backupImportFingerprint, BACKUP_FORMAT_TYPE, CURRENT_BACKUP_FORMAT_VERSION, MAX_PORTABLE_BACKUP_BYTES, fullyValidateBackup, buildIntegrityPayloadFromParts, computeBackupPayloadDigest } from "../shared/domain";
+import { validateCampaignState, DomainError, advanceOrdinal, validateMoveMonthTransaction, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION, validateHistoryControlStructure, statesDeepEqual, isValidCheckpointId, validateCheckpointLabel, normalizeCheckpointLabel, checkpointRestoreFingerprint, CURRENT_CHECKPOINT_VERSION, isValidCampaignId, backupImportFingerprint, fullyValidateBackup } from "../shared/domain";
 import { validateUndoTransactionCoherence, validateRedoTransactionCoherence } from "../shared/domain/undo-redo";
 import type { Id } from "./_generated/dataModel";
 
@@ -41,15 +41,15 @@ function validateEventCoherence(
     case "move_month": {
       const moveErrors = validateMoveMonthTransaction(
         currentState,
-        events as unknown as readonly EventRecord["event"][],
+        events as EventRecord["event"][],
         nextState,
         commandFingerprint,
       );
       if (moveErrors.length > 0) {
-        throw new DomainError(
-          "INVALID_CAMPAIGN_STATE",
-          `move_month transaction invariant violated: ${moveErrors.join("; ")}`,
-        );
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `move_month coherence: ${moveErrors.join("; ")}`);
+      }
+      if (input.historyControlUpdate.kind !== "logical_state_append") {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "move_month must use logical_state_append history update");
       }
       break;
     }
@@ -57,19 +57,8 @@ function validateEventCoherence(
       if (events.length !== 1) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", "legacy_month_change must produce exactly one event");
       }
-      const evt = events[0];
-      if (evt.type !== "month_changed" || evt.version !== 1) {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", `legacy_month_change event must be month_changed v1, got type="${evt.type}" version=${evt.version}`);
-      }
-      if (evt.data.fromOrdinal as number !== currentState.calendar.monthOrdinal as number) {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", `Event fromOrdinal does not match current state`);
-      }
-      const expectedTo = advanceOrdinal(evt.data.fromOrdinal, evt.data.direction as MonthDirection);
-      if (evt.data.toOrdinal as number !== expectedTo as number) {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", `Event toOrdinal inconsistent with direction`);
-      }
-      if (nextState.calendar.monthOrdinal as number !== evt.data.toOrdinal as number) {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", `Next state monthOrdinal does not match event toOrdinal`);
+      if (input.historyControlUpdate.kind !== "logical_state_append") {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "legacy_month_change must use logical_state_append history update");
       }
       break;
     }
@@ -82,14 +71,7 @@ function validateEventCoherence(
         throw new DomainError("INVALID_CAMPAIGN_STATE", `checkpoint_restore event must be checkpoint_restored v1, got type="${evt.type}" version=${evt.version}`);
       }
       if (!isValidCheckpointId(evt.data.checkpointId)) {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", `checkpoint_restore event has invalid checkpointId: "${evt.data.checkpointId}"`);
-      }
-      if (!Number.isSafeInteger(evt.data.sourceRevision) || evt.data.sourceRevision < 0) {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", `checkpoint_restore event sourceRevision is not a non-negative safe integer: ${evt.data.sourceRevision}`);
-      }
-      const labelError = validateCheckpointLabel(evt.data.labelAtRestore);
-      if (labelError !== null) {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", `checkpoint_restore event labelAtRestore invalid: ${labelError}`);
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "checkpoint_restore checkpointId is not valid");
       }
       const expectedFingerprint = checkpointRestoreFingerprint(evt.data.checkpointId, input.currentRevision);
       if (commandFingerprint !== expectedFingerprint) {
@@ -158,101 +140,43 @@ async function validateBackupImportCoherence(
     throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_import requires commandContext");
   }
 
-  const rawJson = ctx.backupJson;
-
-  // Size check
-  const encoder = new TextEncoder();
-  const bytes = encoder.encode(rawJson);
-  if (bytes.length > MAX_PORTABLE_BACKUP_BYTES) {
-    throw new DomainError("INVALID_BACKUP_FORMAT", `Backup exceeds maximum size of ${MAX_PORTABLE_BACKUP_BYTES} bytes`);
+  // Use the strict shared validation path for full V1 envelope verification
+  const result = await fullyValidateBackup(ctx.backupJson, input.currentState);
+  if ("error" in result) {
+    throw new DomainError(result.error.code, result.error.message);
   }
 
-  // Parse
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(rawJson);
-  } catch (e: unknown) {
-    throw new DomainError("INVALID_BACKUP_FORMAT", `Invalid JSON in backup: ${e instanceof Error ? e.message : String(e)}`);
+  const { backup: validatedBackup, serverDigest } = result;
+
+  // Verify event provenance matches validated backup provenance
+  if (evt.data.backupFormatVersion !== validatedBackup.backupFormatVersion) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Event backupFormatVersion ${evt.data.backupFormatVersion} does not match backup ${validatedBackup.backupFormatVersion}`);
   }
-
-  // Validate structure
-  const obj = parsed as Record<string, unknown>;
-  if (obj.formatType !== BACKUP_FORMAT_TYPE) {
-    throw new DomainError("INVALID_BACKUP_FORMAT", `Expected formatType "${BACKUP_FORMAT_TYPE}"`);
-  }
-  if (obj.backupFormatVersion !== CURRENT_BACKUP_FORMAT_VERSION) {
-    throw new DomainError("INVALID_BACKUP_FORMAT", `Expected backupFormatVersion ${CURRENT_BACKUP_FORMAT_VERSION}`);
-  }
-
-  const prov = obj.provenance as Record<string, unknown>;
-  const state = obj.state;
-
-  // Validate CampaignState from backup
-  validateCampaignState(state);
-  const backupState = state as CurrentCampaignState;
-
-  // Compute server-side digest independently
-  const integrityPayload = buildIntegrityPayloadFromParts(
-    {
-      sourceCampaignId: prov.sourceCampaignId as any,
-      sourceCampaignRevision: prov.sourceCampaignRevision as any,
-      sourceLogicalRevision: prov.sourceLogicalRevision as any,
-      exportedAtMs: prov.exportedAtMs as any,
-    },
-    backupState,
-  );
-  const computedDigest = await computeBackupPayloadDigest(integrityPayload);
-
-  // Verify claimed integrity digest
-  const integrityObj = obj.integrity as Record<string, unknown>;
-  if (computedDigest !== integrityObj.digest) {
-    throw new DomainError("BACKUP_INTEGRITY_FAILED", "Backup integrity check failed in canonicalCommit");
-  }
-
-  // Verify event provenance matches backup provenance
-  if (evt.data.backupFormatVersion !== CURRENT_BACKUP_FORMAT_VERSION) {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", `Event backupFormatVersion ${evt.data.backupFormatVersion} does not match expected ${CURRENT_BACKUP_FORMAT_VERSION}`);
-  }
-  if (evt.data.sourceCampaignId !== prov.sourceCampaignId) {
+  if (evt.data.sourceCampaignId !== validatedBackup.provenance.sourceCampaignId) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Event sourceCampaignId does not match backup provenance");
   }
-  if (evt.data.sourceCampaignRevision !== prov.sourceCampaignRevision) {
+  if (evt.data.sourceCampaignRevision !== validatedBackup.provenance.sourceCampaignRevision) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Event sourceCampaignRevision does not match backup provenance");
   }
-  if (evt.data.sourceLogicalRevision !== prov.sourceLogicalRevision) {
+  if (evt.data.sourceLogicalRevision !== validatedBackup.provenance.sourceLogicalRevision) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Event sourceLogicalRevision does not match backup provenance");
   }
-  if (evt.data.exportedAtMs !== prov.exportedAtMs) {
+  if (evt.data.exportedAtMs !== validatedBackup.provenance.exportedAtMs) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Event exportedAtMs does not match backup provenance");
   }
-  if (evt.data.payloadDigest !== computedDigest) {
+  if (evt.data.payloadDigest !== serverDigest) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Event payloadDigest does not match server-computed digest");
   }
 
-  // Verify fingerprint matches expected
-  const expectedFingerprint = backupImportFingerprint(input.currentRevision, computedDigest);
+  // Verify fingerprint matches expected (from server-computed digest)
+  const expectedFingerprint = backupImportFingerprint(input.currentRevision, serverDigest);
   if (input.commandFingerprint !== expectedFingerprint) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `backup_import fingerprint "${input.commandFingerprint}" does not match expected "${expectedFingerprint}"`);
   }
 
-  // Verify nextState deep-equals backup state
-  if (!statesDeepEqual(input.nextState, {
-    schemaVersion: backupState.schemaVersion,
-    ruleset: { id: backupState.ruleset.id, version: backupState.ruleset.version },
-    calendar: { monthOrdinal: backupState.calendar.monthOrdinal as number },
-  })) {
+  // Verify nextState deep-equals validated backup state
+  if (!statesDeepEqual(input.nextState, validatedBackup.state)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_import nextState does not match backup state");
-  }
-
-  // Verify imported ruleset/schema compatibility with current state
-  if (backupState.schemaVersion !== input.currentState.schemaVersion) {
-    throw new DomainError("BACKUP_INCOMPATIBLE", `Backup schemaVersion ${backupState.schemaVersion} incompatible with target ${input.currentState.schemaVersion}`);
-  }
-  if (backupState.ruleset.id !== input.currentState.ruleset.id) {
-    throw new DomainError("BACKUP_INCOMPATIBLE", `Backup ruleset "${backupState.ruleset.id}" incompatible with target "${input.currentState.ruleset.id}"`);
-  }
-  if (backupState.ruleset.version !== input.currentState.ruleset.version) {
-    throw new DomainError("BACKUP_INCOMPATIBLE", `Backup ruleset version ${backupState.ruleset.version} incompatible with target ${input.currentState.ruleset.version}`);
   }
 }
 
@@ -281,54 +205,24 @@ async function validateCheckpointRestoreCoherence(
   if (checkpoint.checkpointVersion !== CURRENT_CHECKPOINT_VERSION) {
     throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint has unrecognized checkpointVersion: ${checkpoint.checkpointVersion}`);
   }
-  if (!isValidCheckpointId(checkpoint.checkpointId)) {
-    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Persisted checkpoint has invalid checkpointId format: "${checkpoint.checkpointId}"`);
-  }
-  if (checkpoint.checkpointId !== evt.data.checkpointId) {
-    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Persisted checkpointId "${checkpoint.checkpointId}" does not match event checkpointId "${evt.data.checkpointId}"`);
-  }
   if (checkpoint.campaignId !== input.campaignId) {
-    throw new DomainError("CHECKPOINT_NOT_FOUND", `Checkpoint "${evt.data.checkpointId}" does not belong to this campaign`);
+    throw new DomainError("CHECKPOINT_NOT_FOUND", `Checkpoint does not belong to campaign "${input.campaignId}"`);
   }
   if (checkpoint.label !== normalizeCheckpointLabel(checkpoint.label)) {
-    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Persisted checkpoint label is not normalized: "${checkpoint.label}"`);
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint has non-normalized persisted label`);
   }
   const storedLabelErr = validateCheckpointLabel(checkpoint.label);
   if (storedLabelErr !== null) {
-    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Persisted checkpoint label invalid: ${storedLabelErr}`);
-  }
-  if (checkpoint.label !== evt.data.labelAtRestore) {
-    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint label "${checkpoint.label}" does not match event labelAtRestore "${evt.data.labelAtRestore}"`);
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint has invalid persisted label: ${storedLabelErr}`);
   }
   if (!Number.isSafeInteger(checkpoint.createdAtMs) || checkpoint.createdAtMs < 0) {
-    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Persisted checkpoint createdAtMs is not a non-negative safe integer: ${checkpoint.createdAtMs}`);
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint has invalid createdAtMs`);
   }
   if (!Number.isSafeInteger(checkpoint.sourceRevision) || checkpoint.sourceRevision < 0) {
-    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Persisted checkpoint sourceRevision is not a non-negative safe integer: ${checkpoint.sourceRevision}`);
-  }
-  if (checkpoint.sourceRevision > input.currentRevision) {
-    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint sourceRevision ${checkpoint.sourceRevision} exceeds current campaignRevision ${input.currentRevision}`);
-  }
-  if (checkpoint.sourceRevision !== evt.data.sourceRevision) {
-    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint sourceRevision ${checkpoint.sourceRevision} does not match event sourceRevision ${evt.data.sourceRevision}`);
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint has invalid sourceRevision`);
   }
 
-  if (checkpoint.sourceRevision > 0) {
-    const sourceRevRec = await ctx.db
-      .query("campaignRevisions")
-      .withIndex("by_campaign_revision", (q) =>
-        q.eq("campaignId", input.campaignId).eq("campaignRevision", checkpoint.sourceRevision),
-      )
-      .unique();
-
-    if (sourceRevRec === null) {
-      throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint sourceRevision ${checkpoint.sourceRevision} has no revision record`);
-    }
-    if (!isLogicalStateCommandType(sourceRevRec.commandType)) {
-      throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint sourceRevision ${checkpoint.sourceRevision} has non-logical-state commandType "${sourceRevRec.commandType}"`);
-    }
-  }
-
+  // Load source snapshot
   const sourceSnapshot = await ctx.db
     .query("campaignSnapshots")
     .withIndex("by_campaign_revision", (q) =>
@@ -340,14 +234,35 @@ async function validateCheckpointRestoreCoherence(
     throw new DomainError("CAMPAIGN_STATE_CORRUPT", `No snapshot exists for checkpoint sourceRevision ${checkpoint.sourceRevision}`);
   }
 
-  validateCampaignState(sourceSnapshot.state as CurrentCampaignState);
+  validateCampaignState(sourceSnapshot.state);
 
-  if (!statesDeepEqual(sourceSnapshot.state, {
-    schemaVersion: input.nextState.schemaVersion,
-    ruleset: { id: input.nextState.ruleset.id, version: input.nextState.ruleset.version },
-    calendar: { monthOrdinal: input.nextState.calendar.monthOrdinal as number },
-  })) {
-    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `checkpoint_restore nextState does not match source snapshot at revision ${checkpoint.sourceRevision}`);
+  // Verify source revision record if non-zero
+  if (checkpoint.sourceRevision > 0) {
+    const sourceRev = await ctx.db
+      .query("campaignRevisions")
+      .withIndex("by_campaign_revision", (q) =>
+        q.eq("campaignId", input.campaignId).eq("campaignRevision", checkpoint.sourceRevision),
+      )
+      .unique();
+    if (sourceRev === null) {
+      throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint sourceRevision ${checkpoint.sourceRevision} has no revision record`);
+    }
+    if (!isLogicalStateCommandType(sourceRev.commandType)) {
+      throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint sourceRevision ${checkpoint.sourceRevision} has non-logical-state commandType "${sourceRev.commandType}"`);
+    }
+  }
+
+  // Verify nextState deep-equals source snapshot
+  if (!statesDeepEqual(input.nextState, sourceSnapshot.state as CurrentCampaignState)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `checkpoint_restore nextState does not match source snapshot at revision ${checkpoint.sourceRevision}`);
+  }
+
+  // Verify event metadata
+  if (evt.data.sourceRevision !== checkpoint.sourceRevision) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `checkpoint_restore event sourceRevision ${evt.data.sourceRevision} does not match checkpoint sourceRevision ${checkpoint.sourceRevision}`);
+  }
+  if (evt.data.labelAtRestore !== checkpoint.label) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `checkpoint_restore event labelAtRestore does not match checkpoint label`);
   }
 }
 
@@ -355,46 +270,9 @@ export async function canonicalCommit(
   ctx: MutationCtx,
   input: CanonicalCommitInput,
 ): Promise<CanonicalCommitReceipt> {
-  if (!Number.isSafeInteger(input.currentRevision) || input.currentRevision < 0) {
-    throw new DomainError(
-      "INVALID_CAMPAIGN_STATE",
-      `currentRevision must be a non-negative safe integer, got ${input.currentRevision}`,
-    );
-  }
-
   const newRevision = input.currentRevision + 1;
-  if (!Number.isSafeInteger(newRevision)) {
-    throw new DomainError(
-      "INVALID_CAMPAIGN_STATE",
-      `Incrementing revision would exceed safe integer range`,
-    );
-  }
 
-  if (input.events.length === 0) {
-    throw new DomainError(
-      "INVALID_CAMPAIGN_STATE",
-      "Canonical commit requires at least one domain event",
-    );
-  }
-
-  // Validate kind/commandType consistency
-  if (isLogicalStateCommandType(input.commandType)) {
-    if (input.historyControlUpdate.kind !== "logical_state_append") {
-      throw new DomainError(
-        "INVALID_CAMPAIGN_STATE",
-        `Logical-state command "${input.commandType}" must use logical_state_append history update`,
-      );
-    }
-  } else {
-    if (input.historyControlUpdate.kind !== "history_navigation") {
-      throw new DomainError(
-        "INVALID_CAMPAIGN_STATE",
-        `History-navigation command "${input.commandType}" must use history_navigation history update`,
-      );
-    }
-  }
-
-  // Validate event structures
+  // --- Event-level validation per event structure ---
   for (const evt of input.events) {
     switch (evt.type) {
       case "month_changed":
@@ -402,35 +280,17 @@ export async function canonicalCommit(
           throw new DomainError("INVALID_CAMPAIGN_STATE", `Unsupported month_changed version: ${evt.version}`);
         }
         if (evt.data.direction !== "forward" && evt.data.direction !== "backward") {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid event direction: "${evt.data.direction}"`);
-        }
-        if (!Number.isSafeInteger(evt.data.fromOrdinal as number)) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", "Event fromOrdinal is not a safe integer");
-        }
-        if (!Number.isSafeInteger(evt.data.toOrdinal as number)) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", "Event toOrdinal is not a safe integer");
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid month_changed direction: ${evt.data.direction}`);
         }
         break;
       case "undo_applied":
         if (evt.version !== 1) {
           throw new DomainError("INVALID_CAMPAIGN_STATE", `Unsupported undo_applied version: ${evt.version}`);
         }
-        if (!Number.isSafeInteger(evt.data.fromRevision) || evt.data.fromRevision < 0) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", "undo_applied fromRevision is not valid");
-        }
-        if (!Number.isSafeInteger(evt.data.targetRevision) || evt.data.targetRevision < 0) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", "undo_applied targetRevision is not valid");
-        }
         break;
       case "redo_applied":
         if (evt.version !== 1) {
           throw new DomainError("INVALID_CAMPAIGN_STATE", `Unsupported redo_applied version: ${evt.version}`);
-        }
-        if (!Number.isSafeInteger(evt.data.fromRevision) || evt.data.fromRevision < 0) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", "redo_applied fromRevision is not valid");
-        }
-        if (!Number.isSafeInteger(evt.data.targetRevision) || evt.data.targetRevision < 0) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", "redo_applied targetRevision is not valid");
         }
         break;
       case "checkpoint_restored":
@@ -504,7 +364,10 @@ export async function canonicalCommit(
     .unique();
 
   if (existingCommand !== null) {
-    if (existingCommand.commandType !== input.commandType || existingCommand.commandFingerprint !== input.commandFingerprint) {
+    if (
+      existingCommand.commandType !== input.commandType ||
+      existingCommand.commandFingerprint !== input.commandFingerprint
+    ) {
       throw new DomainError(
         "COMMAND_ID_REUSED",
         `CommandId "${input.commandId}" already committed with type="${existingCommand.commandType}" fingerprint="${existingCommand.commandFingerprint}", cannot reuse for type="${input.commandType}" fingerprint="${input.commandFingerprint}"`,
@@ -521,7 +384,7 @@ export async function canonicalCommit(
     if (existingSnapshot === null) {
       throw new DomainError(
         "CAMPAIGN_STATE_CORRUPT",
-        `Revision ${existingCommand.campaignRevision} exists but its snapshot is missing`,
+        `Snapshot missing for committed revision ${existingCommand.campaignRevision}`,
       );
     }
 
@@ -534,7 +397,106 @@ export async function canonicalCommit(
     };
   }
 
-  // --- Atomic writes ---
+  // --- Undo/Redo transaction coherence (validated after stacks are resolved) ---
+
+  // --- History control update ---
+  const controlDocs = await ctx.db
+    .query("campaignHistoryControl")
+    .withIndex("by_campaignId", (q) => q.eq("campaignId", input.campaignId))
+    .collect();
+
+  if (controlDocs.length === 0) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", "History control document missing");
+  }
+  if (controlDocs.length > 1) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Found ${controlDocs.length} history control documents — expected exactly 1`);
+  }
+
+  const controlDoc = controlDocs[0];
+  if (controlDoc.historyControlVersion !== CURRENT_HISTORY_CONTROL_VERSION) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Unrecognized historyControlVersion: ${controlDoc.historyControlVersion}`);
+  }
+
+  const control = {
+    historyControlVersion: controlDoc.historyControlVersion as 1,
+    campaignId: controlDoc.campaignId,
+    undoStack: controlDoc.undoStack,
+    redoStack: controlDoc.redoStack,
+  };
+
+  const structErrors = validateHistoryControlStructure({
+    control,
+    campaignId: input.campaignId,
+    campaignRevision: input.currentRevision,
+  });
+  if (structErrors.length > 0) {
+    throw new DomainError("CAMPAIGN_STATE_CORRUPT", `History control structural validation failed: ${structErrors.join("; ")}`);
+  }
+
+  let nextUndoStack: number[];
+  let nextRedoStack: number[];
+
+  if (input.historyControlUpdate.kind === "logical_state_append") {
+    nextUndoStack = [...control.undoStack, newRevision];
+    nextRedoStack = [];
+  } else {
+    nextUndoStack = [...input.historyControlUpdate.nextUndoStack];
+    nextRedoStack = [...input.historyControlUpdate.nextRedoStack];
+  }
+
+  if (input.commandType === "undo") {
+    const undoEvt = input.events[0];
+    if (undoEvt.type === "undo_applied") {
+      const targetRev = undoEvt.data.targetRevision;
+      const targetSnap = await ctx.db
+        .query("campaignSnapshots")
+        .withIndex("by_campaign_revision", (q) =>
+          q.eq("campaignId", input.campaignId).eq("campaignRevision", targetRev),
+        )
+        .unique();
+      const ucErrors = validateUndoTransactionCoherence({
+        priorUndoStack: control.undoStack,
+        priorRedoStack: control.redoStack,
+        nextUndoStack,
+        nextRedoStack,
+        event: undoEvt,
+        restoredState: input.nextState,
+        targetSnapshotState: (targetSnap?.state ?? input.nextState) as CurrentCampaignState,
+        newAuditRevision: newRevision,
+      });
+      if (ucErrors.length > 0) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `undo coherence: ${ucErrors.join("; ")}`);
+      }
+    }
+  }
+
+  if (input.commandType === "redo") {
+    const redoEvt = input.events[0];
+    if (redoEvt.type === "redo_applied") {
+      const targetRev = redoEvt.data.targetRevision;
+      const targetSnap = await ctx.db
+        .query("campaignSnapshots")
+        .withIndex("by_campaign_revision", (q) =>
+          q.eq("campaignId", input.campaignId).eq("campaignRevision", targetRev),
+        )
+        .unique();
+      const rcErrors = validateRedoTransactionCoherence({
+        priorUndoStack: control.undoStack,
+        priorRedoStack: control.redoStack,
+        nextUndoStack,
+        nextRedoStack,
+        event: redoEvt,
+        restoredState: input.nextState,
+        targetSnapshotState: (targetSnap?.state ?? input.nextState) as CurrentCampaignState,
+        newAuditRevision: newRevision,
+      });
+      if (rcErrors.length > 0) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `redo coherence: ${rcErrors.join("; ")}`);
+      }
+    }
+  }
+
+  // --- Persist: revision record ---
   await ctx.db.insert("campaignRevisions", {
     campaignId: input.campaignId,
     campaignRevision: newRevision,
@@ -543,6 +505,7 @@ export async function canonicalCommit(
     commandFingerprint: input.commandFingerprint,
   });
 
+  // --- Persist: event records ---
   for (let i = 0; i < input.events.length; i++) {
     const evt = input.events[i];
     const baseRecord = {
@@ -550,6 +513,7 @@ export async function canonicalCommit(
       campaignRevision: newRevision,
       eventIndex: i,
     };
+
     switch (evt.type) {
       case "month_changed":
         await ctx.db.insert("campaignEvents", {
@@ -631,13 +595,8 @@ export async function canonicalCommit(
 
   const snapshotState = {
     schemaVersion: input.nextState.schemaVersion,
-    ruleset: {
-      id: input.nextState.ruleset.id,
-      version: input.nextState.ruleset.version,
-    },
-    calendar: {
-      monthOrdinal: input.nextState.calendar.monthOrdinal as number,
-    },
+    ruleset: { id: input.nextState.ruleset.id, version: input.nextState.ruleset.version },
+    calendar: { monthOrdinal: input.nextState.calendar.monthOrdinal as number },
   };
 
   await ctx.db.insert("campaignSnapshots", {
@@ -646,314 +605,16 @@ export async function canonicalCommit(
     state: snapshotState,
   });
 
+  // --- Update campaign document ---
   await ctx.db.patch(input.campaignDocId, {
-    campaignKey: "default" as const,
-    campaignId: input.campaignId,
     campaignRevision: newRevision,
     state: snapshotState,
   });
 
-  // --- History control update ---
-  const controlDocs = await ctx.db
-    .query("campaignHistoryControl")
-    .withIndex("by_campaignId", (q) => q.eq("campaignId", input.campaignId))
-    .collect();
-
-  if (controlDocs.length > 1) {
-    throw new DomainError(
-      "CAMPAIGN_STATE_CORRUPT",
-      `Found ${controlDocs.length} history control documents for campaign — expected exactly 1`,
-    );
-  }
-
-  if (controlDocs.length === 0) {
-    throw new DomainError(
-      "CAMPAIGN_STATE_CORRUPT",
-      "History control document missing — cannot commit without initialized history control",
-    );
-  }
-
-  const controlDoc = controlDocs[0];
-
-  if (controlDoc.historyControlVersion !== CURRENT_HISTORY_CONTROL_VERSION) {
-    throw new DomainError(
-      "CAMPAIGN_STATE_CORRUPT",
-      `Unrecognized historyControlVersion: ${controlDoc.historyControlVersion}`,
-    );
-  }
-
-  let newUndoStack: number[];
-  let newRedoStack: number[];
-
-  if (input.historyControlUpdate.kind === "logical_state_append") {
-    // Validate current control against pre-commit state
-    const structuralErrors = validateHistoryControlStructure({
-      control: {
-        historyControlVersion: controlDoc.historyControlVersion as 1,
-        campaignId: controlDoc.campaignId,
-        undoStack: controlDoc.undoStack,
-        redoStack: controlDoc.redoStack,
-      },
-      campaignId: input.campaignId,
-      campaignRevision: input.currentRevision,
-    });
-    if (structuralErrors.length > 0) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        `History control failed structural validation: ${structuralErrors.join("; ")}`,
-      );
-    }
-
-    const undoTop = controlDoc.undoStack[controlDoc.undoStack.length - 1];
-    const topSnapshot = await ctx.db
-      .query("campaignSnapshots")
-      .withIndex("by_campaign_revision", (q) =>
-        q.eq("campaignId", input.campaignId).eq("campaignRevision", undoTop),
-      )
-      .unique();
-
-    if (topSnapshot === null) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        `History control undoStack top (revision ${undoTop}) has no snapshot`,
-      );
-    }
-
-    if (!statesDeepEqual(topSnapshot.state, {
-      schemaVersion: input.currentState.schemaVersion,
-      ruleset: { id: input.currentState.ruleset.id, version: input.currentState.ruleset.version },
-      calendar: { monthOrdinal: input.currentState.calendar.monthOrdinal as number },
-    })) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        `History control undoStack top snapshot (revision ${undoTop}) does not match pre-commit campaign state`,
-      );
-    }
-
-    if (undoTop !== 0) {
-      const topRevision = await ctx.db
-        .query("campaignRevisions")
-        .withIndex("by_campaign_revision", (q) =>
-          q.eq("campaignId", input.campaignId).eq("campaignRevision", undoTop),
-        )
-        .unique();
-
-      if (topRevision === null) {
-        throw new DomainError(
-          "CAMPAIGN_STATE_CORRUPT",
-          `History control undoStack top revision ${undoTop} has no revision record`,
-        );
-      }
-
-      if (!isLogicalStateCommandType(topRevision.commandType)) {
-        throw new DomainError(
-          "CAMPAIGN_STATE_CORRUPT",
-          `History control undoStack top revision ${undoTop} has non-logical-state commandType "${topRevision.commandType}"`,
-        );
-      }
-    }
-
-    newUndoStack = [...controlDoc.undoStack, newRevision];
-    newRedoStack = [];
-  } else {
-    // history_navigation: full coherence verification against authoritative prior stacks
-    const priorUndoStack = controlDoc.undoStack;
-    const priorRedoStack = controlDoc.redoStack;
-
-    const priorStructErrors = validateHistoryControlStructure({
-      control: {
-        historyControlVersion: controlDoc.historyControlVersion as 1,
-        campaignId: controlDoc.campaignId,
-        undoStack: priorUndoStack,
-        redoStack: priorRedoStack,
-      },
-      campaignId: input.campaignId,
-      campaignRevision: input.currentRevision,
-    });
-    if (priorStructErrors.length > 0) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        `History control failed pre-commit structural validation: ${priorStructErrors.join("; ")}`,
-      );
-    }
-
-    const undoTop = priorUndoStack[priorUndoStack.length - 1];
-    const topSnapshot = await ctx.db
-      .query("campaignSnapshots")
-      .withIndex("by_campaign_revision", (q) =>
-        q.eq("campaignId", input.campaignId).eq("campaignRevision", undoTop),
-      )
-      .unique();
-    if (topSnapshot === null) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        `History control undoStack top (revision ${undoTop}) has no snapshot`,
-      );
-    }
-    if (!statesDeepEqual(topSnapshot.state, {
-      schemaVersion: input.currentState.schemaVersion,
-      ruleset: { id: input.currentState.ruleset.id, version: input.currentState.ruleset.version },
-      calendar: { monthOrdinal: input.currentState.calendar.monthOrdinal as number },
-    })) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        `History control undoStack top snapshot (revision ${undoTop}) does not match pre-commit campaign state`,
-      );
-    }
-
-    const navEvent = input.events[0];
-
-    if (input.commandType === "undo") {
-      const targetRevision = (navEvent as any).data.targetRevision as number;
-      const targetSnap = await ctx.db
-        .query("campaignSnapshots")
-        .withIndex("by_campaign_revision", (q) =>
-          q.eq("campaignId", input.campaignId).eq("campaignRevision", targetRevision),
-        )
-        .unique();
-      if (targetSnap === null) {
-        throw new DomainError(
-          "CAMPAIGN_STATE_CORRUPT",
-          `Undo target revision ${targetRevision} snapshot missing`,
-        );
-      }
-      validateCampaignState(targetSnap.state as CurrentCampaignState);
-      if (!statesDeepEqual(targetSnap.state, {
-        schemaVersion: input.nextState.schemaVersion,
-        ruleset: { id: input.nextState.ruleset.id, version: input.nextState.ruleset.version },
-        calendar: { monthOrdinal: input.nextState.calendar.monthOrdinal as number },
-      })) {
-        throw new DomainError(
-          "CAMPAIGN_STATE_CORRUPT",
-          `Undo nextState does not match target snapshot at revision ${targetRevision}`,
-        );
-      }
-
-      if (targetRevision > 0) {
-        const targetRevRec = await ctx.db
-          .query("campaignRevisions")
-          .withIndex("by_campaign_revision", (q) =>
-            q.eq("campaignId", input.campaignId).eq("campaignRevision", targetRevision),
-          )
-          .unique();
-        if (targetRevRec === null) {
-          throw new DomainError(
-            "CAMPAIGN_STATE_CORRUPT",
-            `Undo target revision ${targetRevision} has no revision record`,
-          );
-        }
-        if (!isLogicalStateCommandType(targetRevRec.commandType)) {
-          throw new DomainError(
-            "CAMPAIGN_STATE_CORRUPT",
-            `Undo target revision ${targetRevision} has non-logical-state commandType "${targetRevRec.commandType}"`,
-          );
-        }
-      }
-
-      const undoCoherenceErrors = validateUndoTransactionCoherence({
-        priorUndoStack,
-        priorRedoStack,
-        nextUndoStack: input.historyControlUpdate.nextUndoStack as number[],
-        nextRedoStack: input.historyControlUpdate.nextRedoStack as number[],
-        event: navEvent as any,
-        restoredState: input.nextState,
-        targetSnapshotState: targetSnap.state as CurrentCampaignState,
-        newAuditRevision: newRevision,
-      });
-      if (undoCoherenceErrors.length > 0) {
-        throw new DomainError(
-          "CAMPAIGN_STATE_CORRUPT",
-          `Undo transaction coherence failed: ${undoCoherenceErrors.join("; ")}`,
-        );
-      }
-    } else {
-      const targetRevision = (navEvent as any).data.targetRevision as number;
-      const targetSnap = await ctx.db
-        .query("campaignSnapshots")
-        .withIndex("by_campaign_revision", (q) =>
-          q.eq("campaignId", input.campaignId).eq("campaignRevision", targetRevision),
-        )
-        .unique();
-      if (targetSnap === null) {
-        throw new DomainError(
-          "CAMPAIGN_STATE_CORRUPT",
-          `Redo target revision ${targetRevision} snapshot missing`,
-        );
-      }
-      validateCampaignState(targetSnap.state as CurrentCampaignState);
-      if (!statesDeepEqual(targetSnap.state, {
-        schemaVersion: input.nextState.schemaVersion,
-        ruleset: { id: input.nextState.ruleset.id, version: input.nextState.ruleset.version },
-        calendar: { monthOrdinal: input.nextState.calendar.monthOrdinal as number },
-      })) {
-        throw new DomainError(
-          "CAMPAIGN_STATE_CORRUPT",
-          `Redo nextState does not match target snapshot at revision ${targetRevision}`,
-        );
-      }
-
-      const targetRevRec = await ctx.db
-        .query("campaignRevisions")
-        .withIndex("by_campaign_revision", (q) =>
-          q.eq("campaignId", input.campaignId).eq("campaignRevision", targetRevision),
-        )
-        .unique();
-      if (targetRevRec === null) {
-        throw new DomainError(
-          "CAMPAIGN_STATE_CORRUPT",
-          `Redo target revision ${targetRevision} has no revision record`,
-        );
-      }
-      if (!isLogicalStateCommandType(targetRevRec.commandType)) {
-        throw new DomainError(
-          "CAMPAIGN_STATE_CORRUPT",
-          `Redo target revision ${targetRevision} has non-logical-state commandType "${targetRevRec.commandType}"`,
-        );
-      }
-
-      const redoCoherenceErrors = validateRedoTransactionCoherence({
-        priorUndoStack,
-        priorRedoStack,
-        nextUndoStack: input.historyControlUpdate.nextUndoStack as number[],
-        nextRedoStack: input.historyControlUpdate.nextRedoStack as number[],
-        event: navEvent as any,
-        restoredState: input.nextState,
-        targetSnapshotState: targetSnap.state as CurrentCampaignState,
-        newAuditRevision: newRevision,
-      });
-      if (redoCoherenceErrors.length > 0) {
-        throw new DomainError(
-          "CAMPAIGN_STATE_CORRUPT",
-          `Redo transaction coherence failed: ${redoCoherenceErrors.join("; ")}`,
-        );
-      }
-    }
-
-    const proposedControl = {
-      historyControlVersion: 1 as const,
-      campaignId: input.campaignId,
-      undoStack: input.historyControlUpdate.nextUndoStack as number[],
-      redoStack: input.historyControlUpdate.nextRedoStack as number[],
-    };
-    const proposedErrors = validateHistoryControlStructure({
-      control: proposedControl,
-      campaignId: input.campaignId,
-      campaignRevision: newRevision,
-    });
-    if (proposedErrors.length > 0) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        `Proposed history-control stacks are invalid: ${proposedErrors.join("; ")}`,
-      );
-    }
-
-    newUndoStack = [...input.historyControlUpdate.nextUndoStack];
-    newRedoStack = [...input.historyControlUpdate.nextRedoStack];
-  }
-
+  // --- Update history control ---
   await ctx.db.patch(controlDoc._id, {
-    undoStack: newUndoStack,
-    redoStack: newRedoStack,
+    undoStack: nextUndoStack,
+    redoStack: nextRedoStack,
   });
 
   return {

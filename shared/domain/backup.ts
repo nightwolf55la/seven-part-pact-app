@@ -293,6 +293,17 @@ export async function fullyValidateBackup(
   return { backup: validated, serverDigest };
 }
 
+/**
+ * Performs strict structural validation and integrity verification sufficient
+ * to derive a trustworthy server-computed fingerprint. Does NOT check domain
+ * compatibility with a target campaign (that happens after idempotency).
+ */
+export async function parseAndVerifyBackupIntegrityForFingerprint(
+  rawJson: string,
+): Promise<{ backup: ValidatedBackupV1; serverDigest: string } | { error: BackupValidationError }> {
+  return fullyValidateBackup(rawJson, null);
+}
+
 export interface ExportSourceData {
   readonly sourceCampaignId: string;
   readonly sourceCampaignRevision: number;

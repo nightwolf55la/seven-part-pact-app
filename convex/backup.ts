@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, action, internalQuery } from "./_generated/server";
+import { internal } from "./_generated/api";
 import {
   validateCampaignState,
   DomainError,
@@ -13,6 +14,7 @@ import {
   BACKUP_FORMAT_TYPE,
   CURRENT_BACKUP_FORMAT_VERSION,
   MAX_PORTABLE_BACKUP_BYTES,
+  parseAndVerifyBackupIntegrityForFingerprint,
   fullyValidateBackup,
   buildExportBackup,
 } from "../shared/domain";
@@ -24,7 +26,34 @@ import type {
   ExportSourceData,
 } from "../shared/domain";
 import { canonicalCommit } from "./canonicalCommit";
-import { monthDisplayNameValidator } from "./validators";
+import { campaignStateV1Validator, monthDisplayNameValidator } from "./validators";
+
+// ============================================================
+// Return validators
+// ============================================================
+
+const exportSourceValidator = v.object({
+  sourceCampaignId: v.string(),
+  sourceCampaignRevision: v.number(),
+  sourceLogicalRevision: v.number(),
+  state: campaignStateV1Validator,
+});
+
+const campaignBackupV1Validator = v.object({
+  formatType: v.literal(BACKUP_FORMAT_TYPE),
+  backupFormatVersion: v.literal(CURRENT_BACKUP_FORMAT_VERSION),
+  provenance: v.object({
+    sourceCampaignId: v.string(),
+    sourceCampaignRevision: v.number(),
+    sourceLogicalRevision: v.number(),
+    exportedAtMs: v.number(),
+  }),
+  state: campaignStateV1Validator,
+  integrity: v.object({
+    algorithm: v.literal("sha256"),
+    digest: v.string(),
+  }),
+});
 
 // ============================================================
 // Internal query: consistent read for export source
@@ -32,6 +61,7 @@ import { monthDisplayNameValidator } from "./validators";
 
 export const getPortableBackupSource = internalQuery({
   args: {},
+  returns: exportSourceValidator,
   handler: async (ctx): Promise<ExportSourceData> => {
     const campaign = await ctx.db
       .query("campaigns")
@@ -131,11 +161,9 @@ export const getPortableBackupSource = internalQuery({
 
 export const exportPortableBackup = action({
   args: {},
+  returns: campaignBackupV1Validator,
   handler: async (ctx): Promise<CampaignBackupV1> => {
-    // Use internal query for consistent read
-    // Type assertion needed because _generated/api.d.ts lags behind source additions
-    const { internal } = await import("./_generated/api") as any;
-    const source: ExportSourceData = await ctx.runQuery(internal.backup.getPortableBackupSource);
+    const source: ExportSourceData = await ctx.runQuery(internal.backup.getPortableBackupSource, {});
     const exportedAtMs = Date.now();
     return buildExportBackup(source, exportedAtMs);
   },
@@ -174,53 +202,26 @@ export const importPortableBackup = mutation({
     // STEP 1: Validate commandId
     const commandId = parseLiveCommandId(args.commandId);
 
-    // STEP 2: Validate expectedRevision
+    // STEP 2: Validate expectedRevision shape
     if (!Number.isSafeInteger(args.expectedRevision) || args.expectedRevision < 0) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `expectedRevision must be a non-negative safe integer, got ${args.expectedRevision}`);
     }
 
-    // STEP 3: UTF-8 byte length check
-    const encoder = new TextEncoder();
-    const bytes = encoder.encode(args.backupJson);
-    if (bytes.length > MAX_PORTABLE_BACKUP_BYTES) {
-      throw new DomainError("INVALID_BACKUP_FORMAT", `Backup exceeds maximum size of ${MAX_PORTABLE_BACKUP_BYTES} bytes (got ${bytes.length})`);
+    // STEPS 3-7: Strict structural validation + server-side integrity verification
+    // (byte limit, JSON parse, exact V1 envelope, provenance, integrity fields,
+    //  canonical SHA-256 recomputation, claimed digest verification)
+    // This does NOT check target compatibility yet.
+    const integrityResult = await parseAndVerifyBackupIntegrityForFingerprint(args.backupJson);
+    if ("error" in integrityResult) {
+      throw new DomainError(integrityResult.error.code, integrityResult.error.message);
     }
 
-    // STEP 4: Parse JSON
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(args.backupJson);
-    } catch (e: unknown) {
-      throw new DomainError("INVALID_BACKUP_FORMAT", `Invalid JSON: ${e instanceof Error ? e.message : String(e)}`);
-    }
+    const { backup: validatedBackup, serverDigest } = integrityResult;
 
-    // STEP 5: Validate enough structure to identify integrity fields
-    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new DomainError("INVALID_BACKUP_FORMAT", "Backup must be a JSON object");
-    }
-    const obj = parsed as Record<string, unknown>;
-    if (obj.formatType !== BACKUP_FORMAT_TYPE) {
-      throw new DomainError("INVALID_BACKUP_FORMAT", `Expected formatType "${BACKUP_FORMAT_TYPE}"`);
-    }
-    if (obj.backupFormatVersion !== CURRENT_BACKUP_FORMAT_VERSION) {
-      if (typeof obj.backupFormatVersion === "number" && obj.backupFormatVersion > CURRENT_BACKUP_FORMAT_VERSION) {
-        throw new DomainError("UNSUPPORTED_BACKUP_VERSION", `Backup format version ${obj.backupFormatVersion} is not supported`);
-      }
-      throw new DomainError("INVALID_BACKUP_FORMAT", `Expected backupFormatVersion ${CURRENT_BACKUP_FORMAT_VERSION}`);
-    }
-
-    // STEP 6-8: Full validation with server-side digest computation
-    const result = await fullyValidateBackup(args.backupJson, null);
-    if ("error" in result) {
-      throw new DomainError(result.error.code, result.error.message);
-    }
-
-    const { backup: validatedBackup, serverDigest } = result;
-
-    // STEP 9: Derive fingerprint from SERVER-COMPUTED digest
+    // STEP 8: Construct fingerprint from SERVER-COMPUTED digest
     const fingerprint = backupImportFingerprint(args.expectedRevision, serverDigest);
 
-    // STEP 10: Load campaign for idempotency lookup
+    // STEP 9: Load campaign for idempotency lookup
     const campaign = await ctx.db
       .query("campaigns")
       .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
@@ -232,7 +233,7 @@ export const importPortableBackup = mutation({
 
     const campaignId = campaign.campaignId;
 
-    // Idempotency lookup BEFORE CAS
+    // STEP 10: Idempotency lookup BEFORE CAS and BEFORE full target compatibility
     const existingCommand = await ctx.db
       .query("campaignRevisions")
       .withIndex("by_campaign_commandId", (q) =>
@@ -241,6 +242,7 @@ export const importPortableBackup = mutation({
       .unique();
 
     if (existingCommand !== null) {
+      // STEP 10a: Compatible duplicate -> return original committed result
       if (existingCommand.commandType === "backup_import" && existingCommand.commandFingerprint === fingerprint) {
         const snap = await ctx.db
           .query("campaignSnapshots")
@@ -260,13 +262,14 @@ export const importPortableBackup = mutation({
         };
       }
 
+      // STEP 11: Incompatible reuse
       throw new DomainError(
         "COMMAND_ID_REUSED",
         `CommandId "${commandId}" already committed with type="${existingCommand.commandType}" fingerprint="${existingCommand.commandFingerprint}", cannot reuse for type="backup_import" fingerprint="${fingerprint}"`,
       );
     }
 
-    // CAS check
+    // STEP 12: CAS check
     if (campaign.campaignRevision !== args.expectedRevision) {
       throw new DomainError(
         "STALE_CAMPAIGN_REVISION",
@@ -274,7 +277,7 @@ export const importPortableBackup = mutation({
       );
     }
 
-    // Full validation against target
+    // STEP 13: Full CampaignState + target schema/ruleset compatibility validation
     const currentState = validateCampaignState(campaign.state);
     const importedState = validatedBackup.state;
 
@@ -302,7 +305,7 @@ export const importPortableBackup = mutation({
       },
     };
 
-    // Commit via canonicalCommit with independent backup validation
+    // STEP 14: Commit via canonicalCommit (performs its own independent full validation)
     const receipt = await canonicalCommit(ctx, {
       campaignDocId: campaign._id,
       campaignId,

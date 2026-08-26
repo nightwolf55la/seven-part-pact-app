@@ -19,6 +19,10 @@ import {
   type ReplayEventInfo,
   type SerializableCampaignState,
 } from "../shared/domain";
+import {
+  verifyBackupImportRevisionStructure,
+  verifyBackupImportRevisionDigest,
+} from "../shared/domain/backup-verification";
 
 const verificationResultValidator = v.union(
   v.object({
@@ -182,7 +186,7 @@ export const verifyMigration = query({
       errors.push("Final snapshot not found");
     }
 
-    // --- Verify checkpoint_restore revisions in immutable history ---
+    // --- Build lookup maps for revision verification ---
     const snapshotMap = new Map<number, SerializableCampaignState>();
     for (const s of campaignSnapshots) {
       snapshotMap.set(s.campaignRevision, s.state);
@@ -200,6 +204,7 @@ export const verifyMigration = query({
       eventsByRev.set(e.campaignRevision, list);
     }
 
+    // --- Verify checkpoint_restore revisions in immutable history ---
     for (const rev of campaignRevisions) {
       if (rev.commandType !== "checkpoint_restore") continue;
 
@@ -239,6 +244,62 @@ export const verifyMigration = query({
       });
 
       errors.push(...restoreErrors);
+    }
+
+    // --- Verify backup_import revisions in immutable history ---
+    for (const rev of campaignRevisions) {
+      if (rev.commandType !== "backup_import") continue;
+
+      const r = rev.campaignRevision;
+      const evts = eventsByRev.get(r) ?? [];
+
+      if (evts.length !== 1) {
+        errors.push(`Revision ${r} (backup_import): expected exactly 1 event, found ${evts.length}`);
+        continue;
+      }
+
+      const evt = evts[0];
+      if (evt.eventIndex !== 0) {
+        errors.push(`Revision ${r} (backup_import): expected eventIndex 0, got ${evt.eventIndex}`);
+        continue;
+      }
+
+      // Defensively extract event data fields
+      const rawData = evt.event.data as Record<string, unknown> | null | undefined;
+      const eventData = {
+        backupFormatVersion: typeof rawData?.backupFormatVersion === "number" ? rawData.backupFormatVersion : -1,
+        sourceCampaignId: typeof rawData?.sourceCampaignId === "string" ? rawData.sourceCampaignId : "",
+        sourceCampaignRevision: typeof rawData?.sourceCampaignRevision === "number" ? rawData.sourceCampaignRevision : -1,
+        sourceLogicalRevision: typeof rawData?.sourceLogicalRevision === "number" ? rawData.sourceLogicalRevision : -1,
+        exportedAtMs: typeof rawData?.exportedAtMs === "number" ? rawData.exportedAtMs : -1,
+        payloadDigest: typeof rawData?.payloadDigest === "string" ? rawData.payloadDigest : "",
+      };
+
+      // Structural verification
+      const structErrors = verifyBackupImportRevisionStructure({
+        campaignRevision: r,
+        commandFingerprint: rev.commandFingerprint,
+        eventType: evt.event.type,
+        eventVersion: evt.event.version,
+        eventData,
+        resultSnapshotExists: snapshotMap.has(r),
+        resultSnapshotState: snapshotMap.get(r) ?? null,
+      });
+      errors.push(...structErrors);
+
+      // Digest reconstruction verification (only if structural checks passed enough to proceed)
+      if (structErrors.length === 0) {
+        const digestErrors = await verifyBackupImportRevisionDigest({
+          campaignRevision: r,
+          commandFingerprint: rev.commandFingerprint,
+          eventType: evt.event.type,
+          eventVersion: evt.event.version,
+          eventData,
+          resultSnapshotExists: snapshotMap.has(r),
+          resultSnapshotState: snapshotMap.get(r) ?? null,
+        });
+        errors.push(...digestErrors);
+      }
     }
 
     if (errors.length > 0) {
@@ -309,20 +370,17 @@ export const verifyMigration = query({
     }
 
     // --- Checkpoint verification ---
-    // Load ALL checkpoint documents (not just this campaign) to detect orphans
     const allCheckpoints = await ctx.db
       .query("campaignCheckpoints")
       .collect();
 
     const checkpointErrors: string[] = [];
 
-    // Detect orphan checkpoints (wrong campaignId)
     const orphanCheckpoints = allCheckpoints.filter((c) => c.campaignId !== campaignId);
     if (orphanCheckpoints.length > 0) {
       checkpointErrors.push(`Found ${orphanCheckpoints.length} checkpoint(s) with unexpected campaignId (not "${campaignId}")`);
     }
 
-    // Convert to domain type for verification
     const campaignCheckpoints: CampaignCheckpointV1[] = allCheckpoints.map((c) => ({
       checkpointVersion: c.checkpointVersion as 1,
       checkpointId: c.checkpointId,

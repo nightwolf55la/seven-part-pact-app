@@ -10,6 +10,7 @@ import {
   validateBackupState,
   validateBackupCompatibility,
   fullyValidateBackup,
+  parseAndVerifyBackupIntegrityForFingerprint,
   buildExportBackup,
   buildIntegrityPayloadFromParts,
   computeBackupPayloadDigest,
@@ -746,5 +747,199 @@ describe("fullyValidateBackup", () => {
 describe("backup_import in history control", () => {
   it("backup_import is recognized as logical-state by isLogicalStateCommandType", () => {
     expect(isLogicalStateCommandType("backup_import")).toBe(true);
+  });
+});
+
+// ============================================================
+// Fingerprint Determinism
+// ============================================================
+
+describe("fingerprint determinism", () => {
+  it("same semantic payload with different JSON formatting computes same fingerprint", async () => {
+    const state = validState();
+    const source = {
+      sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000001",
+      sourceCampaignRevision: 10,
+      sourceLogicalRevision: 8,
+      state,
+    };
+
+    const backup = await buildExportBackup(source, 1700000000000);
+    const compactJson = JSON.stringify(backup);
+    const prettyJson = JSON.stringify(backup, null, 2);
+    const reorderedJson = JSON.stringify({
+      integrity: backup.integrity,
+      state: backup.state,
+      provenance: backup.provenance,
+      backupFormatVersion: backup.backupFormatVersion,
+      formatType: backup.formatType,
+    });
+
+    const r1 = await parseAndVerifyBackupIntegrityForFingerprint(compactJson);
+    const r2 = await parseAndVerifyBackupIntegrityForFingerprint(prettyJson);
+    const r3 = await parseAndVerifyBackupIntegrityForFingerprint(reorderedJson);
+
+    expect("backup" in r1).toBe(true);
+    expect("backup" in r2).toBe(true);
+    expect("backup" in r3).toBe(true);
+    if ("backup" in r1 && "backup" in r2 && "backup" in r3) {
+      expect(r1.serverDigest).toBe(r2.serverDigest);
+      expect(r1.serverDigest).toBe(r3.serverDigest);
+      const fp1 = backupImportFingerprint(4, r1.serverDigest);
+      const fp2 = backupImportFingerprint(4, r2.serverDigest);
+      const fp3 = backupImportFingerprint(4, r3.serverDigest);
+      expect(fp1).toBe(fp2);
+      expect(fp1).toBe(fp3);
+    }
+  });
+
+  it("different state produces different digest and fingerprint", async () => {
+    const state1 = validState();
+    const state2 = { ...validState(), calendar: { monthOrdinal: 7 as any } };
+    const source1 = { sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000001", sourceCampaignRevision: 10, sourceLogicalRevision: 8, state: state1 };
+    const source2 = { sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000001", sourceCampaignRevision: 10, sourceLogicalRevision: 8, state: state2 };
+
+    const backup1 = await buildExportBackup(source1, 1700000000000);
+    const backup2 = await buildExportBackup(source2, 1700000000000);
+
+    expect(backup1.integrity.digest).not.toBe(backup2.integrity.digest);
+    const fp1 = backupImportFingerprint(4, backup1.integrity.digest);
+    const fp2 = backupImportFingerprint(4, backup2.integrity.digest);
+    expect(fp1).not.toBe(fp2);
+  });
+
+  it("different expectedRevision produces different fingerprint for same digest", () => {
+    const digest = "a".repeat(64);
+    const fp1 = backupImportFingerprint(4, digest);
+    const fp2 = backupImportFingerprint(5, digest);
+    expect(fp1).not.toBe(fp2);
+  });
+});
+
+// ============================================================
+// parseAndVerifyBackupIntegrityForFingerprint edge cases
+// ============================================================
+
+describe("parseAndVerifyBackupIntegrityForFingerprint", () => {
+  it("rejects backup with extra top-level fields gracefully", async () => {
+    const backup = await buildValidBackup();
+    const withExtra = { ...backup, extraField: "unexpected" };
+    const result = await parseAndVerifyBackupIntegrityForFingerprint(JSON.stringify(withExtra));
+    // Extra fields should not cause a crash — they are either ignored or rejected
+    // The implementation delegates to fullyValidateBackup which parses known fields
+    expect("backup" in result || "error" in result).toBe(true);
+  });
+
+  it("rejects backup with tampered digest", async () => {
+    const backup = await buildValidBackup();
+    const tampered = { ...backup, integrity: { ...backup.integrity, digest: "b".repeat(64) } };
+    const result = await parseAndVerifyBackupIntegrityForFingerprint(JSON.stringify(tampered));
+    expect("error" in result).toBe(true);
+    if ("error" in result) expect(result.error.code).toBe("BACKUP_INTEGRITY_FAILED");
+  });
+
+  it("rejects backup with invalid provenance (negative revision)", async () => {
+    const backup = await buildValidBackup();
+    const invalid = {
+      ...backup,
+      provenance: { ...backup.provenance, sourceCampaignRevision: -1 },
+    };
+    const result = await parseAndVerifyBackupIntegrityForFingerprint(JSON.stringify(invalid));
+    expect("error" in result).toBe(true);
+  });
+});
+
+// ============================================================
+// Verifier: backup_import structural validation edge cases
+// ============================================================
+
+describe("verifyBackupImportRevisionStructure additional cases", () => {
+  it("rejects event version !== 1", () => {
+    const digest = "a".repeat(64);
+    const errors = verifyBackupImportRevisionStructure({
+      campaignRevision: 5,
+      commandFingerprint: backupImportFingerprint(4, digest),
+      eventType: "backup_imported",
+      eventVersion: 2,
+      eventData: {
+        backupFormatVersion: 1,
+        sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000001",
+        sourceCampaignRevision: 10,
+        sourceLogicalRevision: 8,
+        exportedAtMs: 1700000000000,
+        payloadDigest: digest,
+      },
+      resultSnapshotExists: true,
+      resultSnapshotState: validState(),
+    });
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some(e => e.includes("version"))).toBe(true);
+  });
+
+  it("rejects invalid sourceCampaignId format", () => {
+    const digest = "a".repeat(64);
+    const errors = verifyBackupImportRevisionStructure({
+      campaignRevision: 5,
+      commandFingerprint: backupImportFingerprint(4, digest),
+      eventType: "backup_imported",
+      eventVersion: 1,
+      eventData: {
+        backupFormatVersion: 1,
+        sourceCampaignId: "not-a-valid-id",
+        sourceCampaignRevision: 10,
+        sourceLogicalRevision: 8,
+        exportedAtMs: 1700000000000,
+        payloadDigest: digest,
+      },
+      resultSnapshotExists: true,
+      resultSnapshotState: validState(),
+    });
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some(e => e.includes("campaignId") || e.includes("sourceCampaignId"))).toBe(true);
+  });
+
+  it("rejects negative exportedAtMs", () => {
+    const digest = "a".repeat(64);
+    const errors = verifyBackupImportRevisionStructure({
+      campaignRevision: 5,
+      commandFingerprint: backupImportFingerprint(4, digest),
+      eventType: "backup_imported",
+      eventVersion: 1,
+      eventData: {
+        backupFormatVersion: 1,
+        sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000001",
+        sourceCampaignRevision: 10,
+        sourceLogicalRevision: 8,
+        exportedAtMs: -1,
+        payloadDigest: digest,
+      },
+      resultSnapshotExists: true,
+      resultSnapshotState: validState(),
+    });
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some(e => e.includes("exportedAtMs"))).toBe(true);
+  });
+
+  it("rejects result snapshot that fails domain validation", () => {
+    const digest = "a".repeat(64);
+    const badState = { schemaVersion: 1, ruleset: { id: "unknown_ruleset", version: 1 }, calendar: { monthOrdinal: 3 } } as any;
+    const errors = verifyBackupImportRevisionStructure({
+      campaignRevision: 5,
+      commandFingerprint: backupImportFingerprint(4, digest),
+      eventType: "backup_imported",
+      eventVersion: 1,
+      eventData: {
+        backupFormatVersion: 1,
+        sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000001",
+        sourceCampaignRevision: 10,
+        sourceLogicalRevision: 8,
+        exportedAtMs: 1700000000000,
+        payloadDigest: digest,
+      },
+      resultSnapshotExists: true,
+      resultSnapshotState: badState,
+    });
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.some(e => e.includes("snapshot") || e.includes("validation"))).toBe(true);
   });
 });

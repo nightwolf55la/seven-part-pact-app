@@ -188,6 +188,7 @@ export {
   validateBackupState,
   validateBackupCompatibility,
   fullyValidateBackup,
+  parseAndVerifyBackupIntegrityForFingerprint,
   buildExportBackup,
 } from "./backup";
 
