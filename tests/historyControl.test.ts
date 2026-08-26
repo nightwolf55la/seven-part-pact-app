@@ -690,7 +690,7 @@ describe("analyzeHistoryControlInitialization", () => {
     const input = makeValidInput(3);
     const withBadState = {
       ...input,
-      campaignState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 99 } },
+      campaignState: { schemaVersion: 1 as const, ruleset: { id: "seven_part_pact_draft4" as const, version: 1 as const }, calendar: { monthOrdinal: 99 } },
     };
     const result = analyzeHistoryControlInitialization(withBadState);
     expect(result.status).toBe("invalid");

@@ -154,7 +154,8 @@ export {
   analyzeHistoryControlInitialization,
 } from "./history-control";
 
-export { statesDeepEqual, toPersistableState } from "./state-equality";
+export { statesDeepEqual, assertPortableCampaignState } from "./state-equality";
+export type { PersistableCampaignState } from "./state-equality";
 
 export type {
   CampaignCheckpointV1,

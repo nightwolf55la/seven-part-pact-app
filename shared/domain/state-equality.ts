@@ -1,4 +1,5 @@
-import { canonicalJsonStringify } from "./canonical-json";
+import { canonicalJsonStringify, CanonicalJsonError } from "./canonical-json";
+import type { AnyCampaignState } from "./campaign-state";
 
 /**
  * CampaignState is intentionally constrained to the portable JSON value model.
@@ -17,17 +18,38 @@ import { canonicalJsonStringify } from "./canonical-json";
  */
 
 /**
- * The persistence-level representation of campaign state — the structural
- * shape as stored in and loaded from Convex documents.
- *
- * Identical to AnyCampaignState but uses plain types (no branded MonthOrdinal)
- * since branded types don't survive persistence round-trips.
+ * Strips a single branded primitive type to its underlying base type.
+ * If T is a Brand<Base, _>, resolves to Base; otherwise resolves to T.
  */
-export interface PersistableCampaignState {
-  readonly schemaVersion: number;
-  readonly ruleset: { readonly id: string; readonly version: number };
-  readonly calendar: { readonly monthOrdinal: number };
-}
+type Unbrand<T> = T extends number & { readonly __brand: string }
+  ? number
+  : T extends string & { readonly __brand: string }
+    ? string
+    : T;
+
+/**
+ * Recursively strips branded types from any type structure.
+ * - Branded primitives become their base type (e.g. MonthOrdinal -> number).
+ * - Plain objects recurse into each property.
+ * - Arrays recurse into their element type.
+ * - Literals and other types pass through unchanged.
+ */
+type DeepUnbrand<T> = T extends (infer U)[]
+  ? DeepUnbrand<U>[]
+  : T extends ReadonlyArray<infer U>
+    ? ReadonlyArray<DeepUnbrand<U>>
+    : T extends object
+      ? { -readonly [K in keyof T]: DeepUnbrand<Unbrand<T[K]>> }
+      : Unbrand<T>;
+
+/**
+ * The persistence-level representation of campaign state — derived from
+ * AnyCampaignState with branded types stripped.
+ *
+ * Adding a new property to CampaignStateV1 automatically appears here.
+ * No manual field list to maintain.
+ */
+export type PersistableCampaignState = DeepUnbrand<AnyCampaignState>;
 
 /**
  * Full semantic equality for CampaignState.
@@ -46,16 +68,15 @@ export function statesDeepEqual(a: object, b: object): boolean {
 }
 
 /**
- * Produces a plain JSON-safe copy of the complete CampaignState, suitable for
- * persistence in Convex documents (snapshots, campaign record).
+ * Asserts that the given state is portable JSON — no undefined, bigint,
+ * non-finite numbers, or non-plain objects at any nesting level.
  *
- * Uses JSON round-trip to strip branded types and readonly markers while
- * preserving the full state structure. Guarantees all fields of the validated
- * state are persisted without manual field enumeration.
+ * Uses canonicalJsonStringify as the portability assertion. Does NOT
+ * serialize or transform the state; returns it unchanged.
  *
- * Generic return type preserves structural compatibility with Convex validators
- * since the JSON round-trip does not alter the runtime shape of valid state.
+ * Throws CanonicalJsonError if the state violates the portable JSON contract.
  */
-export function toPersistableState<T>(state: T): T {
-  return JSON.parse(JSON.stringify(state));
+export function assertPortableCampaignState(state: AnyCampaignState): AnyCampaignState {
+  canonicalJsonStringify(state);
+  return state;
 }

@@ -5,12 +5,15 @@ import {
   isLogicalStateCommandType,
   isHistoryNavigationCommandType,
   statesDeepEqual,
-  toPersistableState,
+  assertPortableCampaignState,
   canonicalJsonStringify,
+  CanonicalJsonError,
   CURRENT_STATE_SCHEMA_VERSION,
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
 } from "../shared/domain";
+import type { PersistableCampaignState } from "../shared/domain";
+import type { CampaignStateV1 } from "../shared/domain/campaign-state";
 
 // ==========================================================================
 // A. Full-state equality guardrails
@@ -48,8 +51,6 @@ describe("statesDeepEqual: canonical JSON comparison", () => {
   });
 
   it("detects additional future-like nested fields", () => {
-    // Simulate a future state with extra fields that the equality function
-    // must notice without being manually updated.
     const a = { ...baseState, wizards: { necromancer: { power: 10 } } };
     const b = { ...baseState, wizards: { necromancer: { power: 11 } } };
     expect(statesDeepEqual(a, b)).toBe(false);
@@ -72,28 +73,33 @@ describe("statesDeepEqual: canonical JSON comparison", () => {
     const b = { ...baseState, domains: { forest: {} } };
     expect(statesDeepEqual(a, b)).toBe(false);
   });
+
+  it("does not silently equate {future: undefined} with {}", () => {
+    const a = { ...baseState };
+    const b = { ...baseState, future: undefined };
+    // canonicalJsonStringify rejects undefined property values,
+    // so this comparison throws rather than silently equating them
+    expect(() => statesDeepEqual(a, b)).toThrow(CanonicalJsonError);
+  });
 });
 
 // ==========================================================================
-// B. Persist-whole-state contract
+// B. Persist-whole-state contract (no JSON round-trip)
 // ==========================================================================
 
-describe("toPersistableState: preserves complete state", () => {
-  it("preserves all current CampaignStateV1 fields", () => {
-    const state = {
-      schemaVersion: CURRENT_STATE_SCHEMA_VERSION,
-      ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
-      calendar: { monthOrdinal: 7 },
-    };
-    const persisted = toPersistableState(state);
-    expect(persisted).toEqual(state);
-    expect(statesDeepEqual(persisted, state)).toBe(true);
+describe("assertPortableCampaignState: validates without transforming", () => {
+  const validState = {
+    schemaVersion: CURRENT_STATE_SCHEMA_VERSION,
+    ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
+    calendar: { monthOrdinal: 7 },
+  } as CampaignStateV1;
+
+  it("returns the same object reference (no copy/transform)", () => {
+    const result = assertPortableCampaignState(validState);
+    expect(result).toBe(validState);
   });
 
-  it("preserves synthetic future nested fields (not projected away)", () => {
-    // This is the critical safety test: if canonicalCommit used a manual
-    // projection (listing only known fields), this test would fail for
-    // future state additions.
+  it("preserves synthetic future nested fields exactly", () => {
     const stateWithFuture = {
       schemaVersion: CURRENT_STATE_SCHEMA_VERSION,
       ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
@@ -103,33 +109,41 @@ describe("toPersistableState: preserves complete state", () => {
         elementalist: { power: 8, domain: "fire" },
       },
       resources: [{ type: "sulfur", quantity: 5 }],
-    };
-    const persisted = toPersistableState(stateWithFuture);
-    expect(persisted).toEqual(stateWithFuture);
-    expect((persisted as any).wizards.necromancer.power).toBe(10);
-    expect((persisted as any).resources[0].quantity).toBe(5);
+    } as unknown as CampaignStateV1;
+    const result = assertPortableCampaignState(stateWithFuture);
+    expect(result).toBe(stateWithFuture);
+    expect((result as any).wizards.necromancer.power).toBe(10);
+    expect((result as any).resources[0].quantity).toBe(5);
   });
 
-  it("strips branded types (produces plain numbers)", () => {
-    const state = {
+  it("rejects undefined nested object fields", () => {
+    const badState = {
       schemaVersion: CURRENT_STATE_SCHEMA_VERSION,
       ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
       calendar: { monthOrdinal: 0 },
-    };
-    const persisted = toPersistableState(state);
-    expect(typeof persisted.calendar.monthOrdinal).toBe("number");
-    expect(persisted.calendar.monthOrdinal).toBe(0);
+      future: undefined,
+    } as unknown as CampaignStateV1;
+    expect(() => assertPortableCampaignState(badState)).toThrow(CanonicalJsonError);
   });
 
-  it("result is a distinct object (not same reference)", () => {
-    const state = {
+  it("rejects undefined array entries", () => {
+    const badState = {
       schemaVersion: CURRENT_STATE_SCHEMA_VERSION,
       ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
-      calendar: { monthOrdinal: 2 },
-    };
-    const persisted = toPersistableState(state);
-    expect(persisted).not.toBe(state);
-    expect(persisted.ruleset).not.toBe(state.ruleset);
+      calendar: { monthOrdinal: 0 },
+      items: [1, undefined, 3],
+    } as unknown as CampaignStateV1;
+    expect(() => assertPortableCampaignState(badState)).toThrow(CanonicalJsonError);
+  });
+
+  it("rejects non-finite numbers", () => {
+    const badState = {
+      schemaVersion: CURRENT_STATE_SCHEMA_VERSION,
+      ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
+      calendar: { monthOrdinal: 0 },
+      power: Infinity,
+    } as unknown as CampaignStateV1;
+    expect(() => assertPortableCampaignState(badState)).toThrow(CanonicalJsonError);
   });
 });
 
@@ -139,8 +153,6 @@ describe("toPersistableState: preserves complete state", () => {
 
 describe("CAMPAIGN_COMMAND_TYPES is the single source of truth", () => {
   it("type CampaignCommandType is derived from the const tuple", () => {
-    // If the type is derived from the tuple, then every entry in the tuple
-    // is assignable to CampaignCommandType, and the tuple covers all values.
     const commands: CampaignCommandType[] = [...CAMPAIGN_COMMAND_TYPES];
     expect(commands.length).toBe(CAMPAIGN_COMMAND_TYPES.length);
     expect(commands.length).toBeGreaterThan(0);
@@ -162,14 +174,12 @@ describe("CAMPAIGN_COMMAND_TYPES is the single source of truth", () => {
 });
 
 // ==========================================================================
-// D. Canonical JSON contract for state equality
+// D. Canonical JSON contract enforcement
 // ==========================================================================
 
-describe("canonicalJsonStringify contract for CampaignState", () => {
+describe("canonicalJsonStringify enforces portable JSON contract", () => {
   it("sorts nested object keys deterministically", () => {
-    const a = JSON.parse(canonicalJsonStringify({ b: 1, a: 2 }));
     const raw = canonicalJsonStringify({ b: 1, a: 2 });
-    // keys should appear sorted in the output
     expect(raw.indexOf('"a"')).toBeLessThan(raw.indexOf('"b"'));
   });
 
@@ -178,19 +188,62 @@ describe("canonicalJsonStringify contract for CampaignState", () => {
     expect(JSON.parse(json).items).toEqual([3, 1, 2]);
   });
 
-  it("rejects undefined (CampaignState must not contain undefined)", () => {
-    expect(() => canonicalJsonStringify({ a: undefined, b: 1 })).not.toThrow();
-    // undefined keys are omitted (matching JSON.stringify behavior)
-    const json = canonicalJsonStringify({ a: undefined, b: 1 });
-    expect(JSON.parse(json)).toEqual({ b: 1 });
+  it("rejects undefined object property values", () => {
+    expect(() => canonicalJsonStringify({ a: undefined, b: 1 })).toThrow(CanonicalJsonError);
+  });
+
+  it("rejects undefined array elements", () => {
+    expect(() => canonicalJsonStringify([1, undefined, 3])).toThrow(CanonicalJsonError);
   });
 
   it("rejects non-finite numbers", () => {
-    expect(() => canonicalJsonStringify({ v: Infinity })).toThrow();
-    expect(() => canonicalJsonStringify({ v: NaN })).toThrow();
+    expect(() => canonicalJsonStringify({ v: Infinity })).toThrow(CanonicalJsonError);
+    expect(() => canonicalJsonStringify({ v: NaN })).toThrow(CanonicalJsonError);
   });
 
   it("rejects bigint", () => {
-    expect(() => canonicalJsonStringify({ v: BigInt(1) })).toThrow();
+    expect(() => canonicalJsonStringify({ v: BigInt(1) })).toThrow(CanonicalJsonError);
+  });
+
+  it("supports null, booleans, finite numbers, strings, arrays, plain objects", () => {
+    expect(canonicalJsonStringify(null)).toBe("null");
+    expect(canonicalJsonStringify(true)).toBe("true");
+    expect(canonicalJsonStringify(42)).toBe("42");
+    expect(canonicalJsonStringify("hi")).toBe('"hi"');
+    expect(canonicalJsonStringify([1, 2])).toBe("[1,2]");
+    expect(canonicalJsonStringify({ a: 1 })).toBe('{"a":1}');
+  });
+});
+
+// ==========================================================================
+// E. PersistableCampaignState derives from AnyCampaignState
+// ==========================================================================
+
+describe("PersistableCampaignState is derived from AnyCampaignState", () => {
+  it("MonthOrdinal brand is stripped to plain number", () => {
+    // If PersistableCampaignState were manually listing fields, this type
+    // assignment would still work. But if it were missing the calendar field
+    // entirely, this would fail. The key guard is the next test.
+    const ps: PersistableCampaignState = {
+      schemaVersion: 1,
+      ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: 1 },
+      calendar: { monthOrdinal: 5 },
+    };
+    expect(ps.calendar.monthOrdinal).toBe(5);
+    expect(typeof ps.calendar.monthOrdinal).toBe("number");
+  });
+
+  it("a CampaignStateV1 is assignable to PersistableCampaignState (structural compatibility)", () => {
+    // CampaignStateV1 has branded MonthOrdinal; PersistableCampaignState has
+    // plain number. If DeepUnbrand works correctly, CampaignStateV1 should be
+    // assignable to PersistableCampaignState because branded number is a
+    // subtype of number.
+    const state: CampaignStateV1 = {
+      schemaVersion: 1,
+      ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: 1 },
+      calendar: { monthOrdinal: 5 as any },
+    };
+    const ps: PersistableCampaignState = state;
+    expect(ps.schemaVersion).toBe(1);
   });
 });

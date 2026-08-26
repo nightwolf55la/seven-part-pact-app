@@ -107,14 +107,13 @@ describe("canonicalJsonStringify", () => {
     expect(result).not.toContain("\t");
   });
 
-  it("skips undefined object values", () => {
-    const result = canonicalJsonStringify({ a: 1, b: undefined, c: 3 });
-    expect(result).toBe('{"a":1,"c":3}');
+  it("rejects undefined object values", () => {
+    expect(() => canonicalJsonStringify({ a: 1, b: undefined, c: 3 })).toThrow(CanonicalJsonError);
   });
 
-  it("converts undefined array elements to null", () => {
+  it("rejects undefined array elements", () => {
     const arr = [1, undefined, 3];
-    expect(canonicalJsonStringify(arr)).toBe("[1,null,3]");
+    expect(() => canonicalJsonStringify(arr)).toThrow(CanonicalJsonError);
   });
 
   it("rejects NaN", () => {

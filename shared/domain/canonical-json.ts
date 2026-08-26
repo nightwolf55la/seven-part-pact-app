@@ -40,12 +40,7 @@ function canonicalize(value: unknown): string {
   }
 
   if (Array.isArray(value)) {
-    const elements = value.map((el, i) => {
-      if (el === undefined) {
-        return "null";
-      }
-      return canonicalize(el);
-    });
+    const elements = value.map((el) => canonicalize(el));
     return "[" + elements.join(",") + "]";
   }
 
@@ -58,7 +53,9 @@ function canonicalize(value: unknown): string {
   const entries: string[] = [];
   for (const key of keys) {
     const v = obj[key];
-    if (v === undefined) continue;
+    if (v === undefined) {
+      throw new CanonicalJsonError(`undefined property value is not supported in canonical JSON: key "${key}"`);
+    }
     entries.push(JSON.stringify(key) + ":" + canonicalize(v));
   }
   return "{" + entries.join(",") + "}";
