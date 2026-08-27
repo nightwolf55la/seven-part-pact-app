@@ -26,7 +26,7 @@ import type {
   ExportSourceData,
 } from "../shared/domain";
 import { canonicalCommit } from "./canonicalCommit";
-import { campaignStateV1Validator, monthDisplayNameValidator } from "./validators";
+import { currentCampaignStateValidator, campaignStateV1Validator, monthDisplayNameValidator } from "./validators";
 
 // ============================================================
 // Return validators
@@ -36,7 +36,7 @@ const exportSourceValidator = v.object({
   sourceCampaignId: v.string(),
   sourceCampaignRevision: v.number(),
   sourceLogicalRevision: v.number(),
-  state: campaignStateV1Validator,
+  state: currentCampaignStateValidator,
 });
 
 const campaignBackupV1Validator = v.object({
@@ -48,7 +48,7 @@ const campaignBackupV1Validator = v.object({
     sourceLogicalRevision: v.number(),
     exportedAtMs: v.number(),
   }),
-  state: campaignStateV1Validator,
+  state: currentCampaignStateValidator,
   integrity: v.object({
     algorithm: v.literal("sha256"),
     digest: v.string(),
@@ -62,7 +62,7 @@ const campaignBackupV1Validator = v.object({
 export const getPortableBackupSource = internalQuery({
   args: {},
   returns: exportSourceValidator,
-  handler: async (ctx): Promise<ExportSourceData> => {
+  handler: async (ctx) => {
     const campaign = await ctx.db
       .query("campaigns")
       .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
@@ -150,8 +150,8 @@ export const getPortableBackupSource = internalQuery({
       sourceCampaignId: campaignId,
       sourceCampaignRevision: campaignRevision,
       sourceLogicalRevision,
-      state: state as CurrentCampaignState,
-    };
+      state: state as unknown as Record<string, unknown>,
+    } as any;
   },
 });
 
@@ -162,10 +162,10 @@ export const getPortableBackupSource = internalQuery({
 export const exportPortableBackup = action({
   args: {},
   returns: campaignBackupV1Validator,
-  handler: async (ctx): Promise<CampaignBackupV1> => {
+  handler: async (ctx) => {
     const source: ExportSourceData = await ctx.runQuery(internal.backup.getPortableBackupSource, {});
     const exportedAtMs = Date.now();
-    return buildExportBackup(source, exportedAtMs);
+    return buildExportBackup(source, exportedAtMs) as any;
   },
 });
 
@@ -173,16 +173,7 @@ export const exportPortableBackup = action({
 // Public mutation: import portable backup
 // ============================================================
 
-type CanonicalCampaignDoc = {
-  _id: any;
-  _creationTime: number;
-  campaignKey: "default";
-  campaignId: string;
-  campaignRevision: number;
-  state: { schemaVersion: 1; ruleset: { id: "seven_part_pact_draft4"; version: 1 }; calendar: { monthOrdinal: number } };
-};
-
-function isCanonical(doc: unknown): doc is CanonicalCampaignDoc {
+function isCanonical(doc: unknown): doc is { _id: any; campaignKey: "default"; campaignId: string; campaignRevision: number; state: object } {
   return doc !== null && typeof doc === "object" && "campaignKey" in (doc as any) && (doc as any).campaignKey === "default";
 }
 

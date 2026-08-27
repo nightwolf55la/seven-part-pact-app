@@ -70,7 +70,7 @@ export type MigrationAnalysisResult =
 
 function buildStateForOrdinal(monthOrdinal: number): CampaignStateV1 {
   return {
-    schemaVersion: CURRENT_STATE_SCHEMA_VERSION,
+    schemaVersion: 1,
     ruleset: {
       id: SEVEN_PART_PACT_DRAFT4_ID,
       version: SEVEN_PART_PACT_DRAFT4_VERSION,

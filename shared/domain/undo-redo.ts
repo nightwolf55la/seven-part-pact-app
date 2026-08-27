@@ -2,7 +2,8 @@ import type { CurrentCampaignState } from "./campaign-state";
 import type { UndoAppliedEventV1, RedoAppliedEventV1 } from "./events";
 import type { CampaignHistoryControlV1 } from "./history-control";
 import { validateHistoryControlStructure, statesDeepEqual } from "./history-control";
-import { validateCampaignState } from "./state-validation";
+import { validateAnyCampaignState } from "./state-validation";
+import { migrateToCurrentVersion } from "./state-migration";
 import { DomainError } from "./errors";
 import { isLogicalStateCommandType } from "./commands";
 import type { CampaignCommandType } from "./commands";
@@ -99,7 +100,7 @@ export function deriveUndoTransition(
     );
   }
 
-  validateCampaignState(targetSnapshotState);
+  validateAnyCampaignState(targetSnapshotState);
 
   if (targetRevision !== 0) {
     if (targetRevisionCommandType === null) {
@@ -157,7 +158,7 @@ export function deriveRedoTransition(
     );
   }
 
-  validateCampaignState(targetSnapshotState);
+  validateAnyCampaignState(targetSnapshotState);
 
   if (targetRevisionCommandType === null) {
     throw new DomainError(

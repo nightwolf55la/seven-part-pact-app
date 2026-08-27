@@ -5,6 +5,17 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "backup_import",
   "undo",
   "redo",
+  "add_player",
+  "rename_player",
+  "remove_player",
+  "set_campaign_age",
+  "set_facilitator",
+  "create_wizard",
+  "rename_wizard",
+  "set_wizard_portrayal",
+  "set_pact_seat_wizard",
+  "set_pact_seat_status",
+  "set_watcher",
 ] as const;
 
 export type CampaignCommandType = (typeof CAMPAIGN_COMMAND_TYPES)[number];
@@ -12,15 +23,22 @@ export type CampaignCommandType = (typeof CAMPAIGN_COMMAND_TYPES)[number];
 export function isLogicalStateCommandType(commandType: CampaignCommandType): boolean {
   switch (commandType) {
     case "move_month":
-      return true;
     case "legacy_month_change":
-      return true;
     case "checkpoint_restore":
-      return true;
     case "backup_import":
+    case "add_player":
+    case "rename_player":
+    case "remove_player":
+    case "set_campaign_age":
+    case "set_facilitator":
+    case "create_wizard":
+    case "rename_wizard":
+    case "set_wizard_portrayal":
+    case "set_pact_seat_wizard":
+    case "set_pact_seat_status":
+    case "set_watcher":
       return true;
     case "undo":
-      return false;
     case "redo":
       return false;
   }

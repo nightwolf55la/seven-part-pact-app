@@ -213,23 +213,19 @@ export const ensureCampaign = mutation({
 
     const campaignId = generateCampaignId();
 
-    const persistState = {
-      schemaVersion: state.schemaVersion,
-      ruleset: { id: state.ruleset.id, version: state.ruleset.version },
-      calendar: { monthOrdinal: state.calendar.monthOrdinal as number },
-    };
+    const persistState = JSON.parse(JSON.stringify(state)) as Record<string, unknown>;
 
     const docId = await ctx.db.insert("campaigns", {
       campaignKey: "default" as const,
       campaignId: campaignId as string,
       campaignRevision: 0,
-      state: persistState,
+      state: persistState as any,
     });
 
     await ctx.db.insert("campaignSnapshots", {
       campaignId: campaignId as string,
       campaignRevision: 0,
-      state: persistState,
+      state: persistState as any,
     });
 
     await ctx.db.insert("campaignHistoryControl", {

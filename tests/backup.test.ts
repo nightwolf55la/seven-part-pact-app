@@ -27,6 +27,7 @@ import {
   verifyBackupImportRevisionDigest,
 } from "../shared/domain/backup-verification";
 import type {
+  CurrentCampaignState,
   CampaignBackupV1,
   BackupImportedEventV1,
   CampaignStateV1,
@@ -37,11 +38,23 @@ import type {
 // Test helpers
 // ============================================================
 
-function validState(): CampaignStateV1 {
+function validState(): CurrentCampaignState {
   return {
     schemaVersion: CURRENT_STATE_SCHEMA_VERSION,
     ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
     calendar: { monthOrdinal: 3 as any },
+    configuration: { ageId: null, facilitatorPlayerId: null },
+    players: [],
+    wizards: [],
+    pactSeats: {
+      necromancer: { status: null, wizardId: null, watcherPlayerId: null },
+      hierophant: { status: null, wizardId: null, watcherPlayerId: null },
+      warlock: { status: null, wizardId: null, watcherPlayerId: null },
+      mariner: { status: null, wizardId: null, watcherPlayerId: null },
+      faustian: { status: null, wizardId: null, watcherPlayerId: null },
+      sage: { status: null, wizardId: null, watcherPlayerId: null },
+      sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
+    },
   };
 }
 
@@ -54,7 +67,7 @@ function validProvenance() {
   };
 }
 
-async function buildValidBackup(state?: CampaignStateV1): Promise<CampaignBackupV1> {
+async function buildValidBackup(state?: CurrentCampaignState): Promise<CampaignBackupV1> {
   const s = state ?? validState();
   return buildExportBackup(
     {
@@ -265,9 +278,9 @@ describe("validateBackupCompatibility", () => {
     expect(err).toBeNull();
   });
 
-  it("rejects mismatched schemaVersion", () => {
+  it("rejects mismatched ruleset id", () => {
     const target = validState();
-    const backup = { ...validState(), schemaVersion: 99 } as any;
+    const backup = { ...validState(), ruleset: { id: "other_ruleset", version: 1 } } as any;
     expect(validateBackupCompatibility(backup, target)?.code).toBe("BACKUP_INCOMPATIBLE");
   });
 
@@ -721,7 +734,7 @@ describe("fullyValidateBackup", () => {
   it("rejects incompatible target state", async () => {
     const backup = await buildValidBackup();
     const json = JSON.stringify(backup);
-    const differentTarget = { ...validState(), schemaVersion: 99 } as any;
+    const differentTarget = { ...validState(), ruleset: { id: "other_ruleset", version: 1 } } as any;
     const result = await fullyValidateBackup(json, differentTarget);
     expect("error" in result).toBe(true);
     if ("error" in result) expect(result.error.code).toBe("BACKUP_INCOMPATIBLE");

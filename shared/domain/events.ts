@@ -61,9 +61,151 @@ export interface BackupImportedEventV1 {
   readonly data: BackupImportedDataV1;
 }
 
+// --- M3: Campaign Identity & Pact Roles Events ---
+
+export interface PlayerAddedDataV1 {
+  readonly playerId: string;
+  readonly name: string;
+}
+
+export interface PlayerAddedEventV1 {
+  readonly type: "player_added";
+  readonly version: 1;
+  readonly data: PlayerAddedDataV1;
+}
+
+export interface PlayerRenamedDataV1 {
+  readonly playerId: string;
+  readonly previousName: string;
+  readonly newName: string;
+}
+
+export interface PlayerRenamedEventV1 {
+  readonly type: "player_renamed";
+  readonly version: 1;
+  readonly data: PlayerRenamedDataV1;
+}
+
+export interface PlayerRemovedDataV1 {
+  readonly playerId: string;
+  readonly name: string;
+}
+
+export interface PlayerRemovedEventV1 {
+  readonly type: "player_removed";
+  readonly version: 1;
+  readonly data: PlayerRemovedDataV1;
+}
+
+export interface CampaignAgeChangedDataV1 {
+  readonly previousAgeId: string | null;
+  readonly newAgeId: string | null;
+}
+
+export interface CampaignAgeChangedEventV1 {
+  readonly type: "campaign_age_changed";
+  readonly version: 1;
+  readonly data: CampaignAgeChangedDataV1;
+}
+
+export interface FacilitatorAssignmentChangedDataV1 {
+  readonly previousPlayerId: string | null;
+  readonly newPlayerId: string | null;
+}
+
+export interface FacilitatorAssignmentChangedEventV1 {
+  readonly type: "facilitator_assignment_changed";
+  readonly version: 1;
+  readonly data: FacilitatorAssignmentChangedDataV1;
+}
+
+export interface WizardCreatedDataV1 {
+  readonly wizardId: string;
+  readonly name: string;
+  readonly portrayedByPlayerId: string | null;
+  readonly assignedToSeatId: string;
+}
+
+export interface WizardCreatedEventV1 {
+  readonly type: "wizard_created";
+  readonly version: 1;
+  readonly data: WizardCreatedDataV1;
+}
+
+export interface WizardNameChangedDataV1 {
+  readonly wizardId: string;
+  readonly previousName: string;
+  readonly newName: string;
+}
+
+export interface WizardNameChangedEventV1 {
+  readonly type: "wizard_name_changed";
+  readonly version: 1;
+  readonly data: WizardNameChangedDataV1;
+}
+
+export interface WizardPortrayalChangedDataV1 {
+  readonly wizardId: string;
+  readonly previousPlayerId: string | null;
+  readonly newPlayerId: string | null;
+}
+
+export interface WizardPortrayalChangedEventV1 {
+  readonly type: "wizard_portrayal_changed";
+  readonly version: 1;
+  readonly data: WizardPortrayalChangedDataV1;
+}
+
+export interface PactSeatWizardChangedDataV1 {
+  readonly seatId: string;
+  readonly previousWizardId: string | null;
+  readonly newWizardId: string | null;
+}
+
+export interface PactSeatWizardChangedEventV1 {
+  readonly type: "pact_seat_wizard_changed";
+  readonly version: 1;
+  readonly data: PactSeatWizardChangedDataV1;
+}
+
+export interface PactSeatStatusChangedDataV1 {
+  readonly seatId: string;
+  readonly previousStatus: string | null;
+  readonly newStatus: string | null;
+}
+
+export interface PactSeatStatusChangedEventV1 {
+  readonly type: "pact_seat_status_changed";
+  readonly version: 1;
+  readonly data: PactSeatStatusChangedDataV1;
+}
+
+export interface WatcherAssignmentChangedDataV1 {
+  readonly seatId: string;
+  readonly previousPlayerId: string | null;
+  readonly newPlayerId: string | null;
+}
+
+export interface WatcherAssignmentChangedEventV1 {
+  readonly type: "watcher_assignment_changed";
+  readonly version: 1;
+  readonly data: WatcherAssignmentChangedDataV1;
+}
+
 export type CampaignEvent =
   | MonthChangedEventV1
   | UndoAppliedEventV1
   | RedoAppliedEventV1
   | CheckpointRestoredEventV1
-  | BackupImportedEventV1;
+  | BackupImportedEventV1
+  | PlayerAddedEventV1
+  | PlayerRenamedEventV1
+  | PlayerRemovedEventV1
+  | CampaignAgeChangedEventV1
+  | FacilitatorAssignmentChangedEventV1
+  | WizardCreatedEventV1
+  | WizardNameChangedEventV1
+  | WizardPortrayalChangedEventV1
+  | PactSeatWizardChangedEventV1
+  | PactSeatStatusChangedEventV1
+  | WatcherAssignmentChangedEventV1;

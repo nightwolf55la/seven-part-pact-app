@@ -5,7 +5,7 @@ import { isLogicalStateCommandType } from "./commands";
 import type { CampaignCommandType } from "./commands";
 import { checkpointRestoreFingerprint } from "./command-ids";
 import { statesDeepEqual } from "./history-control";
-import { validateCampaignState } from "./state-validation";
+import { validateAnyCampaignState } from "./state-validation";
 
 export const CURRENT_CHECKPOINT_VERSION = 1 as const;
 
@@ -68,7 +68,7 @@ export function verifyCheckpoint(input: CheckpointVerificationInput): string[] {
     errors.push(`No snapshot exists for sourceRevision ${checkpoint.sourceRevision}`);
   } else if (input.snapshotState !== null) {
     try {
-      validateCampaignState(input.snapshotState);
+      validateAnyCampaignState(input.snapshotState);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       errors.push(`Snapshot at sourceRevision ${checkpoint.sourceRevision} has invalid CampaignState: ${msg}`);
