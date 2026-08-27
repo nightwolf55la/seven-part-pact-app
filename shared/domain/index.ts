@@ -1,6 +1,6 @@
 export type { Brand } from "./brand";
 
-export type { CampaignId, CommandId, CheckpointId } from "./ids";
+export type { CampaignId, CommandId, CheckpointId, PlayerId, WizardId } from "./ids";
 export {
   isValidCampaignId,
   parseCampaignId,
@@ -8,6 +8,10 @@ export {
   parseLiveCommandId,
   isValidCheckpointId,
   parseCheckpointId,
+  isValidPlayerId,
+  parsePlayerId,
+  isValidWizardId,
+  parseWizardId,
 } from "./ids";
 
 export type {
@@ -45,6 +49,17 @@ export type {
   CheckpointRestoredEventV1,
   BackupImportedDataV1,
   BackupImportedEventV1,
+  PlayerAddedEventV1,
+  PlayerRenamedEventV1,
+  PlayerRemovedEventV1,
+  CampaignAgeChangedEventV1,
+  FacilitatorAssignmentChangedEventV1,
+  WizardCreatedEventV1,
+  WizardNameChangedEventV1,
+  WizardPortrayalChangedEventV1,
+  PactSeatWizardChangedEventV1,
+  PactSeatStatusChangedEventV1,
+  WatcherAssignmentChangedEventV1,
   CampaignEvent,
 } from "./events";
 
@@ -58,10 +73,23 @@ export {
 export type {
   CampaignRevision,
   CampaignStateV1,
+  CampaignStateV2,
+  CampaignPlayer,
+  CampaignWizard,
+  PactSeatState,
+  PactSeatStatus,
   CurrentCampaignState,
   AnyCampaignState,
 } from "./campaign-state";
 export { CURRENT_STATE_SCHEMA_VERSION } from "./campaign-state";
+
+export type { PactSeatId } from "./pact-seats";
+export { PACT_SEAT_IDS, PACT_SEAT_COUNT, pactSeatDisplayName, isValidPactSeatId } from "./pact-seats";
+
+export type { AgeDefinitionId } from "./ages";
+export { AGE_DEFINITION_IDS, ageDisplayName, isValidAgeDefinitionId } from "./ages";
+
+export { migrateV1toV2, migrateToCurrentVersion, isSupportedSchemaVersion, SUPPORTED_STATE_SCHEMA_VERSIONS } from "./state-migration";
 
 export type {
   LegacyCampaignInput,
@@ -78,12 +106,27 @@ export { analyzeLegacyMigration } from "./migration-analyzer";
 export type { DomainErrorCode } from "./errors";
 export { DomainError } from "./errors";
 
-export { validateCampaignState } from "./state-validation";
+export { validateCampaignState, validateAnyCampaignState } from "./state-validation";
 
 export { initialCampaignState } from "./initial-state";
 
 export type { MoveMonthTransitionResult } from "./transitions";
 export { applyMoveMonth } from "./transitions";
+
+export type { TransitionResult } from "./m3-transitions";
+export {
+  applyAddPlayer,
+  applyRenamePlayer,
+  applyRemovePlayer,
+  applySetCampaignAge,
+  applySetFacilitator,
+  applyCreateWizard,
+  applyRenameWizard,
+  applySetWizardPortrayal,
+  applySetPactSeatWizard,
+  applySetPactSeatStatus,
+  applySetWatcher,
+} from "./m3-transitions";
 
 export type {
   UndoTransitionInput,
@@ -207,4 +250,3 @@ export {
   verifyBackupImportRevisionStructure,
   verifyBackupImportRevisionDigest,
 } from "./backup-verification";
-

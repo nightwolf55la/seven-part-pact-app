@@ -25,6 +25,18 @@ function makeState(monthOrdinal: number): CurrentCampaignState {
     schemaVersion: CURRENT_STATE_SCHEMA_VERSION,
     ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
     calendar: { monthOrdinal: monthOrdinal as any },
+    configuration: { ageId: null, facilitatorPlayerId: null },
+    players: [],
+    wizards: [],
+    pactSeats: {
+      necromancer: { status: null, wizardId: null, watcherPlayerId: null },
+      hierophant: { status: null, wizardId: null, watcherPlayerId: null },
+      warlock: { status: null, wizardId: null, watcherPlayerId: null },
+      mariner: { status: null, wizardId: null, watcherPlayerId: null },
+      faustian: { status: null, wizardId: null, watcherPlayerId: null },
+      sage: { status: null, wizardId: null, watcherPlayerId: null },
+      sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
+    },
   };
 }
 
@@ -319,7 +331,7 @@ describe("parseAndVerifyBackupIntegrityForFingerprint — pre-idempotency split"
     // Build a backup with a state that has an unrecognized schemaVersion.
     // The pre-idempotency helper should NOT reject this — it only checks
     // envelope structure and integrity.
-    const validState: CampaignStateV1 = makeState(3);
+    const validState: CurrentCampaignState = makeState(3);
     const backup = await buildExportBackup({
       sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000001",
       sourceCampaignRevision: 10,
@@ -362,7 +374,7 @@ describe("parseAndVerifyBackupIntegrityForFingerprint — pre-idempotency split"
 
   it("fullyValidateBackup rejects the same payload for domain incompatibility", async () => {
     const { computeBackupPayloadDigest, buildIntegrityPayloadFromParts, BACKUP_FORMAT_TYPE, CURRENT_BACKUP_FORMAT_VERSION } = await import("../shared/domain");
-    const validState: CampaignStateV1 = makeState(3);
+    const validState: CurrentCampaignState = makeState(3);
     const backup = await buildExportBackup({
       sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000001",
       sourceCampaignRevision: 10,
@@ -393,7 +405,7 @@ describe("parseAndVerifyBackupIntegrityForFingerprint — pre-idempotency split"
   });
 
   it("pre-idempotency helper still rejects tampered digest", async () => {
-    const validState: CampaignStateV1 = makeState(3);
+    const validState: CurrentCampaignState = makeState(3);
     const backup = await buildExportBackup({
       sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000001",
       sourceCampaignRevision: 10,
@@ -418,7 +430,7 @@ describe("parseAndVerifyBackupIntegrityForFingerprint — pre-idempotency split"
   });
 
   it("pre-idempotency returns correct digest for fingerprint construction", async () => {
-    const validState: CampaignStateV1 = makeState(5);
+    const validState: CurrentCampaignState = makeState(5);
     const backup = await buildExportBackup({
       sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000001",
       sourceCampaignRevision: 15,
@@ -442,7 +454,7 @@ describe("parseAndVerifyBackupIntegrityForFingerprint — pre-idempotency split"
 
 describe("pre-idempotency result type does not claim CampaignState validation", () => {
   it("returns IntegrityVerifiedBackupV1 with plain-object state, not CampaignStateV1", async () => {
-    const validState: CampaignStateV1 = makeState(3);
+    const validState: CurrentCampaignState = makeState(3);
     const backup = await buildExportBackup({
       sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000001",
       sourceCampaignRevision: 10,
@@ -458,7 +470,7 @@ describe("pre-idempotency result type does not claim CampaignState validation", 
       expect(result.backup.state).not.toBeNull();
       // Accessing a CampaignState field should require a cast — the type is
       // intentionally opaque at this stage.
-      expect((result.backup.state as Record<string, unknown>).schemaVersion).toBe(1);
+      expect((result.backup.state as Record<string, unknown>).schemaVersion).toBe(2);
     }
   });
 
@@ -542,7 +554,7 @@ describe("pre-idempotency result type does not claim CampaignState validation", 
   });
 
   it("pre-idempotency and full validation produce same digest for valid backup", async () => {
-    const validState: CampaignStateV1 = makeState(7);
+    const validState: CurrentCampaignState = makeState(7);
     const backup = await buildExportBackup({
       sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000001",
       sourceCampaignRevision: 20,
@@ -563,7 +575,7 @@ describe("pre-idempotency result type does not claim CampaignState validation", 
   });
 
   it("valid backup behavior remains unchanged through full pipeline", async () => {
-    const validState: CampaignStateV1 = makeState(4);
+    const validState: CurrentCampaignState = makeState(4);
     const backup = await buildExportBackup({
       sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000001",
       sourceCampaignRevision: 12,
@@ -582,7 +594,7 @@ describe("pre-idempotency result type does not claim CampaignState validation", 
     const fullResult = await fullyValidateBackup(JSON.stringify(backup), validState);
     expect("backup" in fullResult).toBe(true);
     if ("backup" in fullResult) {
-      expect(fullResult.backup.state.schemaVersion).toBe(1);
+      expect(fullResult.backup.state.schemaVersion).toBe(2);
       expect(fullResult.backup.state.ruleset.id).toBe(SEVEN_PART_PACT_DRAFT4_ID);
     }
   });

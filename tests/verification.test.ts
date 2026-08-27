@@ -26,6 +26,18 @@ function makeState(monthOrdinal: number): CurrentCampaignState {
       version: SEVEN_PART_PACT_DRAFT4_VERSION,
     },
     calendar: { monthOrdinal: monthOrdinal as MonthOrdinal },
+    configuration: { ageId: null, facilitatorPlayerId: null },
+    players: [],
+    wizards: [],
+    pactSeats: {
+      necromancer: { status: null, wizardId: null, watcherPlayerId: null },
+      hierophant: { status: null, wizardId: null, watcherPlayerId: null },
+      warlock: { status: null, wizardId: null, watcherPlayerId: null },
+      mariner: { status: null, wizardId: null, watcherPlayerId: null },
+      faustian: { status: null, wizardId: null, watcherPlayerId: null },
+      sage: { status: null, wizardId: null, watcherPlayerId: null },
+      sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
+    },
   };
 }
 

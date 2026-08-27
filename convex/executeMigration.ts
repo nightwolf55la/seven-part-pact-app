@@ -128,7 +128,7 @@ export const executeMigration = internalMutation({
 
     const finalSnapshot = analysis.snapshots[analysis.snapshots.length - 1];
     const finalState = {
-      schemaVersion: CURRENT_STATE_SCHEMA_VERSION,
+      schemaVersion: 1 as const,
       ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
       calendar: { monthOrdinal: finalSnapshot.state.calendar.monthOrdinal as number },
     };
@@ -137,7 +137,7 @@ export const executeMigration = internalMutation({
       campaignKey: "default" as const,
       campaignId: campaignId as string,
       campaignRevision: analysis.legacyCampaignRevision,
-      state: finalState,
+      state: finalState as any,
     });
 
     return {

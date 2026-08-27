@@ -16,8 +16,7 @@ export function applyMoveMonth(
   const toOrdinal = advanceOrdinal(fromOrdinal, direction);
 
   const nextState: CurrentCampaignState = {
-    schemaVersion: state.schemaVersion,
-    ruleset: { ...state.ruleset },
+    ...state,
     calendar: { monthOrdinal: toOrdinal },
   };
 

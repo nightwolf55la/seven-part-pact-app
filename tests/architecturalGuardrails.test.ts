@@ -92,7 +92,19 @@ describe("assertPortableCampaignState: validates without transforming", () => {
     schemaVersion: CURRENT_STATE_SCHEMA_VERSION,
     ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
     calendar: { monthOrdinal: 7 },
-  } as CampaignStateV1;
+    configuration: { ageId: null, facilitatorPlayerId: null },
+    players: [],
+    wizards: [],
+    pactSeats: {
+      necromancer: { status: null, wizardId: null, watcherPlayerId: null },
+      hierophant: { status: null, wizardId: null, watcherPlayerId: null },
+      warlock: { status: null, wizardId: null, watcherPlayerId: null },
+      mariner: { status: null, wizardId: null, watcherPlayerId: null },
+      faustian: { status: null, wizardId: null, watcherPlayerId: null },
+      sage: { status: null, wizardId: null, watcherPlayerId: null },
+      sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
+    },
+  } as unknown as CampaignStateV1;
 
   it("returns the same object reference (no copy/transform)", () => {
     const result = assertPortableCampaignState(validState);
