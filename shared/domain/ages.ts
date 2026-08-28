@@ -19,3 +19,8 @@ export function ageDisplayName(id: AgeDefinitionId): string {
 export function isValidAgeDefinitionId(value: string): value is AgeDefinitionId {
   return (AGE_DEFINITION_IDS as readonly string[]).includes(value);
 }
+
+export const AGE_DEFINITIONS = AGE_DEFINITION_IDS.map((id) => ({
+  id,
+  displayName: AGE_DISPLAY_NAMES[id],
+}));

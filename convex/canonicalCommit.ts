@@ -1,13 +1,22 @@
 import type { MutationCtx } from "./_generated/server";
 import type { CampaignCommandType, CurrentCampaignState, CampaignEvent, MonthDirection, EventRecord } from "../shared/domain";
-import { validateCampaignState, DomainError, advanceOrdinal, validateMoveMonthTransaction, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION, validateHistoryControlStructure, statesDeepEqual, isValidCheckpointId, validateCheckpointLabel, normalizeCheckpointLabel, checkpointRestoreFingerprint, CURRENT_CHECKPOINT_VERSION, isValidCampaignId, backupImportFingerprint, fullyValidateBackup } from "../shared/domain";
+import { validateCampaignState, validateAnyCampaignState, DomainError, advanceOrdinal, validateMoveMonthTransaction, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION, validateHistoryControlStructure, statesDeepEqual, isValidCheckpointId, validateCheckpointLabel, normalizeCheckpointLabel, checkpointRestoreFingerprint, CURRENT_CHECKPOINT_VERSION, isValidCampaignId, backupImportFingerprint, fullyValidateBackup, isValidPlayerId, isValidWizardId } from "../shared/domain";
+import { migrateToCurrentVersion } from "../shared/domain/state-migration";
 import { assertPortableCampaignState } from "../shared/domain/state-equality";
 import { validateUndoTransactionCoherence, validateRedoTransactionCoherence } from "../shared/domain/undo-redo";
+import { isValidPactSeatId, PACT_SEAT_IDS } from "../shared/domain/pact-seats";
+import { isValidAgeDefinitionId } from "../shared/domain/ages";
 import type { Id } from "./_generated/dataModel";
+import { serializeState, snapshotRecord, campaignPatch } from "./persistence";
 
 export type HistoryControlUpdate =
   | { readonly kind: "logical_state_append" }
   | { readonly kind: "history_navigation"; readonly nextUndoStack: readonly number[]; readonly nextRedoStack: readonly number[] };
+
+function loadCurrentFromHistorical(raw: unknown): CurrentCampaignState {
+  const validated = validateAnyCampaignState(raw);
+  return migrateToCurrentVersion(validated);
+}
 
 export type CommandContext =
   | { readonly kind: "backup_import"; readonly backupJson: string };
@@ -126,11 +135,123 @@ function validateEventCoherence(
       break;
     }
     default: {
-      if (input.historyControlUpdate.kind !== "logical_state_append") {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", `${commandType} must use logical_state_append history update`);
+      validateM3EventCoherence(input);
+      break;
+    }
+  }
+}
+
+const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: string[] }> = {
+  add_player: { required: ["player_added"] },
+  rename_player: { required: ["player_renamed"] },
+  remove_player: { required: ["player_removed"] },
+  set_campaign_age: { required: ["campaign_age_changed"] },
+  set_facilitator: { required: ["facilitator_assignment_changed"] },
+  create_wizard: { required: ["wizard_created", "pact_seat_wizard_changed"] },
+  rename_wizard: { required: ["wizard_name_changed"] },
+  set_wizard_portrayal: { required: ["wizard_portrayal_changed"] },
+  set_pact_seat_wizard: { required: ["pact_seat_wizard_changed"], optional: ["pact_seat_status_changed"] },
+  set_pact_seat_status: { required: ["pact_seat_status_changed"] },
+  set_watcher: { required: ["watcher_assignment_changed"] },
+};
+
+function validateM3EventCoherence(input: CanonicalCommitInput): void {
+  const { commandType, events } = input;
+
+  if (input.historyControlUpdate.kind !== "logical_state_append") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${commandType} must use logical_state_append history update`);
+  }
+
+  const spec = M3_COMMAND_EVENT_MAP[commandType];
+  if (!spec) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown command type: ${commandType}`);
+  }
+
+  const { required, optional = [] } = spec;
+  const maxEvents = required.length + optional.length;
+
+  if (events.length < required.length || events.length > maxEvents) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${commandType} must produce ${required.length}${optional.length > 0 ? `-${maxEvents}` : ""} event(s), got ${events.length}`);
+  }
+
+  for (let i = 0; i < required.length; i++) {
+    if (events[i].type !== required[i]) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${commandType} event[${i}] must be ${required[i]}, got ${events[i].type}`);
+    }
+  }
+
+  for (let i = required.length; i < events.length; i++) {
+    if (!optional.includes(events[i].type)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${commandType} event[${i}] has unexpected type ${events[i].type}`);
+    }
+  }
+
+  for (const evt of events) {
+    if (evt.version !== 1) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${commandType} event ${evt.type} has unsupported version ${evt.version}`);
+    }
+    validateM3EventPayload(evt);
+  }
+}
+
+function validateM3EventPayload(evt: CampaignEvent): void {
+  switch (evt.type) {
+    case "player_added":
+    case "player_renamed":
+    case "player_removed":
+      if (typeof evt.data.playerId !== "string" || !isValidPlayerId(evt.data.playerId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${evt.type} has invalid playerId`);
+      }
+      break;
+    case "campaign_age_changed":
+      if (evt.data.newAgeId !== null && !isValidAgeDefinitionId(evt.data.newAgeId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `campaign_age_changed has invalid newAgeId: ${evt.data.newAgeId}`);
+      }
+      break;
+    case "facilitator_assignment_changed":
+      if (evt.data.newPlayerId !== null && !isValidPlayerId(evt.data.newPlayerId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `facilitator_assignment_changed has invalid newPlayerId`);
+      }
+      break;
+    case "wizard_created":
+      if (typeof evt.data.wizardId !== "string" || !isValidWizardId(evt.data.wizardId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `wizard_created has invalid wizardId`);
+      }
+      if (!isValidPactSeatId(evt.data.assignedToSeatId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `wizard_created has invalid assignedToSeatId: ${evt.data.assignedToSeatId}`);
+      }
+      break;
+    case "wizard_name_changed":
+    case "wizard_portrayal_changed":
+      if (typeof evt.data.wizardId !== "string" || !isValidWizardId(evt.data.wizardId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${evt.type} has invalid wizardId`);
+      }
+      break;
+    case "pact_seat_wizard_changed":
+      if (!isValidPactSeatId(evt.data.seatId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `pact_seat_wizard_changed has invalid seatId: ${evt.data.seatId}`);
+      }
+      break;
+    case "pact_seat_status_changed": {
+      if (!isValidPactSeatId(evt.data.seatId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `pact_seat_status_changed has invalid seatId: ${evt.data.seatId}`);
+      }
+      const validStatuses = ["present", "silent", "absent", null];
+      if (!validStatuses.includes(evt.data.newStatus as any)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `pact_seat_status_changed has invalid newStatus: ${evt.data.newStatus}`);
       }
       break;
     }
+    case "watcher_assignment_changed":
+      if (!isValidPactSeatId(evt.data.seatId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `watcher_assignment_changed has invalid seatId: ${evt.data.seatId}`);
+      }
+      if (evt.data.newPlayerId !== null && !isValidPlayerId(evt.data.newPlayerId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `watcher_assignment_changed has invalid newPlayerId`);
+      }
+      break;
+    default:
+      break;
   }
 }
 
@@ -237,7 +358,7 @@ async function validateCheckpointRestoreCoherence(
     throw new DomainError("CAMPAIGN_STATE_CORRUPT", `No snapshot exists for checkpoint sourceRevision ${checkpoint.sourceRevision}`);
   }
 
-  validateCampaignState(sourceSnapshot.state);
+  const migratedSourceState = loadCurrentFromHistorical(sourceSnapshot.state);
 
   // Verify source revision record if non-zero
   if (checkpoint.sourceRevision > 0) {
@@ -255,8 +376,8 @@ async function validateCheckpointRestoreCoherence(
     }
   }
 
-  // Verify nextState deep-equals source snapshot
-  if (!statesDeepEqual(input.nextState, sourceSnapshot.state as unknown as CurrentCampaignState)) {
+  // Verify nextState deep-equals migrated source snapshot
+  if (!statesDeepEqual(input.nextState, migratedSourceState)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `checkpoint_restore nextState does not match source snapshot at revision ${checkpoint.sourceRevision}`);
   }
 
@@ -389,11 +510,11 @@ export async function canonicalCommit(
       );
     }
 
-    validateCampaignState(existingSnapshot.state);
+    const migratedExisting = loadCurrentFromHistorical(existingSnapshot.state);
 
     return {
       newRevision: existingCommand.campaignRevision,
-      state: existingSnapshot.state as unknown as CurrentCampaignState,
+      state: migratedExisting,
       alreadyApplied: true,
     };
   }
@@ -446,9 +567,9 @@ export async function canonicalCommit(
     throw new DomainError("CAMPAIGN_STATE_CORRUPT", `No snapshot exists for current logical revision ${logicalRevision}`);
   }
 
-  validateCampaignState(logicalSnapshot.state);
+  const migratedLogicalState = loadCurrentFromHistorical(logicalSnapshot.state);
 
-  if (!statesDeepEqual(logicalSnapshot.state as unknown as CurrentCampaignState, input.currentState)) {
+  if (!statesDeepEqual(migratedLogicalState, input.currentState)) {
     throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Snapshot at undoStack top (revision ${logicalRevision}) does not match input.currentState`);
   }
 
@@ -496,9 +617,9 @@ export async function canonicalCommit(
         throw new DomainError("CAMPAIGN_STATE_CORRUPT", `No snapshot exists for undo target revision ${targetRev}`);
       }
 
-      validateCampaignState(targetSnap.state);
+      const migratedUndoTarget = loadCurrentFromHistorical(targetSnap.state);
 
-      if (!statesDeepEqual(input.nextState, targetSnap.state as unknown as CurrentCampaignState)) {
+      if (!statesDeepEqual(input.nextState, migratedUndoTarget)) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `nextState does not match undo target snapshot at revision ${targetRev}`);
       }
 
@@ -524,7 +645,7 @@ export async function canonicalCommit(
         nextRedoStack,
         event: undoEvt,
         restoredState: input.nextState,
-        targetSnapshotState: targetSnap.state as unknown as CurrentCampaignState,
+        targetSnapshotState: migratedUndoTarget,
         newAuditRevision: newRevision,
       });
       if (ucErrors.length > 0) {
@@ -554,9 +675,9 @@ export async function canonicalCommit(
         throw new DomainError("CAMPAIGN_STATE_CORRUPT", `No snapshot exists for redo target revision ${targetRev}`);
       }
 
-      validateCampaignState(targetSnap.state);
+      const migratedRedoTarget = loadCurrentFromHistorical(targetSnap.state);
 
-      if (!statesDeepEqual(input.nextState, targetSnap.state as unknown as CurrentCampaignState)) {
+      if (!statesDeepEqual(input.nextState, migratedRedoTarget)) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `nextState does not match redo target snapshot at revision ${targetRev}`);
       }
 
@@ -580,7 +701,7 @@ export async function canonicalCommit(
         nextRedoStack,
         event: redoEvt,
         restoredState: input.nextState,
-        targetSnapshotState: targetSnap.state as unknown as CurrentCampaignState,
+        targetSnapshotState: migratedRedoTarget,
         newAuditRevision: newRevision,
       });
       if (rcErrors.length > 0) {
@@ -714,17 +835,10 @@ export async function canonicalCommit(
 
   assertPortableCampaignState(input.nextState);
 
-  await ctx.db.insert("campaignSnapshots", {
-    campaignId: input.campaignId,
-    campaignRevision: newRevision,
-    state: input.nextState as unknown as Record<string, unknown>,
-  } as any);
+  await ctx.db.insert("campaignSnapshots", snapshotRecord(input.campaignId, newRevision, input.nextState));
 
   // --- Update campaign document ---
-  await ctx.db.patch(input.campaignDocId, {
-    campaignRevision: newRevision,
-    state: input.nextState as unknown as Record<string, unknown>,
-  } as any);
+  await ctx.db.patch(input.campaignDocId, campaignPatch(newRevision, input.nextState));
 
   // --- Update history control ---
   await ctx.db.patch(controlDoc._id, {

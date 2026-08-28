@@ -33,6 +33,7 @@ import {
   activityEntryValidator,
 } from "./validators";
 import { canonicalCommit } from "./canonicalCommit";
+import { loadCanonicalRecord, serializeState, snapshotRecord } from "./persistence";
 
 type CanonicalCampaignDoc = {
   _id: any;
@@ -40,7 +41,7 @@ type CanonicalCampaignDoc = {
   campaignKey: "default";
   campaignId: string;
   campaignRevision: number;
-  state: { schemaVersion: 1; ruleset: { id: "seven_part_pact_draft4"; version: 1 }; calendar: { monthOrdinal: number } };
+  state: CurrentCampaignState;
 };
 
 function isCanonical(doc: unknown): doc is CanonicalCampaignDoc {
@@ -213,20 +214,14 @@ export const ensureCampaign = mutation({
 
     const campaignId = generateCampaignId();
 
-    const persistState = JSON.parse(JSON.stringify(state)) as Record<string, unknown>;
-
     const docId = await ctx.db.insert("campaigns", {
       campaignKey: "default" as const,
       campaignId: campaignId as string,
       campaignRevision: 0,
-      state: persistState as any,
-    });
+      state: serializeState(state),
+    } as any);
 
-    await ctx.db.insert("campaignSnapshots", {
-      campaignId: campaignId as string,
-      campaignRevision: 0,
-      state: persistState as any,
-    });
+    await ctx.db.insert("campaignSnapshots", snapshotRecord(campaignId as string, 0, state));
 
     await ctx.db.insert("campaignHistoryControl", {
       campaignId: campaignId as string,

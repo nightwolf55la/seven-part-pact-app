@@ -26,6 +26,7 @@ import type {
   ExportSourceData,
 } from "../shared/domain";
 import { canonicalCommit } from "./canonicalCommit";
+import { loadCanonicalRecord, serializeState } from "./persistence";
 import { currentCampaignStateValidator, campaignStateV1Validator, monthDisplayNameValidator } from "./validators";
 
 // ============================================================
@@ -63,20 +64,14 @@ export const getPortableBackupSource = internalQuery({
   args: {},
   returns: exportSourceValidator,
   handler: async (ctx) => {
-    const campaign = await ctx.db
-      .query("campaigns")
-      .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
-      .unique();
-
-    if (campaign === null || !("campaignKey" in campaign) || (campaign as any).campaignKey !== "default") {
+    const record = await loadCanonicalRecord(ctx);
+    if (record === null) {
       throw new DomainError("CAMPAIGN_NOT_FOUND", "No canonical campaign found");
     }
 
-    const campaignId = (campaign as any).campaignId as string;
-    const campaignRevision = (campaign as any).campaignRevision as number;
-    const state = (campaign as any).state;
-
-    validateCampaignState(state);
+    const campaignId = record.campaignId;
+    const campaignRevision = record.campaignRevision;
+    const state = validateCampaignState(record.rawState);
 
     const controlDocs = await ctx.db
       .query("campaignHistoryControl")
@@ -150,7 +145,7 @@ export const getPortableBackupSource = internalQuery({
       sourceCampaignId: campaignId,
       sourceCampaignRevision: campaignRevision,
       sourceLogicalRevision,
-      state: state as unknown as Record<string, unknown>,
+      state: serializeState(state),
     } as any;
   },
 });
@@ -172,10 +167,6 @@ export const exportPortableBackup = action({
 // ============================================================
 // Public mutation: import portable backup
 // ============================================================
-
-function isCanonical(doc: unknown): doc is { _id: any; campaignKey: "default"; campaignId: string; campaignRevision: number; state: object } {
-  return doc !== null && typeof doc === "object" && "campaignKey" in (doc as any) && (doc as any).campaignKey === "default";
-}
 
 export const importPortableBackup = mutation({
   args: {
@@ -213,16 +204,12 @@ export const importPortableBackup = mutation({
     const fingerprint = backupImportFingerprint(args.expectedRevision, serverDigest);
 
     // STEP 9: Load campaign for idempotency lookup
-    const campaign = await ctx.db
-      .query("campaigns")
-      .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
-      .unique();
-
-    if (campaign === null || !isCanonical(campaign)) {
+    const record = await loadCanonicalRecord(ctx);
+    if (record === null) {
       throw new DomainError("CAMPAIGN_NOT_FOUND", "No canonical campaign found");
     }
 
-    const campaignId = campaign.campaignId;
+    const campaignId = record.campaignId;
 
     // STEP 10: Idempotency lookup BEFORE CAS and BEFORE full target compatibility
     const existingCommand = await ctx.db
@@ -261,17 +248,17 @@ export const importPortableBackup = mutation({
     }
 
     // STEP 12: CAS check
-    if (campaign.campaignRevision !== args.expectedRevision) {
+    if (record.campaignRevision !== args.expectedRevision) {
       throw new DomainError(
         "STALE_CAMPAIGN_REVISION",
-        `Expected revision ${args.expectedRevision}, current is ${campaign.campaignRevision}`,
+        `Expected revision ${args.expectedRevision}, current is ${record.campaignRevision}`,
       );
     }
 
     // STEP 13: Full CampaignState + domain + target compatibility validation
     // The pre-idempotency helper only verified envelope structure and integrity.
     // Now that idempotency and CAS have passed, run the full validation pipeline.
-    const currentState = validateCampaignState(campaign.state);
+    const currentState = validateCampaignState(record.rawState);
 
     const fullResult = await fullyValidateBackup(args.backupJson, currentState);
     if ("error" in fullResult) {
@@ -307,9 +294,9 @@ export const importPortableBackup = mutation({
 
     // STEP 14: Commit via canonicalCommit (performs its own independent full validation)
     const receipt = await canonicalCommit(ctx, {
-      campaignDocId: campaign._id,
+      campaignDocId: record.docId,
       campaignId,
-      currentRevision: campaign.campaignRevision,
+      currentRevision: record.campaignRevision,
       currentState,
       commandId: commandId as string,
       commandType: "backup_import",

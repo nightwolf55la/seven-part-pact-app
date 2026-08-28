@@ -45,10 +45,7 @@ function isPlayerReferenced(state: CurrentCampaignState, playerId: PlayerId): st
   }
   for (const wizard of state.wizards) {
     if (wizard.portrayedByPlayerId === playerId) {
-      const assignedSeat = PACT_SEAT_IDS.find((s) => state.pactSeats[s].wizardId === wizard.wizardId);
-      if (assignedSeat) {
-        return `portraying current wizard in seat ${assignedSeat}`;
-      }
+      return `portraying wizard ${wizard.wizardId}`;
     }
   }
   return null;
@@ -260,7 +257,13 @@ export function applyCreateWizard(
     data: { wizardId, name: trimmedName, portrayedByPlayerId, assignedToSeatId: seatId },
   };
 
-  return { nextState, events: [createdEvent] };
+  const seatAssignedEvent: PactSeatWizardChangedEventV1 = {
+    type: "pact_seat_wizard_changed",
+    version: 1,
+    data: { seatId, previousWizardId: null, newWizardId: wizardId },
+  };
+
+  return { nextState, events: [createdEvent, seatAssignedEvent] };
 }
 
 // --- Rename Wizard ---

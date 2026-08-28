@@ -6,11 +6,12 @@ import {
   migrationCommandFingerprint,
   DomainError,
   parseCampaignId,
-  CURRENT_STATE_SCHEMA_VERSION,
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
 } from "../shared/domain";
-import type { MonthDirection } from "../shared/domain";
+import { migrateV1toV2 } from "../shared/domain/state-migration";
+import { serializeState } from "./persistence";
+import type { MonthDirection, CampaignStateV1, MonthOrdinal } from "../shared/domain";
 
 export const executeMigration = internalMutation({
   args: {
@@ -127,18 +128,19 @@ export const executeMigration = internalMutation({
     }
 
     const finalSnapshot = analysis.snapshots[analysis.snapshots.length - 1];
-    const finalState = {
-      schemaVersion: 1 as const,
+    const finalV1State: CampaignStateV1 = {
+      schemaVersion: 1,
       ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
-      calendar: { monthOrdinal: finalSnapshot.state.calendar.monthOrdinal as number },
+      calendar: { monthOrdinal: finalSnapshot.state.calendar.monthOrdinal as number as MonthOrdinal },
     };
+    const currentState = migrateV1toV2(finalV1State);
 
     await ctx.db.replace(legacyCampaign._id, {
       campaignKey: "default" as const,
       campaignId: campaignId as string,
       campaignRevision: analysis.legacyCampaignRevision,
-      state: finalState as any,
-    });
+      state: serializeState(currentState),
+    } as any);
 
     return {
       status: "migrated" as const,

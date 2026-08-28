@@ -31,6 +31,7 @@ compiles against the committed generated API.
 ## Documentation
 
 - [Architecture: State Model](docs/architecture/state-model.md)
+- [Architecture: M3 State Model (V2)](docs/architecture/m3-state-model.md)
 - [Persistence Evolution Contract](docs/persistence-evolution-contract.md)
 - [Recovery Runbook](docs/recovery-runbook.md)
 - [Environments](docs/environments.md)
