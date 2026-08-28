@@ -89,7 +89,7 @@ export { PACT_SEAT_IDS, PACT_SEAT_COUNT, pactSeatDisplayName, isValidPactSeatId 
 export type { AgeDefinitionId } from "./ages";
 export { AGE_DEFINITION_IDS, ageDisplayName, isValidAgeDefinitionId } from "./ages";
 
-export { migrateV1toV2, migrateToCurrentVersion, isSupportedSchemaVersion, SUPPORTED_STATE_SCHEMA_VERSIONS } from "./state-migration";
+export { migrateV1toV2, migrateToCurrentVersion, loadHistoricalState, isSupportedSchemaVersion, SUPPORTED_STATE_SCHEMA_VERSIONS } from "./state-migration";
 
 export type {
   LegacyCampaignInput,
@@ -142,6 +142,7 @@ export {
   validateRedoTransactionCoherence,
 } from "./undo-redo";
 
+export type { IdempotencyMatchResult } from "./command-ids";
 export {
   syntheticMigrationCommandId,
   isSyntheticMigrationCommandId,
@@ -162,6 +163,7 @@ export {
   setPactSeatWizardFingerprint,
   setPactSeatStatusFingerprint,
   setWatcherFingerprint,
+  matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
 } from "./command-ids";

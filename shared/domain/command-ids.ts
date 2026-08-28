@@ -115,3 +115,31 @@ export function setPactSeatStatusFingerprint(seatId: string, status: string | nu
 export function setWatcherFingerprint(seatId: string, playerId: string | null): string {
   return `set_watcher:v1:${seatId}:${playerId ?? "null"}`;
 }
+
+/**
+ * Pure deterministic idempotency match for command replay.
+ * Given a previously committed command record and an incoming attempt,
+ * returns whether it's an exact replay (idempotent) or a conflict.
+ *
+ * Does NOT handle DB lookup — that stays in Convex mutations.
+ */
+export type IdempotencyMatchResult =
+  | { kind: "exact_match"; revision: number }
+  | { kind: "conflict"; committedType: string; committedFingerprint: string };
+
+export function matchCommandIdempotency(
+  committed: { commandType: string; commandFingerprint: string; campaignRevision: number },
+  attempted: { commandType: string; commandFingerprint: string },
+): IdempotencyMatchResult {
+  if (
+    committed.commandType === attempted.commandType &&
+    committed.commandFingerprint === attempted.commandFingerprint
+  ) {
+    return { kind: "exact_match", revision: committed.campaignRevision };
+  }
+  return {
+    kind: "conflict",
+    committedType: committed.commandType,
+    committedFingerprint: committed.commandFingerprint,
+  };
+}

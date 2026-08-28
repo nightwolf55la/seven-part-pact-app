@@ -1,18 +1,25 @@
 # Seven-Part Pact — Roadmap
 
+## Milestone 1 (Complete)
+
+Initial application scaffold. React + Vite + TypeScript frontend, Convex
+backend, Vercel hosting. Basic campaign state with month ordinal and legacy
+event log.
+
 ## Milestone 2 (Complete)
 
-Calendar-based campaign state with month advancement, undo/redo, checkpoints,
-backup/restore, and campaign-health verification.
+Canonical commit architecture with full audit trail:
 
-- CampaignState V1: `schemaVersion: 1`, `calendar.monthOrdinal` only.
-- Canonical commit with full audit trail and idempotent commands.
+- CampaignState V1: `schemaVersion: 1`, `calendar.monthOrdinal`.
+- Canonical commit with idempotent commands and immutable revision/event/snapshot
+  records.
 - History control (undo/redo stacks).
 - Checkpoint create/restore.
-- Full-fidelity backup export/import with SHA-256 integrity verification.
+- Portable application backup/import (current CampaignState + integrity digest).
+- Full-fidelity disaster recovery via Convex operational export/restore.
 - Campaign health verifier.
 
-## Milestone 3 (In Progress — EXPAND phase)
+## Milestone 3 — Campaign Identity & Pact Roles Foundation (Approved)
 
 V2 campaign state: entity model for campaign setup and wizard seat management.
 
@@ -23,11 +30,11 @@ V2 campaign state: entity model for campaign setup and wizard seat management.
   set seat wizard/status/watcher, set age, set facilitator).
 - Pre-transition idempotency for all M3 commands.
 - Explicit admin-only V1-to-V2 current-state migration.
-- Historical snapshot in-memory migration at load boundaries.
+- Historical snapshot in-memory migration at load boundaries
+  (`loadHistoricalState`).
 - Campaign setup UI for players, wizards, and pact seats.
-- Retained wizard reassignment (unassigned wizards can be assigned to empty seats).
-- Wizard rename inline from seat view.
-- Status guards (Present/Silent require assigned wizard).
+- Retained wizard reassignment (unassigned wizards can be assigned to empty
+  seats).
 
 **Not in M3 scope:**
 
@@ -39,13 +46,14 @@ V2 campaign state: entity model for campaign setup and wizard seat management.
 
 **Deployment status:**
 
-- EXPAND phase schema deployed (validators accept V1 or V2).
+- EXPAND phase implemented on branch.
+- Disposable deployment verification pending.
 - CONTRACT phase pending after all environments confirmed V2.
 - See `docs/v1-to-v2-migration-procedure.md` for staged rollout.
 
-## Future (Not Approved)
+## Milestone 4+ (Provisional / TBD)
 
-Items below are potential directions, not approved work:
+Items below are potential future directions. None are approved or scheduled.
 
 - Wizard lifecycle operations (retire, delete, transfer).
 - Game-phase automation tied to calendar.

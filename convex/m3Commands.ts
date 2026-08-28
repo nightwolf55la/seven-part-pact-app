@@ -37,7 +37,7 @@ import type { PactSeatId } from "../shared/domain/pact-seats";
 import { isValidPactSeatId } from "../shared/domain/pact-seats";
 import type { AgeDefinitionId } from "../shared/domain/ages";
 import { isValidAgeDefinitionId } from "../shared/domain/ages";
-import { migrateToCurrentVersion } from "../shared/domain/state-migration";
+import { loadHistoricalState } from "../shared/domain/state-migration";
 import { canonicalCommit } from "./canonicalCommit";
 import type { CanonicalCommitInput, CanonicalCommitReceipt } from "./canonicalCommit";
 import type { Id } from "./_generated/dataModel";
@@ -129,12 +129,11 @@ async function checkIdempotency(
     );
   }
 
-  const validated = validateAnyCampaignState(existingSnapshot.state);
-  const migratedState = migrateToCurrentVersion(validated);
+  const validated = loadHistoricalState(existingSnapshot.state);
 
   return {
     newRevision: existingCommand.campaignRevision,
-    state: migratedState,
+    state: validated,
     alreadyApplied: true,
   };
 }

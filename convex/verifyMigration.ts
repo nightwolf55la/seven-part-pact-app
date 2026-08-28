@@ -21,7 +21,7 @@ import {
   type ReplayEventInfo,
   type SerializableCampaignState,
 } from "../shared/domain";
-import { migrateToCurrentVersion } from "../shared/domain/state-migration";
+import { loadHistoricalState } from "../shared/domain/state-migration";
 import {
   verifyBackupImportRevisionStructure,
   verifyBackupImportRevisionDigest,
@@ -176,9 +176,13 @@ export const verifyMigration = query({
       (s) => s.campaignRevision === campaignRevision,
     );
     if (finalSnapshot) {
-      const migratedFinalSnap = migrateToCurrentVersion(validateAnyCampaignState(finalSnapshot.state));
-      if (!statesDeepEqual(migratedFinalSnap, canonical.state)) {
-        errors.push("Final snapshot state (migrated) does not match authoritative campaign state");
+      try {
+        const migratedFinalSnap = loadHistoricalState(finalSnapshot.state);
+        if (!statesDeepEqual(migratedFinalSnap, canonical.state)) {
+          errors.push("Final snapshot state (migrated) does not match authoritative campaign state");
+        }
+      } catch (e) {
+        errors.push(`Final snapshot at revision ${campaignRevision} cannot be migrated: ${e instanceof Error ? e.message : String(e)}`);
       }
     } else {
       errors.push("Final snapshot not found");
@@ -343,26 +347,34 @@ export const verifyMigration = query({
 
         const undoTop = control.undoStack[control.undoStack.length - 1];
         const undoTopSnapshot = campaignSnapshots.find((s) => s.campaignRevision === undoTop);
-        const snapshotAtUndoTop: SerializableCampaignState | null = undoTopSnapshot
-          ? migrateToCurrentVersion(validateAnyCampaignState(undoTopSnapshot.state)) as unknown as SerializableCampaignState
-          : null;
+        let snapshotAtUndoTop: SerializableCampaignState | null = null;
+        if (undoTopSnapshot) {
+          try {
+            snapshotAtUndoTop = loadHistoricalState(undoTopSnapshot.state) as unknown as SerializableCampaignState;
+          } catch (e) {
+            historyControlStatus = "invalid";
+            historyControlErrors = [`Undo-top snapshot at revision ${undoTop} cannot be migrated: ${e instanceof Error ? e.message : String(e)}`];
+          }
+        }
 
-        const hcErrors = verifyHistoryControl({
-          control,
-          campaignId,
-          campaignRevision,
-          campaignState: canonical.state,
-          revisions: revCommandInfos,
-          events: replayEvents,
-          snapshotRevisions,
-          snapshotAtUndoTop,
-        });
+        if (historyControlStatus !== "invalid") {
+          const hcErrors = verifyHistoryControl({
+            control,
+            campaignId,
+            campaignRevision,
+            campaignState: canonical.state,
+            revisions: revCommandInfos,
+            events: replayEvents,
+            snapshotRevisions,
+            snapshotAtUndoTop,
+          });
 
-        if (hcErrors.length > 0) {
-          historyControlStatus = "invalid";
-          historyControlErrors = hcErrors;
-        } else {
-          historyControlStatus = "valid";
+          if (hcErrors.length > 0) {
+            historyControlStatus = "invalid";
+            historyControlErrors = hcErrors;
+          } else {
+            historyControlStatus = "valid";
+          }
         }
       }
     }

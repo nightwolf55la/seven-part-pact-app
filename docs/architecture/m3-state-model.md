@@ -99,21 +99,24 @@ All events are version 1. Event coherence is enforced in `canonicalCommit`'s
 Historical V1 snapshots remain immutable. V2 is the authoritative current-state
 format. Migration occurs at read boundaries, never as a silent write.
 
-### Pattern: `loadCurrentFromHistorical(raw)`
+### Pattern: `loadHistoricalState(raw)`
 
-All code that reads a historical snapshot (which may be V1 or V2) uses:
+All code that reads a historical snapshot (which may be V1 or V2) uses the
+production helper exported from `shared/domain/state-migration.ts`:
 
 ```ts
-function loadCurrentFromHistorical(raw: unknown): CurrentCampaignState {
-  const validated = validateAnyCampaignState(raw);
-  return migrateToCurrentVersion(validated);
-}
+import { loadHistoricalState } from "../shared/domain/state-migration";
+
+const currentState: CurrentCampaignState = loadHistoricalState(rawPersistedSnapshot);
 ```
 
 This:
-1. Validates the raw value as either V1 or V2.
+1. Validates the raw value as either V1 or V2 (`validateAnyCampaignState`).
 2. Migrates V1 to V2 (adding empty players/wizards/pactSeats/configuration).
 3. Returns a guaranteed `CurrentCampaignState` (V2).
+
+Call sites: `campaign.ts` (undo/redo/checkpoint), `m3Commands.ts` (idempotency),
+`verifyMigration.ts` (health check).
 
 ### Admin Migration
 
@@ -151,6 +154,14 @@ set_facilitator:v1:{playerId|"null"}
 
 Fingerprints are deterministic and idempotency-safe: the same logical intent
 produces the same fingerprint regardless of current state.
+
+### Idempotency Matching
+
+The pure deterministic matching logic is in `matchCommandIdempotency`
+(`shared/domain/command-ids.ts`). Given a committed record and an attempted
+command, it returns either `exact_match` (safe to return the original revision)
+or `conflict` (must throw `COMMAND_ID_REUSED`). Database lookup remains in the
+Convex mutation layer.
 
 ---
 
@@ -199,7 +210,7 @@ Ages are fixed game-content definitions (not persisted entities). The
 - **Current-state migration is explicit and admin-only.**
   (`adminMigration:migrateCurrentStateToV2`)
 - **Historical-state in-memory migration is allowed** at read boundaries
-  (via `loadCurrentFromHistorical`).
+  (via `loadHistoricalState`).
 - **Ordinary reads/writes never silently migrate** the authoritative current
   campaign document.
 - M3 commands/queries fail closed with `MIGRATION_REQUIRED` if current state
@@ -215,16 +226,16 @@ staged deployment sequence.
 | File | Responsibility |
 |------|---------------|
 | `shared/domain/campaign-state.ts` | V1 and V2 type definitions |
-| `shared/domain/state-migration.ts` | `migrateV1toV2`, `migrateToCurrentVersion` |
+| `shared/domain/state-migration.ts` | `migrateV1toV2`, `migrateToCurrentVersion`, `loadHistoricalState` |
 | `shared/domain/state-validation.ts` | `validateCampaignState` (V2), `validateAnyCampaignState` |
 | `shared/domain/m3-transitions.ts` | Pure transition functions for all M3 commands |
-| `shared/domain/command-ids.ts` | M3 fingerprint functions |
+| `shared/domain/command-ids.ts` | M3 fingerprint functions, `matchCommandIdempotency` |
 | `shared/domain/pact-seats.ts` | Seat IDs, validators, display names |
 | `shared/domain/ages.ts` | Age definitions and validators |
 | `shared/domain/ids.ts` | Branded ID types and validators |
 | `convex/m3Commands.ts` | Convex mutations (11 M3 commands) |
 | `convex/m3Queries.ts` | `getCampaignSetup` query |
-| `convex/adminMigration.ts` | Idempotent V1→V2 admin migration |
+| `convex/adminMigration.ts` | Idempotent V1-to-V2 admin migration (internalMutation) |
 | `convex/persistence.ts` | Typed persistence boundary helpers |
 | `convex/canonicalCommit.ts` | Event coherence for M3 commands |
 | `src/CampaignSetup.tsx` | Campaign setup UI |
@@ -259,14 +270,19 @@ system. Any player can be designated or undesignated as facilitator.
 
 ### Seat Status
 
-- `null` — not configured (no wizard assigned, or wizard assigned but status
-  not yet declared). This is the default.
-- `"absent"` — wizard/seat explicitly absent from current story.
-- `"present"` — wizard actively present. **Requires a wizard assigned.**
-- `"silent"` — wizard present but muted. **Requires a wizard assigned.**
+These are Seven-Part Pact game-domain status terms persisted by M3:
 
-Setting status to `"present"` or `"silent"` when `wizardId` is `null` is
-invalid and rejected by the transition function.
+- `null` — incomplete or not-yet-recorded configuration. Distinct from all
+  three named statuses. This is the default for all seats.
+- `"absent"` — the seat/wizard is explicitly marked absent.
+- `"present"` — the seat/wizard is explicitly marked present.
+  **Structural constraint: requires a current wizard assigned to the seat.**
+- `"silent"` — the seat/wizard is explicitly marked silent.
+  **Structural constraint: requires a current wizard assigned to the seat.**
+
+M3 enforces only the approved structural constraint that `"present"` and
+`"silent"` require a current wizard (`wizardId` is not null). Detailed gameplay
+consequences of Silent, Absent, and Present are not automated or settled by M3.
 
 ### Calendar
 

@@ -4,6 +4,7 @@ import { PACT_SEAT_IDS } from "./pact-seats";
 import type { PactSeatId } from "./pact-seats";
 import type { PactSeatState } from "./campaign-state";
 import { DomainError } from "./errors";
+import { validateAnyCampaignState } from "./state-validation";
 
 function emptyPactSeats(): { readonly [K in PactSeatId]: PactSeatState } {
   const seats = {} as Record<PactSeatId, PactSeatState>;
@@ -26,6 +27,16 @@ export function migrateV1toV2(state: CampaignStateV1): CampaignStateV2 {
     wizards: [],
     pactSeats: emptyPactSeats(),
   };
+}
+
+/**
+ * Validates raw persisted state (V1 or V2) and migrates to CurrentCampaignState.
+ * This is the canonical read-boundary for any historical snapshot that may be V1 or V2.
+ * Used by undo/redo, checkpoint-restore, verifier, and tests.
+ */
+export function loadHistoricalState(raw: unknown): CurrentCampaignState {
+  const validated = validateAnyCampaignState(raw);
+  return migrateToCurrentVersion(validated);
 }
 
 export function migrateToCurrentVersion(state: AnyCampaignState): CurrentCampaignState {
