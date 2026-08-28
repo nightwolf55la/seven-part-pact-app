@@ -72,8 +72,8 @@ export function backupImportFingerprint(expectedRevision: number, payloadDigest:
 
 // --- M3 command fingerprints ---
 
-export function addPlayerFingerprint(playerId: string): string {
-  return `add_player:v1:${playerId}`;
+export function addPlayerFingerprint(playerId: string, normalizedName: string): string {
+  return `add_player:v1:${playerId}:${normalizedName}`;
 }
 
 export function renamePlayerFingerprint(playerId: string, newName: string): string {
@@ -92,8 +92,8 @@ export function setFacilitatorFingerprint(playerId: string | null): string {
   return `set_facilitator:v1:${playerId ?? "null"}`;
 }
 
-export function createWizardFingerprint(wizardId: string, seatId: string): string {
-  return `create_wizard:v1:${wizardId}:${seatId}`;
+export function createWizardFingerprint(wizardId: string, normalizedName: string, portrayedByPlayerId: string | null, seatId: string): string {
+  return `create_wizard:v1:${wizardId}:${normalizedName}:${portrayedByPlayerId ?? "null"}:${seatId}`;
 }
 
 export function renameWizardFingerprint(wizardId: string, newName: string): string {

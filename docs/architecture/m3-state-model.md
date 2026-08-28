@@ -64,8 +64,8 @@ supports:
 - Historical identity continuity.
 - Portrayal tracking independent of seat assignment.
 
-A wizard is deleted only by an explicit remove-wizard command (not yet
-implemented; reserved for future milestone).
+M3 retains committed wizard identities and provides no hard-delete operation.
+Future deletion semantics are unsettled and not approved.
 
 ---
 
@@ -79,11 +79,11 @@ Each M3 command produces a specific event family enforced by `canonicalCommit`:
 | `rename_player`     | `player_renamed`                                    |
 | `remove_player`     | `player_removed`                                    |
 | `set_campaign_age`  | `campaign_age_changed`                              |
-| `set_facilitator`   | `facilitator_changed`                               |
+| `set_facilitator`   | `facilitator_assignment_changed`                    |
 | `create_wizard`     | `wizard_created` + `pact_seat_wizard_changed`       |
-| `rename_wizard`     | `wizard_renamed`                                    |
+| `rename_wizard`     | `wizard_name_changed`                               |
 | `set_wizard_portrayal` | `wizard_portrayal_changed`                        |
-| `set_pact_seat_wizard` | `pact_seat_wizard_changed`                        |
+| `set_pact_seat_wizard` | `pact_seat_wizard_changed` (+ optional `pact_seat_status_changed`) |
 | `set_pact_seat_status` | `pact_seat_status_changed`                        |
 | `set_watcher`       | `pact_seat_watcher_changed`                         |
 
@@ -136,10 +136,10 @@ The v0.1 legacy migration now produces V2 current state by calling
 M3 commands use entity-specific fingerprints following the existing pattern:
 
 ```
-add_player:v1:{playerId}
-rename_player:v1:{playerId}
+add_player:v1:{playerId}:{normalizedName}
+rename_player:v1:{playerId}:{newName}
 remove_player:v1:{playerId}
-create_wizard:v1:{wizardId}:{seatId}
+create_wizard:v1:{wizardId}:{normalizedName}:{portrayedByPlayerId|null}:{seatId}
 rename_wizard:v1:{wizardId}
 set_wizard_portrayal:v1:{wizardId}
 set_pact_seat_wizard:v1:{seatId}
@@ -191,6 +191,22 @@ Ages are fixed game-content definitions (not persisted entities). The
 ```
 
 `configuration.ageId` references one of these definitions or is `null`.
+
+---
+
+## Current-State Migration Policy
+
+- **Current-state migration is explicit and admin-only.**
+  (`adminMigration:migrateCurrentStateToV2`)
+- **Historical-state in-memory migration is allowed** at read boundaries
+  (via `loadCurrentFromHistorical`).
+- **Ordinary reads/writes never silently migrate** the authoritative current
+  campaign document.
+- M3 commands/queries fail closed with `MIGRATION_REQUIRED` if current state
+  is still V1.
+
+See [V1 to V2 Migration Procedure](../v1-to-v2-migration-procedure.md) for the
+staged deployment sequence.
 
 ---
 

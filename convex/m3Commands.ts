@@ -30,33 +30,112 @@ import {
   applySetWatcher,
   isValidPlayerId,
   isValidWizardId,
+  validateAnyCampaignState,
 } from "../shared/domain";
-import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, CampaignHistoryControlV1 } from "../shared/domain";
+import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId } from "../shared/domain";
 import type { PactSeatId } from "../shared/domain/pact-seats";
 import { isValidPactSeatId } from "../shared/domain/pact-seats";
 import type { AgeDefinitionId } from "../shared/domain/ages";
 import { isValidAgeDefinitionId } from "../shared/domain/ages";
 import { migrateToCurrentVersion } from "../shared/domain/state-migration";
-import { validateAnyCampaignState } from "../shared/domain";
 import { canonicalCommit } from "./canonicalCommit";
-import type { CanonicalCommitInput, HistoryControlUpdate } from "./canonicalCommit";
+import type { CanonicalCommitInput, CanonicalCommitReceipt } from "./canonicalCommit";
 import type { Id } from "./_generated/dataModel";
 import { loadCanonicalRecord } from "./persistence";
 
-async function loadCanonicalForMutation(ctx: MutationCtx) {
+interface CanonicalCampaign {
+  docId: Id<"campaigns">;
+  campaignId: string;
+  currentRevision: number;
+  currentState: CurrentCampaignState;
+}
+
+async function loadCanonicalV2ForMutation(ctx: MutationCtx): Promise<CanonicalCampaign> {
   const record = await loadCanonicalRecord(ctx);
   if (record === null) {
     throw new DomainError("CAMPAIGN_STATE_CORRUPT", "No canonical campaign found");
   }
 
-  const validated = validateAnyCampaignState(record.rawState);
-  const currentState = migrateToCurrentVersion(validated);
+  // Fail closed: current campaign document MUST already be V2.
+  // If it is still V1, the explicit admin migration has not been run yet.
+  try {
+    const currentState = validateCampaignState(record.rawState);
+    return {
+      docId: record.docId,
+      campaignId: record.campaignId,
+      currentRevision: record.campaignRevision,
+      currentState,
+    };
+  } catch (e: unknown) {
+    // Check if it's actually a valid V1 state that hasn't been migrated
+    try {
+      const any = validateAnyCampaignState(record.rawState);
+      if (any.schemaVersion === 1) {
+        throw new DomainError(
+          "MIGRATION_REQUIRED",
+          "Campaign state is V1. Run the explicit admin migration (adminMigration:migrateCurrentStateToV2) before using M3 commands.",
+        );
+      }
+    } catch (inner: unknown) {
+      if (inner instanceof DomainError && inner.code === "MIGRATION_REQUIRED") throw inner;
+    }
+    throw e;
+  }
+}
+
+/**
+ * Pre-transition idempotency check. If commandId was already committed,
+ * returns the receipt immediately without re-running the transition.
+ * If commandId was committed with a different fingerprint, throws COMMAND_ID_REUSED.
+ * Returns null if the command has not been applied yet.
+ */
+async function checkIdempotency(
+  ctx: MutationCtx,
+  campaignId: string,
+  commandId: string,
+  commandType: CampaignCommandType,
+  commandFingerprint: string,
+): Promise<CanonicalCommitReceipt | null> {
+  const existingCommand = await ctx.db
+    .query("campaignRevisions")
+    .withIndex("by_campaign_commandId", (q) =>
+      q.eq("campaignId", campaignId).eq("commandId", commandId),
+    )
+    .unique();
+
+  if (existingCommand === null) return null;
+
+  if (
+    existingCommand.commandType !== commandType ||
+    existingCommand.commandFingerprint !== commandFingerprint
+  ) {
+    throw new DomainError(
+      "COMMAND_ID_REUSED",
+      `CommandId "${commandId}" already committed with type="${existingCommand.commandType}" fingerprint="${existingCommand.commandFingerprint}", cannot reuse for type="${commandType}" fingerprint="${commandFingerprint}"`,
+    );
+  }
+
+  const existingSnapshot = await ctx.db
+    .query("campaignSnapshots")
+    .withIndex("by_campaign_revision", (q) =>
+      q.eq("campaignId", campaignId).eq("campaignRevision", existingCommand.campaignRevision),
+    )
+    .unique();
+
+  if (existingSnapshot === null) {
+    throw new DomainError(
+      "CAMPAIGN_STATE_CORRUPT",
+      `Snapshot missing for committed revision ${existingCommand.campaignRevision}`,
+    );
+  }
+
+  const validated = validateAnyCampaignState(existingSnapshot.state);
+  const migratedState = migrateToCurrentVersion(validated);
 
   return {
-    docId: record.docId,
-    campaignId: record.campaignId,
-    currentRevision: record.campaignRevision,
-    currentState,
+    newRevision: existingCommand.campaignRevision,
+    state: migratedState,
+    alreadyApplied: true,
   };
 }
 
@@ -65,9 +144,9 @@ async function commitM3Command(
   commandId: string,
   commandType: CampaignCommandType,
   commandFingerprint: string,
-  campaign: { docId: Id<"campaigns">; campaignId: string; currentRevision: number; currentState: CurrentCampaignState },
+  campaign: CanonicalCampaign,
   transitionResult: { nextState: CurrentCampaignState; events: readonly import("../shared/domain").CampaignEvent[] },
-) {
+): Promise<CanonicalCommitReceipt> {
   const input: CanonicalCommitInput = {
     campaignDocId: campaign.docId,
     campaignId: campaign.campaignId,
@@ -95,11 +174,13 @@ export const addPlayer = mutation({
     if (!isValidPlayerId(args.playerId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid playerId: ${args.playerId}`);
     }
-    const campaign = await loadCanonicalForMutation(ctx);
+    const fingerprint = addPlayerFingerprint(args.playerId, args.name.trim());
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "add_player", fingerprint);
+    if (replay) return { revision: replay.newRevision };
     const result = applyAddPlayer(campaign.currentState, args.playerId as PlayerId, args.name);
-    const fingerprint = addPlayerFingerprint(args.playerId);
-    await commitM3Command(ctx, args.commandId, "add_player", fingerprint, campaign, result);
-    return { revision: campaign.currentRevision + 1 };
+    const receipt = await commitM3Command(ctx, args.commandId, "add_player", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
   },
 });
 
@@ -114,11 +195,13 @@ export const renamePlayer = mutation({
     if (!isValidPlayerId(args.playerId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid playerId: ${args.playerId}`);
     }
-    const campaign = await loadCanonicalForMutation(ctx);
-    const result = applyRenamePlayer(campaign.currentState, args.playerId as PlayerId, args.newName);
     const fingerprint = renamePlayerFingerprint(args.playerId, args.newName.trim());
-    await commitM3Command(ctx, args.commandId, "rename_player", fingerprint, campaign, result);
-    return { revision: campaign.currentRevision + 1 };
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "rename_player", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applyRenamePlayer(campaign.currentState, args.playerId as PlayerId, args.newName);
+    const receipt = await commitM3Command(ctx, args.commandId, "rename_player", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
   },
 });
 
@@ -132,11 +215,13 @@ export const removePlayer = mutation({
     if (!isValidPlayerId(args.playerId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid playerId: ${args.playerId}`);
     }
-    const campaign = await loadCanonicalForMutation(ctx);
-    const result = applyRemovePlayer(campaign.currentState, args.playerId as PlayerId);
     const fingerprint = removePlayerFingerprint(args.playerId);
-    await commitM3Command(ctx, args.commandId, "remove_player", fingerprint, campaign, result);
-    return { revision: campaign.currentRevision + 1 };
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "remove_player", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applyRemovePlayer(campaign.currentState, args.playerId as PlayerId);
+    const receipt = await commitM3Command(ctx, args.commandId, "remove_player", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
   },
 });
 
@@ -150,11 +235,13 @@ export const setCampaignAge = mutation({
     if (args.ageId !== null && !isValidAgeDefinitionId(args.ageId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid ageId: ${args.ageId}`);
     }
-    const campaign = await loadCanonicalForMutation(ctx);
-    const result = applySetCampaignAge(campaign.currentState, args.ageId as AgeDefinitionId | null);
     const fingerprint = setCampaignAgeFingerprint(args.ageId);
-    await commitM3Command(ctx, args.commandId, "set_campaign_age", fingerprint, campaign, result);
-    return { revision: campaign.currentRevision + 1 };
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "set_campaign_age", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applySetCampaignAge(campaign.currentState, args.ageId as AgeDefinitionId | null);
+    const receipt = await commitM3Command(ctx, args.commandId, "set_campaign_age", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
   },
 });
 
@@ -168,11 +255,13 @@ export const setFacilitator = mutation({
     if (args.playerId !== null && !isValidPlayerId(args.playerId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid playerId: ${args.playerId}`);
     }
-    const campaign = await loadCanonicalForMutation(ctx);
-    const result = applySetFacilitator(campaign.currentState, args.playerId as PlayerId | null);
     const fingerprint = setFacilitatorFingerprint(args.playerId);
-    await commitM3Command(ctx, args.commandId, "set_facilitator", fingerprint, campaign, result);
-    return { revision: campaign.currentRevision + 1 };
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "set_facilitator", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applySetFacilitator(campaign.currentState, args.playerId as PlayerId | null);
+    const receipt = await commitM3Command(ctx, args.commandId, "set_facilitator", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
   },
 });
 
@@ -195,7 +284,10 @@ export const createWizard = mutation({
     if (args.portrayedByPlayerId !== null && !isValidPlayerId(args.portrayedByPlayerId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid portrayedByPlayerId: ${args.portrayedByPlayerId}`);
     }
-    const campaign = await loadCanonicalForMutation(ctx);
+    const fingerprint = createWizardFingerprint(args.wizardId, args.name.trim(), args.portrayedByPlayerId, args.seatId);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "create_wizard", fingerprint);
+    if (replay) return { revision: replay.newRevision };
     const result = applyCreateWizard(
       campaign.currentState,
       args.wizardId as WizardId,
@@ -203,9 +295,8 @@ export const createWizard = mutation({
       args.portrayedByPlayerId as PlayerId | null,
       args.seatId as PactSeatId,
     );
-    const fingerprint = createWizardFingerprint(args.wizardId, args.seatId);
-    await commitM3Command(ctx, args.commandId, "create_wizard", fingerprint, campaign, result);
-    return { revision: campaign.currentRevision + 1 };
+    const receipt = await commitM3Command(ctx, args.commandId, "create_wizard", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
   },
 });
 
@@ -220,11 +311,13 @@ export const renameWizard = mutation({
     if (!isValidWizardId(args.wizardId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
     }
-    const campaign = await loadCanonicalForMutation(ctx);
-    const result = applyRenameWizard(campaign.currentState, args.wizardId as WizardId, args.newName);
     const fingerprint = renameWizardFingerprint(args.wizardId, args.newName.trim());
-    await commitM3Command(ctx, args.commandId, "rename_wizard", fingerprint, campaign, result);
-    return { revision: campaign.currentRevision + 1 };
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "rename_wizard", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applyRenameWizard(campaign.currentState, args.wizardId as WizardId, args.newName);
+    const receipt = await commitM3Command(ctx, args.commandId, "rename_wizard", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
   },
 });
 
@@ -242,11 +335,13 @@ export const setWizardPortrayal = mutation({
     if (args.playerId !== null && !isValidPlayerId(args.playerId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid playerId: ${args.playerId}`);
     }
-    const campaign = await loadCanonicalForMutation(ctx);
-    const result = applySetWizardPortrayal(campaign.currentState, args.wizardId as WizardId, args.playerId as PlayerId | null);
     const fingerprint = setWizardPortrayalFingerprint(args.wizardId, args.playerId);
-    await commitM3Command(ctx, args.commandId, "set_wizard_portrayal", fingerprint, campaign, result);
-    return { revision: campaign.currentRevision + 1 };
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "set_wizard_portrayal", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applySetWizardPortrayal(campaign.currentState, args.wizardId as WizardId, args.playerId as PlayerId | null);
+    const receipt = await commitM3Command(ctx, args.commandId, "set_wizard_portrayal", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
   },
 });
 
@@ -264,11 +359,13 @@ export const setPactSeatWizard = mutation({
     if (args.wizardId !== null && !isValidWizardId(args.wizardId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
     }
-    const campaign = await loadCanonicalForMutation(ctx);
-    const result = applySetPactSeatWizard(campaign.currentState, args.seatId as PactSeatId, args.wizardId as WizardId | null);
     const fingerprint = setPactSeatWizardFingerprint(args.seatId, args.wizardId);
-    await commitM3Command(ctx, args.commandId, "set_pact_seat_wizard", fingerprint, campaign, result);
-    return { revision: campaign.currentRevision + 1 };
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "set_pact_seat_wizard", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applySetPactSeatWizard(campaign.currentState, args.seatId as PactSeatId, args.wizardId as WizardId | null);
+    const receipt = await commitM3Command(ctx, args.commandId, "set_pact_seat_wizard", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
   },
 });
 
@@ -283,11 +380,13 @@ export const setPactSeatStatus = mutation({
     if (!isValidPactSeatId(args.seatId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid seatId: ${args.seatId}`);
     }
-    const campaign = await loadCanonicalForMutation(ctx);
-    const result = applySetPactSeatStatus(campaign.currentState, args.seatId as PactSeatId, args.status);
     const fingerprint = setPactSeatStatusFingerprint(args.seatId, args.status);
-    await commitM3Command(ctx, args.commandId, "set_pact_seat_status", fingerprint, campaign, result);
-    return { revision: campaign.currentRevision + 1 };
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "set_pact_seat_status", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applySetPactSeatStatus(campaign.currentState, args.seatId as PactSeatId, args.status);
+    const receipt = await commitM3Command(ctx, args.commandId, "set_pact_seat_status", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
   },
 });
 
@@ -305,10 +404,12 @@ export const setWatcher = mutation({
     if (args.playerId !== null && !isValidPlayerId(args.playerId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid playerId: ${args.playerId}`);
     }
-    const campaign = await loadCanonicalForMutation(ctx);
-    const result = applySetWatcher(campaign.currentState, args.seatId as PactSeatId, args.playerId as PlayerId | null);
     const fingerprint = setWatcherFingerprint(args.seatId, args.playerId);
-    await commitM3Command(ctx, args.commandId, "set_watcher", fingerprint, campaign, result);
-    return { revision: campaign.currentRevision + 1 };
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "set_watcher", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applySetWatcher(campaign.currentState, args.seatId as PactSeatId, args.playerId as PlayerId | null);
+    const receipt = await commitM3Command(ctx, args.commandId, "set_watcher", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
   },
 });

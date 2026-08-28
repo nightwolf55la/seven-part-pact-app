@@ -16,7 +16,8 @@ export type DomainErrorCode =
   | "UNSUPPORTED_BACKUP_VERSION"
   | "BACKUP_INTEGRITY_FAILED"
   | "BACKUP_INCOMPATIBLE"
-  | "CAMPAIGN_NOT_FOUND";
+  | "CAMPAIGN_NOT_FOUND"
+  | "MIGRATION_REQUIRED";
 
 export class DomainError extends Error {
   public readonly code: DomainErrorCode;

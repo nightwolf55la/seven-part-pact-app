@@ -72,6 +72,14 @@ export default function CampaignSetup() {
 
   const { configuration, players, wizards, pactSeats } = setup;
 
+  // Compute which wizards are not currently assigned to any seat
+  const assignedWizardIds = new Set(
+    PACT_SEAT_IDS
+      .map((sid) => pactSeats[sid]?.wizardId)
+      .filter((id): id is string => id !== null && id !== undefined),
+  );
+  const unassignedWizards = wizards.filter((w) => !assignedWizardIds.has(w.wizardId));
+
   return (
     <div className="flex flex-col gap-6">
       {error && (
@@ -219,7 +227,7 @@ export default function CampaignSetup() {
                 seat={seat}
                 currentWizard={currentWizard ?? null}
                 players={players}
-                wizards={wizards}
+                unassignedWizards={unassignedWizards}
                 disabled={pending}
                 onCreateWizard={(name, portrayedBy) =>
                   act(() =>
@@ -358,7 +366,7 @@ function PactSeatRow({
   seat,
   currentWizard,
   players,
-  wizards,
+  unassignedWizards,
   disabled,
   onCreateWizard,
   onRenameWizard,
@@ -372,7 +380,7 @@ function PactSeatRow({
   seat: { status: string | null; wizardId: string | null; watcherPlayerId: string | null };
   currentWizard: { wizardId: string; name: string; portrayedByPlayerId: string | null } | null;
   players: { playerId: string; name: string }[];
-  wizards: { wizardId: string; name: string; portrayedByPlayerId: string | null }[];
+  unassignedWizards: { wizardId: string; name: string; portrayedByPlayerId: string | null }[];
   disabled: boolean;
   onCreateWizard: (name: string, portrayedBy: string | null) => void;
   onRenameWizard: (wizardId: string, name: string) => void;
@@ -383,29 +391,17 @@ function PactSeatRow({
   onSetWatcher: (playerId: string | null) => void;
 }) {
   const [creating, setCreating] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [editWizName, setEditWizName] = useState("");
   const [newWizName, setNewWizName] = useState("");
   const [newWizPlayer, setNewWizPlayer] = useState<string | null>(null);
 
-  const unassignedWizards = wizards.filter(
-    (w) => !PACT_SEAT_IDS.some((s) => (s === seatId ? false : (seat.wizardId === w.wizardId ? false : true) && false)),
-  );
+  const hasWizard = seat.wizardId !== null;
 
-  const retainedWizards = wizards.filter(
-    (w) => !Object.values(PACT_SEAT_IDS).some(
-      (sid) => {
-        // This wizard is not assigned to any seat currently
-        return false; // simplified - we use all wizards not currently in any seat
-      },
-    ),
-  );
-
-  // Wizards not currently assigned to any seat
-  const availableRetainedWizards = wizards.filter((w) => {
-    for (const sid of PACT_SEAT_IDS) {
-      // We can't easily access other seat data here without the full pactSeats object
-      // For simplicity, skip reassignment UI and just offer create
-    }
-    return false;
+  // Status: Present/Silent require a wizard; Absent/null are always available
+  const statusOptions = STATUS_OPTIONS.filter((opt) => {
+    if (opt.value === "present" || opt.value === "silent") return hasWizard;
+    return true;
   });
 
   return (
@@ -416,11 +412,11 @@ function PactSeatRow({
         </h4>
         <select
           value={seat.status ?? ""}
-          disabled={disabled || seat.wizardId === null}
+          disabled={disabled}
           onChange={(e) => onSetStatus(e.target.value || null)}
           className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs text-slate-600 dark:text-slate-300"
         >
-          {STATUS_OPTIONS.map((opt) => (
+          {statusOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>
@@ -428,14 +424,42 @@ function PactSeatRow({
         </select>
       </div>
 
-      {/* Current Wizard */}
+      {/* Current Wizard assigned to this seat */}
       {currentWizard ? (
         <div className="flex flex-col gap-1 pl-2 border-l-2 border-slate-200 dark:border-slate-700">
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-500">Wizard:</span>
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              {currentWizard.name}
-            </span>
+            {editingName ? (
+              <input
+                type="text"
+                value={editWizName}
+                onChange={(e) => setEditWizName(e.target.value)}
+                onBlur={() => {
+                  if (editWizName.trim() && editWizName.trim() !== currentWizard.name) {
+                    onRenameWizard(currentWizard.wizardId, editWizName.trim());
+                  }
+                  setEditingName(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    if (editWizName.trim() && editWizName.trim() !== currentWizard.name) {
+                      onRenameWizard(currentWizard.wizardId, editWizName.trim());
+                    }
+                    setEditingName(false);
+                  }
+                  if (e.key === "Escape") setEditingName(false);
+                }}
+                autoFocus
+                className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded px-2 py-1 text-xs"
+              />
+            ) : (
+              <span
+                className="text-sm font-medium text-slate-700 dark:text-slate-200 cursor-pointer hover:underline"
+                onClick={() => { setEditWizName(currentWizard.name); setEditingName(true); }}
+              >
+                {currentWizard.name}
+              </span>
+            )}
             <button
               disabled={disabled}
               onClick={onUnassignWizard}
@@ -504,13 +528,33 @@ function PactSeatRow({
           </div>
         </div>
       ) : (
-        <button
-          disabled={disabled}
-          onClick={() => setCreating(true)}
-          className="self-start text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
-        >
-          + Create Wizard
-        </button>
+        <div className="flex flex-col gap-1 pl-2 border-l-2 border-slate-100 dark:border-slate-800">
+          {unassignedWizards.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">Assign existing:</span>
+              <select
+                disabled={disabled}
+                value=""
+                onChange={(e) => { if (e.target.value) onAssignWizard(e.target.value); }}
+                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs text-slate-600 dark:text-slate-300"
+              >
+                <option value="">Select wizard...</option>
+                {unassignedWizards.map((w) => (
+                  <option key={w.wizardId} value={w.wizardId}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <button
+            disabled={disabled}
+            onClick={() => setCreating(true)}
+            className="self-start text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
+          >
+            + Create Wizard
+          </button>
+        </div>
       )}
 
       {/* Watcher */}
