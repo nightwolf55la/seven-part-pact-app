@@ -26,6 +26,8 @@ import {
   mapEventToActivityEntry,
 } from "../shared/domain";
 import type { MonthDirection, CampaignId, CampaignHistoryControlV1, CurrentCampaignState, CampaignEvent, CheckpointRestoredEventV1 } from "../shared/domain";
+import { validateAnyCampaignState } from "../shared/domain";
+import { migrateToCurrentVersion } from "../shared/domain/state-migration";
 import { deriveUndoTransition, deriveRedoTransition } from "../shared/domain/undo-redo";
 import {
   monthDirectionValidator,
@@ -417,7 +419,8 @@ async function loadSnapshotState(ctx: any, campaignId: string, revision: number)
     .unique();
 
   if (snap === null) return null;
-  return snap.state as CurrentCampaignState;
+  const validated = validateAnyCampaignState(snap.state);
+  return migrateToCurrentVersion(validated);
 }
 
 async function loadRevisionCommandType(ctx: any, campaignId: string, revision: number): Promise<string | null> {

@@ -85,7 +85,7 @@ Each M3 command produces a specific event family enforced by `canonicalCommit`:
 | `set_wizard_portrayal` | `wizard_portrayal_changed`                        |
 | `set_pact_seat_wizard` | `pact_seat_wizard_changed` (+ optional `pact_seat_status_changed`) |
 | `set_pact_seat_status` | `pact_seat_status_changed`                        |
-| `set_watcher`       | `pact_seat_watcher_changed`                         |
+| `set_watcher`       | `watcher_assignment_changed`                        |
 
 All events are version 1. Event coherence is enforced in `canonicalCommit`'s
 `validateM3EventCoherence` function.
@@ -139,14 +139,14 @@ M3 commands use entity-specific fingerprints following the existing pattern:
 add_player:v1:{playerId}:{normalizedName}
 rename_player:v1:{playerId}:{newName}
 remove_player:v1:{playerId}
-create_wizard:v1:{wizardId}:{normalizedName}:{portrayedByPlayerId|null}:{seatId}
-rename_wizard:v1:{wizardId}
-set_wizard_portrayal:v1:{wizardId}
-set_pact_seat_wizard:v1:{seatId}
-set_pact_seat_status:v1:{seatId}
-set_watcher:v1:{seatId}
-set_campaign_age:v1
-set_facilitator:v1
+create_wizard:v1:{wizardId}:{normalizedName}:{portrayedByPlayerId|"null"}:{seatId}
+rename_wizard:v1:{wizardId}:{newName}
+set_wizard_portrayal:v1:{wizardId}:{playerId|"null"}
+set_pact_seat_wizard:v1:{seatId}:{wizardId|"null"}
+set_pact_seat_status:v1:{seatId}:{status|"null"}
+set_watcher:v1:{seatId}:{playerId|"null"}
+set_campaign_age:v1:{ageId|"null"}
+set_facilitator:v1:{playerId|"null"}
 ```
 
 Fingerprints are deterministic and idempotency-safe: the same logical intent
@@ -229,3 +229,52 @@ staged deployment sequence.
 | `convex/canonicalCommit.ts` | Event coherence for M3 commands |
 | `src/CampaignSetup.tsx` | Campaign setup UI |
 | `tests/m3.test.ts` | M3 domain logic tests |
+| `tests/mixedHistory.test.ts` | Mixed V1/V2 boundary + idempotency tests |
+
+---
+
+## Domain Model Clarifications
+
+### Identity Distinctions
+
+- **Player** is a campaign-level identity (someone at the table). It is separate
+  from auth/account identity. Players have no system-level privilege.
+- **Wizard** is a persistent fictional entity with a stable `wiz_`-prefixed ID.
+  A wizard may outlive any particular seat assignment.
+- **Pact Seat** (responsibility) is a fixed game-structural position. Seven exist.
+- **Watcher** is a per-seat observer role held by a Player. One player may hold
+  multiple watchers simultaneously.
+
+### Facilitator
+
+The `facilitatorPlayerId` is a nullable reference to a Player. It is a
+campaign-organization role with **no admin privilege or special authority** in the
+system. Any player can be designated or undesignated as facilitator.
+
+### Watcher Semantics
+
+- One Player may hold multiple persistent Watcher assignments.
+- Temporary watcher handoff (session-level) is not persisted in campaign state.
+- Watcher assignment creates a `watcher_assignment_changed` event.
+
+### Seat Status
+
+- `null` — not configured (no wizard assigned, or wizard assigned but status
+  not yet declared). This is the default.
+- `"absent"` — wizard/seat explicitly absent from current story.
+- `"present"` — wizard actively present. **Requires a wizard assigned.**
+- `"silent"` — wizard present but muted. **Requires a wizard assigned.**
+
+Setting status to `"present"` or `"silent"` when `wizardId` is `null` is
+invalid and rejected by the transition function.
+
+### Calendar
+
+`calendar.monthOrdinal` remains the sole chronology and Sun-position authority.
+M3 does not alter calendar semantics.
+
+### Adjudication
+
+Deterministic automation in the system is subordinate to human adjudication and
+campaign rules. Source errata/interpretation policy is distinct from the
+campaign's Truth-Watcher precedent mechanism.

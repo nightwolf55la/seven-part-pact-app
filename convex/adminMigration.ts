@@ -1,4 +1,4 @@
-import { mutation } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import {
   validateAnyCampaignState,
   validateCampaignState,
@@ -8,7 +8,7 @@ import {
 import { migrateToCurrentVersion } from "../shared/domain/state-migration";
 import { assertPortableCampaignState } from "../shared/domain/state-equality";
 
-export const migrateCurrentStateToV2 = mutation({
+export const migrateCurrentStateToV2 = internalMutation({
   args: {},
   handler: async (ctx) => {
     const maybeCanonical = await ctx.db

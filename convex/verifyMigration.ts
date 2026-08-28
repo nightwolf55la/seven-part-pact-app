@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { query } from "./_generated/server";
 import {
   validateCampaignState,
+  validateAnyCampaignState,
   verifyMigrationInvariants,
   verifyHistoryControl,
   verifyCheckpointCollection,
@@ -20,6 +21,7 @@ import {
   type ReplayEventInfo,
   type SerializableCampaignState,
 } from "../shared/domain";
+import { migrateToCurrentVersion } from "../shared/domain/state-migration";
 import {
   verifyBackupImportRevisionStructure,
   verifyBackupImportRevisionDigest,
@@ -162,7 +164,7 @@ export const verifyMigration = query({
 
     for (const snap of campaignSnapshots) {
       try {
-        validateCampaignState(snap.state);
+        validateAnyCampaignState(snap.state);
       } catch {
         errors.push(
           `Snapshot at revision ${snap.campaignRevision} fails domain validation`,
@@ -174,8 +176,9 @@ export const verifyMigration = query({
       (s) => s.campaignRevision === campaignRevision,
     );
     if (finalSnapshot) {
-      if (!statesDeepEqual(finalSnapshot.state, canonical.state)) {
-        errors.push("Final snapshot state does not match authoritative campaign state");
+      const migratedFinalSnap = migrateToCurrentVersion(validateAnyCampaignState(finalSnapshot.state));
+      if (!statesDeepEqual(migratedFinalSnap, canonical.state)) {
+        errors.push("Final snapshot state (migrated) does not match authoritative campaign state");
       }
     } else {
       errors.push("Final snapshot not found");
@@ -341,7 +344,7 @@ export const verifyMigration = query({
         const undoTop = control.undoStack[control.undoStack.length - 1];
         const undoTopSnapshot = campaignSnapshots.find((s) => s.campaignRevision === undoTop);
         const snapshotAtUndoTop: SerializableCampaignState | null = undoTopSnapshot
-          ? undoTopSnapshot.state as unknown as SerializableCampaignState
+          ? migrateToCurrentVersion(validateAnyCampaignState(undoTopSnapshot.state)) as unknown as SerializableCampaignState
           : null;
 
         const hcErrors = verifyHistoryControl({
