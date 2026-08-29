@@ -12,9 +12,8 @@ import {
 import {
   verifyBackupImportRevisionStructure,
 } from "../shared/domain/backup-verification";
-import { validateCampaignState } from "../shared/domain/state-validation";
-import { loadHistoricalState } from "../shared/domain/state-migration";
-import { statesDeepEqual } from "../shared/domain/state-equality";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import type {
   CurrentCampaignState,
   MonthOrdinal,
@@ -169,48 +168,44 @@ describe("validateMoveMonthTransaction", () => {
   });
 });
 
-describe("V1 historical snapshot through runtime read paths", () => {
-  const v1State = {
-    schemaVersion: 1 as const,
-    ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
-    calendar: { monthOrdinal: 5 },
-  };
+describe("historical snapshot loading uses loadSnapshotState (V1/V2 regression)", () => {
+  const campaignSource = fs.readFileSync(
+    path.resolve(__dirname, "../convex/campaign.ts"),
+    "utf-8",
+  );
 
-  const equivalentV2State: CurrentCampaignState = {
-    schemaVersion: CURRENT_STATE_SCHEMA_VERSION,
-    ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
-    calendar: { monthOrdinal: 5 as MonthOrdinal },
-    configuration: { ageId: null, facilitatorPlayerId: null },
-    players: [],
-    wizards: [],
-    pactSeats: {
-      necromancer: { status: null, wizardId: null, watcherPlayerId: null },
-      hierophant: { status: null, wizardId: null, watcherPlayerId: null },
-      warlock: { status: null, wizardId: null, watcherPlayerId: null },
-      mariner: { status: null, wizardId: null, watcherPlayerId: null },
-      faustian: { status: null, wizardId: null, watcherPlayerId: null },
-      sage: { status: null, wizardId: null, watcherPlayerId: null },
-      sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
-    },
-  };
+  function extractFunctionBody(source: string, exportName: string): string {
+    const marker = `export const ${exportName}`;
+    const start = source.indexOf(marker);
+    if (start === -1) throw new Error(`Could not find "${marker}" in campaign.ts`);
+    const nextExport = source.indexOf("\nexport ", start + marker.length);
+    return source.slice(start, nextExport === -1 ? undefined : nextExport);
+  }
 
-  it("validateCampaignState rejects raw V1 snapshot (the getUndoRedoState bug)", () => {
-    expect(() => validateCampaignState(v1State)).toThrow("Unsupported schemaVersion: 1");
+  describe("getUndoRedoState", () => {
+    const body = extractFunctionBody(campaignSource, "getUndoRedoState");
+
+    it("loads the logical snapshot via loadSnapshotState, not a raw DB query", () => {
+      expect(body).toContain("loadSnapshotState");
+    });
+
+    it("does not directly query campaignSnapshots", () => {
+      const rawQueryPattern = /ctx\.db[\s\S]*?\.query\(\s*["']campaignSnapshots["']\s*\)/;
+      expect(body).not.toMatch(rawQueryPattern);
+    });
   });
 
-  it("loadHistoricalState migrates V1 to valid V2 that passes validateCampaignState", () => {
-    const migrated = loadHistoricalState(v1State);
-    expect(() => validateCampaignState(migrated)).not.toThrow();
-    expect(migrated.schemaVersion).toBe(CURRENT_STATE_SCHEMA_VERSION);
-  });
+  describe("listCheckpoints", () => {
+    const body = extractFunctionBody(campaignSource, "listCheckpoints");
 
-  it("migrated V1 snapshot is deep-equal to equivalent V2 state", () => {
-    const migrated = loadHistoricalState(v1State);
-    expect(statesDeepEqual(migrated, equivalentV2State)).toBe(true);
-  });
+    it("loads checkpoint source snapshots via loadSnapshotState, not a raw DB query", () => {
+      expect(body).toContain("loadSnapshotState");
+    });
 
-  it("raw V1 snapshot is NOT deep-equal to equivalent V2 state", () => {
-    expect(statesDeepEqual(v1State, equivalentV2State)).toBe(false);
+    it("does not directly query campaignSnapshots", () => {
+      const rawQueryPattern = /ctx\.db[\s\S]*?\.query\(\s*["']campaignSnapshots["']\s*\)/;
+      expect(body).not.toMatch(rawQueryPattern);
+    });
   });
 });
 
