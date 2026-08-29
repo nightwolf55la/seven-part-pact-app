@@ -5,6 +5,7 @@ import type { PactSeatId } from "./pact-seats";
 import type { PactSeatState } from "./campaign-state";
 import { DomainError } from "./errors";
 import { validateAnyCampaignState } from "./state-validation";
+import { statesDeepEqual } from "./state-equality";
 
 function emptyPactSeats(): { readonly [K in PactSeatId]: PactSeatState } {
   const seats = {} as Record<PactSeatId, PactSeatState>;
@@ -62,4 +63,17 @@ export function isSupportedSchemaVersion(version: unknown): boolean {
     typeof version === "number" &&
     (SUPPORTED_STATE_SCHEMA_VERSIONS as readonly number[]).includes(version)
   );
+}
+
+/**
+ * Validates/migrates a raw historical snapshot and compares full logical
+ * equality against an authoritative CurrentCampaignState.
+ * Throws on malformed or unsupported historical state (fails closed).
+ */
+export function isHistoricalStateLogicallyEqual(
+  rawHistorical: unknown,
+  current: CurrentCampaignState,
+): boolean {
+  const migrated = loadHistoricalState(rawHistorical);
+  return statesDeepEqual(migrated, current);
 }

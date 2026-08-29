@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   loadHistoricalState,
+  isHistoricalStateLogicallyEqual,
   validateCampaignState,
   validateAnyCampaignState,
   applyMoveMonth,
@@ -103,6 +104,47 @@ describe("loadHistoricalState (production helper)", () => {
     loadHistoricalState(raw);
     loadHistoricalState(raw);
     expect(raw).toEqual(copy);
+  });
+});
+
+// ================================================================
+// A2: isHistoricalStateLogicallyEqual (ensureCampaign coherence helper)
+// ================================================================
+
+describe("isHistoricalStateLogicallyEqual (production helper)", () => {
+  it("V1 revision-0 snapshot equals its explicitly migrated V2 representation", () => {
+    const v1Raw = v1SnapshotFixture(0);
+    const v2Current = v2State(0);
+    expect(isHistoricalStateLogicallyEqual(v1Raw, v2Current)).toBe(true);
+  });
+
+  it("detects mismatch in a V2-only field (facilitatorPlayerId)", () => {
+    const v1Raw = v1SnapshotFixture(0);
+    const altered = { ...v2State(0), configuration: { ageId: null, facilitatorPlayerId: "plr_fake" as any } };
+    expect(isHistoricalStateLogicallyEqual(v1Raw, altered)).toBe(false);
+  });
+
+  it("detects mismatch in a V2-only field (players)", () => {
+    const v1Raw = v1SnapshotFixture(0);
+    const altered: CurrentCampaignState = {
+      ...v2State(0),
+      players: [{ playerId: "plr_fake" as any, name: "Ghost" }],
+    };
+    expect(isHistoricalStateLogicallyEqual(v1Raw, altered)).toBe(false);
+  });
+
+  it("detects mismatch in a V1 field (monthOrdinal)", () => {
+    const v1Raw = v1SnapshotFixture(0);
+    const altered = v2State(5);
+    expect(isHistoricalStateLogicallyEqual(v1Raw, altered)).toBe(false);
+  });
+
+  it("fails closed on malformed historical state", () => {
+    expect(() => isHistoricalStateLogicallyEqual({ schemaVersion: 99 }, v2State(0))).toThrow();
+  });
+
+  it("fails closed on null historical state", () => {
+    expect(() => isHistoricalStateLogicallyEqual(null, v2State(0))).toThrow();
   });
 });
 

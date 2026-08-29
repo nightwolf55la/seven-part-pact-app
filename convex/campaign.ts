@@ -27,7 +27,7 @@ import {
 } from "../shared/domain";
 import type { MonthDirection, CampaignId, CampaignHistoryControlV1, CurrentCampaignState, CampaignEvent, CheckpointRestoredEventV1 } from "../shared/domain";
 import { validateAnyCampaignState } from "../shared/domain";
-import { loadHistoricalState } from "../shared/domain/state-migration";
+import { loadHistoricalState, isHistoricalStateLogicallyEqual } from "../shared/domain/state-migration";
 import { deriveUndoTransition, deriveRedoTransition } from "../shared/domain/undo-redo";
 import {
   monthDirectionValidator,
@@ -122,14 +122,7 @@ export const ensureCampaign = mutation({
         );
       }
 
-      const snapshotState = loadHistoricalState(snapshot.state);
-
-      if (
-        snapshotState.schemaVersion !== maybeCanonical.state.schemaVersion ||
-        snapshotState.ruleset.id !== maybeCanonical.state.ruleset.id ||
-        snapshotState.ruleset.version !== maybeCanonical.state.ruleset.version ||
-        snapshotState.calendar.monthOrdinal !== maybeCanonical.state.calendar.monthOrdinal
-      ) {
+      if (!isHistoricalStateLogicallyEqual(snapshot.state, maybeCanonical.state)) {
         if (maybeCanonical.campaignRevision === 0) {
           throw new DomainError(
             "CAMPAIGN_STATE_CORRUPT",
