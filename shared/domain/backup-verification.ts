@@ -1,6 +1,6 @@
 import { isValidCampaignId } from "./ids";
 import { backupImportFingerprint } from "./command-ids";
-import { validateCampaignState } from "./state-validation";
+import { validateAnyCampaignState } from "./state-validation";
 import { canonicalJsonStringify, computeDigestFromCanonicalJson } from "./canonical-json";
 import { BACKUP_FORMAT_TYPE, CURRENT_BACKUP_FORMAT_VERSION, buildIntegrityPayloadFromParts } from "./backup";
 import type { SerializableCampaignState } from "./verification";
@@ -82,7 +82,7 @@ export function verifyBackupImportRevisionStructure(input: BackupImportRevisionV
 
   if (input.resultSnapshotState !== null) {
     try {
-      validateCampaignState(input.resultSnapshotState);
+      validateAnyCampaignState(input.resultSnapshotState);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       errors.push(`Revision ${rev}: result snapshot state invalid: ${msg}`);

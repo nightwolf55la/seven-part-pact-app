@@ -4,10 +4,14 @@ import {
   verifyMigrationInvariants,
   moveMonthFingerprint,
   applyMoveMonth,
+  backupImportFingerprint,
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
   CURRENT_STATE_SCHEMA_VERSION,
 } from "../shared/domain";
+import {
+  verifyBackupImportRevisionStructure,
+} from "../shared/domain/backup-verification";
 import type {
   CurrentCampaignState,
   MonthOrdinal,
@@ -159,6 +163,36 @@ describe("validateMoveMonthTransaction", () => {
     const { nextState, events } = applyMoveMonth(state, "forward");
     const errors = validateMoveMonthTransaction(state, events, nextState, moveMonthFingerprint("backward"));
     expect(errors.some((e) => e.includes("commandFingerprint"))).toBe(true);
+  });
+});
+
+describe("verifyBackupImportRevisionStructure with V1 historical snapshot", () => {
+  it("accepts a valid V1 result snapshot in backup_import history", () => {
+    const v1Snapshot = {
+      schemaVersion: 1 as const,
+      ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
+      calendar: { monthOrdinal: 5 },
+    };
+
+    const payloadDigest = "a".repeat(64);
+    const errors = verifyBackupImportRevisionStructure({
+      campaignRevision: 36,
+      commandFingerprint: backupImportFingerprint(35, payloadDigest),
+      eventType: "backup_imported",
+      eventVersion: 1,
+      eventData: {
+        backupFormatVersion: 1,
+        sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000000",
+        sourceCampaignRevision: 10,
+        sourceLogicalRevision: 10,
+        exportedAtMs: 1700000000000,
+        payloadDigest,
+      },
+      resultSnapshotExists: true,
+      resultSnapshotState: v1Snapshot,
+    });
+
+    expect(errors.filter((e: string) => e.includes("result snapshot state invalid"))).toEqual([]);
   });
 });
 
