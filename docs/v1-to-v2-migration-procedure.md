@@ -1,6 +1,6 @@
 # V1 to V2 Campaign State Migration — Staged Deployment Procedure
 
-**Status:** Ready for rehearsal  
+**Status:** Disposable rehearsal complete; production migration pending  
 **Prerequisite:** This document, all M3 code changes, and the EXPAND-phase schema
 must be deployed before running the migration.
 

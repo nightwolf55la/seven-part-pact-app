@@ -322,6 +322,10 @@ locking between different commands.
 
 ### B. Transaction-Time Invariant Re-Evaluation
 
+The categories below overlap: a command may have last-writer-wins semantics
+between otherwise-valid setter intents while still re-evaluating entity
+existence or relational invariants at transaction time.
+
 These commands have validity that depends on relationships or uniqueness
 constraints that may change concurrently. The server rereads authoritative state
 inside the serialized transaction and evaluates invariants against
@@ -338,6 +342,8 @@ changes will fail and the client must retry with corrected intent.
 | `setPactSeatStatus` | `"present"`/`"silent"` require a wizard assigned to the seat |
 | `setFacilitator` | Player exists (when non-null) |
 | `setWatcher` | Player exists (when non-null) |
+| `renamePlayer` | Player still exists |
+| `renameWizard` | Wizard still exists |
 
 The pure transition functions in `shared/domain/m3-transitions.ts` enforce
 these invariants. Because they execute inside the Convex mutation against the
