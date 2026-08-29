@@ -12,6 +12,9 @@ import {
 import {
   verifyBackupImportRevisionStructure,
 } from "../shared/domain/backup-verification";
+import { validateCampaignState } from "../shared/domain/state-validation";
+import { loadHistoricalState } from "../shared/domain/state-migration";
+import { statesDeepEqual } from "../shared/domain/state-equality";
 import type {
   CurrentCampaignState,
   MonthOrdinal,
@@ -163,6 +166,51 @@ describe("validateMoveMonthTransaction", () => {
     const { nextState, events } = applyMoveMonth(state, "forward");
     const errors = validateMoveMonthTransaction(state, events, nextState, moveMonthFingerprint("backward"));
     expect(errors.some((e) => e.includes("commandFingerprint"))).toBe(true);
+  });
+});
+
+describe("V1 historical snapshot through runtime read paths", () => {
+  const v1State = {
+    schemaVersion: 1 as const,
+    ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
+    calendar: { monthOrdinal: 5 },
+  };
+
+  const equivalentV2State: CurrentCampaignState = {
+    schemaVersion: CURRENT_STATE_SCHEMA_VERSION,
+    ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
+    calendar: { monthOrdinal: 5 as MonthOrdinal },
+    configuration: { ageId: null, facilitatorPlayerId: null },
+    players: [],
+    wizards: [],
+    pactSeats: {
+      necromancer: { status: null, wizardId: null, watcherPlayerId: null },
+      hierophant: { status: null, wizardId: null, watcherPlayerId: null },
+      warlock: { status: null, wizardId: null, watcherPlayerId: null },
+      mariner: { status: null, wizardId: null, watcherPlayerId: null },
+      faustian: { status: null, wizardId: null, watcherPlayerId: null },
+      sage: { status: null, wizardId: null, watcherPlayerId: null },
+      sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
+    },
+  };
+
+  it("validateCampaignState rejects raw V1 snapshot (the getUndoRedoState bug)", () => {
+    expect(() => validateCampaignState(v1State)).toThrow("Unsupported schemaVersion: 1");
+  });
+
+  it("loadHistoricalState migrates V1 to valid V2 that passes validateCampaignState", () => {
+    const migrated = loadHistoricalState(v1State);
+    expect(() => validateCampaignState(migrated)).not.toThrow();
+    expect(migrated.schemaVersion).toBe(CURRENT_STATE_SCHEMA_VERSION);
+  });
+
+  it("migrated V1 snapshot is deep-equal to equivalent V2 state", () => {
+    const migrated = loadHistoricalState(v1State);
+    expect(statesDeepEqual(migrated, equivalentV2State)).toBe(true);
+  });
+
+  it("raw V1 snapshot is NOT deep-equal to equivalent V2 state", () => {
+    expect(statesDeepEqual(v1State, equivalentV2State)).toBe(false);
   });
 });
 

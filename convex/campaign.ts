@@ -724,23 +724,18 @@ export const getUndoRedoState = query({
 
     const logicalRevision = doc.undoStack[doc.undoStack.length - 1];
 
-    const logicalSnapshot = await ctx.db
-      .query("campaignSnapshots")
-      .withIndex("by_campaign_revision", (q) =>
-        q.eq("campaignId", campaignId).eq("campaignRevision", logicalRevision),
-      )
-      .unique();
+    const logicalSnapshotState = await loadSnapshotState(ctx, campaignId, logicalRevision);
 
-    if (logicalSnapshot === null) {
+    if (logicalSnapshotState === null) {
       throw new DomainError(
         "CAMPAIGN_STATE_CORRUPT",
         `History control undoStack top (revision ${logicalRevision}) has no snapshot`,
       );
     }
 
-    validateCampaignState(logicalSnapshot.state);
+    validateCampaignState(logicalSnapshotState);
 
-    if (!statesDeepEqual(logicalSnapshot.state, maybeCanonical.state)) {
+    if (!statesDeepEqual(logicalSnapshotState, maybeCanonical.state)) {
       throw new DomainError(
         "CAMPAIGN_STATE_CORRUPT",
         `Snapshot at undoStack top (revision ${logicalRevision}) does not match authoritative campaign state`,
@@ -999,16 +994,11 @@ export const listCheckpoints = query({
       }
 
       // Verify source snapshot exists and is valid
-      const sourceSnapshot = await ctx.db
-        .query("campaignSnapshots")
-        .withIndex("by_campaign_revision", (q: any) =>
-          q.eq("campaignId", campaignId).eq("campaignRevision", c.sourceRevision),
-        )
-        .unique();
-      if (sourceSnapshot === null) {
+      const sourceSnapshotState = await loadSnapshotState(ctx, campaignId, c.sourceRevision);
+      if (sourceSnapshotState === null) {
         throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint "${c.checkpointId}" sourceRevision ${c.sourceRevision} has no snapshot`);
       }
-      validateCampaignState(sourceSnapshot.state);
+      validateCampaignState(sourceSnapshotState);
 
       // Verify source revision command type for non-zero
       if (c.sourceRevision > 0) {
