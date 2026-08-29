@@ -155,8 +155,8 @@ describe("buildBackupFilename", () => {
   });
 
   it("uses local date components", () => {
-    const filename = buildBackupFilename(1, 0);
-    // epoch = 1970-01-01
+    const localTimestamp = new Date(1970, 0, 1, 12, 0, 0).getTime();
+    const filename = buildBackupFilename(1, localTimestamp);
     expect(filename).toBe("seven-part-pact-backup-1970-01-01-r1.json");
   });
 });
