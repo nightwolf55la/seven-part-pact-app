@@ -1,6 +1,6 @@
 # V1 to V2 Campaign State Migration — Staged Deployment Procedure
 
-**Status:** Disposable rehearsal complete; production migration pending  
+**Status:** Production EXPAND + MIGRATE completed and verified; CONTRACT code implemented; production CONTRACT deployment pending  
 **Prerequisite:** This document, all M3 code changes, and the EXPAND-phase schema
 must be deployed before running the migration.
 
@@ -22,11 +22,29 @@ before merge:
 - Campaign health verifier (`verifyMigration:verifyMigration`) returned
   `status: "valid"` after normal runtime/undo/redo smoke activity.
 
+### Completed
+
+- Disposable rehearsal (EXPAND + MIGRATE on disposable deployment with realistic
+  V1 data): verified successfully.
+- Production EXPAND deployed.
+- Production MIGRATE completed (`adminMigration:migrateCurrentStateToV2 --prod`):
+  - `migrated: true`, current state is V2, `campaignRevision` remained 0.
+  - Historical revision-0 V1 snapshot remains physically immutable.
+- Production verifier (`verifyMigration:verifyMigration --prod`): `status: "valid"`,
+  including history-control and checkpoint status.
+- Production browser smoke: no unexpected behavior.
+- Retained dev/bolt and dev/vercel deployments reseeded from fresh valid
+  production V2 export (old development histories were disposable).
+- Disposable dev/m3-rehearsal and preview/bolt-milestone-3 deployments removed.
+- CONTRACT code implemented in dedicated PR (narrows authoritative campaign record
+  validator to V2-only; historical V1 support intentionally retained for
+  snapshots/recovery/undo-redo/checkpoints/legacy backup import/verifier paths).
+
 ### Still Pending
 
-- Production migration (Phase 2 against production deployment)
-- Environment-by-environment production verification
-- CONTRACT phase (Phase 3: narrow validator to V2-only)
+- CONTRACT PR review, merge, and deployment to production.
+- Post-CONTRACT production verification (schema push confirms existing document
+  matches V2; verifier re-run).
 
 ---
 
@@ -202,7 +220,7 @@ If Phase 2 causes problems:
 
 ## Checklist
 
-- [ ] Full Convex export taken and verified
+- [x] Full Convex export taken and verified
 - [x] Disposable deployment created with realistic V1 campaign data
 - [x] Deployed EXPAND to disposable deployment
 - [x] Ran migration on disposable — confirmed `migrated: true`
@@ -210,8 +228,13 @@ If Phase 2 causes problems:
 - [x] Verified M3 commands work on disposable
 - [x] Verified M2 commands (moveMonth, undo, redo) still work on disposable
 - [x] Defects found during rehearsal corrected before merge
-- [ ] Human approval obtained for production migration
-- [ ] Ran `adminMigration:migrateCurrentStateToV2 --prod`
-- [ ] Ran `verifyMigration:verifyMigration --prod` — status "valid"
-- [ ] Verified M3 + M2 commands work in production
-- [ ] (After all environments) CONTRACT: narrowed validator and deployed
+- [x] Human approval obtained for production migration
+- [x] Ran `adminMigration:migrateCurrentStateToV2 --prod`
+- [x] Ran `verifyMigration:verifyMigration --prod` — status "valid"
+- [x] Verified M3 + M2 commands work in production
+- [x] Retained dev deployments reseeded from production V2 export
+- [x] Disposable rehearsal/preview deployments removed
+- [x] CONTRACT code implemented (validator narrowed, tests added)
+- [ ] CONTRACT PR reviewed and merged
+- [ ] CONTRACT deployed to production
+- [ ] Post-CONTRACT verifier re-run on production
