@@ -48,10 +48,19 @@ Admin migration function is available but not yet invoked.
 
 **Deploy action:**
 
-1. Deploy the M3 branch to a **disposable** Convex deployment:
+1. Create (or select) a **disposable** Convex development deployment and push
+   the M3 branch code to it:
 
    ```
-   npx convex deploy --deployment <DISPOSABLE_DEPLOYMENT>
+   npx convex deployment create dev/m3-rehearsal --type dev --select
+   npx convex dev --once
+   ```
+
+   Or, if the deployment already exists:
+
+   ```
+   npx convex deployment select dev/m3-rehearsal
+   npx convex dev --once
    ```
 
 2. Verify deployment succeeds (Convex schema push does not reject existing data).
@@ -79,7 +88,7 @@ Run against the disposable deployment:
 
 ```
 npx convex run adminMigration:migrateCurrentStateToV2 \
-  --deployment <DISPOSABLE_DEPLOYMENT>
+  --deployment dev/m3-rehearsal
 ```
 
 Verify the response:
@@ -91,7 +100,7 @@ Run the campaign health verifier:
 
 ```
 npx convex run verifyMigration:verifyMigration \
-  --deployment <DISPOSABLE_DEPLOYMENT>
+  --deployment dev/m3-rehearsal
 ```
 
 Expect `{ status: "valid", ... }`.

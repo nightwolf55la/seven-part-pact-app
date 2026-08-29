@@ -51,12 +51,22 @@ V2 campaign state: entity model for campaign setup and wizard seat management.
 - CONTRACT phase pending after all environments confirmed V2.
 - See `docs/v1-to-v2-migration-procedure.md` for staged rollout.
 
-## Milestone 4+ (Provisional / TBD)
+## Milestone 4 — Core Play Loop (Provisional / TBD)
 
-Items below are potential future directions. None are approved or scheduled.
+TBD.
 
-- Wizard lifecycle operations (retire, delete, transfer).
-- Game-phase automation tied to calendar.
-- Orrery / domain subsystems.
-- Multi-campaign support.
-- Real-time presence / session state.
+## Milestone 5 — Wizard / Domain Systems (Provisional / TBD)
+
+TBD.
+
+## Milestone 6 — Magic and Complex Resolution (Provisional / TBD)
+
+TBD.
+
+## Milestone 7 — Campaign Usability / Multiplayer Ergonomics (Provisional / TBD)
+
+TBD.
+
+## Milestone 8 — Production Readiness (Provisional / TBD)
+
+TBD.

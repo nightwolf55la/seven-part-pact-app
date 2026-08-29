@@ -4,7 +4,6 @@ import type { MutationCtx } from "./_generated/server";
 import {
   validateCampaignState,
   DomainError,
-  CURRENT_HISTORY_CONTROL_VERSION,
   parseLiveCommandId,
   addPlayerFingerprint,
   renamePlayerFingerprint,
@@ -38,6 +37,7 @@ import { isValidPactSeatId } from "../shared/domain/pact-seats";
 import type { AgeDefinitionId } from "../shared/domain/ages";
 import { isValidAgeDefinitionId } from "../shared/domain/ages";
 import { loadHistoricalState } from "../shared/domain/state-migration";
+import { matchCommandIdempotency } from "../shared/domain/command-ids";
 import { canonicalCommit } from "./canonicalCommit";
 import type { CanonicalCommitInput, CanonicalCommitReceipt } from "./canonicalCommit";
 import type { Id } from "./_generated/dataModel";
@@ -105,13 +105,19 @@ async function checkIdempotency(
 
   if (existingCommand === null) return null;
 
-  if (
-    existingCommand.commandType !== commandType ||
-    existingCommand.commandFingerprint !== commandFingerprint
-  ) {
+  const match = matchCommandIdempotency(
+    {
+      commandType: existingCommand.commandType,
+      commandFingerprint: existingCommand.commandFingerprint,
+      campaignRevision: existingCommand.campaignRevision,
+    },
+    { commandType, commandFingerprint },
+  );
+
+  if (match.kind === "conflict") {
     throw new DomainError(
       "COMMAND_ID_REUSED",
-      `CommandId "${commandId}" already committed with type="${existingCommand.commandType}" fingerprint="${existingCommand.commandFingerprint}", cannot reuse for type="${commandType}" fingerprint="${commandFingerprint}"`,
+      `CommandId "${commandId}" already committed with type="${match.committedType}" fingerprint="${match.committedFingerprint}", cannot reuse for type="${commandType}" fingerprint="${commandFingerprint}"`,
     );
   }
 
