@@ -116,6 +116,12 @@ interface CampaignStateV1 {
 
 This will expand as game systems are implemented.
 
+**M3 Update (V2):** The campaign state has been extended to V2 with players,
+wizards, pact seats, and configuration. See
+[M3 State Model](m3-state-model.md) for the full V2 specification and migration
+details. V1 remains supported for historical snapshots; the current authoritative
+state must be V2 (enforced by explicit admin migration).
+
 Future state may contain concepts such as:
 
 ```ts

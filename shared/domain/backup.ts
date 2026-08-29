@@ -1,12 +1,13 @@
 import type { CampaignId } from "./ids";
-import type { CampaignRevision, CampaignStateV1 } from "./campaign-state";
+import type { CampaignRevision, AnyCampaignState, CurrentCampaignState } from "./campaign-state";
 import { isValidCampaignId } from "./ids";
-import { validateCampaignState } from "./state-validation";
+import { validateAnyCampaignState } from "./state-validation";
 import { CURRENT_STATE_SCHEMA_VERSION } from "./campaign-state";
 import { SEVEN_PART_PACT_DRAFT4_ID, SEVEN_PART_PACT_DRAFT4_VERSION } from "./ruleset";
 import { canonicalJsonStringify, computeDigestFromCanonicalJson } from "./canonical-json";
 import { DomainError } from "./errors";
 import type { DomainErrorCode } from "./errors";
+import { migrateToCurrentVersion, isSupportedSchemaVersion } from "./state-migration";
 
 export const BACKUP_FORMAT_TYPE = "seven_part_pact_campaign_backup" as const;
 export const CURRENT_BACKUP_FORMAT_VERSION = 1 as const;
@@ -30,7 +31,7 @@ export interface CampaignBackupV1 {
   readonly formatType: typeof BACKUP_FORMAT_TYPE;
   readonly backupFormatVersion: 1;
   readonly provenance: CampaignBackupProvenanceV1;
-  readonly state: CampaignStateV1;
+  readonly state: AnyCampaignState;
   readonly integrity: CampaignBackupIntegrityV1;
 }
 
@@ -38,7 +39,7 @@ export interface BackupIntegrityPayload {
   readonly formatType: typeof BACKUP_FORMAT_TYPE;
   readonly backupFormatVersion: 1;
   readonly provenance: CampaignBackupProvenanceV1;
-  readonly state: CampaignStateV1;
+  readonly state: AnyCampaignState;
 }
 
 export function buildIntegrityPayload(backup: Omit<CampaignBackupV1, "integrity">): BackupIntegrityPayload {
@@ -52,7 +53,7 @@ export function buildIntegrityPayload(backup: Omit<CampaignBackupV1, "integrity"
 
 export function buildIntegrityPayloadFromParts(
   provenance: CampaignBackupProvenanceV1,
-  state: CampaignStateV1,
+  state: AnyCampaignState,
 ): BackupIntegrityPayload {
   return {
     formatType: BACKUP_FORMAT_TYPE,
@@ -173,14 +174,18 @@ export function parseAndValidateBackupStructure(parsed: unknown): BackupValidati
 }
 
 export function validateBackupState(state: unknown): BackupValidationError | null {
+  if (state === null || state === undefined || typeof state !== "object") {
+    return validationError("INVALID_BACKUP_FORMAT", "state must be a non-null object");
+  }
+  const s = state as Record<string, unknown>;
+  if (!isSupportedSchemaVersion(s.schemaVersion)) {
+    return validationError("BACKUP_INCOMPATIBLE", `Backup state has unsupported schema version: ${JSON.stringify(s.schemaVersion)}`);
+  }
   try {
-    validateCampaignState(state);
+    validateAnyCampaignState(state);
     return null;
   } catch (e: unknown) {
     if (e instanceof DomainError) {
-      if (e.message.includes("schemaVersion")) {
-        return validationError("BACKUP_INCOMPATIBLE", `Backup state has unsupported schema: ${e.message}`);
-      }
       if (e.message.includes("ruleset")) {
         return validationError("BACKUP_INCOMPATIBLE", `Backup state has incompatible ruleset: ${e.message}`);
       }
@@ -191,12 +196,9 @@ export function validateBackupState(state: unknown): BackupValidationError | nul
 }
 
 export function validateBackupCompatibility(
-  backupState: CampaignStateV1,
-  targetState: CampaignStateV1,
+  backupState: AnyCampaignState,
+  targetState: CurrentCampaignState,
 ): BackupValidationError | null {
-  if (backupState.schemaVersion !== targetState.schemaVersion) {
-    return validationError("BACKUP_INCOMPATIBLE", `Backup schemaVersion ${backupState.schemaVersion} does not match target schemaVersion ${targetState.schemaVersion}`);
-  }
   if (backupState.ruleset.id !== targetState.ruleset.id) {
     return validationError("BACKUP_INCOMPATIBLE", `Backup ruleset id "${backupState.ruleset.id}" does not match target ruleset id "${targetState.ruleset.id}"`);
   }
@@ -215,7 +217,7 @@ export interface ValidatedBackupV1 {
     readonly sourceLogicalRevision: number;
     readonly exportedAtMs: number;
   };
-  readonly state: CampaignStateV1;
+  readonly state: CurrentCampaignState;
   readonly integrity: {
     readonly algorithm: "sha256";
     readonly digest: string;
@@ -240,7 +242,7 @@ export interface IntegrityVerifiedBackupV1 {
 
 export async function fullyValidateBackup(
   rawJson: string,
-  targetState: CampaignStateV1 | null,
+  targetState: CurrentCampaignState | null,
 ): Promise<{ backup: ValidatedBackupV1; serverDigest: string } | { error: BackupValidationError }> {
   // UTF-8 byte length check
   const encoder = new TextEncoder();
@@ -273,14 +275,14 @@ export async function fullyValidateBackup(
     exportedAtMs: provObj.exportedAtMs as number,
   };
 
-  // Validate state as CampaignState
+  // Validate state as CampaignState (any supported version)
   const stateError = validateBackupState(obj.state);
   if (stateError !== null) return { error: stateError };
 
-  const state = obj.state as CampaignStateV1;
+  const rawState = obj.state as AnyCampaignState;
 
-  // Compute server-side digest
-  const integrityPayload = buildIntegrityPayloadFromParts(provenance, state);
+  // Compute server-side digest over original state (preserves integrity of old backups)
+  const integrityPayload = buildIntegrityPayloadFromParts(provenance, rawState);
   const serverDigest = await computeBackupPayloadDigest(integrityPayload);
 
   // Verify claimed digest matches server-computed
@@ -289,9 +291,12 @@ export async function fullyValidateBackup(
     return { error: validationError("BACKUP_INTEGRITY_FAILED", `Integrity check failed: computed digest does not match claimed digest`) };
   }
 
+  // Migrate to current version
+  const currentState = migrateToCurrentVersion(rawState);
+
   // Compatibility check against target
   if (targetState !== null) {
-    const compatError = validateBackupCompatibility(state, targetState);
+    const compatError = validateBackupCompatibility(rawState, targetState);
     if (compatError !== null) return { error: compatError };
   }
 
@@ -299,7 +304,7 @@ export async function fullyValidateBackup(
     formatType: BACKUP_FORMAT_TYPE,
     backupFormatVersion: CURRENT_BACKUP_FORMAT_VERSION,
     provenance,
-    state,
+    state: currentState,
     integrity: {
       algorithm: "sha256",
       digest: serverDigest,
@@ -361,7 +366,7 @@ export async function parseAndVerifyBackupIntegrityForFingerprint(
   const state = obj.state as Record<string, unknown>;
 
   // Build integrity payload using the plain-object state for canonical hashing
-  const integrityPayload = buildIntegrityPayloadFromParts(provenance, state as unknown as CampaignStateV1);
+  const integrityPayload = buildIntegrityPayloadFromParts(provenance, state as unknown as AnyCampaignState);
   const serverDigest = await computeBackupPayloadDigest(integrityPayload);
 
   const claimedDigest = integrityObj.digest as string;
@@ -387,7 +392,7 @@ export interface ExportSourceData {
   readonly sourceCampaignId: string;
   readonly sourceCampaignRevision: number;
   readonly sourceLogicalRevision: number;
-  readonly state: CampaignStateV1;
+  readonly state: CurrentCampaignState;
 }
 
 export async function buildExportBackup(

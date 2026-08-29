@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { query } from "./_generated/server";
 import {
   validateCampaignState,
+  validateAnyCampaignState,
   verifyMigrationInvariants,
   verifyHistoryControl,
   verifyCheckpointCollection,
@@ -20,6 +21,7 @@ import {
   type ReplayEventInfo,
   type SerializableCampaignState,
 } from "../shared/domain";
+import { loadHistoricalState } from "../shared/domain/state-migration";
 import {
   verifyBackupImportRevisionStructure,
   verifyBackupImportRevisionDigest,
@@ -127,7 +129,7 @@ export const verifyMigration = query({
 
     const snapshotRecords: SnapshotRecord[] = campaignSnapshots.map((s) => ({
       campaignRevision: s.campaignRevision,
-      state: s.state,
+      state: s.state as SerializableCampaignState,
     }));
 
     const campaignDocuments: CampaignDocument[] = allCampaignDocs.map((d) => {
@@ -136,7 +138,7 @@ export const verifyMigration = query({
           campaignKey: d.campaignKey,
           campaignId: d.campaignId,
           campaignRevision: d.campaignRevision,
-          state: d.state,
+          state: d.state as unknown as SerializableCampaignState,
         };
       }
       return {
@@ -162,7 +164,7 @@ export const verifyMigration = query({
 
     for (const snap of campaignSnapshots) {
       try {
-        validateCampaignState(snap.state);
+        validateAnyCampaignState(snap.state);
       } catch {
         errors.push(
           `Snapshot at revision ${snap.campaignRevision} fails domain validation`,
@@ -174,8 +176,13 @@ export const verifyMigration = query({
       (s) => s.campaignRevision === campaignRevision,
     );
     if (finalSnapshot) {
-      if (!statesDeepEqual(finalSnapshot.state, canonical.state)) {
-        errors.push("Final snapshot state does not match authoritative campaign state");
+      try {
+        const migratedFinalSnap = loadHistoricalState(finalSnapshot.state);
+        if (!statesDeepEqual(migratedFinalSnap, canonical.state)) {
+          errors.push("Final snapshot state (migrated) does not match authoritative campaign state");
+        }
+      } catch (e) {
+        errors.push(`Final snapshot at revision ${campaignRevision} cannot be migrated: ${e instanceof Error ? e.message : String(e)}`);
       }
     } else {
       errors.push("Final snapshot not found");
@@ -184,7 +191,7 @@ export const verifyMigration = query({
     // --- Build lookup maps for revision verification ---
     const snapshotMap = new Map<number, SerializableCampaignState>();
     for (const s of campaignSnapshots) {
-      snapshotMap.set(s.campaignRevision, s.state);
+      snapshotMap.set(s.campaignRevision, s.state as unknown as SerializableCampaignState);
     }
 
     const revisionMap = new Map<number, { commandType: string; commandFingerprint: string }>();
@@ -340,26 +347,34 @@ export const verifyMigration = query({
 
         const undoTop = control.undoStack[control.undoStack.length - 1];
         const undoTopSnapshot = campaignSnapshots.find((s) => s.campaignRevision === undoTop);
-        const snapshotAtUndoTop: SerializableCampaignState | null = undoTopSnapshot
-          ? undoTopSnapshot.state
-          : null;
+        let snapshotAtUndoTop: SerializableCampaignState | null = null;
+        if (undoTopSnapshot) {
+          try {
+            snapshotAtUndoTop = loadHistoricalState(undoTopSnapshot.state) as unknown as SerializableCampaignState;
+          } catch (e) {
+            historyControlStatus = "invalid";
+            historyControlErrors = [`Undo-top snapshot at revision ${undoTop} cannot be migrated: ${e instanceof Error ? e.message : String(e)}`];
+          }
+        }
 
-        const hcErrors = verifyHistoryControl({
-          control,
-          campaignId,
-          campaignRevision,
-          campaignState: canonical.state,
-          revisions: revCommandInfos,
-          events: replayEvents,
-          snapshotRevisions,
-          snapshotAtUndoTop,
-        });
+        if (historyControlStatus !== "invalid") {
+          const hcErrors = verifyHistoryControl({
+            control,
+            campaignId,
+            campaignRevision,
+            campaignState: canonical.state,
+            revisions: revCommandInfos,
+            events: replayEvents,
+            snapshotRevisions,
+            snapshotAtUndoTop,
+          });
 
-        if (hcErrors.length > 0) {
-          historyControlStatus = "invalid";
-          historyControlErrors = hcErrors;
-        } else {
-          historyControlStatus = "valid";
+          if (hcErrors.length > 0) {
+            historyControlStatus = "invalid";
+            historyControlErrors = hcErrors;
+          } else {
+            historyControlStatus = "valid";
+          }
         }
       }
     }

@@ -26,6 +26,8 @@ import {
   mapEventToActivityEntry,
 } from "../shared/domain";
 import type { MonthDirection, CampaignId, CampaignHistoryControlV1, CurrentCampaignState, CampaignEvent, CheckpointRestoredEventV1 } from "../shared/domain";
+import { validateAnyCampaignState } from "../shared/domain";
+import { loadHistoricalState, isHistoricalStateLogicallyEqual } from "../shared/domain/state-migration";
 import { deriveUndoTransition, deriveRedoTransition } from "../shared/domain/undo-redo";
 import {
   monthDirectionValidator,
@@ -33,6 +35,7 @@ import {
   activityEntryValidator,
 } from "./validators";
 import { canonicalCommit } from "./canonicalCommit";
+import { loadCanonicalRecord, serializeState, snapshotRecord } from "./persistence";
 
 type CanonicalCampaignDoc = {
   _id: any;
@@ -40,7 +43,7 @@ type CanonicalCampaignDoc = {
   campaignKey: "default";
   campaignId: string;
   campaignRevision: number;
-  state: { schemaVersion: 1; ruleset: { id: "seven_part_pact_draft4"; version: 1 }; calendar: { monthOrdinal: number } };
+  state: CurrentCampaignState;
 };
 
 function isCanonical(doc: unknown): doc is CanonicalCampaignDoc {
@@ -119,12 +122,7 @@ export const ensureCampaign = mutation({
         );
       }
 
-      if (
-        snapshot.state.schemaVersion !== maybeCanonical.state.schemaVersion ||
-        snapshot.state.ruleset.id !== maybeCanonical.state.ruleset.id ||
-        snapshot.state.ruleset.version !== maybeCanonical.state.ruleset.version ||
-        snapshot.state.calendar.monthOrdinal !== maybeCanonical.state.calendar.monthOrdinal
-      ) {
+      if (!isHistoricalStateLogicallyEqual(snapshot.state, maybeCanonical.state)) {
         if (maybeCanonical.campaignRevision === 0) {
           throw new DomainError(
             "CAMPAIGN_STATE_CORRUPT",
@@ -213,24 +211,14 @@ export const ensureCampaign = mutation({
 
     const campaignId = generateCampaignId();
 
-    const persistState = {
-      schemaVersion: state.schemaVersion,
-      ruleset: { id: state.ruleset.id, version: state.ruleset.version },
-      calendar: { monthOrdinal: state.calendar.monthOrdinal as number },
-    };
-
     const docId = await ctx.db.insert("campaigns", {
       campaignKey: "default" as const,
       campaignId: campaignId as string,
       campaignRevision: 0,
-      state: persistState,
-    });
+      state: serializeState(state),
+    } as any);
 
-    await ctx.db.insert("campaignSnapshots", {
-      campaignId: campaignId as string,
-      campaignRevision: 0,
-      state: persistState,
-    });
+    await ctx.db.insert("campaignSnapshots", snapshotRecord(campaignId as string, 0, state));
 
     await ctx.db.insert("campaignHistoryControl", {
       campaignId: campaignId as string,
@@ -426,7 +414,7 @@ async function loadSnapshotState(ctx: any, campaignId: string, revision: number)
     .unique();
 
   if (snap === null) return null;
-  return snap.state as CurrentCampaignState;
+  return loadHistoricalState(snap.state);
 }
 
 async function loadRevisionCommandType(ctx: any, campaignId: string, revision: number): Promise<string | null> {
@@ -731,23 +719,18 @@ export const getUndoRedoState = query({
 
     const logicalRevision = doc.undoStack[doc.undoStack.length - 1];
 
-    const logicalSnapshot = await ctx.db
-      .query("campaignSnapshots")
-      .withIndex("by_campaign_revision", (q) =>
-        q.eq("campaignId", campaignId).eq("campaignRevision", logicalRevision),
-      )
-      .unique();
+    const logicalSnapshotState = await loadSnapshotState(ctx, campaignId, logicalRevision);
 
-    if (logicalSnapshot === null) {
+    if (logicalSnapshotState === null) {
       throw new DomainError(
         "CAMPAIGN_STATE_CORRUPT",
         `History control undoStack top (revision ${logicalRevision}) has no snapshot`,
       );
     }
 
-    validateCampaignState(logicalSnapshot.state);
+    validateCampaignState(logicalSnapshotState);
 
-    if (!statesDeepEqual(logicalSnapshot.state, maybeCanonical.state)) {
+    if (!statesDeepEqual(logicalSnapshotState, maybeCanonical.state)) {
       throw new DomainError(
         "CAMPAIGN_STATE_CORRUPT",
         `Snapshot at undoStack top (revision ${logicalRevision}) does not match authoritative campaign state`,
@@ -1006,16 +989,11 @@ export const listCheckpoints = query({
       }
 
       // Verify source snapshot exists and is valid
-      const sourceSnapshot = await ctx.db
-        .query("campaignSnapshots")
-        .withIndex("by_campaign_revision", (q: any) =>
-          q.eq("campaignId", campaignId).eq("campaignRevision", c.sourceRevision),
-        )
-        .unique();
-      if (sourceSnapshot === null) {
+      const sourceSnapshotState = await loadSnapshotState(ctx, campaignId, c.sourceRevision);
+      if (sourceSnapshotState === null) {
         throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Checkpoint "${c.checkpointId}" sourceRevision ${c.sourceRevision} has no snapshot`);
       }
-      validateCampaignState(sourceSnapshot.state);
+      validateCampaignState(sourceSnapshotState);
 
       // Verify source revision command type for non-zero
       if (c.sourceRevision > 0) {

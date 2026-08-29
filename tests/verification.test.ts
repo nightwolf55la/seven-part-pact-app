@@ -4,10 +4,16 @@ import {
   verifyMigrationInvariants,
   moveMonthFingerprint,
   applyMoveMonth,
+  backupImportFingerprint,
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
   CURRENT_STATE_SCHEMA_VERSION,
 } from "../shared/domain";
+import {
+  verifyBackupImportRevisionStructure,
+} from "../shared/domain/backup-verification";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import type {
   CurrentCampaignState,
   MonthOrdinal,
@@ -26,6 +32,18 @@ function makeState(monthOrdinal: number): CurrentCampaignState {
       version: SEVEN_PART_PACT_DRAFT4_VERSION,
     },
     calendar: { monthOrdinal: monthOrdinal as MonthOrdinal },
+    configuration: { ageId: null, facilitatorPlayerId: null },
+    players: [],
+    wizards: [],
+    pactSeats: {
+      necromancer: { status: null, wizardId: null, watcherPlayerId: null },
+      hierophant: { status: null, wizardId: null, watcherPlayerId: null },
+      warlock: { status: null, wizardId: null, watcherPlayerId: null },
+      mariner: { status: null, wizardId: null, watcherPlayerId: null },
+      faustian: { status: null, wizardId: null, watcherPlayerId: null },
+      sage: { status: null, wizardId: null, watcherPlayerId: null },
+      sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
+    },
   };
 }
 
@@ -147,6 +165,77 @@ describe("validateMoveMonthTransaction", () => {
     const { nextState, events } = applyMoveMonth(state, "forward");
     const errors = validateMoveMonthTransaction(state, events, nextState, moveMonthFingerprint("backward"));
     expect(errors.some((e) => e.includes("commandFingerprint"))).toBe(true);
+  });
+});
+
+describe("historical snapshot loading uses loadSnapshotState (V1/V2 regression)", () => {
+  const campaignSource = fs.readFileSync(
+    path.resolve(__dirname, "../convex/campaign.ts"),
+    "utf-8",
+  );
+
+  function extractFunctionBody(source: string, exportName: string): string {
+    const marker = `export const ${exportName}`;
+    const start = source.indexOf(marker);
+    if (start === -1) throw new Error(`Could not find "${marker}" in campaign.ts`);
+    const nextExport = source.indexOf("\nexport ", start + marker.length);
+    return source.slice(start, nextExport === -1 ? undefined : nextExport);
+  }
+
+  describe("getUndoRedoState", () => {
+    const body = extractFunctionBody(campaignSource, "getUndoRedoState");
+
+    it("loads the logical snapshot via loadSnapshotState, not a raw DB query", () => {
+      expect(body).toContain("loadSnapshotState");
+    });
+
+    it("does not directly query campaignSnapshots", () => {
+      const rawQueryPattern = /ctx\.db[\s\S]*?\.query\(\s*["']campaignSnapshots["']\s*\)/;
+      expect(body).not.toMatch(rawQueryPattern);
+    });
+  });
+
+  describe("listCheckpoints", () => {
+    const body = extractFunctionBody(campaignSource, "listCheckpoints");
+
+    it("loads checkpoint source snapshots via loadSnapshotState, not a raw DB query", () => {
+      expect(body).toContain("loadSnapshotState");
+    });
+
+    it("does not directly query campaignSnapshots", () => {
+      const rawQueryPattern = /ctx\.db[\s\S]*?\.query\(\s*["']campaignSnapshots["']\s*\)/;
+      expect(body).not.toMatch(rawQueryPattern);
+    });
+  });
+});
+
+describe("verifyBackupImportRevisionStructure with V1 historical snapshot", () => {
+  it("accepts a valid V1 result snapshot in backup_import history", () => {
+    const v1Snapshot = {
+      schemaVersion: 1 as const,
+      ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
+      calendar: { monthOrdinal: 5 },
+    };
+
+    const payloadDigest = "a".repeat(64);
+    const errors = verifyBackupImportRevisionStructure({
+      campaignRevision: 36,
+      commandFingerprint: backupImportFingerprint(35, payloadDigest),
+      eventType: "backup_imported",
+      eventVersion: 1,
+      eventData: {
+        backupFormatVersion: 1,
+        sourceCampaignId: "cmp_00000000-0000-0000-0000-000000000000",
+        sourceCampaignRevision: 10,
+        sourceLogicalRevision: 10,
+        exportedAtMs: 1700000000000,
+        payloadDigest,
+      },
+      resultSnapshotExists: true,
+      resultSnapshotState: v1Snapshot,
+    });
+
+    expect(errors.filter((e: string) => e.includes("result snapshot state invalid"))).toEqual([]);
   });
 });
 

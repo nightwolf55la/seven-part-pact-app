@@ -8,6 +8,7 @@ import {
 } from "../shared/domain/backup-preview";
 import { useEffect, useRef, useState } from "react";
 import type { ActivityEntry } from "../shared/domain";
+import CampaignSetup from "./CampaignSetup";
 
 const MAX_PORTABLE_BACKUP_BYTES = 512 * 1024;
 
@@ -472,6 +473,14 @@ export default function App() {
               </div>
             )}
           </div>
+        </section>
+
+        {/* M3 Campaign Setup */}
+        <section className="flex flex-col gap-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Campaign Setup
+          </h2>
+          <CampaignSetup />
         </section>
 
         <section className="flex flex-col gap-3">

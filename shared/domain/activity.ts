@@ -38,7 +38,54 @@ export type ActivityEntry =
       readonly sourceCampaignRevision: number;
       readonly sourceLogicalRevision: number;
       readonly exportedAtMs: number;
+    }
+  | {
+      readonly id: string;
+      readonly revision: number;
+      readonly type: "campaign_configuration";
+      readonly description: string;
     };
+
+function describeConfigEvent(event: CampaignEvent): string {
+  switch (event.type) {
+    case "player_added":
+      return `Added player "${event.data.name}"`;
+    case "player_renamed":
+      return `Renamed player "${event.data.previousName}" to "${event.data.newName}"`;
+    case "player_removed":
+      return `Removed player "${event.data.name}"`;
+    case "campaign_age_changed":
+      return event.data.newAgeId
+        ? `Set campaign age to ${event.data.newAgeId}`
+        : "Cleared campaign age";
+    case "facilitator_assignment_changed":
+      return event.data.newPlayerId
+        ? "Assigned facilitator"
+        : "Cleared facilitator";
+    case "wizard_created":
+      return `Created wizard "${event.data.name}" for ${event.data.assignedToSeatId} seat`;
+    case "wizard_name_changed":
+      return `Renamed wizard "${event.data.previousName}" to "${event.data.newName}"`;
+    case "wizard_portrayal_changed":
+      return event.data.newPlayerId
+        ? "Changed wizard portrayal"
+        : "Cleared wizard portrayal";
+    case "pact_seat_wizard_changed":
+      return event.data.newWizardId
+        ? `Assigned wizard to ${event.data.seatId} seat`
+        : `Unassigned wizard from ${event.data.seatId} seat`;
+    case "pact_seat_status_changed":
+      return event.data.newStatus
+        ? `Set ${event.data.seatId} seat status to ${event.data.newStatus}`
+        : `Cleared ${event.data.seatId} seat status`;
+    case "watcher_assignment_changed":
+      return event.data.newPlayerId
+        ? `Assigned watcher to ${event.data.seatId} seat`
+        : `Cleared watcher from ${event.data.seatId} seat`;
+    default:
+      return "Campaign configuration changed";
+  }
+}
 
 export function mapEventToActivityEntry(
   id: string,
@@ -118,6 +165,24 @@ export function mapEventToActivityEntry(
         exportedAtMs: event.data.exportedAtMs,
       };
     }
+    case "player_added":
+    case "player_renamed":
+    case "player_removed":
+    case "campaign_age_changed":
+    case "facilitator_assignment_changed":
+    case "wizard_created":
+    case "wizard_name_changed":
+    case "wizard_portrayal_changed":
+    case "pact_seat_wizard_changed":
+    case "pact_seat_status_changed":
+    case "watcher_assignment_changed": {
+      return {
+        id,
+        revision,
+        type: "campaign_configuration",
+        description: describeConfigEvent(event),
+      };
+    }
   }
 }
 
@@ -133,5 +198,7 @@ export function describeActivityEntry(entry: ActivityEntry): string {
       return `Revision ${entry.revision} — Restored "${entry.labelAtRestore}" from revision ${entry.sourceRevision}`;
     case "backup_imported":
       return `Revision ${entry.revision} — Imported backup from logical revision ${entry.sourceLogicalRevision}`;
+    case "campaign_configuration":
+      return `Revision ${entry.revision} — ${entry.description}`;
   }
 }

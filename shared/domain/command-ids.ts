@@ -69,3 +69,77 @@ export function backupImportFingerprint(expectedRevision: number, payloadDigest:
   }
   return `backup_import:v1:expectedRevision=${expectedRevision}:payloadDigest=${payloadDigest}`;
 }
+
+// --- M3 command fingerprints ---
+
+export function addPlayerFingerprint(playerId: string, normalizedName: string): string {
+  return `add_player:v1:${playerId}:${normalizedName}`;
+}
+
+export function renamePlayerFingerprint(playerId: string, newName: string): string {
+  return `rename_player:v1:${playerId}:${newName}`;
+}
+
+export function removePlayerFingerprint(playerId: string): string {
+  return `remove_player:v1:${playerId}`;
+}
+
+export function setCampaignAgeFingerprint(ageId: string | null): string {
+  return `set_campaign_age:v1:${ageId ?? "null"}`;
+}
+
+export function setFacilitatorFingerprint(playerId: string | null): string {
+  return `set_facilitator:v1:${playerId ?? "null"}`;
+}
+
+export function createWizardFingerprint(wizardId: string, normalizedName: string, portrayedByPlayerId: string | null, seatId: string): string {
+  return `create_wizard:v1:${wizardId}:${normalizedName}:${portrayedByPlayerId ?? "null"}:${seatId}`;
+}
+
+export function renameWizardFingerprint(wizardId: string, newName: string): string {
+  return `rename_wizard:v1:${wizardId}:${newName}`;
+}
+
+export function setWizardPortrayalFingerprint(wizardId: string, playerId: string | null): string {
+  return `set_wizard_portrayal:v1:${wizardId}:${playerId ?? "null"}`;
+}
+
+export function setPactSeatWizardFingerprint(seatId: string, wizardId: string | null): string {
+  return `set_pact_seat_wizard:v1:${seatId}:${wizardId ?? "null"}`;
+}
+
+export function setPactSeatStatusFingerprint(seatId: string, status: string | null): string {
+  return `set_pact_seat_status:v1:${seatId}:${status ?? "null"}`;
+}
+
+export function setWatcherFingerprint(seatId: string, playerId: string | null): string {
+  return `set_watcher:v1:${seatId}:${playerId ?? "null"}`;
+}
+
+/**
+ * Pure deterministic idempotency match for command replay.
+ * Given a previously committed command record and an incoming attempt,
+ * returns whether it's an exact replay (idempotent) or a conflict.
+ *
+ * Does NOT handle DB lookup — that stays in Convex mutations.
+ */
+export type IdempotencyMatchResult =
+  | { kind: "exact_match"; revision: number }
+  | { kind: "conflict"; committedType: string; committedFingerprint: string };
+
+export function matchCommandIdempotency(
+  committed: { commandType: string; commandFingerprint: string; campaignRevision: number },
+  attempted: { commandType: string; commandFingerprint: string },
+): IdempotencyMatchResult {
+  if (
+    committed.commandType === attempted.commandType &&
+    committed.commandFingerprint === attempted.commandFingerprint
+  ) {
+    return { kind: "exact_match", revision: committed.campaignRevision };
+  }
+  return {
+    kind: "conflict",
+    committedType: committed.commandType,
+    committedFingerprint: committed.commandFingerprint,
+  };
+}

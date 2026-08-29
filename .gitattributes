@@ -1,0 +1,3 @@
+
+# Convex generated files must retain LF line endings
+convex/_generated/* text eol=lf
