@@ -122,11 +122,13 @@ export const ensureCampaign = mutation({
         );
       }
 
+      const snapshotState = loadHistoricalState(snapshot.state);
+
       if (
-        snapshot.state.schemaVersion !== maybeCanonical.state.schemaVersion ||
-        snapshot.state.ruleset.id !== maybeCanonical.state.ruleset.id ||
-        snapshot.state.ruleset.version !== maybeCanonical.state.ruleset.version ||
-        snapshot.state.calendar.monthOrdinal !== maybeCanonical.state.calendar.monthOrdinal
+        snapshotState.schemaVersion !== maybeCanonical.state.schemaVersion ||
+        snapshotState.ruleset.id !== maybeCanonical.state.ruleset.id ||
+        snapshotState.ruleset.version !== maybeCanonical.state.ruleset.version ||
+        snapshotState.calendar.monthOrdinal !== maybeCanonical.state.calendar.monthOrdinal
       ) {
         if (maybeCanonical.campaignRevision === 0) {
           throw new DomainError(

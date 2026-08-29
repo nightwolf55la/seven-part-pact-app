@@ -289,6 +289,74 @@ consequences of Silent, Absent, and Present are not automated or settled by M3.
 `calendar.monthOrdinal` remains the sole chronology and Sun-position authority.
 M3 does not alter calendar semantics.
 
+---
+
+## M3 Concurrency Policy
+
+All M3 mutations run as Convex transactions. Convex serializes concurrent
+transactions against the same document: one commits first and the other retries
+against the updated state. No application-level compare-and-set (CAS) or version
+precondition is required by M3 command semantics.
+
+### A. Last-Writer-Wins Setters
+
+These commands set a single configuration value. Two independently valid
+concurrent writes serialize through Convex transaction ordering; the later
+committed value is authoritative. No CAS is required because the commands
+express unconditional intent ("set X to Y"), and any valid value is acceptable
+regardless of the prior value.
+
+| Command | Target field |
+|---|---|
+| `setCampaignAge` | `configuration.ageId` |
+| `setFacilitator` | `configuration.facilitatorPlayerId` |
+| `renamePlayer` | player's `name` |
+| `renameWizard` | wizard's `name` |
+| `setWizardPortrayal` | wizard's `portrayedByPlayerId` |
+| `setWatcher` | seat's `watcherPlayerId` |
+| `setPactSeatStatus` | seat's `status` |
+
+Idempotency (via command fingerprint matching) protects against duplicate
+delivery of the same logical command. It does not provide field-level optimistic
+locking between different commands.
+
+### B. Transaction-Time Invariant Re-Evaluation
+
+These commands have validity that depends on relationships or uniqueness
+constraints that may change concurrently. The server rereads authoritative state
+inside the serialized transaction and evaluates invariants against
+transaction-time state. A transaction that becomes invalid due to concurrent
+changes will fail and the client must retry with corrected intent.
+
+| Command | Invariants re-evaluated at transaction time |
+|---|---|
+| `addPlayer` | `playerId` uniqueness across `state.players` |
+| `removePlayer` | Player not referenced as facilitator, wizard portrayer, or watcher |
+| `createWizard` | `wizardId` uniqueness; target seat unoccupied; portrayal-uniqueness among seated wizards |
+| `setPactSeatWizard` | Wizard exists; wizard not already seated elsewhere; portrayal-uniqueness among seated wizards |
+| `setWizardPortrayal` | Player exists; portrayal-uniqueness among seated wizards |
+| `setPactSeatStatus` | `"present"`/`"silent"` require a wizard assigned to the seat |
+| `setFacilitator` | Player exists (when non-null) |
+| `setWatcher` | Player exists (when non-null) |
+
+The pure transition functions in `shared/domain/m3-transitions.ts` enforce
+these invariants. Because they execute inside the Convex mutation against the
+transaction-time snapshot of the campaign document, an invariant violation
+caused by a concurrent commit causes the transaction to fail rather than
+committing an invalid state.
+
+### Not Currently Required
+
+- **Optimistic concurrency (CAS/expectedRevision):** M3 configuration commands
+  are unconditional setters or server-validated transitions. There is no user
+  scenario where "set only if no one changed it since I last looked" is the
+  correct semantic. If a future command requires "conditional on my view being
+  current," CAS can be added to that specific command.
+- **Client-side conflict resolution or merge:** All conflict resolution is
+  server-side via transaction serialization and invariant re-evaluation.
+
+---
+
 ### Adjudication
 
 Deterministic automation in the system is subordinate to human adjudication and

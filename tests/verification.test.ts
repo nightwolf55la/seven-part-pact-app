@@ -207,6 +207,18 @@ describe("historical snapshot loading uses loadSnapshotState (V1/V2 regression)"
       expect(body).not.toMatch(rawQueryPattern);
     });
   });
+
+  describe("ensureCampaign", () => {
+    const body = extractFunctionBody(campaignSource, "ensureCampaign");
+
+    it("migrates the revision-0 snapshot via loadHistoricalState before coherence comparison", () => {
+      expect(body).toContain("loadHistoricalState");
+    });
+
+    it("does not compare raw snapshot.state.schemaVersion against authoritative state", () => {
+      expect(body).not.toContain("snapshot.state.schemaVersion");
+    });
+  });
 });
 
 describe("verifyBackupImportRevisionStructure with V1 historical snapshot", () => {

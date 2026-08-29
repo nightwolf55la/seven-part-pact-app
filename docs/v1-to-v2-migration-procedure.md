@@ -4,6 +4,30 @@
 **Prerequisite:** This document, all M3 code changes, and the EXPAND-phase schema
 must be deployed before running the migration.
 
+### Rehearsal Record
+
+A realistic disposable EXPAND + MIGRATE rehearsal was completed successfully
+before merge:
+
+- Rehearsal used genuine persisted V1 current state plus V1 historical
+  snapshots and checkpoint/history-control structures.
+- Explicit current-state migration (`adminMigration:migrateCurrentStateToV2`)
+  preserved campaign identity and revision exactly.
+- Historical V1 snapshots remained physically immutable after migration.
+- Mixed-history verification and normal runtime behavior (M2 moveMonth, M3
+  addPlayer/createWizard, undo/redo) were exercised on the migrated state.
+- Defects discovered during rehearsal (ensureCampaign revision-0 V1/V2
+  coherence, getUndoRedoState/listCheckpoints raw-snapshot loading) were
+  corrected before merge.
+- Campaign health verifier (`verifyMigration:verifyMigration`) returned
+  `status: "valid"` after normal runtime/undo/redo smoke activity.
+
+### Still Pending
+
+- Production migration (Phase 2 against production deployment)
+- Environment-by-environment production verification
+- CONTRACT phase (Phase 3: narrow validator to V2-only)
+
 ---
 
 ## Background
@@ -179,12 +203,13 @@ If Phase 2 causes problems:
 ## Checklist
 
 - [ ] Full Convex export taken and verified
-- [ ] Disposable deployment created with realistic V1 campaign data
-- [ ] Deployed EXPAND to disposable deployment
-- [ ] Ran migration on disposable — confirmed `migrated: true`
-- [ ] Ran verifier on disposable — confirmed `status: "valid"`
-- [ ] Verified M3 commands work on disposable
-- [ ] Verified M2 commands (moveMonth, undo, redo) still work on disposable
+- [x] Disposable deployment created with realistic V1 campaign data
+- [x] Deployed EXPAND to disposable deployment
+- [x] Ran migration on disposable — confirmed `migrated: true`
+- [x] Ran verifier on disposable — confirmed `status: "valid"`
+- [x] Verified M3 commands work on disposable
+- [x] Verified M2 commands (moveMonth, undo, redo) still work on disposable
+- [x] Defects found during rehearsal corrected before merge
 - [ ] Human approval obtained for production migration
 - [ ] Ran `adminMigration:migrateCurrentStateToV2 --prod`
 - [ ] Ran `verifyMigration:verifyMigration --prod` — status "valid"
