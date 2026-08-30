@@ -30,8 +30,14 @@ before merge:
 - Production MIGRATE completed (`adminMigration:migrateCurrentStateToV2 --prod`):
   - `migrated: true`, current state is V2, `campaignRevision` remained 0.
   - Historical revision-0 V1 snapshot remains physically immutable.
-- Production verifier (`verifyMigration:verifyMigration --prod`): `status: "valid"`,
-  including history-control and checkpoint status.
+- Production verifier (`verifyMigration:verifyMigration --prod`):
+  - `status: "valid"`
+  - `historyControlStatus: "valid"`
+  - `checkpointStatus: "valid"`
+  - `revisionRecordCount: 0`
+  - `eventRecordCount: 0`
+  - `snapshotCount: 1`
+  - `checkpointCount: 0`
 - Production browser smoke: no unexpected behavior.
 - Retained dev/bolt and dev/vercel deployments reseeded from fresh valid
   production V2 export (old development histories were disposable).
@@ -39,6 +45,8 @@ before merge:
 - CONTRACT code implemented in dedicated PR (narrows authoritative campaign record
   validator to V2-only; historical V1 support intentionally retained for
   snapshots/recovery/undo-redo/checkpoints/legacy backup import/verifier paths).
+
+**M3 is NOT COMPLETE.** CONTRACT deployment to production is still pending.
 
 ### Still Pending
 

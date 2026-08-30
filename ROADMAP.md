@@ -60,6 +60,8 @@ V2 campaign state: entity model for campaign setup and wizard seat management.
   snapshots/recovery/undo-redo/checkpoints/legacy backup import/verifier paths.
 - **Production CONTRACT deployment is PENDING** until the CONTRACT PR is
   reviewed, merged, deployed, and verified.
+- **M3 is NOT COMPLETE.** The CONTRACT deployment and post-deployment
+  verification remain.
 - See `docs/v1-to-v2-migration-procedure.md` for staged rollout.
 
 ## Milestone 4 — Core Play Loop (Provisional / TBD)
