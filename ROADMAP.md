@@ -19,7 +19,7 @@ Canonical commit architecture with full audit trail:
 - Full-fidelity disaster recovery via Convex operational export/restore.
 - Campaign health verifier.
 
-## Milestone 3 — Campaign Identity & Pact Roles Foundation (Approved)
+## Milestone 3 — Campaign Identity & Pact Roles Foundation (Complete)
 
 V2 campaign state: entity model for campaign setup and wizard seat management.
 
@@ -58,10 +58,15 @@ V2 campaign state: entity model for campaign setup and wizard seat management.
 - CONTRACT code implemented (narrows authoritative campaign record validator to
   V2-only). Historical V1 support intentionally retained for
   snapshots/recovery/undo-redo/checkpoints/legacy backup import/verifier paths.
-- **Production CONTRACT deployment is PENDING** until the CONTRACT PR is
-  reviewed, merged, deployed, and verified.
-- **M3 is NOT COMPLETE.** The CONTRACT deployment and post-deployment
-  verification remain.
+- CONTRACT validator narrowing was merged and deployed to production.
+- CONTRACT was rehearsed successfully on the retained V2 development deployment.
+- Post-CONTRACT production verification remained valid:
+  `status`, `historyControlStatus`, and `checkpointStatus` all `valid`;
+  campaignRevision 0, 0 revisions/events, 1 historical snapshot, 0 checkpoints.
+- Production browser smoke after CONTRACT completed with no unexpected behavior.
+- Historical V1 support remains intentionally retained for
+  snapshots/recovery/undo-redo/checkpoints/legacy backup import/verifier paths.
+- **M3 COMPLETE.**
 - See `docs/v1-to-v2-migration-procedure.md` for staged rollout.
 
 ## Milestone 4 — Core Play Loop (Provisional / TBD)

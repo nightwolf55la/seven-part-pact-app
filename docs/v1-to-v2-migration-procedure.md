@@ -1,6 +1,6 @@
 # V1 to V2 Campaign State Migration — Staged Deployment Procedure
 
-**Status:** Production EXPAND + MIGRATE completed and verified; CONTRACT code implemented; production CONTRACT deployment pending  
+**Status:** COMPLETE — Production EXPAND + MIGRATE + CONTRACT deployed and verified
 **Prerequisite:** This document, all M3 code changes, and the EXPAND-phase schema
 must be deployed before running the migration.
 
@@ -46,13 +46,23 @@ before merge:
   validator to V2-only; historical V1 support intentionally retained for
   snapshots/recovery/undo-redo/checkpoints/legacy backup import/verifier paths).
 
-**M3 is NOT COMPLETE.** CONTRACT deployment to production is still pending.
+### CONTRACT completion
 
-### Still Pending
-
-- CONTRACT PR review, merge, and deployment to production.
-- Post-CONTRACT production verification (schema push confirms existing document
-  matches V2; verifier re-run).
+- CONTRACT was successfully pushed and verified against a retained V2 development deployment.
+- PR #4 was merged and production CONTRACT deployed at
+  `577fb30a9bcfc22ad0d12f10b96ddfc9da1308a6`.
+- Production Convex schema accepted the existing authoritative V2 campaign record.
+- Post-CONTRACT production verifier:
+  - `status: "valid"`
+  - `historyControlStatus: "valid"`
+  - `checkpointStatus: "valid"`
+  - `campaignRevision: 0`
+  - `revisionRecordCount: 0`
+  - `eventRecordCount: 0`
+  - `snapshotCount: 1`
+  - `checkpointCount: 0`
+- Post-CONTRACT production browser smoke completed with no unexpected behavior.
+- No further V1-to-V2 migration action remains. Historical V1 compatibility is intentionally retained where documented.
 
 ---
 
@@ -239,10 +249,12 @@ If Phase 2 causes problems:
 - [x] Human approval obtained for production migration
 - [x] Ran `adminMigration:migrateCurrentStateToV2 --prod`
 - [x] Ran `verifyMigration:verifyMigration --prod` — status "valid"
-- [ ] Verified M3 + M2 commands work in production
+- [ ] Verified M3 + M2 commands work in production — intentionally not performed;
+      command paths were exercised on the disposable integration deployment and
+      production verification used a read-only smoke.
 - [x] Retained dev deployments reseeded from production V2 export
 - [x] Disposable rehearsal/preview deployments removed
 - [x] CONTRACT code implemented (validator narrowed, tests added)
-- [ ] CONTRACT PR reviewed and merged
-- [ ] CONTRACT deployed to production
-- [ ] Post-CONTRACT verifier re-run on production
+- [x] CONTRACT PR reviewed and merged
+- [x] CONTRACT deployed to production
+- [x] Post-CONTRACT verifier re-run on production
