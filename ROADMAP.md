@@ -46,9 +46,22 @@ V2 campaign state: entity model for campaign setup and wizard seat management.
 
 **Deployment status:**
 
-- EXPAND phase implemented on branch.
-- Disposable deployment verification pending.
-- CONTRACT phase pending after all environments confirmed V2.
+- EXPAND phase implemented and merged to main.
+- Disposable rehearsal completed successfully.
+- Production EXPAND deployed; production MIGRATE completed and verified
+  (campaignRevision remained 0; verifier valid including history-control and
+  checkpoint status; browser smoke nominal).
+- Historical revision-0 V1 snapshot remains physically immutable.
+- Retained dev/bolt and dev/vercel deployments reseeded from fresh valid
+  production V2 export (old development histories were disposable).
+- Disposable dev/m3-rehearsal and preview/bolt-milestone-3 deployments removed.
+- CONTRACT code implemented (narrows authoritative campaign record validator to
+  V2-only). Historical V1 support intentionally retained for
+  snapshots/recovery/undo-redo/checkpoints/legacy backup import/verifier paths.
+- **Production CONTRACT deployment is PENDING** until the CONTRACT PR is
+  reviewed, merged, deployed, and verified.
+- **M3 is NOT COMPLETE.** The CONTRACT deployment and post-deployment
+  verification remain.
 - See `docs/v1-to-v2-migration-procedure.md` for staged rollout.
 
 ## Milestone 4 — Core Play Loop (Provisional / TBD)

@@ -246,9 +246,7 @@ export const newCampaignRecordValidator = v.object({
   campaignKey: v.literal("default"),
   campaignId: v.string(),
   campaignRevision: v.number(),
-  // EXPAND phase: accepts V1 or V2 so deployment does not reject a pre-migration V1 record.
-  // CONTRACT: after admin migration verified on all environments, narrow to currentCampaignStateValidator.
-  state: anyCampaignStateValidator,
+  state: currentCampaignStateValidator,
 });
 
 export const campaignRevisionRecordValidator = v.object({
