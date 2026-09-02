@@ -239,7 +239,7 @@ If Phase 2 causes problems:
 - [x] Human approval obtained for production migration
 - [x] Ran `adminMigration:migrateCurrentStateToV2 --prod`
 - [x] Ran `verifyMigration:verifyMigration --prod` — status "valid"
-- [ ] Verified M3 + M2 commands work in production
+- [x] Verified M3 + M2 commands work in production
 - [x] Retained dev deployments reseeded from production V2 export
 - [x] Disposable rehearsal/preview deployments removed
 - [x] CONTRACT code implemented (validator narrowed, tests added)
