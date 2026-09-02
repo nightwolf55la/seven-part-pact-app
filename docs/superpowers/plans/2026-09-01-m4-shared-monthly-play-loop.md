@@ -416,6 +416,40 @@ The deletion marker is administrative persistence state, not CampaignState and n
 
 ---
 
+## Master Guardrails (2026-09-02)
+
+The following guardrails are approved and do not require another checkpoint:
+
+1. **Extensible participant reference.** Time participant identity uses an
+   extensible Seven-Part-Pact participant reference, with only Wizard
+   implemented in M4. The reference is independent of Pact-seat occupancy.
+
+2. **Lifetime Wizardmoot attendance history.** Wizardmoot attendance history
+   is retained month-by-month for the lifetime of the V3 campaign. It is
+   never pruned or summarized by normal game operations.
+
+3. **Special Use accounting boundary.** Special Use requires a non-empty human
+   description and may never bypass normal Time accounting or mutate
+   arbitrary CampaignState beyond the allocation's own resolution.
+
+4. **Exact-current-warning-set acknowledgement.** Warning acknowledgements
+   must match the server's current specific warning set. If concurrent state
+   changes alter the warning set, old acknowledgement is stale and the server
+   must require renewed acknowledgement of the updated warnings.
+
+5. **No meaningless production test campaign.** Production rollout must NOT
+   create a meaningless production campaign for testing. Production may remain
+   in valid No Campaign state. Fresh-campaign lifecycle testing belongs on a
+   disposable development deployment unless the human intentionally starts a
+   production campaign.
+
+6. **Story -> Meeting attendance initialization atomicity.** Story -> Meeting
+   must atomically initialize actual Wizardmoot attendance while entering
+   Meeting. There is no intermediate state where Meeting phase exists without
+   initialized attendance.
+
+---
+
 ## Task 1: Build the V1/V2-Compatible Deletion Barrier and Transition Deployable Commit
 
 **Files**

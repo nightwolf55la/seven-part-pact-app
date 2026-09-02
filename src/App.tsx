@@ -63,7 +63,7 @@ export default function App() {
     }
   }, [campaign, ensureCampaign]);
 
-  const isLoading = campaign === undefined || campaign === null;
+  const isLoading = campaign === undefined;
   const monthName = campaign
     ? displayNameFromOrdinal(campaign.monthOrdinal)
     : "—";

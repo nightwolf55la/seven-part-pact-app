@@ -36,6 +36,7 @@ import {
 } from "./validators";
 import { canonicalCommit } from "./canonicalCommit";
 import { loadCanonicalRecord, serializeState, snapshotRecord } from "./persistence";
+import { assertCampaignNotDeleting, loadActiveDeletion } from "./deletionBarrier";
 
 type CanonicalCampaignDoc = {
   _id: any;
@@ -102,6 +103,9 @@ export const ensureCampaign = mutation({
   args: {},
   returns: campaignViewValidator,
   handler: async (ctx) => {
+    // Deletion barrier: reject while deleting
+    await assertCampaignNotDeleting(ctx);
+
     const maybeCanonical = await ctx.db
       .query("campaigns")
       .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
@@ -158,86 +162,8 @@ export const ensureCampaign = mutation({
       );
     }
 
-    const legacyEvents = await ctx.db.query("events").first();
-    if (legacyEvents !== null) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        "Legacy events exist but no campaign document found",
-      );
-    }
-
-    const orphanRevisions = await ctx.db.query("campaignRevisions").first();
-    if (orphanRevisions !== null) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        "Orphan campaignRevisions exist but no campaign document found",
-      );
-    }
-
-    const orphanEvents = await ctx.db.query("campaignEvents").first();
-    if (orphanEvents !== null) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        "Orphan campaignEvents exist but no campaign document found",
-      );
-    }
-
-    const orphanSnapshots = await ctx.db.query("campaignSnapshots").first();
-    if (orphanSnapshots !== null) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        "Orphan campaignSnapshots exist but no campaign document found",
-      );
-    }
-
-    const orphanHistoryControl = await ctx.db.query("campaignHistoryControl").first();
-    if (orphanHistoryControl !== null) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        "Orphan campaignHistoryControl exist but no campaign document found",
-      );
-    }
-
-    const orphanCheckpoints = await ctx.db.query("campaignCheckpoints").first();
-    if (orphanCheckpoints !== null) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        "Orphan campaignCheckpoints exist but no campaign document found",
-      );
-    }
-
-    const state = initialCampaignState();
-    validateCampaignState(state);
-
-    const campaignId = generateCampaignId();
-
-    const docId = await ctx.db.insert("campaigns", {
-      campaignKey: "default" as const,
-      campaignId: campaignId as string,
-      campaignRevision: 0,
-      state: serializeState(state),
-    } as any);
-
-    await ctx.db.insert("campaignSnapshots", snapshotRecord(campaignId as string, 0, state));
-
-    await ctx.db.insert("campaignHistoryControl", {
-      campaignId: campaignId as string,
-      historyControlVersion: 1,
-      undoStack: [0],
-      redoStack: [],
-    });
-
-    const doc = await ctx.db.get(docId);
-    if (doc === null) {
-      throw new DomainError("CAMPAIGN_STATE_CORRUPT", "Failed to read back newly created campaign");
-    }
-
-    return {
-      _id: doc._id,
-      _creationTime: doc._creationTime,
-      monthOrdinal: state.calendar.monthOrdinal as number,
-      revision: 0,
-    };
+    // No campaign exists — return null instead of auto-creating
+    return null;
   },
 });
 
@@ -786,6 +712,8 @@ export const createCheckpoint = mutation({
     alreadyApplied: v.boolean(),
   }),
   handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+
     const checkpointId = parseCheckpointId(args.checkpointId);
 
     const normalizedLabel = normalizeCheckpointLabel(args.label);

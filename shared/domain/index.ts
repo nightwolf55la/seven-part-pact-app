@@ -258,6 +258,23 @@ export {
   CanonicalJsonError,
 } from "./canonical-json";
 
+export type {
+  DeletionPhase,
+  DeletionOperation,
+  CampaignOwnedChildCollection,
+} from "./campaign-deletion";
+export {
+  DELETION_BATCH_SIZE,
+  DELETION_CONFIRMATION_STRING,
+  DELETION_PHASE_ORDER,
+  CAMPAIGN_OWNED_CHILD_COLLECTIONS,
+  validateDeletionRequest,
+  validateCampaignIdentityMatch,
+  assertNotDeleting,
+  nextDeletionPhase,
+  isDeletionChildCleanupPhase,
+} from "./campaign-deletion";
+
 export type { BackupImportRevisionVerificationInput } from "./backup-verification";
 export {
   verifyBackupImportRevisionStructure,

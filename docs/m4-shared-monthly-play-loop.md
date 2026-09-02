@@ -432,7 +432,7 @@ fixed slots."
 `[APPLICATION DESIGN]`
 
 Monthly Time participant:
-- Currently uses a Seven-Part-Pact-specific participant reference.
+- Uses an extensible Seven-Part-Pact participant reference.
 - M4 only creates Wizard participants.
 - Wizard reference is independent of Pact-seat occupancy.
 - An eighth non-Pact Wizard can therefore use the same lifecycle later.
@@ -511,6 +511,11 @@ Each allocation resolves to one of:
 | Domain | `[SOURCE]` Known destination. Manual resolution in M4. NOT collapsed into Special Use. Must be progressively refinable when Domain engines are implemented. |
 | Engagement | `[SOURCE]` Extra Time linked to an avoiding-Denizen Engagement. |
 | Special Use | `[APPLICATION DESIGN]` Player-facing escape hatch for legitimate/unmodeled Seven-Part Pact uses. Requires short description. Manual resolution. |
+
+`[APPLICATION DESIGN]` Special Use requires a non-empty human description
+and must follow normal Time accounting (budget, scheduling, resolution).
+Special Use may never bypass Time accounting or mutate arbitrary
+CampaignState beyond the allocation's own resolution.
 
 `[APPLICATION DESIGN]` Do not create a generic task system.
 
@@ -628,6 +633,10 @@ Story -> Meeting transition:
 - Defaults to expected attendance.
 - Exceptional difference requires a short human-entered reason.
 
+Story -> Meeting transition must atomically initialize actual Wizardmoot
+attendance while entering Meeting. There is no intermediate state where
+Meeting phase exists without initialized attendance.
+
 `[INFERENCE]` Do not structurally assume Meeting Time is the only possible
 attendance cause forever.
 
@@ -651,6 +660,9 @@ preserve compact Wizardmoot attendance history keyed by month.
 Do NOT keep an ever-growing copy of every historical Time/Engagement schedule
 inside current CampaignState merely for browsing. Snapshots and audit retain
 historical state and recovery evidence.
+
+Wizardmoot attendance history is retained for the lifetime of the V3
+campaign. It is never pruned or summarized by normal game operations.
 
 ### Not Automated in M4
 
@@ -768,6 +780,12 @@ explicitly proceed.
 Examples:
 - Incomplete Planning (unscheduled Time/Engagements).
 - Unresolved Story obligations before Meeting or Next Month.
+
+Warning acknowledgements must match the server's current specific warning
+set at the time of the acknowledged resubmission. If concurrent state
+changes alter the warning set between the first rejection and the
+acknowledged retry, the server must reject the stale acknowledgement and
+require renewed acknowledgement of the updated warnings.
 
 ### Guidance
 App cannot automate deeper work and reminds the table to resolve it manually.
@@ -1055,6 +1073,11 @@ Production credentials and destructive commands remain human-controlled.
 
 The explicit Master-approved exception still means no production operational
 export is required for this one pre-release retirement.
+
+Production rollout must NOT create a meaningless production campaign for
+testing purposes. Production may remain in a valid No Campaign state.
+Fresh-campaign lifecycle testing belongs on a disposable development
+deployment unless the human intentionally starts a production campaign.
 
 ---
 

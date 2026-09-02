@@ -8,6 +8,7 @@ import { isValidPactSeatId, PACT_SEAT_IDS } from "../shared/domain/pact-seats";
 import { isValidAgeDefinitionId } from "../shared/domain/ages";
 import type { Id } from "./_generated/dataModel";
 import { serializeState, snapshotRecord, campaignPatch } from "./persistence";
+import { assertCampaignNotDeleting } from "./deletionBarrier";
 
 export type HistoryControlUpdate =
   | { readonly kind: "logical_state_append" }
@@ -395,6 +396,9 @@ export async function canonicalCommit(
   input: CanonicalCommitInput,
 ): Promise<CanonicalCommitReceipt> {
   const newRevision = input.currentRevision + 1;
+
+  // --- Deletion barrier: reject all gameplay writes while deleting ---
+  await assertCampaignNotDeleting(ctx);
 
   // --- Event-level validation per event structure ---
   for (const evt of input.events) {

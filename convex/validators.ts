@@ -331,3 +331,26 @@ export const activityEntryValidator = v.union(
     description: v.string(),
   }),
 );
+
+// ============================================================
+// Campaign Deletion Operation
+// ============================================================
+
+const deletionPhaseValidator = v.union(
+  v.literal("campaignEvents"),
+  v.literal("campaignSnapshots"),
+  v.literal("campaignRevisions"),
+  v.literal("campaignCheckpoints"),
+  v.literal("campaignHistoryControl"),
+  v.literal("campaign"),
+  v.literal("verify"),
+);
+
+export const campaignDeletionOperationValidator = v.object({
+  campaignKey: v.string(),
+  campaignId: v.string(),
+  status: v.literal("deleting"),
+  phase: deletionPhaseValidator,
+  startedAt: v.number(),
+  lastProgressAt: v.number(),
+});

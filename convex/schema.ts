@@ -9,6 +9,7 @@ import {
   campaignSnapshotRecordValidator,
   campaignHistoryControlValidator,
   campaignCheckpointValidator,
+  campaignDeletionOperationValidator,
 } from "./validators";
 
 const legacyCampaignValidator = v.object({
@@ -55,4 +56,8 @@ export default defineSchema({
   campaignCheckpoints: defineTable(campaignCheckpointValidator)
     .index("by_campaignId", ["campaignId"])
     .index("by_checkpointId", ["checkpointId"]),
+
+  campaignDeletionOperations: defineTable(campaignDeletionOperationValidator)
+    .index("by_campaignKey", ["campaignKey"])
+    .index("by_campaignId", ["campaignId"]),
 });
