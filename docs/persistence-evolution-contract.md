@@ -69,6 +69,21 @@ When in doubt, increment `stateSchemaVersion` and add an explicit, tested
 migration. See [architecture/state-model.md](architecture/state-model.md)
 sections 18 and 28.
 
+### M4 V3 Boundary Exception
+
+M4 introduces V3 and retires V1/V2 as a one-time pre-release compatibility
+break. This means:
+
+- V3 is the minimum supported version for current AND historical state.
+- No V1->V3 or V2->V3 migration path is implemented.
+- V1/V2 snapshots, checkpoints, and portable backups fail closed.
+- Pre-M4 campaign data are explicitly disposable.
+- This does NOT establish a precedent for future casual retirement.
+- Future evolution from V3 returns to the normal rules above.
+
+See [M4 Shared Monthly Play Loop](m4-shared-monthly-play-loop.md) for the
+full rationale and retirement details.
+
 ---
 
 ## C. Portable JSON Contract

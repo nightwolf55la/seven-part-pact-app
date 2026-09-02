@@ -17,6 +17,13 @@ V2 is a strict superset of V1's semantic content:
 - V2 adds `configuration`, `players`, `wizards`, and `pactSeats`.
 - Migration from V1 to V2 is deterministic and lossless (empty collections).
 
+> **Supersession (M4):** This document is a historical M3 reference. M4
+> retires both V1 and V2 and introduces V3 as the minimum supported version.
+> V1/V2 migration paths, historical snapshot compatibility, and related code
+> described here are removed at the M4 boundary. See
+> [M4 Shared Monthly Play Loop](../m4-shared-monthly-play-loop.md) for the V3
+> specification and retirement rationale.
+
 ---
 
 ## CampaignStateV2 Shape

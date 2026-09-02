@@ -42,6 +42,10 @@ production data. Take an export first, then work on a disposable clone.
 - Source campaign identity is provenance only; it does not replace the
   destination campaign's identity.
 
+> **M4 Note:** After V3 retirement, portable backups containing V1 or V2
+> CampaignState are no longer importable. The import path rejects unsupported
+> schema versions with a clear error. Only V3+ backups are accepted.
+
 ### Convex Operational Export
 
 - Deployment-level export of all persisted data.

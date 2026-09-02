@@ -69,9 +69,44 @@ V2 campaign state: entity model for campaign setup and wizard seat management.
 - **M3 COMPLETE.**
 - See `docs/v1-to-v2-migration-procedure.md` for staged rollout.
 
-## Milestone 4 — Core Play Loop (Provisional / TBD)
+## Milestone 4 — Shared Monthly Play Loop (Approved Design)
 
-TBD.
+Normal shared monthly play becomes usable end-to-end as a thin complete
+vertical slice:
+
+```
+New Moon -> Visions -> Planning -> Story -> Meeting -> Quiet -> next New Moon
+```
+
+**Scope includes:**
+
+- CampaignState V3: discriminated Setup/Play lifecycle, Orrery state, monthly
+  Time/Engagement state, Wizardmoot attendance history.
+- Intentional retirement of V1 and V2 CampaignState (one-time pre-release
+  compatibility break; pre-M4 campaign data are explicitly disposable).
+- Campaign lifecycle: explicit creation, Setup, atomic Begin Play, Play,
+  explicit destructive deletion.
+- Orrery: authoritative planetary model with discrete printed-track positions,
+  full Orrery Time mechanical resolution.
+- Monthly Time system: participant budgets, allocation scheduling during
+  Planning, Story rescheduling with allowance, spend/waste resolution.
+- Monthly Engagements: per-Wizard scheduling, avoiding-Denizen linked Time.
+- Six-phase monthly cycle with authoritative shared phase progression.
+- Atomic month transition (advance calendar/planets, archive attendance,
+  initialize new month state).
+- Campaign creation and destructive deletion with full persistence-graph
+  cleanup.
+- Surface-based UI shell for Play with phase-aware defaults.
+- Recovery UI moved under Campaign Tools with global/shared wording.
+
+**Not in M4 scope:**
+
+- Domain engines, full Wizard character systems, Watcher system UI, magic,
+  Lore, Notes, generic Impact, persistent Scene records, generic TTRPG
+  frameworks.
+- Social/auth integration, multi-campaign, per-player Undo.
+
+**Design document:** [docs/m4-shared-monthly-play-loop.md](docs/m4-shared-monthly-play-loop.md)
 
 ## Milestone 5 — Wizard / Domain Systems (Provisional / TBD)
 

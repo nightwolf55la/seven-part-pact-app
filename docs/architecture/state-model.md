@@ -116,11 +116,25 @@ interface CampaignStateV1 {
 
 This will expand as game systems are implemented.
 
-**M3 Update (V2):** The campaign state has been extended to V2 with players,
+**M3 Update (V2):** The campaign state was extended to V2 with players,
 wizards, pact seats, and configuration. See
-[M3 State Model](m3-state-model.md) for the full V2 specification and migration
-details. V1 remains supported for historical snapshots; the current authoritative
-state must be V2 (enforced by explicit admin migration).
+[M3 State Model](m3-state-model.md) for the V2 specification and migration
+details.
+
+**M4 Update (V3):** CampaignState V3 introduces a discriminated Setup/Play
+lifecycle, Orrery state, monthly Time/Engagement state, and Wizardmoot
+attendance history. V1 and V2 are intentionally retired at the M4 boundary as
+a one-time pre-release compatibility break. V3 is the new minimum supported
+version for both current and historical state. See
+[M4 Shared Monthly Play Loop](../m4-shared-monthly-play-loop.md) for the full
+V3 specification and retirement rationale.
+
+> **Supersession (M4):** Section 28 ("Existing v0.1 Migration") of this
+> document states that existing production/development campaign data must not
+> be discarded or reset. That requirement applied to the M2 migration and
+> remains historically accurate for that context. It is explicitly superseded
+> for the M4 boundary: pre-M4 campaign data are disposable by approved
+> decision. Future evolution from V3 returns to the normal safety policy.
 
 Future state may contain concepts such as:
 
