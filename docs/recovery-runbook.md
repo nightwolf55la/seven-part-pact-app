@@ -44,7 +44,8 @@ production data. Take an export first, then work on a disposable clone.
 
 > **M4 Note:** After V3 retirement, portable backups containing V1 or V2
 > CampaignState are no longer importable. The import path rejects unsupported
-> schema versions with a clear error. Only V3+ backups are accepted.
+> schema versions with a clear error. Only supported CampaignState schema
+> versions are importable. At the M4 baseline, the supported version is V3.
 
 ### Convex Operational Export
 

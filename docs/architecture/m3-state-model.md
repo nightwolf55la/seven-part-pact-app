@@ -19,10 +19,11 @@ V2 is a strict superset of V1's semantic content:
 
 > **Supersession (M4):** This document is a historical M3 reference. M4
 > retires both V1 and V2 and introduces V3 as the minimum supported version.
-> V1/V2 migration paths, historical snapshot compatibility, and related code
-> described here are removed at the M4 boundary. See
-> [M4 Shared Monthly Play Loop](../m4-shared-monthly-play-loop.md) for the V3
-> specification and retirement rationale.
+> M4 implementation will remove V1/V2 migration paths, historical snapshot
+> compatibility, and related code described here at the M4 boundary. The
+> historical M3 procedure below remains a record of what occurred during M3.
+> See [M4 Shared Monthly Play Loop](../m4-shared-monthly-play-loop.md) for the
+> V3 specification and retirement rationale.
 
 ---
 

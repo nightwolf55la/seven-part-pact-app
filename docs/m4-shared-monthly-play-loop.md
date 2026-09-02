@@ -100,9 +100,15 @@ After V3 retirement:
 - `loadHistoricalState` accepts only V3 (no V1/V2 migration paths).
 - `AnyCampaignState` narrows to V3 only (or is eliminated).
 - `SUPPORTED_STATE_SCHEMA_VERSIONS` narrows to `[3]`.
-- V1/V2 validators, migration functions, and test fixtures for V1/V2 are
-  removed.
+- V1/V2 compatibility validators, migration functions, and related support
+  machinery are removed.
 - `migrateV1toV2` and related functions are removed.
+- Legacy test fixtures whose sole purpose was V1/V2 compatibility or migration
+  may be removed.
+- Minimal legacy-shaped fixtures or equivalent test data SHOULD remain where
+  needed to prove that V1/V2 persisted state, snapshots, checkpoints, and
+  portable backups fail clearly and closed. Do not accidentally remove the
+  requirement to test unsupported legacy rejection.
 
 ---
 
@@ -218,8 +224,8 @@ cleanup is an implementation detail.
 - Every required Watcher responsibility is assigned to a Player.
 - One Player may hold multiple Watcher responsibilities.
 
-`[SOURCE]` Pre-first-month Orrery setup is complete (Age-specific; see Orrery
-Setup below).
+`[SOURCE]` Pre-first-month Orrery setup is complete (Age-specific; see
+Age-Specific Orrery Setup below).
 
 `[INFERENCE]` Normal Draft-4 expectation is at most one present Pact Wizard
 portrayed by a given Player, but this is NOT a hard schema cardinality. Do not
@@ -289,8 +295,8 @@ normal player interaction model.
 
 ### Normal Track Geometry
 
-`[SOURCE]` Normal Draft-4 interaction is DISCRETE and follows the printed
-Orrery tracks:
+`[SOURCE]` The printed Orrery provides track artwork, planetary Arc sizes,
+and segment structure:
 
 | Body | Track Details | Arc Size |
 |---|---|---|
@@ -305,6 +311,11 @@ Orrery tracks:
 15 degrees each. Do not claim the artwork explicitly contains an invisible
 48-section grid.
 
+`[INFERENCE]` Normal digital Orrery interaction is DISCRETE and snapped to
+the relevant printed legal segment positions. The source permits placing a
+planet at printed track positions; the app does not expose arbitrary angle
+input or free dragging during ordinary setup or play.
+
 `[APPLICATION DESIGN]` The underlying angular representation remains capable
 of exceptional future off-grid legal positions, but no ordinary M4 UI or
 command creates them. Dominion setup should select/click legal printed
@@ -312,8 +323,8 @@ positions, not expose degree input or free drag.
 
 ### Age-Specific Orrery Setup
 
-`[SOURCE]` Each Age has a specific starting Orrery arrangement representing
-the world immediately BEFORE the first playable New Moon.
+`[SOURCE]` Each Age has specific starting Orrery setup instructions in the
+printed materials.
 
 **Awakening:**
 `[SOURCE]` Draft 4 contains one complete starting Orrery arrangement.
@@ -322,7 +333,11 @@ arrangement. M4 supports only the completed source-defined arrangement. Do not
 invent the missing option.
 
 **Dominion:**
-`[SOURCE]` A ceremonial placement sequence exists.
+`[SOURCE]` A ceremonial placement sequence exists. The source permits placing
+a planet "anywhere in the Orrery."
+`[INFERENCE]` In the context of the printed Orrery, "anywhere" is interpreted
+as normal placement on that planet's legal printed track positions rather
+than arbitrary angle selection.
 `[APPLICATION DESIGN]` The app records the final resulting setup Orrery. Do
 not build a multiplayer setup turn engine. Normal placement uses the printed
 legal track positions.
@@ -330,8 +345,11 @@ legal track positions.
 **Calamity:**
 `[SOURCE]` Uses a fixed starting Orrery arrangement.
 
-`[APPLICATION DESIGN]` Begin Play performs one normal New Month advance from
-whatever the Age-specific setup Orrery was, for all Ages.
+`[APPLICATION DESIGN]` Setup contains the pre-Begin-Play Orrery for every
+supported Age. Begin Play performs one normal month advance from whatever the
+Age-specific setup Orrery was, uniformly for all Ages. This uniform
+application lifecycle is an application design decision informed by the
+individual Age instructions, not a universal verbatim source rule.
 
 ### Normal Orrery Time
 
@@ -733,12 +751,20 @@ Use a flexible SURFACE shell rather than rigid permanent panels:
 
 ### M4 Surfaces
 
+Play surfaces (compete for persistent Play screen real estate):
+
 | Surface | Purpose |
 |---|---|
 | Current Phase | Phase-specific primary content |
 | Orrery | Shared visual centerpiece |
 | Table / Wizards | Compact identity/reference |
-| Campaign Setup | Setup destination |
+
+Secondary destinations (reachable through navigation/menu, outside the
+normal Play surface/reference-pane model):
+
+| Destination | Purpose |
+|---|---|
+| Campaign Setup | Setup configuration |
 | Campaign Tools | Recovery, diagnostics |
 
 ### Phase Defaults
@@ -871,6 +897,106 @@ After legacy retirement:
 
 ---
 
+## Verification Contract
+
+`[APPLICATION DESIGN]`
+
+### Automated Deterministic Coverage
+
+The following MUST be covered by automated deterministic tests (pure domain
+functions and/or Convex mutation tests where practical):
+
+- Phase sequence and transitions (legal progression through all six phases).
+- Stale and duplicate transition rejection (expected phase/month mismatch
+  fails closed).
+- Atomic new-month behavior (calendar/planets advance, attendance archive,
+  Time/Engagement initialization, reschedule reset, phase entry).
+- Orrery movement, derived House membership, and conjunction behavior
+  (including half-open boundary edge cases).
+- Setup validation and Begin Play (required setup completeness, CAS
+  protection, first-month state initialization).
+- Time budget, allocation creation, scheduling, Planning->Story lock,
+  reschedule allowance consumption, spend, and waste.
+- Orrery Time atomicity (validation, planet selection, Arc movement, spend
+  in one transaction).
+- Engagement scheduling, resolution, rescheduling, and linked-Time behavior
+  (including avoiding-Denizen atomic resolution).
+- Expected vs exceptional actual Wizardmoot attendance (default-to-expected,
+  reason-required for difference, Meeting Time resolution).
+- Hard-invariant vs warning behavior (incomplete Planning/Story triggers
+  warning, not error; invalid consumption triggers hard error).
+- Campaign creation (fresh V3 revision-0, valid history-control foundation).
+- Complete campaign deletion (entire persistence graph removed, stale
+  identity rejection, fail-closed on inconsistency).
+- Command idempotency (duplicate commandId returns prior result, incompatible
+  reuse rejected).
+- V3 Undo/Redo, checkpoint restore, backup import, and verifier regression
+  (all generic persistence mechanisms continue working for V3).
+- Explicit V1/V2 unsupported-artifact rejection (V1/V2 snapshot, checkpoint,
+  and backup import all fail clearly and closed).
+
+### Manual / Real Integration Boundaries
+
+Use only the smallest manual tests needed to prove boundaries that cannot be
+deterministically automated:
+
+- Actual Convex schema and serialization behavior.
+- True concurrency (two simultaneous phase transitions).
+- Realtime multi-browser behavior (phase change reflected across clients).
+- Refresh/reconnect during partial Planning or Story state.
+- Browser backup download and import boundary.
+- Real disposable Convex campaign deletion and recreation.
+- Visual and responsive Orrery interaction.
+- Deployment and environment wiring.
+
+Do not manually replay deterministic matrices.
+
+### Disposable End-to-End Demonstration
+
+M4 completion should include one disposable campaign demonstrating the
+end-to-end loop:
+
+1. Start New Campaign.
+2. Complete enough Setup.
+3. Begin Play / New Moon.
+4. Visions guidance.
+5. Planning.
+6. Refresh/reconnect with partial state.
+7. Story Time/Engagement/Orrery resolution.
+8. Meeting attendance.
+9. Quiet.
+10. Atomic Begin Next Month.
+11. All clients converge on the same authoritative state.
+
+---
+
+## V3 Rollout / Rehearsal Principle
+
+`[APPLICATION DESIGN]`
+
+The conceptual smallest-safe rollout for the V3 boundary:
+
+1. Human verifies the intended Convex deployment.
+2. Stop or avoid automatic campaign recreation.
+3. Clear obsolete pre-M4 campaign-owned V1/V2 persistence graph in place.
+4. Verify the campaign-owned graph is empty.
+5. Deploy V3-only schema/runtime.
+6. Explicitly create and verify a fresh V3 campaign.
+
+This is a conceptual rollout contract, not an implementation script.
+
+Do NOT require EXPAND/RESET/CONTRACT ceremony. If actual Convex/schema
+constraints make the direct sequence impossible, a small temporary
+transition deployment may be used to stop auto-creation and/or permit safe
+clearing before V3-only validators land.
+
+Production credentials and destructive commands remain human-controlled.
+
+The explicit Master-approved exception still means no production operational
+export is required for this one pre-release retirement.
+
+---
+
 ## Deferred Systems (Explicitly Out of M4 Scope)
 
 The following are NOT part of M4 and must not be built:
@@ -898,8 +1024,11 @@ They are recorded here to prevent them from being mistaken for game canon:
 
 1. **Awakening Orrery**: Only the one completed Draft-4 setup preset is
    supported. The unfinished placeholder is acknowledged but not invented.
-2. **Dominion placement**: "Anywhere" is interpreted in context of the printed
-   Orrery as normal placement on that planet's legal printed track positions.
+2. **Dominion placement**: The source permits placing a planet "anywhere in
+   the Orrery." In context of the printed Orrery, this is interpreted as
+   normal placement on that planet's legal printed track positions rather
+   than arbitrary angle selection. The snapped/discrete digital interaction
+   is INFERENCE/APPLICATION DESIGN, not literal source canon.
 3. **Orrery half-open boundary**: Arc/House overlap uses half-open intervals
    `[start, end)`.
 4. **Silent Wizards**: Do not receive ordinary M4 Time/Engagement monthly

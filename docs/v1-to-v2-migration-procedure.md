@@ -5,9 +5,10 @@
 must be deployed before running the migration.
 
 > **Supersession (M4):** This document is a historical record of the M3
-> rollout. M4 retires V1 and V2 entirely; the V1-to-V2 migration path
-> described here is removed. Pre-M4 campaign data are explicitly disposable.
-> See [M4 Shared Monthly Play Loop](m4-shared-monthly-play-loop.md).
+> rollout. M4 retires V1 and V2 entirely; M4 implementation will remove the
+> V1-to-V2 migration path described here. Pre-M4 campaign data are explicitly
+> disposable. The historical M3 procedure below remains a record of what
+> occurred during M3. See [M4 Shared Monthly Play Loop](m4-shared-monthly-play-loop.md).
 
 ### Rehearsal Record
 
