@@ -86,6 +86,37 @@ full rationale and retirement details.
 
 ---
 
+## G. Campaign Deletion Contract
+
+Campaign deletion is **persistence infrastructure outside CampaignState**.
+The following rules apply to any campaign-deletion mechanism:
+
+- Deletion is administrative, **eventless**, **revisionless**, and
+  **non-Undo-able**. It does not produce a revision, event, or snapshot.
+- A **durable deletion barrier** (a persisted operational marker distinct
+  from `CampaignState`) is established before removing campaign-owned data.
+- While the barrier exists, normal gameplay writes, recovery mutations
+  (Undo/Redo, checkpoint restore), portable backup import, and Start New
+  Campaign are **rejected**.
+- Campaign-owned tables must support **efficient campaign-scoped** bounded
+  cleanup (by `campaignId` or equivalent index). Cleanup must not depend on
+  unbounded table scans.
+- Cleanup proceeds in **bounded, idempotent batches**. Each batch is safe to
+  re-run for the same table and campaign.
+- Cleanup is **resumable**. If interrupted, the durable marker survives
+  redeploy/restart and cleanup resumes without the initiating
+  browser/session.
+- Before finalization, **verify** that every campaign-owned collection is
+  empty for that campaign.
+- The **canonical campaign** record is deleted **near the end**.
+- The **deletion marker** is removed **last**. Its removal implies complete
+  verified absence of the campaign-owned graph.
+- New campaign-owned persisted collections introduced in future schema
+  evolution must be included in deletion enumeration and verification.
+- Deletion mechanics remain **generic and Seven-Part-Pact-agnostic**.
+
+---
+
 ## C. Portable JSON Contract
 
 `CampaignState` must remain composed exclusively of portable JSON values:

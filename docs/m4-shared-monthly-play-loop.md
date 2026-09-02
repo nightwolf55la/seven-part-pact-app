@@ -187,11 +187,57 @@ Campaign deletion is a destructive administrative lifecycle operation:
 - Fails closed if graph assumptions or ownership are inconsistent.
 - Retains the Convex deployment itself.
 
+#### Deletion Barrier
+
+`[APPLICATION DESIGN]`
+
+Campaign deletion is **persistence infrastructure outside CampaignState**.
+It is not represented in `CampaignState` and does not produce a revision,
+event, or snapshot.
+
+Deletion establishes a **durable deletion barrier** before removing
+campaign-owned data:
+
+- The barrier is a persisted operational marker (e.g. a deletion-status
+  record) that is distinct from `CampaignState` and survives reconnect,
+  redeploy, and browser/session termination.
+- While the barrier exists, the server **rejects** normal gameplay writes,
+  recovery mutations (Undo/Redo, checkpoint restore), portable backup
+  import, and Start New Campaign.
+- The UI exposes only operational behavior needed to report deletion
+  status and resume cleanup.
+- The barrier is removed **last**, only after the entire campaign-owned
+  persistence graph has been verified empty.
+
+#### Resumable Bounded Cleanup
+
+`[APPLICATION DESIGN]`
+
+Campaign-owned records are cleaned up in **bounded, idempotent batches**,
+not in a single atomic transaction:
+
+- Each campaign-owned table must support efficient campaign-scoped
+  queries (by `campaignId` or equivalent index) so cleanup does not depend
+  on unbounded table scans.
+- Each batch deletes a bounded number of records for one table.
+- Cleanup is **idempotent**: re-running a batch for the same table and
+  campaign is safe whether or not prior batches completed.
+- If cleanup is interrupted (browser closes, network drops, redeploy),
+  the durable deletion marker remains. After restart, cleanup **resumes**
+  from where it left off without requiring the initiating browser/session
+  to remain alive.
+- Before finalization, **verify** that every campaign-owned collection is
+  empty for that campaign.
+- The canonical campaign record is deleted **near the end**.
+- The deletion marker is removed **last**.
+- Start New Campaign remains **blocked** until deletion is fully complete
+  and the marker is gone.
+
 #### Campaign-Owned Persistence Graph
 
 Based on the current Convex schema, the following tables contain
-campaign-owned records that must be deleted atomically during campaign
-deletion:
+campaign-owned records that must be cleaned up during campaign deletion.
+Each must support efficient campaign-scoped access via its index:
 
 | Table | Key/Index |
 |---|---|
@@ -205,6 +251,10 @@ deletion:
 Legacy tables `numbers` and `events` (v0.1 era) are not campaign-owned in
 the M2+ sense and are not part of this graph. Their disposition during V3
 cleanup is an implementation detail.
+
+Future schema evolution that introduces new campaign-owned persisted
+collections must include those collections in deletion enumeration and
+verification.
 
 ---
 
@@ -928,6 +978,12 @@ functions and/or Convex mutation tests where practical):
 - Campaign creation (fresh V3 revision-0, valid history-control foundation).
 - Complete campaign deletion (entire persistence graph removed, stale
   identity rejection, fail-closed on inconsistency).
+- Deletion interruption and resumption (cleanup resumes after interruption
+  without the initiating browser/session; durable marker survives redeploy).
+- Deletion idempotency (re-running a cleanup batch for the same table and
+  campaign is safe).
+- Deletion concurrency (a second deletion or new-campaign attempt while
+  deletion is in progress is rejected).
 - Command idempotency (duplicate commandId returns prior result, incompatible
   reuse rejected).
 - V3 Undo/Redo, checkpoint restore, backup import, and verifier regression
@@ -945,7 +1001,8 @@ deterministically automated:
 - Realtime multi-browser behavior (phase change reflected across clients).
 - Refresh/reconnect during partial Planning or Story state.
 - Browser backup download and import boundary.
-- Real disposable Convex campaign deletion and recreation.
+- Real disposable Convex campaign deletion and recreation, with enough
+  history to require multiple cleanup batches.
 - Visual and responsive Orrery interaction.
 - Deployment and environment wiring.
 
@@ -978,17 +1035,21 @@ The conceptual smallest-safe rollout for the V3 boundary:
 
 1. Human verifies the intended Convex deployment.
 2. Stop or avoid automatic campaign recreation.
-3. Clear obsolete pre-M4 campaign-owned V1/V2 persistence graph in place.
+3. Clear obsolete pre-M4 campaign-owned V1/V2 persistence graph in place
+   using the same generic durable resumable deletion mechanism described
+   above (deletion barrier, bounded idempotent batches, verify empty,
+   canonical campaign near-end, marker last).
 4. Verify the campaign-owned graph is empty.
 5. Deploy V3-only schema/runtime.
 6. Explicitly create and verify a fresh V3 campaign.
 
 This is a conceptual rollout contract, not an implementation script.
 
-Do NOT require EXPAND/RESET/CONTRACT ceremony. If actual Convex/schema
-constraints make the direct sequence impossible, a small temporary
-transition deployment may be used to stop auto-creation and/or permit safe
-clearing before V3-only validators land.
+Do NOT require EXPAND/RESET/CONTRACT ceremony. The transition runtime may
+remain V1/V2-compatible while the deletion/reset machinery is added or
+enabled. The intended smallest safe sequence is: stop automatic recreation,
+add/enable safe deletion/reset machinery, human verifies deployment, clear
+obsolete graph and verify empty, then deploy V3-only schema/runtime.
 
 Production credentials and destructive commands remain human-controlled.
 

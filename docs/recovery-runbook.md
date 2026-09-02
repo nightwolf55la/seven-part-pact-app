@@ -125,6 +125,54 @@ production data. Take an export first, then work on a disposable clone.
 6. Only after the disposable rehearsal passes, consider the production change,
    with a fresh operational export taken immediately before.
 
+### G. In-Progress Campaign Deletion
+
+Campaign deletion is a durable, resumable administrative operation. This
+section describes how operators and users should handle an in-progress
+deletion.
+
+#### Recognizing Deletion in Progress
+
+- The campaign shows a **deleting** status (via the durable deletion marker).
+- The UI reports that deletion is in progress and normal actions are blocked.
+
+#### What Is Blocked and Why
+
+While the deletion barrier exists, the following are **intentionally
+rejected**:
+- Normal gameplay writes.
+- Recovery mutations (Undo, Redo, checkpoint restore).
+- Portable backup import.
+- Start New Campaign.
+
+These blocks protect against partial-state corruption during cleanup.
+
+#### Resumption, Not Rollback
+
+- Deletion should be **resumed**, not rolled back by reconstructing partial
+  history.
+- Do not attempt to restore deleted records or rebuild the campaign from
+  partial state.
+- The durable marker allows cleanup to resume after interruption, redeploy,
+  or restart without the initiating browser/session.
+
+#### Cleanup Behavior
+
+- Cleanup proceeds in **bounded, idempotent batches** per campaign-owned
+  collection.
+- Each batch is safe to re-run.
+- Before finalization, **verify** that every campaign-owned collection is
+  empty for that campaign.
+- The **canonical campaign** record disappears near the end.
+- The **deletion marker** disappears last.
+- Once the marker is gone, Start New Campaign becomes available again.
+
+#### Pre-M4 V1/V2 Retirement
+
+The pre-M4 V1/V2 data retirement may use this same procedure. The generic
+deletion mechanism applies equally to clearing obsolete pre-release
+campaign data.
+
 ---
 
 ## Campaign Health Verifier
