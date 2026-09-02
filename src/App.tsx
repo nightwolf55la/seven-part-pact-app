@@ -6,7 +6,7 @@ import {
   buildBackupFilename,
   type BackupPreview,
 } from "../shared/domain/backup-preview";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { ActivityEntry } from "../shared/domain";
 import CampaignSetup from "./CampaignSetup";
 
@@ -38,12 +38,10 @@ export default function App() {
   const moveMonth = useMutation(api.campaign.moveMonth);
   const undoMutation = useMutation(api.campaign.undo);
   const redoMutation = useMutation(api.campaign.redo);
-  const ensureCampaign = useMutation(api.campaign.ensureCampaign);
   const createCheckpointMutation = useMutation(api.campaign.createCheckpoint);
   const restoreCheckpointMutation = useMutation(api.campaign.restoreCheckpoint);
   const exportBackupAction = useAction(api.backup.exportPortableBackup);
   const importBackupMutation = useMutation(api.backup.importPortableBackup);
-  const initAttempted = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
@@ -53,15 +51,6 @@ export default function App() {
   const [backupPreview, setBackupPreview] = useState<BackupPreview | null>(null);
   const [backupFileError, setBackupFileError] = useState<string | null>(null);
   const [importConfirming, setImportConfirming] = useState(false);
-
-  useEffect(() => {
-    if (campaign === null && !initAttempted.current) {
-      initAttempted.current = true;
-      ensureCampaign({}).catch(() => {
-        initAttempted.current = false;
-      });
-    }
-  }, [campaign, ensureCampaign]);
 
   const isLoading = campaign === undefined;
   const monthName = campaign

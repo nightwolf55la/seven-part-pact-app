@@ -312,8 +312,15 @@ export const processCampaignDeletionBatch = internalMutation({
         .unique();
 
       if (canonical !== null) {
-        if ("campaignId" in canonical && (canonical as any).campaignId === campaignId) {
+        const hasIdentity = "campaignId" in canonical;
+        const canonicalCampaignId = hasIdentity ? (canonical as any).campaignId : null;
+        if (canonicalCampaignId === campaignId) {
           await ctx.db.delete(canonical._id);
+        } else {
+          throw new DomainError(
+            "CAMPAIGN_STATE_CORRUPT",
+            `Deletion target is "${campaignId}" but canonical campaign has identity "${canonicalCampaignId ?? "(legacy/unknown)"}". Refusing to delete unknown campaign data. Deletion marker retained.`,
+          );
         }
       }
 
@@ -342,10 +349,18 @@ export const processCampaignDeletionBatch = internalMutation({
         .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
         .unique();
 
-      if (canonical !== null && "campaignId" in canonical && (canonical as any).campaignId === campaignId) {
-        await ctx.db.patch(opDoc._id, { phase: "campaign" as DeletionPhase, lastProgressAt: now });
-        await ctx.scheduler.runAfter(0, internal.campaignDeletion.processCampaignDeletionBatch, {});
-        return null;
+      if (canonical !== null) {
+        const hasIdentity = "campaignId" in canonical;
+        const canonicalCampaignId = hasIdentity ? (canonical as any).campaignId : null;
+        if (canonicalCampaignId === campaignId) {
+          await ctx.db.patch(opDoc._id, { phase: "campaign" as DeletionPhase, lastProgressAt: now });
+          await ctx.scheduler.runAfter(0, internal.campaignDeletion.processCampaignDeletionBatch, {});
+          return null;
+        }
+        throw new DomainError(
+          "CAMPAIGN_STATE_CORRUPT",
+          `Verification found canonical campaign with unexpected identity "${canonicalCampaignId ?? "(legacy/unknown)"}" (expected "${campaignId}" or absent). Deletion marker retained.`,
+        );
       }
 
       await ctx.db.delete(opDoc._id);

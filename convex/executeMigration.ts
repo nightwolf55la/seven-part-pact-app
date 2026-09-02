@@ -11,6 +11,7 @@ import {
 } from "../shared/domain";
 import { migrateV1toV2 } from "../shared/domain/state-migration";
 import { serializeState } from "./persistence";
+import { assertCampaignNotDeleting } from "./deletionBarrier";
 import type { MonthDirection, CampaignStateV1, MonthOrdinal } from "../shared/domain";
 
 export const executeMigration = internalMutation({
@@ -26,6 +27,8 @@ export const executeMigration = internalMutation({
     eventsCreated: v.number(),
   }),
   handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+
     const campaignId = parseCampaignId(args.campaignId);
 
     const existingCanonical = await ctx.db

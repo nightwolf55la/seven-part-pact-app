@@ -7,10 +7,13 @@ import {
 } from "../shared/domain";
 import { migrateToCurrentVersion } from "../shared/domain/state-migration";
 import { assertPortableCampaignState } from "../shared/domain/state-equality";
+import { assertCampaignNotDeleting } from "./deletionBarrier";
 
 export const migrateCurrentStateToV2 = internalMutation({
   args: {},
   handler: async (ctx) => {
+    await assertCampaignNotDeleting(ctx);
+
     const maybeCanonical = await ctx.db
       .query("campaigns")
       .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))

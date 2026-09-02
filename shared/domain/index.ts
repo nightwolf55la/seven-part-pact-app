@@ -280,3 +280,15 @@ export {
   verifyBackupImportRevisionStructure,
   verifyBackupImportRevisionDigest,
 } from "./backup-verification";
+
+export type {
+  DeletionPersistenceAdapter,
+  RequestDeletionResult,
+  BatchResult,
+  LifecycleStatus,
+} from "./deletion-orchestrator";
+export {
+  requestDeletion,
+  processBatch,
+  resolveLifecycle,
+} from "./deletion-orchestrator";

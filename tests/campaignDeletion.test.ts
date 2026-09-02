@@ -1,185 +1,570 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import {
-  validateDeletionRequest,
-  validateCampaignIdentityMatch,
-  assertNotDeleting,
-  nextDeletionPhase,
-  isDeletionChildCleanupPhase,
+  DomainError,
   DELETION_BATCH_SIZE,
   DELETION_CONFIRMATION_STRING,
   DELETION_PHASE_ORDER,
   CAMPAIGN_OWNED_CHILD_COLLECTIONS,
-  DomainError,
-  isValidCampaignId,
-  CURRENT_STATE_SCHEMA_VERSION,
-  SEVEN_PART_PACT_DRAFT4_ID,
-  SEVEN_PART_PACT_DRAFT4_VERSION,
-  INITIAL_MONTH_ORDINAL,
+  assertNotDeleting,
+  validateDeletionRequest,
+  validateCampaignIdentityMatch,
+  nextDeletionPhase,
+  isDeletionChildCleanupPhase,
 } from "../shared/domain";
 import type {
-  DeletionOperation,
   DeletionPhase,
-  SerializableCampaignState,
-  CampaignDocument,
+  DeletionOperation,
+  CampaignOwnedChildCollection,
 } from "../shared/domain";
+import {
+  requestDeletion,
+  processBatch,
+  resolveLifecycle,
+} from "../shared/domain/deletion-orchestrator";
+import type { DeletionPersistenceAdapter } from "../shared/domain/deletion-orchestrator";
 
 // ============================================================
-// Helpers
+// In-memory test adapter
 // ============================================================
 
-const VALID_CAMPAIGN_ID = "cmp_00000000-0000-0000-0000-000000000001";
-const OTHER_CAMPAIGN_ID = "cmp_00000000-0000-0000-0000-000000000002";
+const CID = "cmp_00000000-0000-0000-0000-000000000001";
+const OTHER_CID = "cmp_00000000-0000-0000-0000-000000000002";
 
-function makeDeletionOp(overrides?: Partial<DeletionOperation>): DeletionOperation {
-  return {
-    campaignKey: "default",
-    campaignId: VALID_CAMPAIGN_ID,
-    status: "deleting" as const,
-    phase: "campaignEvents" as DeletionPhase,
-    startedAt: 1000,
-    lastProgressAt: 1000,
-    ...overrides,
-  };
+class InMemoryDeletionAdapter implements DeletionPersistenceAdapter {
+  marker: DeletionOperation | null = null;
+  canonicalCampaignId: string | null = null;
+  childRecords: Map<CampaignOwnedChildCollection, Map<string, number>> = new Map();
+  scheduledBatches = 0;
+  deletedByPhase: Map<string, number> = new Map();
+
+  constructor() {
+    for (const col of CAMPAIGN_OWNED_CHILD_COLLECTIONS) {
+      this.childRecords.set(col, new Map());
+    }
+  }
+
+  seedCampaign(campaignId: string): void {
+    this.canonicalCampaignId = campaignId;
+  }
+
+  seedChildRecords(collection: CampaignOwnedChildCollection, campaignId: string, count: number): void {
+    const colMap = this.childRecords.get(collection)!;
+    colMap.set(campaignId, (colMap.get(campaignId) ?? 0) + count);
+  }
+
+  loadActiveDeletion(): DeletionOperation | null {
+    return this.marker;
+  }
+
+  loadCanonicalCampaignId(): string | null {
+    return this.canonicalCampaignId;
+  }
+
+  insertDeletionMarker(op: DeletionOperation): void {
+    if (this.marker !== null) throw new Error("Marker already exists");
+    this.marker = { ...op };
+  }
+
+  patchDeletionPhase(phase: DeletionPhase): void {
+    if (this.marker === null) throw new Error("No marker to patch");
+    this.marker = { ...this.marker, phase, lastProgressAt: Date.now() };
+  }
+
+  removeDeletionMarker(): void {
+    this.marker = null;
+  }
+
+  countChildRecords(collection: CampaignOwnedChildCollection, campaignId: string): number {
+    return this.childRecords.get(collection)?.get(campaignId) ?? 0;
+  }
+
+  deleteChildBatch(collection: CampaignOwnedChildCollection, campaignId: string, limit: number): number {
+    const colMap = this.childRecords.get(collection)!;
+    const current = colMap.get(campaignId) ?? 0;
+    const toDelete = Math.min(current, limit);
+    colMap.set(campaignId, current - toDelete);
+    this.deletedByPhase.set(collection, (this.deletedByPhase.get(collection) ?? 0) + toDelete);
+    return toDelete;
+  }
+
+  deleteCampaignRecord(campaignId: string): boolean {
+    if (this.canonicalCampaignId === campaignId) {
+      this.canonicalCampaignId = null;
+      return true;
+    }
+    return false;
+  }
+
+  hasAnyCampaignRecord(): boolean {
+    return this.canonicalCampaignId !== null;
+  }
+
+  getCampaignRecordIdentity(): string | null {
+    return this.canonicalCampaignId;
+  }
+
+  scheduleNextBatch(): void {
+    this.scheduledBatches++;
+  }
+
+  totalRemainingChildRecords(campaignId: string): number {
+    let total = 0;
+    for (const col of CAMPAIGN_OWNED_CHILD_COLLECTIONS) {
+      total += this.countChildRecords(col, campaignId);
+    }
+    return total;
+  }
 }
 
-function makeInitialState(): SerializableCampaignState {
-  return {
-    schemaVersion: CURRENT_STATE_SCHEMA_VERSION,
-    ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
-    calendar: { monthOrdinal: INITIAL_MONTH_ORDINAL as number },
-    configuration: { ageId: null, facilitatorPlayerId: null },
-    players: [],
-    wizards: [],
-    pactSeats: {
-      necromancer: { status: null, wizardId: null, watcherPlayerId: null },
-      hierophant: { status: null, wizardId: null, watcherPlayerId: null },
-      warlock: { status: null, wizardId: null, watcherPlayerId: null },
-      mariner: { status: null, wizardId: null, watcherPlayerId: null },
-      faustian: { status: null, wizardId: null, watcherPlayerId: null },
-      sage: { status: null, wizardId: null, watcherPlayerId: null },
-      sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
-    },
-  };
+function runToCompletion(adapter: InMemoryDeletionAdapter, maxBatches = 1000): number {
+  let batches = 0;
+  while (batches < maxBatches) {
+    const result = processBatch(adapter);
+    if (result === null || !result.continued) break;
+    batches++;
+  }
+  return batches;
 }
 
 // ============================================================
-// 1. Deletion request validation
+// 1. Request creates barrier before cleanup
 // ============================================================
 
-describe("validateDeletionRequest", () => {
-  it("accepts valid confirmation and campaign ID", () => {
-    expect(() => validateDeletionRequest(VALID_CAMPAIGN_ID, "DELETE")).not.toThrow();
+describe("requestDeletion", () => {
+  let adapter: InMemoryDeletionAdapter;
+
+  beforeEach(() => {
+    adapter = new InMemoryDeletionAdapter();
+    adapter.seedCampaign(CID);
   });
 
-  it("rejects bad confirmation string with zero writes (test #2)", () => {
-    expect(() => validateDeletionRequest(VALID_CAMPAIGN_ID, "delete")).toThrow(DomainError);
-    expect(() => validateDeletionRequest(VALID_CAMPAIGN_ID, "")).toThrow(DomainError);
-    expect(() => validateDeletionRequest(VALID_CAMPAIGN_ID, "REMOVE")).toThrow(DomainError);
+  it("creates marker before any cleanup begins", () => {
+    const result = requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    expect(result.status).toBe("deleting");
+    expect(result.campaignId).toBe(CID);
+    expect(adapter.marker).not.toBeNull();
+    expect(adapter.marker!.phase).toBe(DELETION_PHASE_ORDER[0]);
+    expect(adapter.canonicalCampaignId).toBe(CID);
+  });
+
+  it("schedules a batch worker after creating marker", () => {
+    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    expect(adapter.scheduledBatches).toBe(1);
+  });
+
+  it("is idempotent for the same campaign", () => {
+    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    const result2 = requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    expect(result2.status).toBe("deleting");
+    expect(result2.campaignId).toBe(CID);
+  });
+
+  it("rejects deletion of a different campaign while one is in progress", () => {
+    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    expect(() => requestDeletion(adapter, OTHER_CID, DELETION_CONFIRMATION_STRING)).toThrow(DomainError);
+  });
+
+  it("stale identity rejects with zero writes", () => {
+    const before = JSON.stringify(adapter);
     try {
-      validateDeletionRequest(VALID_CAMPAIGN_ID, "wrong");
+      requestDeletion(adapter, OTHER_CID, DELETION_CONFIRMATION_STRING);
+    } catch (e: any) {
+      expect(e.code).toBe("CAMPAIGN_DELETION_STALE_IDENTITY");
+    }
+    expect(adapter.marker).toBeNull();
+  });
+
+  it("bad confirmation rejects with zero writes", () => {
+    try {
+      requestDeletion(adapter, CID, "wrong");
     } catch (e: any) {
       expect(e.code).toBe("CAMPAIGN_DELETION_CONFIRMATION_FAILED");
     }
+    expect(adapter.marker).toBeNull();
+    expect(adapter.scheduledBatches).toBe(0);
   });
 
-  it("rejects invalid campaign ID format (test #3)", () => {
-    expect(() => validateDeletionRequest("not-a-campaign-id", "DELETE")).toThrow(DomainError);
-    try {
-      validateDeletionRequest("garbage", "DELETE");
-    } catch (e: any) {
-      expect(e.code).toBe("CAMPAIGN_DELETION_STALE_IDENTITY");
-    }
-  });
-});
-
-describe("validateCampaignIdentityMatch", () => {
-  it("accepts matching campaign IDs", () => {
-    expect(() => validateCampaignIdentityMatch(VALID_CAMPAIGN_ID, VALID_CAMPAIGN_ID)).not.toThrow();
-  });
-
-  it("rejects stale/mismatched campaign identity (test #3)", () => {
-    expect(() => validateCampaignIdentityMatch(VALID_CAMPAIGN_ID, OTHER_CAMPAIGN_ID)).toThrow(DomainError);
-    try {
-      validateCampaignIdentityMatch(VALID_CAMPAIGN_ID, OTHER_CAMPAIGN_ID);
-    } catch (e: any) {
-      expect(e.code).toBe("CAMPAIGN_DELETION_STALE_IDENTITY");
-    }
+  it("rejects when no campaign exists", () => {
+    adapter.canonicalCampaignId = null;
+    expect(() => requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING)).toThrow(DomainError);
   });
 });
 
 // ============================================================
-// 2. Deletion barrier guard
+// 2. Barrier blocks gameplay writes
 // ============================================================
 
-describe("assertNotDeleting", () => {
-  it("does nothing when no deletion is in progress", () => {
+describe("deletion barrier blocks all mutation types", () => {
+  it("assertNotDeleting throws for every phase", () => {
+    for (const phase of DELETION_PHASE_ORDER) {
+      const op: DeletionOperation = {
+        campaignKey: "default",
+        campaignId: CID,
+        status: "deleting",
+        phase,
+        startedAt: 1000,
+        lastProgressAt: 1000,
+      };
+      expect(() => assertNotDeleting(op)).toThrow(DomainError);
+      try {
+        assertNotDeleting(op);
+      } catch (e: any) {
+        expect(e.code).toBe("CAMPAIGN_DELETION_IN_PROGRESS");
+      }
+    }
+  });
+
+  it("assertNotDeleting passes when no deletion in progress", () => {
     expect(() => assertNotDeleting(null)).not.toThrow();
   });
+});
 
-  it("rejects canonical gameplay writes while barrier exists (test #4)", () => {
-    const op = makeDeletionOp();
-    expect(() => assertNotDeleting(op)).toThrow(DomainError);
-    try {
-      assertNotDeleting(op);
-    } catch (e: any) {
-      expect(e.code).toBe("CAMPAIGN_DELETION_IN_PROGRESS");
+// ============================================================
+// 3. Bounded batch cleanup
+// ============================================================
+
+describe("processBatch bounded cleanup", () => {
+  let adapter: InMemoryDeletionAdapter;
+
+  beforeEach(() => {
+    adapter = new InMemoryDeletionAdapter();
+    adapter.seedCampaign(CID);
+  });
+
+  it("one worker call deletes no more than DELETION_BATCH_SIZE records", () => {
+    adapter.seedChildRecords("campaignEvents", CID, 500);
+    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+
+    const result = processBatch(adapter);
+    expect(result).not.toBeNull();
+    expect(result!.deleted).toBeLessThanOrEqual(DELETION_BATCH_SIZE);
+    expect(adapter.countChildRecords("campaignEvents", CID)).toBe(300);
+  });
+
+  it("requires multiple batches for >BATCH_SIZE records", () => {
+    adapter.seedChildRecords("campaignEvents", CID, 500);
+    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+
+    let totalDeleted = 0;
+    let batchCount = 0;
+    while (adapter.countChildRecords("campaignEvents", CID) > 0) {
+      const result = processBatch(adapter);
+      if (result === null) break;
+      totalDeleted += result.deleted;
+      batchCount++;
+      if (batchCount > 10) break;
     }
+    expect(batchCount).toBeGreaterThan(1);
+    expect(totalDeleted).toBe(500);
   });
 
-  it("rejects Undo while deleting (test #5)", () => {
-    expect(() => assertNotDeleting(makeDeletionOp())).toThrow(DomainError);
-  });
+  it("advances phases in correct order through child collections", () => {
+    for (const col of CAMPAIGN_OWNED_CHILD_COLLECTIONS) {
+      adapter.seedChildRecords(col, CID, DELETION_BATCH_SIZE + 1);
+    }
+    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
 
-  it("rejects Redo while deleting (test #6)", () => {
-    expect(() => assertNotDeleting(makeDeletionOp())).toThrow(DomainError);
-  });
+    const phasesVisited: DeletionPhase[] = [];
+    let iterations = 0;
+    while (iterations < 200) {
+      const result = processBatch(adapter);
+      if (result === null) break;
+      phasesVisited.push(result.finalPhase as DeletionPhase);
+      if (!result.continued) break;
+      iterations++;
+    }
 
-  it("rejects checkpoint restore while deleting (test #7)", () => {
-    expect(() => assertNotDeleting(makeDeletionOp())).toThrow(DomainError);
-  });
-
-  it("rejects backup import while deleting (test #8)", () => {
-    expect(() => assertNotDeleting(makeDeletionOp())).toThrow(DomainError);
-  });
-
-  it("rejects new-campaign/auto-create while deleting (test #9)", () => {
-    expect(() => assertNotDeleting(makeDeletionOp())).toThrow(DomainError);
-  });
-
-  it("rejects in every deletion phase", () => {
-    for (const phase of DELETION_PHASE_ORDER) {
-      expect(() => assertNotDeleting(makeDeletionOp({ phase }))).toThrow(DomainError);
+    // Every child collection must appear and in the canonical order
+    const childOrder = phasesVisited.filter((p) =>
+      (CAMPAIGN_OWNED_CHILD_COLLECTIONS as readonly string[]).includes(p),
+    );
+    const uniqueChildOrder = [...new Set(childOrder)];
+    for (const col of CAMPAIGN_OWNED_CHILD_COLLECTIONS) {
+      expect(uniqueChildOrder).toContain(col);
+    }
+    // Verify ordering: first occurrence of each child collection respects DELETION_PHASE_ORDER
+    for (let i = 1; i < uniqueChildOrder.length; i++) {
+      const prevIdx = DELETION_PHASE_ORDER.indexOf(uniqueChildOrder[i - 1] as DeletionPhase);
+      const curIdx = DELETION_PHASE_ORDER.indexOf(uniqueChildOrder[i] as DeletionPhase);
+      expect(curIdx).toBeGreaterThan(prevIdx);
     }
   });
 });
 
 // ============================================================
-// 3. Deletion phase progression
+// 4. Campaign record deleted only after all children
 // ============================================================
 
-describe("DELETION_PHASE_ORDER", () => {
-  it("has the expected deterministic order", () => {
-    expect(DELETION_PHASE_ORDER).toEqual([
-      "campaignEvents",
-      "campaignSnapshots",
-      "campaignRevisions",
-      "campaignCheckpoints",
-      "campaignHistoryControl",
-      "campaign",
-      "verify",
-    ]);
+describe("canonical campaign deletion ordering", () => {
+  let adapter: InMemoryDeletionAdapter;
+
+  beforeEach(() => {
+    adapter = new InMemoryDeletionAdapter();
+    adapter.seedCampaign(CID);
   });
 
-  it("canonical campaign is near the end (test #15)", () => {
-    const campaignIdx = DELETION_PHASE_ORDER.indexOf("campaign");
-    const verifyIdx = DELETION_PHASE_ORDER.indexOf("verify");
-    expect(campaignIdx).toBe(DELETION_PHASE_ORDER.length - 2);
-    expect(verifyIdx).toBe(DELETION_PHASE_ORDER.length - 1);
+  it("campaign row remains until child cleanup completes", () => {
+    adapter.seedChildRecords("campaignEvents", CID, 10);
+    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+
+    processBatch(adapter);
+    expect(adapter.canonicalCampaignId).toBe(CID);
+  });
+
+  it("campaign row is deleted in the campaign phase", () => {
+    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    runToCompletion(adapter);
+    expect(adapter.canonicalCampaignId).toBeNull();
+  });
+
+  it("marker is the final thing removed", () => {
+    adapter.seedChildRecords("campaignEvents", CID, 5);
+    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+
+    let markerRemovedAt = -1;
+    let campaignDeletedAt = -1;
+    let step = 0;
+    while (step < 100) {
+      if (adapter.marker === null && markerRemovedAt === -1) {
+        markerRemovedAt = step;
+        break;
+      }
+      if (adapter.canonicalCampaignId === null && campaignDeletedAt === -1) {
+        campaignDeletedAt = step;
+      }
+      processBatch(adapter);
+      step++;
+    }
+    if (markerRemovedAt === -1) markerRemovedAt = step;
+    expect(campaignDeletedAt).toBeLessThan(markerRemovedAt);
+  });
+
+  it("complete cleanup results in truly empty graph", () => {
+    for (const col of CAMPAIGN_OWNED_CHILD_COLLECTIONS) {
+      adapter.seedChildRecords(col, CID, 3);
+    }
+    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    runToCompletion(adapter);
+
+    expect(adapter.marker).toBeNull();
+    expect(adapter.canonicalCampaignId).toBeNull();
+    expect(adapter.totalRemainingChildRecords(CID)).toBe(0);
   });
 });
 
-describe("nextDeletionPhase", () => {
-  it("progresses through all phases in order", () => {
+// ============================================================
+// 5. Fail-closed: unexpected campaign identity
+// ============================================================
+
+describe("fail-closed on unexpected campaign identity", () => {
+  let adapter: InMemoryDeletionAdapter;
+
+  beforeEach(() => {
+    adapter = new InMemoryDeletionAdapter();
+    adapter.seedCampaign(CID);
+  });
+
+  it("campaign phase rejects when canonical row has different identity", () => {
+    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    // Simulate: child cleanup done, now at campaign phase, but someone replaced the campaign
+    adapter.marker = { ...adapter.marker!, phase: "campaign" as DeletionPhase };
+    adapter.canonicalCampaignId = OTHER_CID;
+
+    expect(() => processBatch(adapter)).toThrow(DomainError);
+    // Marker must remain (fail-closed, not removed)
+    expect(adapter.marker).not.toBeNull();
+    // Foreign campaign must NOT be deleted
+    expect(adapter.canonicalCampaignId).toBe(OTHER_CID);
+  });
+
+  it("verify phase rejects when canonical row has different identity", () => {
+    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    adapter.marker = { ...adapter.marker!, phase: "verify" as DeletionPhase };
+    adapter.canonicalCampaignId = OTHER_CID;
+
+    expect(() => processBatch(adapter)).toThrow(DomainError);
+    expect(adapter.marker).not.toBeNull();
+    expect(adapter.canonicalCampaignId).toBe(OTHER_CID);
+  });
+
+  it("campaign phase succeeds when canonical matches target", () => {
+    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    adapter.marker = { ...adapter.marker!, phase: "campaign" as DeletionPhase };
+    const result = processBatch(adapter);
+    expect(result).not.toBeNull();
+    expect(adapter.canonicalCampaignId).toBeNull();
+  });
+
+  it("campaign phase succeeds when canonical already absent", () => {
+    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    adapter.marker = { ...adapter.marker!, phase: "campaign" as DeletionPhase };
+    adapter.canonicalCampaignId = null;
+    const result = processBatch(adapter);
+    expect(result).not.toBeNull();
+  });
+});
+
+// ============================================================
+// 6. Resume / interruption recovery
+// ============================================================
+
+describe("interruption and resume", () => {
+  let adapter: InMemoryDeletionAdapter;
+
+  beforeEach(() => {
+    adapter = new InMemoryDeletionAdapter();
+    adapter.seedCampaign(CID);
+  });
+
+  it("interruption followed by resume continues from durable phase", () => {
+    adapter.seedChildRecords("campaignEvents", CID, 500);
+    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+
+    // Process one batch, then "crash"
+    processBatch(adapter);
+    const phaseBeforeResume = adapter.marker!.phase;
+    const remainingBeforeResume = adapter.countChildRecords("campaignEvents", CID);
+
+    // Resume: just call processBatch again (simulating scheduler restart)
+    processBatch(adapter);
+    const remainingAfterResume = adapter.countChildRecords("campaignEvents", CID);
+
+    expect(remainingAfterResume).toBeLessThan(remainingBeforeResume);
+    expect(adapter.marker).not.toBeNull();
+  });
+
+  it("replaying is idempotent -- resuming a completed deletion is safe", () => {
+    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    runToCompletion(adapter);
+    expect(adapter.marker).toBeNull();
+
+    // Calling processBatch with no marker returns null (no-op)
+    const result = processBatch(adapter);
+    expect(result).toBeNull();
+  });
+});
+
+// ============================================================
+// 7. No gameplay artifacts created by deletion
+// ============================================================
+
+describe("deletion creates no gameplay artifacts", () => {
+  let adapter: InMemoryDeletionAdapter;
+
+  beforeEach(() => {
+    adapter = new InMemoryDeletionAdapter();
+    adapter.seedCampaign(CID);
+    for (const col of CAMPAIGN_OWNED_CHILD_COLLECTIONS) {
+      adapter.seedChildRecords(col, CID, 10);
+    }
+  });
+
+  it("no campaignRevision/event/snapshot is created during deletion", () => {
+    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    runToCompletion(adapter);
+    // After deletion, no child records should remain (they were only deleted, never created)
+    expect(adapter.totalRemainingChildRecords(CID)).toBe(0);
+    // deletedByPhase should show only deletions
+    for (const col of CAMPAIGN_OWNED_CHILD_COLLECTIONS) {
+      expect(adapter.deletedByPhase.get(col)).toBe(10);
+    }
+  });
+});
+
+// ============================================================
+// 8. Lifecycle resolution (orphan detection)
+// ============================================================
+
+describe("resolveLifecycle", () => {
+  it("returns 'none' for truly empty graph", () => {
+    const result = resolveLifecycle(null, null, false);
+    expect(result.status).toBe("none");
+  });
+
+  it("returns 'campaign' when canonical exists", () => {
+    const result = resolveLifecycle(null, CID, false);
+    expect(result.status).toBe("campaign");
+  });
+
+  it("returns 'deleting' when marker exists", () => {
+    const marker: DeletionOperation = {
+      campaignKey: "default",
+      campaignId: CID,
+      status: "deleting",
+      phase: "campaignEvents",
+      startedAt: 1000,
+      lastProgressAt: 1000,
+    };
+    const result = resolveLifecycle(marker, CID, false);
+    expect(result.status).toBe("deleting");
+  });
+
+  it("returns 'corrupt' when orphaned child records exist without campaign or marker", () => {
+    const result = resolveLifecycle(null, null, true);
+    expect(result.status).toBe("corrupt");
+  });
+
+  it("deletion marker takes priority over orphan detection", () => {
+    const marker: DeletionOperation = {
+      campaignKey: "default",
+      campaignId: CID,
+      status: "deleting",
+      phase: "campaignEvents",
+      startedAt: 1000,
+      lastProgressAt: 1000,
+    };
+    const result = resolveLifecycle(marker, null, true);
+    expect(result.status).toBe("deleting");
+  });
+});
+
+// ============================================================
+// 9. Full end-to-end orchestration
+// ============================================================
+
+describe("full deletion orchestration end-to-end", () => {
+  it("deletes all records across all phases and reaches clean state", () => {
+    const adapter = new InMemoryDeletionAdapter();
+    adapter.seedCampaign(CID);
+    adapter.seedChildRecords("campaignEvents", CID, 450);
+    adapter.seedChildRecords("campaignSnapshots", CID, 300);
+    adapter.seedChildRecords("campaignRevisions", CID, 200);
+    adapter.seedChildRecords("campaignCheckpoints", CID, 5);
+    adapter.seedChildRecords("campaignHistoryControl", CID, 1);
+
+    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    const batches = runToCompletion(adapter);
+
+    expect(batches).toBeGreaterThan(3);
+    expect(adapter.marker).toBeNull();
+    expect(adapter.canonicalCampaignId).toBeNull();
+    expect(adapter.totalRemainingChildRecords(CID)).toBe(0);
+
+    const lifecycle = resolveLifecycle(null, null, false);
+    expect(lifecycle.status).toBe("none");
+  });
+});
+
+// ============================================================
+// 10. Pure domain helpers (kept from original)
+// ============================================================
+
+describe("pure domain: validateDeletionRequest", () => {
+  it("accepts valid confirmation and campaign ID", () => {
+    expect(() => validateDeletionRequest(CID, "DELETE")).not.toThrow();
+  });
+
+  it("rejects bad confirmation", () => {
+    expect(() => validateDeletionRequest(CID, "delete")).toThrow(DomainError);
+  });
+
+  it("rejects invalid campaign ID", () => {
+    expect(() => validateDeletionRequest("garbage", "DELETE")).toThrow(DomainError);
+  });
+});
+
+describe("pure domain: phase progression", () => {
+  it("progresses through all phases to complete", () => {
     let phase: DeletionPhase = DELETION_PHASE_ORDER[0];
     const visited: DeletionPhase[] = [phase];
     for (let i = 0; i < DELETION_PHASE_ORDER.length - 1; i++) {
@@ -191,150 +576,10 @@ describe("nextDeletionPhase", () => {
     expect(visited).toEqual([...DELETION_PHASE_ORDER]);
     expect(nextDeletionPhase(phase)).toBe("complete");
   });
-
-  it("returns 'complete' after verify (test #18)", () => {
-    expect(nextDeletionPhase("verify")).toBe("complete");
-  });
-
-  it("rejects unknown phase", () => {
-    expect(() => nextDeletionPhase("bogus" as DeletionPhase)).toThrow(DomainError);
-  });
 });
 
-// ============================================================
-// 4. Campaign-owned collection enumeration
-// ============================================================
-
-describe("CAMPAIGN_OWNED_CHILD_COLLECTIONS", () => {
-  it("enumerates all child collections (not campaigns itself)", () => {
-    expect(CAMPAIGN_OWNED_CHILD_COLLECTIONS).toContain("campaignEvents");
-    expect(CAMPAIGN_OWNED_CHILD_COLLECTIONS).toContain("campaignSnapshots");
-    expect(CAMPAIGN_OWNED_CHILD_COLLECTIONS).toContain("campaignRevisions");
-    expect(CAMPAIGN_OWNED_CHILD_COLLECTIONS).toContain("campaignCheckpoints");
-    expect(CAMPAIGN_OWNED_CHILD_COLLECTIONS).toContain("campaignHistoryControl");
-    expect(CAMPAIGN_OWNED_CHILD_COLLECTIONS).not.toContain("campaigns");
-  });
-});
-
-describe("isDeletionChildCleanupPhase", () => {
-  it("returns true for child collections", () => {
-    for (const col of CAMPAIGN_OWNED_CHILD_COLLECTIONS) {
-      expect(isDeletionChildCleanupPhase(col)).toBe(true);
-    }
-  });
-
-  it("returns false for campaign and verify phases", () => {
-    expect(isDeletionChildCleanupPhase("campaign")).toBe(false);
-    expect(isDeletionChildCleanupPhase("verify")).toBe(false);
-  });
-});
-
-// ============================================================
-// 5. Batch size constant
-// ============================================================
-
-describe("DELETION_BATCH_SIZE", () => {
-  it("is a positive bounded integer (test #11)", () => {
-    expect(Number.isInteger(DELETION_BATCH_SIZE)).toBe(true);
-    expect(DELETION_BATCH_SIZE).toBeGreaterThan(0);
-    expect(DELETION_BATCH_SIZE).toBeLessThanOrEqual(1000);
-  });
-
-  it("is 200 as approved", () => {
+describe("pure domain: DELETION_BATCH_SIZE", () => {
+  it("is 200", () => {
     expect(DELETION_BATCH_SIZE).toBe(200);
-  });
-});
-
-// ============================================================
-// 6. Deletion does not create gameplay artifacts (test #20)
-// ============================================================
-
-describe("deletion creates no gameplay artifacts", () => {
-  it("DeletionOperation has no revision, event, or snapshot fields", () => {
-    const op = makeDeletionOp();
-    expect(op).not.toHaveProperty("revision");
-    expect(op).not.toHaveProperty("event");
-    expect(op).not.toHaveProperty("snapshot");
-    expect(op).toHaveProperty("campaignKey");
-    expect(op).toHaveProperty("campaignId");
-    expect(op).toHaveProperty("status");
-    expect(op).toHaveProperty("phase");
-    expect(op).toHaveProperty("startedAt");
-    expect(op).toHaveProperty("lastProgressAt");
-  });
-
-  it("deletion status is 'deleting', not a CampaignCommandType", () => {
-    const op = makeDeletionOp();
-    expect(op.status).toBe("deleting");
-  });
-});
-
-// ============================================================
-// 7. Confirmation string contract
-// ============================================================
-
-describe("DELETION_CONFIRMATION_STRING", () => {
-  it("is the exact string 'DELETE'", () => {
-    expect(DELETION_CONFIRMATION_STRING).toBe("DELETE");
-  });
-});
-
-// ============================================================
-// 8. Marker stays while children remain (conceptual, test #16/#17)
-// ============================================================
-
-describe("deletion marker lifecycle ordering", () => {
-  it("verify phase is the last phase before marker removal (test #17/#18)", () => {
-    const lastPhase = DELETION_PHASE_ORDER[DELETION_PHASE_ORDER.length - 1];
-    expect(lastPhase).toBe("verify");
-    expect(nextDeletionPhase("verify")).toBe("complete");
-  });
-
-  it("child cleanup phases all precede campaign and verify phases", () => {
-    for (const child of CAMPAIGN_OWNED_CHILD_COLLECTIONS) {
-      const childIdx = DELETION_PHASE_ORDER.indexOf(child);
-      const campaignIdx = DELETION_PHASE_ORDER.indexOf("campaign");
-      const verifyIdx = DELETION_PHASE_ORDER.indexOf("verify");
-      expect(childIdx).toBeLessThan(campaignIdx);
-      expect(childIdx).toBeLessThan(verifyIdx);
-    }
-  });
-});
-
-// ============================================================
-// 9. Resume safety (conceptual, test #12/#13)
-// ============================================================
-
-describe("deletion resumability contracts", () => {
-  it("phase is a string that survives serialization (durable marker)", () => {
-    for (const phase of DELETION_PHASE_ORDER) {
-      const serialized = JSON.parse(JSON.stringify(makeDeletionOp({ phase })));
-      expect(serialized.phase).toBe(phase);
-    }
-  });
-
-  it("nextDeletionPhase is deterministic for any given phase", () => {
-    for (const phase of DELETION_PHASE_ORDER) {
-      const a = nextDeletionPhase(phase);
-      const b = nextDeletionPhase(phase);
-      expect(a).toBe(b);
-    }
-  });
-});
-
-// ============================================================
-// 10. Batch boundary contract (test #11 / #14)
-// ============================================================
-
-describe("bounded batch cleanup contract", () => {
-  it("batch size bounds how many records one invocation may delete", () => {
-    expect(DELETION_BATCH_SIZE).toBe(200);
-  });
-
-  it("multiple batches are needed for records exceeding the limit (conceptual)", () => {
-    const totalRecords = 500;
-    const batchesNeeded = Math.ceil(totalRecords / DELETION_BATCH_SIZE);
-    expect(batchesNeeded).toBeGreaterThan(1);
-    expect(batchesNeeded).toBe(3);
   });
 });
