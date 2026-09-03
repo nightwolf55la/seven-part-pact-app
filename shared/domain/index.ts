@@ -302,6 +302,7 @@ export type {
   PlanetDefinition,
   SetupOrreryState,
   OrreryState,
+  OrreryMoveDirection,
   BodyHouseOccupancy,
   Conjunction,
 } from "./orrery";
@@ -324,6 +325,7 @@ export {
   computeAllOccupancies,
   computeConjunctions,
   advancePlanetPosition,
+  movePlanetByArc,
   legalPositionsForPlanet,
   isLegalPosition,
   isCompleteOrrery,

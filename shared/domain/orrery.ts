@@ -220,6 +220,18 @@ export function advancePlanetPosition(
   return normalizeCentidegrees(currentStart + def.arcCentidegrees) as CentidegreePosition;
 }
 
+export type OrreryMoveDirection = "forward" | "backward";
+
+export function movePlanetByArc(
+  planetId: MovablePlanetId,
+  currentStart: CentidegreePosition,
+  direction: OrreryMoveDirection,
+): CentidegreePosition {
+  const def = PLANET_DEFINITIONS[planetId];
+  const delta = direction === "forward" ? def.arcCentidegrees : -def.arcCentidegrees;
+  return normalizeCentidegrees(currentStart + delta) as CentidegreePosition;
+}
+
 export function legalPositionsForPlanet(planetId: MovablePlanetId): readonly CentidegreePosition[] {
   const def = PLANET_DEFINITIONS[planetId];
   const positions: CentidegreePosition[] = [];
