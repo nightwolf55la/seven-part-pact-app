@@ -28,6 +28,7 @@ import type {
 import { canonicalCommit } from "./canonicalCommit";
 import { loadCanonicalRecord, serializeState } from "./persistence";
 import { currentCampaignStateValidator, monthDisplayNameValidator } from "./validators";
+import { assertCampaignNotDeleting } from "./deletionBarrier";
 
 // ============================================================
 // Return validators
@@ -64,6 +65,8 @@ export const getPortableBackupSource = internalQuery({
   args: {},
   returns: exportSourceValidator,
   handler: async (ctx) => {
+    await assertCampaignNotDeleting(ctx);
+
     const record = await loadCanonicalRecord(ctx);
     if (record === null) {
       throw new DomainError("CAMPAIGN_NOT_FOUND", "No canonical campaign found");
@@ -176,11 +179,13 @@ export const importPortableBackup = mutation({
   },
   returns: v.object({
     revision: v.number(),
-    monthOrdinal: v.number(),
-    month: monthDisplayNameValidator,
+    monthOrdinal: v.union(v.number(), v.null()),
+    month: v.union(monthDisplayNameValidator, v.null()),
     alreadyApplied: v.boolean(),
   }),
   handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+
     // STEP 1: Validate commandId
     const commandId = parseLiveCommandId(args.commandId);
 
@@ -232,10 +237,11 @@ export const importPortableBackup = mutation({
           throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Snapshot missing for committed revision ${existingCommand.campaignRevision}`);
         }
         validateCampaignState(snap.state);
+        const idempMo = (snap.state as any).calendar.monthOrdinal;
         return {
           revision: existingCommand.campaignRevision,
-          monthOrdinal: (snap.state as any).calendar.monthOrdinal as number,
-          month: displayNameFromOrdinal((snap.state as any).calendar.monthOrdinal as number),
+          monthOrdinal: idempMo ?? null,
+          month: idempMo !== null && idempMo !== undefined ? displayNameFromOrdinal(idempMo) : null,
           alreadyApplied: true,
         };
       }
@@ -307,10 +313,11 @@ export const importPortableBackup = mutation({
       commandContext: { kind: "backup_import", backupJson: args.backupJson },
     });
 
+    const importMo = receipt.state.calendar.monthOrdinal;
     return {
       revision: receipt.newRevision,
-      monthOrdinal: receipt.state.calendar.monthOrdinal as number,
-      month: displayNameFromOrdinal(receipt.state.calendar.monthOrdinal as number),
+      monthOrdinal: importMo ?? null,
+      month: importMo !== null && importMo !== undefined ? displayNameFromOrdinal(importMo) : null,
       alreadyApplied: receipt.alreadyApplied,
     };
   },
