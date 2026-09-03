@@ -20,7 +20,8 @@ export type DomainErrorCode =
   | "MIGRATION_REQUIRED"
   | "CAMPAIGN_DELETION_IN_PROGRESS"
   | "CAMPAIGN_DELETION_STALE_IDENTITY"
-  | "CAMPAIGN_DELETION_CONFIRMATION_FAILED";
+  | "CAMPAIGN_DELETION_CONFIRMATION_FAILED"
+  | "UNSUPPORTED_LEGACY_STATE";
 
 export class DomainError extends Error {
   public readonly code: DomainErrorCode;

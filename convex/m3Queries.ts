@@ -1,5 +1,5 @@
 import { query } from "./_generated/server";
-import { validateCampaignState, validateAnyCampaignState, DomainError } from "../shared/domain";
+import { validateCampaignState } from "../shared/domain";
 
 export const getCampaignSetup = query({
   args: {},
@@ -20,24 +20,7 @@ export const getCampaignSetup = query({
     const doc = maybeCanonical as any;
     const rawState = doc.state;
 
-    // Fail closed: current campaign document MUST already be V2.
-    let current;
-    try {
-      current = validateCampaignState(rawState);
-    } catch (e: unknown) {
-      try {
-        const any = validateAnyCampaignState(rawState);
-        if ((any as any).schemaVersion !== 3) {
-          throw new DomainError(
-            "MIGRATION_REQUIRED",
-            "Campaign state is not V3. Run the explicit admin migration before using M3 queries.",
-          );
-        }
-      } catch (inner: unknown) {
-        if (inner instanceof DomainError && inner.code === "MIGRATION_REQUIRED") throw inner;
-      }
-      throw e;
-    }
+    const current = validateCampaignState(rawState);
 
     return {
       campaignId: doc.campaignId as string,

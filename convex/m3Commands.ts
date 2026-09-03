@@ -29,7 +29,6 @@ import {
   applySetWatcher,
   isValidPlayerId,
   isValidWizardId,
-  validateAnyCampaignState,
 } from "../shared/domain";
 import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId } from "../shared/domain";
 import type { PactSeatId } from "../shared/domain/pact-seats";
@@ -56,31 +55,13 @@ async function loadCanonicalV2ForMutation(ctx: MutationCtx): Promise<CanonicalCa
     throw new DomainError("CAMPAIGN_STATE_CORRUPT", "No canonical campaign found");
   }
 
-  // Fail closed: current campaign document MUST already be V2.
-  // If it is still V1, the explicit admin migration has not been run yet.
-  try {
-    const currentState = validateCampaignState(record.rawState);
-    return {
-      docId: record.docId,
-      campaignId: record.campaignId,
-      currentRevision: record.campaignRevision,
-      currentState,
-    };
-  } catch (e: unknown) {
-    // Check if it's actually a valid V1 state that hasn't been migrated
-    try {
-      const any = validateAnyCampaignState(record.rawState);
-      if ((any as any).schemaVersion !== 3) {
-        throw new DomainError(
-          "MIGRATION_REQUIRED",
-          "Campaign state is not V3. Run the explicit admin migration before using M3 commands.",
-        );
-      }
-    } catch (inner: unknown) {
-      if (inner instanceof DomainError && inner.code === "MIGRATION_REQUIRED") throw inner;
-    }
-    throw e;
-  }
+  const currentState = validateCampaignState(record.rawState);
+  return {
+    docId: record.docId,
+    campaignId: record.campaignId,
+    currentRevision: record.campaignRevision,
+    currentState,
+  };
 }
 
 /**
