@@ -15,17 +15,18 @@ import type {
 } from "./campaign-deletion";
 
 export interface DeletionPersistenceAdapter {
-  loadActiveDeletion(): DeletionOperation | null;
-  loadCanonicalCampaignId(): string | null;
-  insertDeletionMarker(op: DeletionOperation): void;
-  patchDeletionPhase(phase: DeletionPhase): void;
-  removeDeletionMarker(): void;
-  countChildRecords(collection: CampaignOwnedChildCollection, campaignId: string): number;
-  deleteChildBatch(collection: CampaignOwnedChildCollection, campaignId: string, limit: number): number;
-  deleteCampaignRecord(campaignId: string): boolean;
-  hasAnyCampaignRecord(): boolean;
-  getCampaignRecordIdentity(): string | null;
-  scheduleNextBatch(): void;
+  loadActiveDeletion(): Promise<DeletionOperation | null>;
+  loadCanonicalCampaignId(): Promise<string | null>;
+  insertDeletionMarker(op: DeletionOperation): Promise<void>;
+  patchDeletionPhase(phase: DeletionPhase): Promise<void>;
+  removeDeletionMarker(): Promise<void>;
+  countChildRecords(collection: CampaignOwnedChildCollection, campaignId: string): Promise<number>;
+  deleteChildBatch(collection: CampaignOwnedChildCollection, campaignId: string, limit: number): Promise<number>;
+  deleteCampaignRecord(campaignId: string): Promise<boolean>;
+  hasAnyCampaignRecord(): Promise<boolean>;
+  getCampaignRecordIdentity(): Promise<string | null>;
+  scheduleNextBatch(): Promise<void>;
+  hasAnyChildRecordsGlobally(): Promise<boolean>;
 }
 
 export interface RequestDeletionResult {
@@ -34,14 +35,14 @@ export interface RequestDeletionResult {
   phase: DeletionPhase;
 }
 
-export function requestDeletion(
+export async function requestDeletion(
   adapter: DeletionPersistenceAdapter,
   expectedCampaignId: string,
   confirmation: string,
-): RequestDeletionResult {
+): Promise<RequestDeletionResult> {
   validateDeletionRequest(expectedCampaignId, confirmation);
 
-  const existingOp = adapter.loadActiveDeletion();
+  const existingOp = await adapter.loadActiveDeletion();
   if (existingOp !== null) {
     if (existingOp.campaignId === expectedCampaignId) {
       return { status: "deleting", campaignId: existingOp.campaignId, phase: existingOp.phase };
@@ -52,7 +53,7 @@ export function requestDeletion(
     );
   }
 
-  const actualCampaignId = adapter.loadCanonicalCampaignId();
+  const actualCampaignId = await adapter.loadCanonicalCampaignId();
   if (actualCampaignId === null) {
     throw new DomainError("CAMPAIGN_NOT_FOUND", "No canonical campaign found to delete");
   }
@@ -70,8 +71,8 @@ export function requestDeletion(
     lastProgressAt: now,
   };
 
-  adapter.insertDeletionMarker(op);
-  adapter.scheduleNextBatch();
+  await adapter.insertDeletionMarker(op);
+  await adapter.scheduleNextBatch();
 
   return { status: "deleting", campaignId: actualCampaignId, phase: initialPhase };
 }
@@ -82,37 +83,37 @@ export interface BatchResult {
   deleted: number;
 }
 
-export function processBatch(adapter: DeletionPersistenceAdapter): BatchResult | null {
-  const op = adapter.loadActiveDeletion();
+export async function processBatch(adapter: DeletionPersistenceAdapter): Promise<BatchResult | null> {
+  const op = await adapter.loadActiveDeletion();
   if (op === null) return null;
 
   const { campaignId, phase } = op;
 
   if (isDeletionChildCleanupPhase(phase)) {
-    const deleted = adapter.deleteChildBatch(phase, campaignId, DELETION_BATCH_SIZE);
+    const deleted = await adapter.deleteChildBatch(phase, campaignId, DELETION_BATCH_SIZE);
     if (deleted >= DELETION_BATCH_SIZE) {
-      adapter.patchDeletionPhase(phase);
-      adapter.scheduleNextBatch();
+      await adapter.patchDeletionPhase(phase);
+      await adapter.scheduleNextBatch();
       return { continued: true, finalPhase: phase, deleted };
     }
-    const remaining = adapter.countChildRecords(phase, campaignId);
+    const remaining = await adapter.countChildRecords(phase, campaignId);
     if (remaining > 0) {
-      adapter.patchDeletionPhase(phase);
-      adapter.scheduleNextBatch();
+      await adapter.patchDeletionPhase(phase);
+      await adapter.scheduleNextBatch();
       return { continued: true, finalPhase: phase, deleted };
     }
     const next = nextDeletionPhase(phase);
     if (next === "complete") {
-      adapter.removeDeletionMarker();
+      await adapter.removeDeletionMarker();
       return { continued: false, finalPhase: "complete", deleted };
     }
-    adapter.patchDeletionPhase(next);
-    adapter.scheduleNextBatch();
+    await adapter.patchDeletionPhase(next);
+    await adapter.scheduleNextBatch();
     return { continued: true, finalPhase: next, deleted };
   }
 
   if (phase === "campaign") {
-    const recordIdentity = adapter.getCampaignRecordIdentity();
+    const recordIdentity = await adapter.getCampaignRecordIdentity();
     if (recordIdentity !== null) {
       if (recordIdentity !== campaignId) {
         throw new DomainError(
@@ -120,28 +121,37 @@ export function processBatch(adapter: DeletionPersistenceAdapter): BatchResult |
           `Deletion target is "${campaignId}" but canonical campaign has identity "${recordIdentity}". Refusing to delete unknown campaign data.`,
         );
       }
-      adapter.deleteCampaignRecord(campaignId);
+      await adapter.deleteCampaignRecord(campaignId);
     }
     const next = nextDeletionPhase("campaign");
     if (next === "complete") {
-      adapter.removeDeletionMarker();
+      await adapter.removeDeletionMarker();
       return { continued: false, finalPhase: "complete", deleted: 0 };
     }
-    adapter.patchDeletionPhase(next);
-    adapter.scheduleNextBatch();
+    await adapter.patchDeletionPhase(next);
+    await adapter.scheduleNextBatch();
     return { continued: true, finalPhase: next, deleted: 0 };
   }
 
   if (phase === "verify") {
     for (const col of CAMPAIGN_OWNED_CHILD_COLLECTIONS) {
-      const count = adapter.countChildRecords(col, campaignId);
+      const count = await adapter.countChildRecords(col, campaignId);
       if (count > 0) {
-        adapter.patchDeletionPhase(col);
-        adapter.scheduleNextBatch();
+        await adapter.patchDeletionPhase(col);
+        await adapter.scheduleNextBatch();
         return { continued: true, finalPhase: col, deleted: 0 };
       }
     }
-    const recordIdentity = adapter.getCampaignRecordIdentity();
+
+    const hasForeignChildren = await adapter.hasAnyChildRecordsGlobally();
+    if (hasForeignChildren) {
+      throw new DomainError(
+        "CAMPAIGN_STATE_CORRUPT",
+        `Verification found child records belonging to a foreign campaign after cleanup of "${campaignId}". Deletion marker retained.`,
+      );
+    }
+
+    const recordIdentity = await adapter.getCampaignRecordIdentity();
     if (recordIdentity !== null) {
       if (recordIdentity !== campaignId) {
         throw new DomainError(
@@ -149,11 +159,11 @@ export function processBatch(adapter: DeletionPersistenceAdapter): BatchResult |
           `Verification found canonical campaign with unexpected identity "${recordIdentity}" (expected "${campaignId}" or absent). Deletion marker retained.`,
         );
       }
-      adapter.patchDeletionPhase("campaign");
-      adapter.scheduleNextBatch();
+      await adapter.patchDeletionPhase("campaign");
+      await adapter.scheduleNextBatch();
       return { continued: true, finalPhase: "campaign", deleted: 0 };
     }
-    adapter.removeDeletionMarker();
+    await adapter.removeDeletionMarker();
     return { continued: false, finalPhase: "complete", deleted: 0 };
   }
 

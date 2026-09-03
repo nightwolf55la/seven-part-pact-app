@@ -1,23 +1,163 @@
 import { v } from "convex/values";
 import { query, mutation, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
+import type { MutationCtx } from "./_generated/server";
 import {
   DomainError,
-  validateDeletionRequest,
-  validateCampaignIdentityMatch,
-  DELETION_BATCH_SIZE,
-  DELETION_PHASE_ORDER,
-  isDeletionChildCleanupPhase,
-  nextDeletionPhase,
   CAMPAIGN_OWNED_CHILD_COLLECTIONS,
+  DELETION_BATCH_SIZE,
 } from "../shared/domain";
-import type { DeletionPhase, CampaignOwnedChildCollection } from "../shared/domain";
+import type { DeletionPhase, CampaignOwnedChildCollection, DeletionOperation } from "../shared/domain";
+import {
+  requestDeletion,
+  processBatch,
+} from "../shared/domain/deletion-orchestrator";
+import type { DeletionPersistenceAdapter } from "../shared/domain/deletion-orchestrator";
 import { loadActiveDeletion } from "./deletionBarrier";
 import { loadCanonicalRecord } from "./persistence";
 
-// ============================================================
-// Request campaign deletion
-// ============================================================
+function buildConvexAdapter(ctx: MutationCtx, opDocId: { current: any }): DeletionPersistenceAdapter {
+  return {
+    async loadActiveDeletion(): Promise<DeletionOperation | null> {
+      const op = await ctx.db
+        .query("campaignDeletionOperations")
+        .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
+        .unique();
+      if (op === null) return null;
+      opDocId.current = op._id;
+      return {
+        campaignKey: op.campaignKey,
+        campaignId: op.campaignId,
+        status: op.status,
+        phase: op.phase as DeletionPhase,
+        startedAt: op.startedAt,
+        lastProgressAt: op.lastProgressAt,
+      };
+    },
+
+    async loadCanonicalCampaignId(): Promise<string | null> {
+      const record = await loadCanonicalRecord(ctx);
+      return record?.campaignId ?? null;
+    },
+
+    async insertDeletionMarker(op: DeletionOperation): Promise<void> {
+      const id = await ctx.db.insert("campaignDeletionOperations", {
+        campaignKey: op.campaignKey,
+        campaignId: op.campaignId,
+        status: op.status,
+        phase: op.phase,
+        startedAt: op.startedAt,
+        lastProgressAt: op.lastProgressAt,
+      });
+      opDocId.current = id;
+    },
+
+    async patchDeletionPhase(phase: DeletionPhase): Promise<void> {
+      if (opDocId.current === null) throw new Error("No deletion marker to patch");
+      await ctx.db.patch(opDocId.current, { phase, lastProgressAt: Date.now() });
+    },
+
+    async removeDeletionMarker(): Promise<void> {
+      if (opDocId.current === null) throw new Error("No deletion marker to remove");
+      await ctx.db.delete(opDocId.current);
+      opDocId.current = null;
+    },
+
+    async countChildRecords(collection: CampaignOwnedChildCollection, campaignId: string): Promise<number> {
+      const doc = await queryChildByIndex(ctx, collection, campaignId);
+      return doc !== null ? 1 : 0;
+    },
+
+    async deleteChildBatch(collection: CampaignOwnedChildCollection, campaignId: string, limit: number): Promise<number> {
+      const docs = await takeChildByIndex(ctx, collection, campaignId, limit);
+      for (const doc of docs) {
+        await ctx.db.delete(doc._id);
+      }
+      return docs.length;
+    },
+
+    async deleteCampaignRecord(campaignId: string): Promise<boolean> {
+      const canonical = await ctx.db
+        .query("campaigns")
+        .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
+        .unique();
+      if (canonical === null) return false;
+      const hasIdentity = "campaignId" in canonical;
+      const canonicalCampaignId = hasIdentity ? (canonical as any).campaignId : null;
+      if (canonicalCampaignId !== campaignId) return false;
+      await ctx.db.delete(canonical._id);
+      return true;
+    },
+
+    async hasAnyCampaignRecord(): Promise<boolean> {
+      const canonical = await ctx.db
+        .query("campaigns")
+        .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
+        .unique();
+      return canonical !== null;
+    },
+
+    async getCampaignRecordIdentity(): Promise<string | null> {
+      const canonical = await ctx.db
+        .query("campaigns")
+        .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
+        .unique();
+      if (canonical === null) return null;
+      const hasIdentity = "campaignId" in canonical;
+      return hasIdentity ? (canonical as any).campaignId : null;
+    },
+
+    async scheduleNextBatch(): Promise<void> {
+      await ctx.scheduler.runAfter(0, internal.campaignDeletion.processCampaignDeletionBatch, {});
+    },
+
+    async hasAnyChildRecordsGlobally(): Promise<boolean> {
+      for (const table of CAMPAIGN_OWNED_CHILD_COLLECTIONS) {
+        const doc = await ctx.db.query(table).first();
+        if (doc !== null) return true;
+      }
+      return false;
+    },
+  };
+}
+
+async function queryChildByIndex(ctx: MutationCtx, collection: CampaignOwnedChildCollection, campaignId: string): Promise<any> {
+  switch (collection) {
+    case "campaignEvents":
+      return ctx.db.query("campaignEvents").withIndex("by_campaign_revision_index", (q: any) => q.eq("campaignId", campaignId)).first();
+    case "campaignSnapshots":
+      return ctx.db.query("campaignSnapshots").withIndex("by_campaign_revision", (q: any) => q.eq("campaignId", campaignId)).first();
+    case "campaignRevisions":
+      return ctx.db.query("campaignRevisions").withIndex("by_campaign_revision", (q: any) => q.eq("campaignId", campaignId)).first();
+    case "campaignCheckpoints":
+      return ctx.db.query("campaignCheckpoints").withIndex("by_campaignId", (q: any) => q.eq("campaignId", campaignId)).first();
+    case "campaignHistoryControl":
+      return ctx.db.query("campaignHistoryControl").withIndex("by_campaignId", (q: any) => q.eq("campaignId", campaignId)).first();
+    default: {
+      const _exhaustive: never = collection;
+      throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Unknown child collection: ${_exhaustive}`);
+    }
+  }
+}
+
+async function takeChildByIndex(ctx: MutationCtx, collection: CampaignOwnedChildCollection, campaignId: string, limit: number): Promise<any[]> {
+  switch (collection) {
+    case "campaignEvents":
+      return ctx.db.query("campaignEvents").withIndex("by_campaign_revision_index", (q: any) => q.eq("campaignId", campaignId)).take(limit);
+    case "campaignSnapshots":
+      return ctx.db.query("campaignSnapshots").withIndex("by_campaign_revision", (q: any) => q.eq("campaignId", campaignId)).take(limit);
+    case "campaignRevisions":
+      return ctx.db.query("campaignRevisions").withIndex("by_campaign_revision", (q: any) => q.eq("campaignId", campaignId)).take(limit);
+    case "campaignCheckpoints":
+      return ctx.db.query("campaignCheckpoints").withIndex("by_campaignId", (q: any) => q.eq("campaignId", campaignId)).take(limit);
+    case "campaignHistoryControl":
+      return ctx.db.query("campaignHistoryControl").withIndex("by_campaignId", (q: any) => q.eq("campaignId", campaignId)).take(limit);
+    default: {
+      const _exhaustive: never = collection;
+      throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Unknown child collection: ${_exhaustive}`);
+    }
+  }
+}
 
 export const requestCampaignDeletion = mutation({
   args: {
@@ -30,58 +170,12 @@ export const requestCampaignDeletion = mutation({
     phase: v.string(),
   }),
   handler: async (ctx, args) => {
-    validateDeletionRequest(args.expectedCampaignId, args.confirmation);
-
-    const existingOp = await loadActiveDeletion(ctx);
-    if (existingOp !== null) {
-      if (existingOp.campaignId === args.expectedCampaignId) {
-        return {
-          status: "deleting" as const,
-          campaignId: existingOp.campaignId,
-          phase: existingOp.phase,
-        };
-      }
-      throw new DomainError(
-        "CAMPAIGN_DELETION_IN_PROGRESS",
-        `A deletion is already in progress for campaign "${existingOp.campaignId}"`,
-      );
-    }
-
-    const record = await loadCanonicalRecord(ctx);
-    if (record === null) {
-      throw new DomainError(
-        "CAMPAIGN_NOT_FOUND",
-        "No canonical campaign found to delete",
-      );
-    }
-
-    validateCampaignIdentityMatch(args.expectedCampaignId, record.campaignId);
-
-    const now = Date.now();
-    const initialPhase: DeletionPhase = DELETION_PHASE_ORDER[0];
-
-    await ctx.db.insert("campaignDeletionOperations", {
-      campaignKey: "default",
-      campaignId: record.campaignId,
-      status: "deleting" as const,
-      phase: initialPhase,
-      startedAt: now,
-      lastProgressAt: now,
-    });
-
-    await ctx.scheduler.runAfter(0, internal.campaignDeletion.processCampaignDeletionBatch, {});
-
-    return {
-      status: "deleting" as const,
-      campaignId: record.campaignId,
-      phase: initialPhase,
-    };
+    const opDocId = { current: null as any };
+    const adapter = buildConvexAdapter(ctx, opDocId);
+    const result = await requestDeletion(adapter, args.expectedCampaignId, args.confirmation);
+    return { status: result.status, campaignId: result.campaignId, phase: result.phase };
   },
 });
-
-// ============================================================
-// Resume campaign deletion (idempotent)
-// ============================================================
 
 export const resumeCampaignDeletion = mutation({
   args: {},
@@ -111,10 +205,6 @@ export const resumeCampaignDeletion = mutation({
   },
 });
 
-// ============================================================
-// Get deletion status (query)
-// ============================================================
-
 export const getCampaignDeletionStatus = query({
   args: {},
   returns: v.union(
@@ -140,233 +230,13 @@ export const getCampaignDeletionStatus = query({
   },
 });
 
-// ============================================================
-// Internal: bounded batch cleanup worker
-// ============================================================
-
-async function deleteChildBatch(
-  ctx: any,
-  collection: CampaignOwnedChildCollection,
-  campaignId: string,
-): Promise<number> {
-  let docs: any[];
-  switch (collection) {
-    case "campaignEvents":
-      docs = await ctx.db
-        .query("campaignEvents")
-        .withIndex("by_campaign_revision_index", (q: any) =>
-          q.eq("campaignId", campaignId),
-        )
-        .take(DELETION_BATCH_SIZE);
-      break;
-    case "campaignSnapshots":
-      docs = await ctx.db
-        .query("campaignSnapshots")
-        .withIndex("by_campaign_revision", (q: any) =>
-          q.eq("campaignId", campaignId),
-        )
-        .take(DELETION_BATCH_SIZE);
-      break;
-    case "campaignRevisions":
-      docs = await ctx.db
-        .query("campaignRevisions")
-        .withIndex("by_campaign_revision", (q: any) =>
-          q.eq("campaignId", campaignId),
-        )
-        .take(DELETION_BATCH_SIZE);
-      break;
-    case "campaignCheckpoints":
-      docs = await ctx.db
-        .query("campaignCheckpoints")
-        .withIndex("by_campaignId", (q: any) =>
-          q.eq("campaignId", campaignId),
-        )
-        .take(DELETION_BATCH_SIZE);
-      break;
-    case "campaignHistoryControl":
-      docs = await ctx.db
-        .query("campaignHistoryControl")
-        .withIndex("by_campaignId", (q: any) =>
-          q.eq("campaignId", campaignId),
-        )
-        .take(DELETION_BATCH_SIZE);
-      break;
-    default: {
-      const _exhaustive: never = collection;
-      throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Unknown child collection: ${_exhaustive}`);
-    }
-  }
-
-  for (const doc of docs) {
-    await ctx.db.delete(doc._id);
-  }
-
-  return docs.length;
-}
-
-async function isChildCollectionEmpty(
-  ctx: any,
-  collection: CampaignOwnedChildCollection,
-  campaignId: string,
-): Promise<boolean> {
-  let doc: any;
-  switch (collection) {
-    case "campaignEvents":
-      doc = await ctx.db
-        .query("campaignEvents")
-        .withIndex("by_campaign_revision_index", (q: any) =>
-          q.eq("campaignId", campaignId),
-        )
-        .first();
-      break;
-    case "campaignSnapshots":
-      doc = await ctx.db
-        .query("campaignSnapshots")
-        .withIndex("by_campaign_revision", (q: any) =>
-          q.eq("campaignId", campaignId),
-        )
-        .first();
-      break;
-    case "campaignRevisions":
-      doc = await ctx.db
-        .query("campaignRevisions")
-        .withIndex("by_campaign_revision", (q: any) =>
-          q.eq("campaignId", campaignId),
-        )
-        .first();
-      break;
-    case "campaignCheckpoints":
-      doc = await ctx.db
-        .query("campaignCheckpoints")
-        .withIndex("by_campaignId", (q: any) =>
-          q.eq("campaignId", campaignId),
-        )
-        .first();
-      break;
-    case "campaignHistoryControl":
-      doc = await ctx.db
-        .query("campaignHistoryControl")
-        .withIndex("by_campaignId", (q: any) =>
-          q.eq("campaignId", campaignId),
-        )
-        .first();
-      break;
-    default: {
-      const _exhaustive: never = collection;
-      throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Unknown child collection: ${_exhaustive}`);
-    }
-  }
-  return doc === null;
-}
-
 export const processCampaignDeletionBatch = internalMutation({
   args: {},
   returns: v.null(),
   handler: async (ctx): Promise<null> => {
-    const opDoc = await ctx.db
-      .query("campaignDeletionOperations")
-      .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
-      .unique();
-
-    if (opDoc === null) {
-      return null;
-    }
-
-    const campaignId = opDoc.campaignId;
-    const currentPhase = opDoc.phase as DeletionPhase;
-    const now = Date.now();
-
-    if (isDeletionChildCleanupPhase(currentPhase)) {
-      const deleted = await deleteChildBatch(ctx, currentPhase, campaignId);
-
-      if (deleted > 0 && deleted >= DELETION_BATCH_SIZE) {
-        await ctx.db.patch(opDoc._id, { lastProgressAt: now });
-        await ctx.scheduler.runAfter(0, internal.campaignDeletion.processCampaignDeletionBatch, {});
-        return null;
-      }
-
-      if (deleted === 0 || deleted < DELETION_BATCH_SIZE) {
-        const empty = await isChildCollectionEmpty(ctx, currentPhase, campaignId);
-        if (!empty) {
-          await ctx.db.patch(opDoc._id, { lastProgressAt: now });
-          await ctx.scheduler.runAfter(0, internal.campaignDeletion.processCampaignDeletionBatch, {});
-          return null;
-        }
-
-        const next = nextDeletionPhase(currentPhase);
-        if (next === "complete") {
-          await ctx.db.delete(opDoc._id);
-          return null;
-        }
-
-        await ctx.db.patch(opDoc._id, { phase: next, lastProgressAt: now });
-        await ctx.scheduler.runAfter(0, internal.campaignDeletion.processCampaignDeletionBatch, {});
-        return null;
-      }
-    }
-
-    if (currentPhase === "campaign") {
-      const canonical = await ctx.db
-        .query("campaigns")
-        .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
-        .unique();
-
-      if (canonical !== null) {
-        const hasIdentity = "campaignId" in canonical;
-        const canonicalCampaignId = hasIdentity ? (canonical as any).campaignId : null;
-        if (canonicalCampaignId === campaignId) {
-          await ctx.db.delete(canonical._id);
-        } else {
-          throw new DomainError(
-            "CAMPAIGN_STATE_CORRUPT",
-            `Deletion target is "${campaignId}" but canonical campaign has identity "${canonicalCampaignId ?? "(legacy/unknown)"}". Refusing to delete unknown campaign data. Deletion marker retained.`,
-          );
-        }
-      }
-
-      const next = nextDeletionPhase("campaign");
-      if (next === "complete") {
-        await ctx.db.delete(opDoc._id);
-        return null;
-      }
-      await ctx.db.patch(opDoc._id, { phase: next, lastProgressAt: now });
-      await ctx.scheduler.runAfter(0, internal.campaignDeletion.processCampaignDeletionBatch, {});
-      return null;
-    }
-
-    if (currentPhase === "verify") {
-      for (const col of CAMPAIGN_OWNED_CHILD_COLLECTIONS) {
-        const empty = await isChildCollectionEmpty(ctx, col, campaignId);
-        if (!empty) {
-          await ctx.db.patch(opDoc._id, { phase: col, lastProgressAt: now });
-          await ctx.scheduler.runAfter(0, internal.campaignDeletion.processCampaignDeletionBatch, {});
-          return null;
-        }
-      }
-
-      const canonical = await ctx.db
-        .query("campaigns")
-        .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
-        .unique();
-
-      if (canonical !== null) {
-        const hasIdentity = "campaignId" in canonical;
-        const canonicalCampaignId = hasIdentity ? (canonical as any).campaignId : null;
-        if (canonicalCampaignId === campaignId) {
-          await ctx.db.patch(opDoc._id, { phase: "campaign" as DeletionPhase, lastProgressAt: now });
-          await ctx.scheduler.runAfter(0, internal.campaignDeletion.processCampaignDeletionBatch, {});
-          return null;
-        }
-        throw new DomainError(
-          "CAMPAIGN_STATE_CORRUPT",
-          `Verification found canonical campaign with unexpected identity "${canonicalCampaignId ?? "(legacy/unknown)"}" (expected "${campaignId}" or absent). Deletion marker retained.`,
-        );
-      }
-
-      await ctx.db.delete(opDoc._id);
-      return null;
-    }
-
+    const opDocId = { current: null as any };
+    const adapter = buildConvexAdapter(ctx, opDocId);
+    await processBatch(adapter);
     return null;
   },
 });

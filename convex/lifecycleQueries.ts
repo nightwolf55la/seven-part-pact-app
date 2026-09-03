@@ -2,18 +2,11 @@ import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { loadCanonicalRecord } from "./persistence";
 import { loadActiveDeletion } from "./deletionBarrier";
-import { DomainError } from "../shared/domain";
+import { resolveLifecycle } from "../shared/domain/deletion-orchestrator";
+import { CAMPAIGN_OWNED_CHILD_COLLECTIONS } from "../shared/domain";
 
-async function hasAnyOrphanedChildRecords(ctx: any, campaignId?: string): Promise<boolean> {
-  const tables = [
-    { table: "campaignEvents", index: "by_campaign_revision_index", field: "campaignId" },
-    { table: "campaignSnapshots", index: "by_campaign_revision", field: "campaignId" },
-    { table: "campaignRevisions", index: "by_campaign_revision", field: "campaignId" },
-    { table: "campaignCheckpoints", index: "by_campaignId", field: "campaignId" },
-    { table: "campaignHistoryControl", index: "by_campaignId", field: "campaignId" },
-  ] as const;
-
-  for (const { table } of tables) {
+async function hasAnyOrphanedChildRecords(ctx: any): Promise<boolean> {
+  for (const table of CAMPAIGN_OWNED_CHILD_COLLECTIONS) {
     const doc = await ctx.db.query(table).first();
     if (doc !== null) return true;
   }
@@ -43,31 +36,34 @@ export const getCampaignLifecycle = query({
   ),
   handler: async (ctx) => {
     const deletion = await loadActiveDeletion(ctx);
-    if (deletion !== null) {
-      return {
-        status: "deleting" as const,
-        campaignId: deletion.campaignId,
-        phase: deletion.phase,
-      };
-    }
-
     const record = await loadCanonicalRecord(ctx);
-    if (record !== null) {
-      return {
-        status: "campaign" as const,
-        campaignId: record.campaignId,
-        campaignRevision: record.campaignRevision,
-      };
-    }
+    const canonicalCampaignId = record?.campaignId ?? null;
+    const hasOrphans = deletion === null && canonicalCampaignId === null
+      ? await hasAnyOrphanedChildRecords(ctx)
+      : false;
 
-    const hasOrphans = await hasAnyOrphanedChildRecords(ctx);
-    if (hasOrphans) {
-      return {
-        status: "corrupt" as const,
-        reason: "Campaign-owned records exist without a canonical campaign or deletion marker",
-      };
-    }
+    const lifecycle = resolveLifecycle(deletion, canonicalCampaignId, hasOrphans);
 
-    return { status: "none" as const };
+    switch (lifecycle.status) {
+      case "campaign":
+        return {
+          status: "campaign" as const,
+          campaignId: lifecycle.campaignId,
+          campaignRevision: record!.campaignRevision,
+        };
+      case "deleting":
+        return {
+          status: "deleting" as const,
+          campaignId: lifecycle.campaignId,
+          phase: lifecycle.phase as string,
+        };
+      case "corrupt":
+        return {
+          status: "corrupt" as const,
+          reason: lifecycle.reason,
+        };
+      case "none":
+        return { status: "none" as const };
+    }
   },
 });

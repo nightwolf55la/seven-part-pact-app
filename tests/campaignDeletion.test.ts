@@ -52,33 +52,33 @@ class InMemoryDeletionAdapter implements DeletionPersistenceAdapter {
     colMap.set(campaignId, (colMap.get(campaignId) ?? 0) + count);
   }
 
-  loadActiveDeletion(): DeletionOperation | null {
+  async loadActiveDeletion(): Promise<DeletionOperation | null> {
     return this.marker;
   }
 
-  loadCanonicalCampaignId(): string | null {
+  async loadCanonicalCampaignId(): Promise<string | null> {
     return this.canonicalCampaignId;
   }
 
-  insertDeletionMarker(op: DeletionOperation): void {
+  async insertDeletionMarker(op: DeletionOperation): Promise<void> {
     if (this.marker !== null) throw new Error("Marker already exists");
     this.marker = { ...op };
   }
 
-  patchDeletionPhase(phase: DeletionPhase): void {
+  async patchDeletionPhase(phase: DeletionPhase): Promise<void> {
     if (this.marker === null) throw new Error("No marker to patch");
     this.marker = { ...this.marker, phase, lastProgressAt: Date.now() };
   }
 
-  removeDeletionMarker(): void {
+  async removeDeletionMarker(): Promise<void> {
     this.marker = null;
   }
 
-  countChildRecords(collection: CampaignOwnedChildCollection, campaignId: string): number {
+  async countChildRecords(collection: CampaignOwnedChildCollection, campaignId: string): Promise<number> {
     return this.childRecords.get(collection)?.get(campaignId) ?? 0;
   }
 
-  deleteChildBatch(collection: CampaignOwnedChildCollection, campaignId: string, limit: number): number {
+  async deleteChildBatch(collection: CampaignOwnedChildCollection, campaignId: string, limit: number): Promise<number> {
     const colMap = this.childRecords.get(collection)!;
     const current = colMap.get(campaignId) ?? 0;
     const toDelete = Math.min(current, limit);
@@ -87,7 +87,7 @@ class InMemoryDeletionAdapter implements DeletionPersistenceAdapter {
     return toDelete;
   }
 
-  deleteCampaignRecord(campaignId: string): boolean {
+  async deleteCampaignRecord(campaignId: string): Promise<boolean> {
     if (this.canonicalCampaignId === campaignId) {
       this.canonicalCampaignId = null;
       return true;
@@ -95,31 +95,41 @@ class InMemoryDeletionAdapter implements DeletionPersistenceAdapter {
     return false;
   }
 
-  hasAnyCampaignRecord(): boolean {
+  async hasAnyCampaignRecord(): Promise<boolean> {
     return this.canonicalCampaignId !== null;
   }
 
-  getCampaignRecordIdentity(): string | null {
+  async getCampaignRecordIdentity(): Promise<string | null> {
     return this.canonicalCampaignId;
   }
 
-  scheduleNextBatch(): void {
+  async scheduleNextBatch(): Promise<void> {
     this.scheduledBatches++;
+  }
+
+  async hasAnyChildRecordsGlobally(): Promise<boolean> {
+    for (const col of CAMPAIGN_OWNED_CHILD_COLLECTIONS) {
+      const colMap = this.childRecords.get(col)!;
+      for (const count of colMap.values()) {
+        if (count > 0) return true;
+      }
+    }
+    return false;
   }
 
   totalRemainingChildRecords(campaignId: string): number {
     let total = 0;
     for (const col of CAMPAIGN_OWNED_CHILD_COLLECTIONS) {
-      total += this.countChildRecords(col, campaignId);
+      total += this.childRecords.get(col)?.get(campaignId) ?? 0;
     }
     return total;
   }
 }
 
-function runToCompletion(adapter: InMemoryDeletionAdapter, maxBatches = 1000): number {
+async function runToCompletion(adapter: InMemoryDeletionAdapter, maxBatches = 1000): Promise<number> {
   let batches = 0;
   while (batches < maxBatches) {
-    const result = processBatch(adapter);
+    const result = await processBatch(adapter);
     if (result === null || !result.continued) break;
     batches++;
   }
@@ -138,8 +148,8 @@ describe("requestDeletion", () => {
     adapter.seedCampaign(CID);
   });
 
-  it("creates marker before any cleanup begins", () => {
-    const result = requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+  it("creates marker before any cleanup begins", async () => {
+    const result = await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
     expect(result.status).toBe("deleting");
     expect(result.campaignId).toBe(CID);
     expect(adapter.marker).not.toBeNull();
@@ -147,36 +157,35 @@ describe("requestDeletion", () => {
     expect(adapter.canonicalCampaignId).toBe(CID);
   });
 
-  it("schedules a batch worker after creating marker", () => {
-    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+  it("schedules a batch worker after creating marker", async () => {
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
     expect(adapter.scheduledBatches).toBe(1);
   });
 
-  it("is idempotent for the same campaign", () => {
-    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
-    const result2 = requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+  it("is idempotent for the same campaign", async () => {
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    const result2 = await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
     expect(result2.status).toBe("deleting");
     expect(result2.campaignId).toBe(CID);
   });
 
-  it("rejects deletion of a different campaign while one is in progress", () => {
-    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
-    expect(() => requestDeletion(adapter, OTHER_CID, DELETION_CONFIRMATION_STRING)).toThrow(DomainError);
+  it("rejects deletion of a different campaign while one is in progress", async () => {
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    await expect(requestDeletion(adapter, OTHER_CID, DELETION_CONFIRMATION_STRING)).rejects.toThrow(DomainError);
   });
 
-  it("stale identity rejects with zero writes", () => {
-    const before = JSON.stringify(adapter);
+  it("stale identity rejects with zero writes", async () => {
     try {
-      requestDeletion(adapter, OTHER_CID, DELETION_CONFIRMATION_STRING);
+      await requestDeletion(adapter, OTHER_CID, DELETION_CONFIRMATION_STRING);
     } catch (e: any) {
       expect(e.code).toBe("CAMPAIGN_DELETION_STALE_IDENTITY");
     }
     expect(adapter.marker).toBeNull();
   });
 
-  it("bad confirmation rejects with zero writes", () => {
+  it("bad confirmation rejects with zero writes", async () => {
     try {
-      requestDeletion(adapter, CID, "wrong");
+      await requestDeletion(adapter, CID, "wrong");
     } catch (e: any) {
       expect(e.code).toBe("CAMPAIGN_DELETION_CONFIRMATION_FAILED");
     }
@@ -184,9 +193,9 @@ describe("requestDeletion", () => {
     expect(adapter.scheduledBatches).toBe(0);
   });
 
-  it("rejects when no campaign exists", () => {
+  it("rejects when no campaign exists", async () => {
     adapter.canonicalCampaignId = null;
-    expect(() => requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING)).toThrow(DomainError);
+    await expect(requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING)).rejects.toThrow(DomainError);
   });
 });
 
@@ -231,24 +240,24 @@ describe("processBatch bounded cleanup", () => {
     adapter.seedCampaign(CID);
   });
 
-  it("one worker call deletes no more than DELETION_BATCH_SIZE records", () => {
+  it("one worker call deletes no more than DELETION_BATCH_SIZE records", async () => {
     adapter.seedChildRecords("campaignEvents", CID, 500);
-    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
 
-    const result = processBatch(adapter);
+    const result = await processBatch(adapter);
     expect(result).not.toBeNull();
     expect(result!.deleted).toBeLessThanOrEqual(DELETION_BATCH_SIZE);
-    expect(adapter.countChildRecords("campaignEvents", CID)).toBe(300);
+    expect(await adapter.countChildRecords("campaignEvents", CID)).toBe(300);
   });
 
-  it("requires multiple batches for >BATCH_SIZE records", () => {
+  it("requires multiple batches for >BATCH_SIZE records", async () => {
     adapter.seedChildRecords("campaignEvents", CID, 500);
-    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
 
     let totalDeleted = 0;
     let batchCount = 0;
-    while (adapter.countChildRecords("campaignEvents", CID) > 0) {
-      const result = processBatch(adapter);
+    while ((await adapter.countChildRecords("campaignEvents", CID)) > 0) {
+      const result = await processBatch(adapter);
       if (result === null) break;
       totalDeleted += result.deleted;
       batchCount++;
@@ -258,23 +267,22 @@ describe("processBatch bounded cleanup", () => {
     expect(totalDeleted).toBe(500);
   });
 
-  it("advances phases in correct order through child collections", () => {
+  it("advances phases in correct order through child collections", async () => {
     for (const col of CAMPAIGN_OWNED_CHILD_COLLECTIONS) {
       adapter.seedChildRecords(col, CID, DELETION_BATCH_SIZE + 1);
     }
-    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
 
     const phasesVisited: DeletionPhase[] = [];
     let iterations = 0;
     while (iterations < 200) {
-      const result = processBatch(adapter);
+      const result = await processBatch(adapter);
       if (result === null) break;
       phasesVisited.push(result.finalPhase as DeletionPhase);
       if (!result.continued) break;
       iterations++;
     }
 
-    // Every child collection must appear and in the canonical order
     const childOrder = phasesVisited.filter((p) =>
       (CAMPAIGN_OWNED_CHILD_COLLECTIONS as readonly string[]).includes(p),
     );
@@ -282,7 +290,6 @@ describe("processBatch bounded cleanup", () => {
     for (const col of CAMPAIGN_OWNED_CHILD_COLLECTIONS) {
       expect(uniqueChildOrder).toContain(col);
     }
-    // Verify ordering: first occurrence of each child collection respects DELETION_PHASE_ORDER
     for (let i = 1; i < uniqueChildOrder.length; i++) {
       const prevIdx = DELETION_PHASE_ORDER.indexOf(uniqueChildOrder[i - 1] as DeletionPhase);
       const curIdx = DELETION_PHASE_ORDER.indexOf(uniqueChildOrder[i] as DeletionPhase);
@@ -303,23 +310,23 @@ describe("canonical campaign deletion ordering", () => {
     adapter.seedCampaign(CID);
   });
 
-  it("campaign row remains until child cleanup completes", () => {
+  it("campaign row remains until child cleanup completes", async () => {
     adapter.seedChildRecords("campaignEvents", CID, 10);
-    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
 
-    processBatch(adapter);
+    await processBatch(adapter);
     expect(adapter.canonicalCampaignId).toBe(CID);
   });
 
-  it("campaign row is deleted in the campaign phase", () => {
-    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
-    runToCompletion(adapter);
+  it("campaign row is deleted in the campaign phase", async () => {
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    await runToCompletion(adapter);
     expect(adapter.canonicalCampaignId).toBeNull();
   });
 
-  it("marker is the final thing removed", () => {
+  it("marker is the final thing removed", async () => {
     adapter.seedChildRecords("campaignEvents", CID, 5);
-    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
 
     let markerRemovedAt = -1;
     let campaignDeletedAt = -1;
@@ -332,19 +339,19 @@ describe("canonical campaign deletion ordering", () => {
       if (adapter.canonicalCampaignId === null && campaignDeletedAt === -1) {
         campaignDeletedAt = step;
       }
-      processBatch(adapter);
+      await processBatch(adapter);
       step++;
     }
     if (markerRemovedAt === -1) markerRemovedAt = step;
     expect(campaignDeletedAt).toBeLessThan(markerRemovedAt);
   });
 
-  it("complete cleanup results in truly empty graph", () => {
+  it("complete cleanup results in truly empty graph", async () => {
     for (const col of CAMPAIGN_OWNED_CHILD_COLLECTIONS) {
       adapter.seedChildRecords(col, CID, 3);
     }
-    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
-    runToCompletion(adapter);
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    await runToCompletion(adapter);
 
     expect(adapter.marker).toBeNull();
     expect(adapter.canonicalCampaignId).toBeNull();
@@ -364,42 +371,39 @@ describe("fail-closed on unexpected campaign identity", () => {
     adapter.seedCampaign(CID);
   });
 
-  it("campaign phase rejects when canonical row has different identity", () => {
-    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
-    // Simulate: child cleanup done, now at campaign phase, but someone replaced the campaign
+  it("campaign phase rejects when canonical row has different identity", async () => {
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
     adapter.marker = { ...adapter.marker!, phase: "campaign" as DeletionPhase };
     adapter.canonicalCampaignId = OTHER_CID;
 
-    expect(() => processBatch(adapter)).toThrow(DomainError);
-    // Marker must remain (fail-closed, not removed)
+    await expect(processBatch(adapter)).rejects.toThrow(DomainError);
     expect(adapter.marker).not.toBeNull();
-    // Foreign campaign must NOT be deleted
     expect(adapter.canonicalCampaignId).toBe(OTHER_CID);
   });
 
-  it("verify phase rejects when canonical row has different identity", () => {
-    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+  it("verify phase rejects when canonical row has different identity", async () => {
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
     adapter.marker = { ...adapter.marker!, phase: "verify" as DeletionPhase };
     adapter.canonicalCampaignId = OTHER_CID;
 
-    expect(() => processBatch(adapter)).toThrow(DomainError);
+    await expect(processBatch(adapter)).rejects.toThrow(DomainError);
     expect(adapter.marker).not.toBeNull();
     expect(adapter.canonicalCampaignId).toBe(OTHER_CID);
   });
 
-  it("campaign phase succeeds when canonical matches target", () => {
-    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+  it("campaign phase succeeds when canonical matches target", async () => {
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
     adapter.marker = { ...adapter.marker!, phase: "campaign" as DeletionPhase };
-    const result = processBatch(adapter);
+    const result = await processBatch(adapter);
     expect(result).not.toBeNull();
     expect(adapter.canonicalCampaignId).toBeNull();
   });
 
-  it("campaign phase succeeds when canonical already absent", () => {
-    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+  it("campaign phase succeeds when canonical already absent", async () => {
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
     adapter.marker = { ...adapter.marker!, phase: "campaign" as DeletionPhase };
     adapter.canonicalCampaignId = null;
-    const result = processBatch(adapter);
+    const result = await processBatch(adapter);
     expect(result).not.toBeNull();
   });
 });
@@ -416,30 +420,26 @@ describe("interruption and resume", () => {
     adapter.seedCampaign(CID);
   });
 
-  it("interruption followed by resume continues from durable phase", () => {
+  it("interruption followed by resume continues from durable phase", async () => {
     adapter.seedChildRecords("campaignEvents", CID, 500);
-    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
 
-    // Process one batch, then "crash"
-    processBatch(adapter);
-    const phaseBeforeResume = adapter.marker!.phase;
-    const remainingBeforeResume = adapter.countChildRecords("campaignEvents", CID);
+    await processBatch(adapter);
+    const remainingBeforeResume = await adapter.countChildRecords("campaignEvents", CID);
 
-    // Resume: just call processBatch again (simulating scheduler restart)
-    processBatch(adapter);
-    const remainingAfterResume = adapter.countChildRecords("campaignEvents", CID);
+    await processBatch(adapter);
+    const remainingAfterResume = await adapter.countChildRecords("campaignEvents", CID);
 
     expect(remainingAfterResume).toBeLessThan(remainingBeforeResume);
     expect(adapter.marker).not.toBeNull();
   });
 
-  it("replaying is idempotent -- resuming a completed deletion is safe", () => {
-    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
-    runToCompletion(adapter);
+  it("replaying is idempotent -- resuming a completed deletion is safe", async () => {
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    await runToCompletion(adapter);
     expect(adapter.marker).toBeNull();
 
-    // Calling processBatch with no marker returns null (no-op)
-    const result = processBatch(adapter);
+    const result = await processBatch(adapter);
     expect(result).toBeNull();
   });
 });
@@ -459,12 +459,10 @@ describe("deletion creates no gameplay artifacts", () => {
     }
   });
 
-  it("no campaignRevision/event/snapshot is created during deletion", () => {
-    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
-    runToCompletion(adapter);
-    // After deletion, no child records should remain (they were only deleted, never created)
+  it("no campaignRevision/event/snapshot is created during deletion", async () => {
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    await runToCompletion(adapter);
     expect(adapter.totalRemainingChildRecords(CID)).toBe(0);
-    // deletedByPhase should show only deletions
     for (const col of CAMPAIGN_OWNED_CHILD_COLLECTIONS) {
       expect(adapter.deletedByPhase.get(col)).toBe(10);
     }
@@ -523,7 +521,7 @@ describe("resolveLifecycle", () => {
 // ============================================================
 
 describe("full deletion orchestration end-to-end", () => {
-  it("deletes all records across all phases and reaches clean state", () => {
+  it("deletes all records across all phases and reaches clean state", async () => {
     const adapter = new InMemoryDeletionAdapter();
     adapter.seedCampaign(CID);
     adapter.seedChildRecords("campaignEvents", CID, 450);
@@ -532,8 +530,8 @@ describe("full deletion orchestration end-to-end", () => {
     adapter.seedChildRecords("campaignCheckpoints", CID, 5);
     adapter.seedChildRecords("campaignHistoryControl", CID, 1);
 
-    requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
-    const batches = runToCompletion(adapter);
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    const batches = await runToCompletion(adapter);
 
     expect(batches).toBeGreaterThan(3);
     expect(adapter.marker).toBeNull();
@@ -581,5 +579,82 @@ describe("pure domain: phase progression", () => {
 describe("pure domain: DELETION_BATCH_SIZE", () => {
   it("is 200", () => {
     expect(DELETION_BATCH_SIZE).toBe(200);
+  });
+});
+
+// ============================================================
+// 11. Foreign orphan detection (Blocker 3)
+// ============================================================
+
+describe("foreign orphan detection in verify phase", () => {
+  let adapter: InMemoryDeletionAdapter;
+
+  beforeEach(() => {
+    adapter = new InMemoryDeletionAdapter();
+    adapter.seedCampaign(CID);
+  });
+
+  it("verify phase throws when foreign child records exist after cleanup", async () => {
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    adapter.marker = { ...adapter.marker!, phase: "verify" as DeletionPhase };
+    adapter.canonicalCampaignId = null;
+    adapter.seedChildRecords("campaignEvents", OTHER_CID, 3);
+
+    await expect(processBatch(adapter)).rejects.toThrow(DomainError);
+    expect(adapter.marker).not.toBeNull();
+  });
+
+  it("verify phase throws with correct error code for foreign orphans", async () => {
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    adapter.marker = { ...adapter.marker!, phase: "verify" as DeletionPhase };
+    adapter.canonicalCampaignId = null;
+    adapter.seedChildRecords("campaignSnapshots", OTHER_CID, 1);
+
+    try {
+      await processBatch(adapter);
+      expect.fail("Should have thrown");
+    } catch (e: any) {
+      expect(e.code).toBe("CAMPAIGN_STATE_CORRUPT");
+      expect(e.message).toContain("foreign campaign");
+    }
+  });
+
+  it("verify phase succeeds when graph is truly empty", async () => {
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+    adapter.marker = { ...adapter.marker!, phase: "verify" as DeletionPhase };
+    adapter.canonicalCampaignId = null;
+
+    const result = await processBatch(adapter);
+    expect(result).not.toBeNull();
+    expect(result!.finalPhase).toBe("complete");
+    expect(adapter.marker).toBeNull();
+  });
+
+  it("full deletion with foreign records in another campaign fails at verify", async () => {
+    adapter.seedChildRecords("campaignEvents", CID, 5);
+    adapter.seedChildRecords("campaignEvents", OTHER_CID, 2);
+
+    await requestDeletion(adapter, CID, DELETION_CONFIRMATION_STRING);
+
+    let threw = false;
+    let iterations = 0;
+    while (iterations < 200) {
+      try {
+        const result = await processBatch(adapter);
+        if (result === null || !result.continued) break;
+      } catch (e: any) {
+        if (e.code === "CAMPAIGN_STATE_CORRUPT" && e.message.includes("foreign")) {
+          threw = true;
+          break;
+        }
+        throw e;
+      }
+      iterations++;
+    }
+
+    expect(threw).toBe(true);
+    expect(adapter.marker).not.toBeNull();
+    expect(adapter.totalRemainingChildRecords(CID)).toBe(0);
+    expect(await adapter.countChildRecords("campaignEvents", OTHER_CID)).toBe(2);
   });
 });
