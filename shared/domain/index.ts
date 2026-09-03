@@ -64,6 +64,8 @@ export type {
   PactSeatWizardChangedEventV1,
   PactSeatStatusChangedEventV1,
   WatcherAssignmentChangedEventV1,
+  SetupMonthChangedEventV1,
+  SetupOrreryPositionChangedEventV1,
   CampaignEvent,
 } from "./events";
 
@@ -125,6 +127,8 @@ export {
   applySetPactSeatWizard,
   applySetPactSeatStatus,
   applySetWatcher,
+  applySetSetupMonth,
+  applySetSetupOrreryPosition,
 } from "./m3-transitions";
 
 export type {
@@ -162,6 +166,8 @@ export {
   setPactSeatWizardFingerprint,
   setPactSeatStatusFingerprint,
   setWatcherFingerprint,
+  setSetupMonthFingerprint,
+  setSetupOrreryPositionFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,

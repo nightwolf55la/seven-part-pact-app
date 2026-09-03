@@ -2,6 +2,8 @@ import type { CurrentCampaignState, CampaignPlayer, CampaignWizard, PactSeatStat
 import type { PlayerId, WizardId } from "./ids";
 import type { PactSeatId } from "./pact-seats";
 import type { AgeDefinitionId } from "./ages";
+import type { MonthOrdinal } from "./calendar";
+import type { MovablePlanetId, CentidegreePosition } from "./orrery";
 import type {
   CampaignEvent,
   PlayerAddedEventV1,
@@ -15,9 +17,12 @@ import type {
   PactSeatWizardChangedEventV1,
   PactSeatStatusChangedEventV1,
   WatcherAssignmentChangedEventV1,
+  SetupMonthChangedEventV1,
+  SetupOrreryPositionChangedEventV1,
 } from "./events";
 import { PACT_SEAT_IDS, isValidPactSeatId } from "./pact-seats";
 import { isValidAgeDefinitionId } from "./ages";
+import { MOVABLE_PLANET_IDS, legalPositionsForPlanet } from "./orrery";
 import { DomainError } from "./errors";
 
 export interface TransitionResult {
@@ -158,6 +163,9 @@ export function applySetCampaignAge(
   state: CurrentCampaignState,
   ageId: AgeDefinitionId | null,
 ): TransitionResult {
+  if (state.lifecycle.kind !== "setup") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "set_campaign_age is only allowed during Setup");
+  }
   if (ageId !== null && !isValidAgeDefinitionId(ageId)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid age id: ${ageId}`);
   }
@@ -184,6 +192,9 @@ export function applySetFacilitator(
   state: CurrentCampaignState,
   playerId: PlayerId | null,
 ): TransitionResult {
+  if (state.lifecycle.kind !== "setup") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "set_facilitator is only allowed during Setup");
+  }
   if (playerId !== null && !findPlayer(state, playerId)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Player not found: ${playerId}`);
   }
@@ -468,6 +479,84 @@ export function applySetWatcher(
     type: "watcher_assignment_changed",
     version: 1,
     data: { seatId, previousPlayerId, newPlayerId: playerId },
+  };
+
+  return { nextState, events: [event] };
+}
+
+// --- M4: Set Setup Month ---
+
+export function applySetSetupMonth(
+  state: CurrentCampaignState,
+  monthOrdinal: MonthOrdinal | null,
+): TransitionResult {
+  if (state.lifecycle.kind !== "setup") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "set_setup_month is only allowed during Setup");
+  }
+
+  if (monthOrdinal !== null) {
+    if (!Number.isSafeInteger(monthOrdinal) || monthOrdinal < 0) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid monthOrdinal: ${monthOrdinal}`);
+    }
+  }
+
+  const previousMonthOrdinal = state.calendar.monthOrdinal;
+
+  const nextState: CurrentCampaignState = {
+    ...state,
+    calendar: { monthOrdinal },
+  };
+
+  const event: SetupMonthChangedEventV1 = {
+    type: "setup_month_changed",
+    version: 1,
+    data: { previousMonthOrdinal, newMonthOrdinal: monthOrdinal },
+  };
+
+  return { nextState, events: [event] };
+}
+
+// --- M4: Set Setup Orrery Position ---
+
+export function applySetSetupOrreryPosition(
+  state: CurrentCampaignState,
+  planetId: MovablePlanetId,
+  positionIndex: number | null,
+): TransitionResult {
+  if (state.lifecycle.kind !== "setup") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "set_setup_orrery_position is only allowed during Setup");
+  }
+
+  if (!MOVABLE_PLANET_IDS.includes(planetId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid planetId: ${planetId}`);
+  }
+
+  let newPosition: CentidegreePosition | null;
+  if (positionIndex === null) {
+    newPosition = null;
+  } else {
+    if (!Number.isSafeInteger(positionIndex) || positionIndex < 0) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid positionIndex: ${positionIndex}`);
+    }
+    const legalPositions = legalPositionsForPlanet(planetId);
+    if (positionIndex >= legalPositions.length) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `positionIndex ${positionIndex} out of range for planet ${planetId} (${legalPositions.length} legal positions)`);
+    }
+    newPosition = legalPositions[positionIndex];
+  }
+
+  const previousPosition = state.lifecycle.orrery[planetId];
+
+  const newOrrery = { ...state.lifecycle.orrery, [planetId]: newPosition };
+  const nextState: CurrentCampaignState = {
+    ...state,
+    lifecycle: { ...state.lifecycle, orrery: newOrrery },
+  };
+
+  const event: SetupOrreryPositionChangedEventV1 = {
+    type: "setup_orrery_position_changed",
+    version: 1,
+    data: { planetId, previousPosition, newPosition },
   };
 
   return { nextState, events: [event] };

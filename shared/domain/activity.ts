@@ -82,6 +82,14 @@ function describeConfigEvent(event: CampaignEvent): string {
       return event.data.newPlayerId
         ? `Assigned watcher to ${event.data.seatId} seat`
         : `Cleared watcher from ${event.data.seatId} seat`;
+    case "setup_month_changed":
+      return event.data.newMonthOrdinal !== null
+        ? `Set starting month to ordinal ${event.data.newMonthOrdinal}`
+        : "Cleared starting month";
+    case "setup_orrery_position_changed":
+      return event.data.newPosition !== null
+        ? `Set ${event.data.planetId} Orrery position to ${event.data.newPosition}`
+        : `Cleared ${event.data.planetId} Orrery position`;
     default:
       return "Campaign configuration changed";
   }
@@ -175,7 +183,9 @@ export function mapEventToActivityEntry(
     case "wizard_portrayal_changed":
     case "pact_seat_wizard_changed":
     case "pact_seat_status_changed":
-    case "watcher_assignment_changed": {
+    case "watcher_assignment_changed":
+    case "setup_month_changed":
+    case "setup_orrery_position_changed": {
       return {
         id,
         revision,

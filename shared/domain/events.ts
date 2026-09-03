@@ -1,4 +1,5 @@
 import type { MonthDirection, MonthOrdinal } from "./calendar";
+import type { MovablePlanetId, CentidegreePosition } from "./orrery";
 
 export interface MonthChangedDataV1 {
   readonly direction: MonthDirection;
@@ -192,6 +193,31 @@ export interface WatcherAssignmentChangedEventV1 {
   readonly data: WatcherAssignmentChangedDataV1;
 }
 
+// --- M4: Setup edit events ---
+
+export interface SetupMonthChangedDataV1 {
+  readonly previousMonthOrdinal: MonthOrdinal | null;
+  readonly newMonthOrdinal: MonthOrdinal | null;
+}
+
+export interface SetupMonthChangedEventV1 {
+  readonly type: "setup_month_changed";
+  readonly version: 1;
+  readonly data: SetupMonthChangedDataV1;
+}
+
+export interface SetupOrreryPositionChangedDataV1 {
+  readonly planetId: MovablePlanetId;
+  readonly previousPosition: CentidegreePosition | null;
+  readonly newPosition: CentidegreePosition | null;
+}
+
+export interface SetupOrreryPositionChangedEventV1 {
+  readonly type: "setup_orrery_position_changed";
+  readonly version: 1;
+  readonly data: SetupOrreryPositionChangedDataV1;
+}
+
 export type CampaignEvent =
   | MonthChangedEventV1
   | UndoAppliedEventV1
@@ -208,4 +234,6 @@ export type CampaignEvent =
   | WizardPortrayalChangedEventV1
   | PactSeatWizardChangedEventV1
   | PactSeatStatusChangedEventV1
-  | WatcherAssignmentChangedEventV1;
+  | WatcherAssignmentChangedEventV1
+  | SetupMonthChangedEventV1
+  | SetupOrreryPositionChangedEventV1;

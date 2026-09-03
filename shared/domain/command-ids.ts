@@ -116,6 +116,16 @@ export function setWatcherFingerprint(seatId: string, playerId: string | null): 
   return `set_watcher:v1:${seatId}:${playerId ?? "null"}`;
 }
 
+// --- M4 Setup command fingerprints ---
+
+export function setSetupMonthFingerprint(monthOrdinal: number | null): string {
+  return `set_setup_month:v1:${monthOrdinal ?? "null"}`;
+}
+
+export function setSetupOrreryPositionFingerprint(planetId: string, positionIndex: number | null): string {
+  return `set_setup_orrery_position:v1:${planetId}:${positionIndex ?? "null"}`;
+}
+
 /**
  * Pure deterministic idempotency match for command replay.
  * Given a previously committed command record and an incoming attempt,

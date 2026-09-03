@@ -168,6 +168,25 @@ export const watcherAssignmentChangedEventV1Validator = v.object({
   }),
 });
 
+export const setupMonthChangedEventV1Validator = v.object({
+  type: v.literal("setup_month_changed"),
+  version: v.literal(1),
+  data: v.object({
+    previousMonthOrdinal: v.union(v.number(), v.null()),
+    newMonthOrdinal: v.union(v.number(), v.null()),
+  }),
+});
+
+export const setupOrreryPositionChangedEventV1Validator = v.object({
+  type: v.literal("setup_orrery_position_changed"),
+  version: v.literal(1),
+  data: v.object({
+    planetId: v.string(),
+    previousPosition: v.union(v.number(), v.null()),
+    newPosition: v.union(v.number(), v.null()),
+  }),
+});
+
 export const campaignEventValidator = v.union(
   monthChangedEventV1Validator,
   undoAppliedEventV1Validator,
@@ -185,6 +204,8 @@ export const campaignEventValidator = v.union(
   pactSeatWizardChangedEventV1Validator,
   pactSeatStatusChangedEventV1Validator,
   watcherAssignmentChangedEventV1Validator,
+  setupMonthChangedEventV1Validator,
+  setupOrreryPositionChangedEventV1Validator,
 );
 
 // --- V3 Campaign State Validators ---

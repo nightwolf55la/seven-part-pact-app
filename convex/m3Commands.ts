@@ -16,6 +16,8 @@ import {
   setPactSeatWizardFingerprint,
   setPactSeatStatusFingerprint,
   setWatcherFingerprint,
+  setSetupMonthFingerprint,
+  setSetupOrreryPositionFingerprint,
   applyAddPlayer,
   applyRenamePlayer,
   applyRemovePlayer,
@@ -27,10 +29,12 @@ import {
   applySetPactSeatWizard,
   applySetPactSeatStatus,
   applySetWatcher,
+  applySetSetupMonth,
+  applySetSetupOrreryPosition,
   isValidPlayerId,
   isValidWizardId,
 } from "../shared/domain";
-import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId } from "../shared/domain";
+import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, MonthOrdinal, MovablePlanetId } from "../shared/domain";
 import type { PactSeatId } from "../shared/domain/pact-seats";
 import { isValidPactSeatId } from "../shared/domain/pact-seats";
 import type { AgeDefinitionId } from "../shared/domain/ages";
@@ -41,6 +45,8 @@ import { canonicalCommit } from "./canonicalCommit";
 import type { CanonicalCommitInput, CanonicalCommitReceipt } from "./canonicalCommit";
 import type { Id } from "./_generated/dataModel";
 import { loadCanonicalRecord } from "./persistence";
+import { assertCampaignNotDeleting } from "./deletionBarrier";
+import { MOVABLE_PLANET_IDS } from "../shared/domain";
 
 interface CanonicalCampaign {
   docId: Id<"campaigns">;
@@ -396,6 +402,57 @@ export const setWatcher = mutation({
     if (replay) return { revision: replay.newRevision };
     const result = applySetWatcher(campaign.currentState, args.seatId as PactSeatId, args.playerId as PlayerId | null);
     const receipt = await commitM3Command(ctx, args.commandId, "set_watcher", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+// ============================================================
+// M4: Setup-only commands
+// ============================================================
+
+export const setSetupMonth = mutation({
+  args: {
+    commandId: v.string(),
+    monthOrdinal: v.union(v.number(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    const fingerprint = setSetupMonthFingerprint(args.monthOrdinal);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "set_setup_month", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applySetSetupMonth(
+      campaign.currentState,
+      args.monthOrdinal as MonthOrdinal | null,
+    );
+    const receipt = await commitM3Command(ctx, args.commandId, "set_setup_month", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+export const setSetupOrreryPosition = mutation({
+  args: {
+    commandId: v.string(),
+    planetId: v.string(),
+    positionIndex: v.union(v.number(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    if (!MOVABLE_PLANET_IDS.includes(args.planetId as MovablePlanetId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid planetId: ${args.planetId}`);
+    }
+    const fingerprint = setSetupOrreryPositionFingerprint(args.planetId, args.positionIndex);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "set_setup_orrery_position", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applySetSetupOrreryPosition(
+      campaign.currentState,
+      args.planetId as MovablePlanetId,
+      args.positionIndex,
+    );
+    const receipt = await commitM3Command(ctx, args.commandId, "set_setup_orrery_position", fingerprint, campaign, result);
     return { revision: receipt.newRevision };
   },
 });
