@@ -382,3 +382,12 @@ export type {
   WizardmootAttendance,
   WizardmootHistoryEntry,
 } from "./wizardmoot";
+
+// --- Setup Readiness ---
+
+export type {
+  SetupReadinessIssueCode,
+  SetupReadinessIssue,
+  SetupReadinessResult,
+} from "./setup-readiness";
+export { evaluateSetupReadiness } from "./setup-readiness";
