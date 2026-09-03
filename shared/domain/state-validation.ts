@@ -243,6 +243,12 @@ function validatePactSeats(
 }
 
 function validateOrreryPositions(orrery: Record<string, unknown>, requireComplete: boolean): void {
+  const allowedKeys = new Set<string>([...MOVABLE_PLANET_IDS]);
+  for (const key of Object.keys(orrery)) {
+    if (!allowedKeys.has(key)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `orrery contains unknown key: ${key}`);
+    }
+  }
   for (const planetId of MOVABLE_PLANET_IDS) {
     const val = orrery[planetId];
     if (val === null) {
@@ -276,6 +282,12 @@ function validateTimeDestination(dest: Record<string, unknown>, path: string): v
     if (typeof dest.description !== "string" || dest.description.trim().length === 0) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}: special_use destination requires non-empty description`);
     }
+    const allowed = new Set(["kind", "description"]);
+    for (const key of Object.keys(dest)) {
+      if (!allowed.has(key)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}: special_use destination has unknown field: ${key}`);
+      }
+    }
   }
 }
 
@@ -283,8 +295,11 @@ function validateTimeParticipants(
   participants: unknown[],
   wizardIds: Set<string>,
   path: string,
-): Set<string> {
+): { allocationIds: Set<string>; allocationOwner: Map<string, string>; allocationDestination: Map<string, Record<string, unknown>> } {
   const allocationIds = new Set<string>();
+  const allocationOwner = new Map<string, string>();
+  const allocationDestination = new Map<string, Record<string, unknown>>();
+  const seenWizardIds = new Set<string>();
 
   for (let i = 0; i < participants.length; i++) {
     const tp = participants[i];
@@ -308,6 +323,10 @@ function validateTimeParticipants(
     if (!wizardIds.has(pRef.wizardId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${tpPath}.participant.wizardId "${pRef.wizardId}" does not reference an existing wizard`);
     }
+    if (seenWizardIds.has(pRef.wizardId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${tpPath}: duplicate time participant wizardId "${pRef.wizardId}"`);
+    }
+    seenWizardIds.add(pRef.wizardId);
 
     // budgets
     if (typeof tpObj.effectiveBudget !== "number" || !Number.isSafeInteger(tpObj.effectiveBudget) || tpObj.effectiveBudget < 0) {
@@ -343,6 +362,10 @@ function validateTimeParticipants(
         throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate allocationId: ${allocObj.allocationId}`);
       }
       allocationIds.add(allocObj.allocationId);
+      allocationOwner.set(allocObj.allocationId, pRef.wizardId);
+      if (allocObj.destination !== null && typeof allocObj.destination === "object") {
+        allocationDestination.set(allocObj.allocationId, allocObj.destination as Record<string, unknown>);
+      }
 
       if (allocObj.destination !== null) {
         if (typeof allocObj.destination !== "object") {
@@ -361,16 +384,19 @@ function validateTimeParticipants(
     }
   }
 
-  return allocationIds;
+  return { allocationIds, allocationOwner, allocationDestination };
 }
 
 function validateEngagements(
   engagements: unknown[],
   wizardIds: Set<string>,
   allocationIds: Set<string>,
+  allocationOwner: Map<string, string>,
+  allocationDestination: Map<string, Record<string, unknown>>,
   path: string,
 ): void {
   const engagementIds = new Set<string>();
+  const linkedAllocations = new Set<string>();
 
   for (let i = 0; i < engagements.length; i++) {
     const eng = engagements[i];
@@ -429,6 +455,21 @@ function validateEngagements(
       if (!allocationIds.has(engObj.linkedTimeAllocationId)) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `${engPath}.linkedTimeAllocationId "${engObj.linkedTimeAllocationId}" does not reference an existing allocation`);
       }
+      const owner = allocationOwner.get(engObj.linkedTimeAllocationId);
+      if (owner !== engObj.actingWizardId) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${engPath}.linkedTimeAllocationId does not belong to the acting wizard`);
+      }
+      if (linkedAllocations.has(engObj.linkedTimeAllocationId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${engPath}.linkedTimeAllocationId is linked by multiple engagements`);
+      }
+      linkedAllocations.add(engObj.linkedTimeAllocationId);
+      const dest = allocationDestination.get(engObj.linkedTimeAllocationId);
+      if (dest === undefined || dest.kind !== "engagement") {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${engPath}.linkedTimeAllocationId destination is not engagement`);
+      }
+      if (dest.engagementId !== engObj.engagementId) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${engPath}.linkedTimeAllocationId destination does not identify the same engagement`);
+      }
     }
   }
 }
@@ -463,7 +504,9 @@ function validateWizardmootAttendance(
 
 function validateWizardmootHistory(
   history: unknown[],
+  wizardIds: Set<string>,
 ): void {
+  const seenMonths = new Set<number>();
   for (let i = 0; i < history.length; i++) {
     const entry = history[i];
     const entryPath = `wizardmootHistory[${i}]`;
@@ -474,6 +517,10 @@ function validateWizardmootHistory(
     if (typeof entryObj.monthOrdinal !== "number" || !Number.isSafeInteger(entryObj.monthOrdinal)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${entryPath}.monthOrdinal is not a safe integer`);
     }
+    if (seenMonths.has(entryObj.monthOrdinal as number)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${entryPath}: duplicate monthOrdinal ${entryObj.monthOrdinal}`);
+    }
+    seenMonths.add(entryObj.monthOrdinal as number);
     if (!Array.isArray(entryObj.attendance)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${entryPath}.attendance must be an array`);
     }
@@ -486,9 +533,20 @@ function validateWizardmootHistory(
       if (typeof attObj.wizardId !== "string" || !isValidWizardId(attObj.wizardId)) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `${entryPath}.attendance[${j}].wizardId is invalid`);
       }
+      if (!wizardIds.has(attObj.wizardId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${entryPath}.attendance[${j}].wizardId "${attObj.wizardId}" does not reference an existing wizard`);
+      }
       if (typeof attObj.attended !== "boolean") {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `${entryPath}.attendance[${j}].attended must be boolean`);
       }
+    }
+    const seenWizards = new Set<string>();
+    for (let j = 0; j < (entryObj.attendance as unknown[]).length; j++) {
+      const attObj = (entryObj.attendance as unknown[])[j] as Record<string, unknown>;
+      if (seenWizards.has(attObj.wizardId as string)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${entryPath}.attendance[${j}]: duplicate wizardId "${attObj.wizardId}"`);
+      }
+      seenWizards.add(attObj.wizardId as string);
     }
   }
 }
@@ -529,7 +587,7 @@ function validateLifecycle(
     if (!Array.isArray(currentMonth.timeParticipants)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", "currentMonth.timeParticipants must be an array");
     }
-    const allocationIds = validateTimeParticipants(
+    const { allocationIds, allocationOwner, allocationDestination } = validateTimeParticipants(
       currentMonth.timeParticipants as unknown[],
       wizardIds,
       "currentMonth.timeParticipants",
@@ -542,6 +600,8 @@ function validateLifecycle(
       currentMonth.engagements as unknown[],
       wizardIds,
       allocationIds,
+      allocationOwner,
+      allocationDestination,
       "currentMonth.engagements",
     );
 
@@ -576,7 +636,7 @@ function validateV3Shape(s: Record<string, unknown>): void {
   if (!Array.isArray(s.wizardmootHistory)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "wizardmootHistory must be an array");
   }
-  validateWizardmootHistory(s.wizardmootHistory as unknown[]);
+  validateWizardmootHistory(s.wizardmootHistory as unknown[], wizardIds);
 }
 
 export function validateCampaignState(state: unknown): CurrentCampaignState {
