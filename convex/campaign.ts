@@ -167,6 +167,77 @@ export const ensureCampaign = mutation({
   },
 });
 
+export const startNewCampaign = mutation({
+  args: {},
+  returns: v.object({
+    campaignId: v.string(),
+    campaignRevision: v.number(),
+  }),
+  handler: async (ctx) => {
+    await assertCampaignNotDeleting(ctx);
+
+    const existingCanonical = await ctx.db
+      .query("campaigns")
+      .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
+      .unique();
+
+    if (existingCanonical !== null) {
+      throw new DomainError("CAMPAIGN_ALREADY_EXISTS", "A campaign already exists");
+    }
+
+    const allCampaigns = await ctx.db.query("campaigns").collect();
+    if (allCampaigns.length > 0) {
+      throw new DomainError("CAMPAIGN_GRAPH_NOT_EMPTY", `Found ${allCampaigns.length} orphaned campaign document(s)`);
+    }
+
+    const orphanChecks = await Promise.all([
+      ctx.db.query("campaignRevisions").first(),
+      ctx.db.query("campaignEvents").first(),
+      ctx.db.query("campaignSnapshots").first(),
+      ctx.db.query("campaignHistoryControl").first(),
+      ctx.db.query("campaignCheckpoints").first(),
+    ]);
+    const orphanTableNames = [
+      "campaignRevisions",
+      "campaignEvents",
+      "campaignSnapshots",
+      "campaignHistoryControl",
+      "campaignCheckpoints",
+    ];
+    const orphanFound = orphanChecks
+      .map((r, i) => (r !== null ? orphanTableNames[i] : null))
+      .filter(Boolean);
+    if (orphanFound.length > 0) {
+      throw new DomainError(
+        "CAMPAIGN_GRAPH_NOT_EMPTY",
+        `Orphaned records found in: ${orphanFound.join(", ")}`,
+      );
+    }
+
+    const campaignId = generateCampaignId();
+    const state = initialCampaignState();
+    const campaignRevision = 0;
+
+    await ctx.db.insert("campaigns", {
+      campaignKey: "default",
+      campaignId,
+      campaignRevision,
+      state: serializeState(state),
+    } as any);
+
+    await ctx.db.insert("campaignSnapshots", snapshotRecord(campaignId, campaignRevision, state));
+
+    await ctx.db.insert("campaignHistoryControl", {
+      historyControlVersion: CURRENT_HISTORY_CONTROL_VERSION,
+      campaignId,
+      undoStack: [0],
+      redoStack: [],
+    });
+
+    return { campaignId, campaignRevision };
+  },
+});
+
 export const getRecentEvents = query({
   args: { count: v.number() },
   returns: v.array(activityEntryValidator),
