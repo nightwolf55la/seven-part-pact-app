@@ -273,6 +273,14 @@ function validateTimeDestination(dest: Record<string, unknown>, path: string): v
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}: companion destination requires non-empty element`);
     }
   }
+  if (kind === "orrery") {
+    const allowed = new Set(["kind"]);
+    for (const key of Object.keys(dest)) {
+      if (!allowed.has(key)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}: orrery destination has unknown field: ${key}`);
+      }
+    }
+  }
   if (kind === "engagement") {
     if (typeof dest.engagementId !== "string" || dest.engagementId.length === 0) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}: engagement destination requires non-empty engagementId`);

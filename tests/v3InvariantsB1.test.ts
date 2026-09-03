@@ -149,7 +149,7 @@ describe("Special Use destination invariants", () => {
   });
 });
 
-// --- 3. TIME: Orrery no planet/direction choice ---
+// --- 3a. TIME: Orrery-position no planet/direction choice ---
 
 describe("Orrery scheduling invariants", () => {
   it("rejects orrery with extra planet/choice field", () => {
@@ -166,6 +166,68 @@ describe("Orrery scheduling invariants", () => {
       },
     });
     expectInvalid(state, "orrery");
+  });
+});
+
+// --- 3b. TIME: Orrery Time destination must not carry resolution-time choices ---
+
+describe("Orrery Time destination invariants", () => {
+  it("rejects orrery destination with planet/direction fields", () => {
+    const state = playState({
+      lifecycle: {
+        kind: "play",
+        phase: "new_moon",
+        orrery: { saturn: 500, jupiter: 0, mars: 0, venus: 0, mercury: 0 },
+        currentMonth: {
+          timeParticipants: [
+            {
+              participant: { kind: "wizard", wizardId: WIZ1 },
+              effectiveBudget: 3, rescheduleAllowance: 1, reschedulesUsed: 0,
+              allocations: [
+                {
+                  allocationId: ALC1,
+                  destination: { kind: "orrery", planet: "mars", direction: "forward" } as any,
+                  note: null,
+                  resolution: "pending",
+                },
+              ],
+            },
+          ],
+          engagements: [],
+          wizardmootAttendance: null,
+        },
+      },
+    });
+    expectInvalid(state, "orrery");
+  });
+
+  it("accepts orrery destination with only kind", () => {
+    const state = playState({
+      lifecycle: {
+        kind: "play",
+        phase: "new_moon",
+        orrery: { saturn: 500, jupiter: 0, mars: 0, venus: 0, mercury: 0 },
+        currentMonth: {
+          timeParticipants: [
+            {
+              participant: { kind: "wizard", wizardId: WIZ1 },
+              effectiveBudget: 3, rescheduleAllowance: 1, reschedulesUsed: 0,
+              allocations: [
+                {
+                  allocationId: ALC1,
+                  destination: { kind: "orrery" },
+                  note: null,
+                  resolution: "pending",
+                },
+              ],
+            },
+          ],
+          engagements: [],
+          wizardmootAttendance: null,
+        },
+      },
+    });
+    expect(() => validateCampaignState(state)).not.toThrow();
   });
 });
 
