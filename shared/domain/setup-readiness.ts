@@ -4,6 +4,8 @@ import type { PactSeatId } from "./pact-seats";
 import { MOVABLE_PLANET_IDS } from "./orrery";
 import type { MovablePlanetId } from "./orrery";
 import type { PlayerId, WizardId } from "./ids";
+import { evaluateAgeSetup } from "./age-setup";
+import type { AgeSetupIssueCode } from "./age-setup";
 
 export type SetupReadinessIssueCode =
   | "LIFECYCLE_NOT_SETUP"
@@ -17,7 +19,8 @@ export type SetupReadinessIssueCode =
   | "SILENT_SEAT_MISSING_WIZARD"
   | "PRESENT_WIZARD_MISSING_PORTRAYAL"
   | "WATCHER_NOT_ASSIGNED"
-  | "PLAYER_PORTRAYS_MULTIPLE_PRESENT_WIZARDS";
+  | "PLAYER_PORTRAYS_MULTIPLE_PRESENT_WIZARDS"
+  | AgeSetupIssueCode;
 
 export interface SetupReadinessIssue {
   readonly code: SetupReadinessIssueCode;
@@ -155,6 +158,23 @@ export function evaluateSetupReadiness(state: CurrentCampaignState): SetupReadin
         seatId,
         playerId: seat.watcherPlayerId,
       });
+    }
+  }
+
+  if (state.configuration.ageId !== null && state.calendar.monthOrdinal !== null) {
+    const ageResult = evaluateAgeSetup(
+      state.configuration.ageId,
+      state.calendar.monthOrdinal,
+      state.lifecycle.orrery,
+    );
+    if (!ageResult.valid) {
+      for (const issue of ageResult.issues) {
+        issues.push({
+          code: issue.code,
+          message: issue.message,
+          planetId: issue.planetId,
+        });
+      }
     }
   }
 

@@ -391,3 +391,12 @@ export type {
   SetupReadinessResult,
 } from "./setup-readiness";
 export { evaluateSetupReadiness } from "./setup-readiness";
+
+// --- Age Setup ---
+
+export type {
+  AgeSetupIssueCode,
+  AgeSetupIssue,
+  AgeSetupResult,
+} from "./age-setup";
+export { evaluateAgeSetup } from "./age-setup";
