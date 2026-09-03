@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
-import { analyzeLegacyMigration } from "../shared/domain";
-import type { MigrationAnalysisResult } from "../shared/domain";
+import { analyzeLegacyMigration } from "../shared/domain/migration-analyzer";
+import type { MigrationAnalysisResult } from "../shared/domain/migration-analyzer";
 
 const migrationSnapshotPlanValidator = v.object({
   campaignRevision: v.number(),
@@ -60,8 +60,8 @@ function toMutableResult(result: MigrationAnalysisResult) {
   if (result.status !== "ready") return result;
   return {
     ...result,
-    snapshots: result.snapshots.map((s) => ({ ...s, state: { ...s.state, ruleset: { ...s.state.ruleset }, calendar: { ...s.state.calendar } } })),
-    revisions: result.revisions.map((r) => ({ ...r, event: { ...r.event, data: { ...r.event.data } } })),
+    snapshots: result.snapshots.map((s: (typeof result.snapshots)[number]) => ({ ...s, state: { ...s.state, ruleset: { ...s.state.ruleset }, calendar: { ...s.state.calendar } } })),
+    revisions: result.revisions.map((r: (typeof result.revisions)[number]) => ({ ...r, event: { ...r.event, data: { ...r.event.data } } })),
   };
 }
 

@@ -44,6 +44,13 @@ function makeState(monthOrdinal: number): CurrentCampaignState {
       sage: { status: null, wizardId: null, watcherPlayerId: null },
       sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
     },
+    lifecycle: {
+      kind: "play" as const,
+      phase: "new_moon" as const,
+      orrery: { saturn: 0 as any, jupiter: 9000 as any, mars: 18000 as any, venus: 27000 as any, mercury: 4500 as any },
+      currentMonth: { timeParticipants: [], engagements: [], wizardmootAttendance: null },
+    },
+    wizardmootHistory: [],
   };
 }
 
@@ -212,9 +219,23 @@ describe("historical snapshot loading uses loadSnapshotState (V1/V2 regression)"
 describe("verifyBackupImportRevisionStructure with V1 historical snapshot", () => {
   it("accepts a valid V1 result snapshot in backup_import history", () => {
     const v1Snapshot = {
-      schemaVersion: 1 as const,
+      schemaVersion: 3 as const,
       ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
       calendar: { monthOrdinal: 5 },
+      configuration: { ageId: null, facilitatorPlayerId: null },
+      players: [],
+      wizards: [],
+      pactSeats: {
+        necromancer: { status: null, wizardId: null, watcherPlayerId: null },
+        hierophant: { status: null, wizardId: null, watcherPlayerId: null },
+        warlock: { status: null, wizardId: null, watcherPlayerId: null },
+        mariner: { status: null, wizardId: null, watcherPlayerId: null },
+        faustian: { status: null, wizardId: null, watcherPlayerId: null },
+        sage: { status: null, wizardId: null, watcherPlayerId: null },
+        sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
+      },
+      lifecycle: { kind: "setup" as const, orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } },
+      wizardmootHistory: [],
     };
 
     const payloadDigest = "a".repeat(64);

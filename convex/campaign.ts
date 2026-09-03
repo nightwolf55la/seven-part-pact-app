@@ -63,7 +63,7 @@ const campaignViewValidator = v.union(
   v.object({
     _id: v.id("campaigns"),
     _creationTime: v.number(),
-    monthOrdinal: v.number(),
+    monthOrdinal: v.union(v.number(), v.null()),
     revision: v.number(),
   }),
   v.null(),
@@ -208,8 +208,8 @@ export const moveMonth = mutation({
   },
   returns: v.object({
     revision: v.number(),
-    monthOrdinal: v.number(),
-    month: monthDisplayNameValidator,
+    monthOrdinal: v.union(v.number(), v.null()),
+    month: v.union(monthDisplayNameValidator, v.null()),
   }),
   handler: async (ctx, args) => {
     const maybeCanonical = await ctx.db
@@ -237,10 +237,11 @@ export const moveMonth = mutation({
         historyControlUpdate: { kind: "logical_state_append" },
       });
 
+      const mo = receipt.state.calendar.monthOrdinal;
       return {
         revision: receipt.newRevision,
-        monthOrdinal: receipt.state.calendar.monthOrdinal as number,
-        month: displayNameFromOrdinal(receipt.state.calendar.monthOrdinal),
+        monthOrdinal: mo,
+        month: mo !== null ? displayNameFromOrdinal(mo) : null,
       };
     }
 
@@ -356,8 +357,8 @@ async function loadRevisionCommandType(ctx: any, campaignId: string, revision: n
 
 const undoRedoReturnValidator = v.object({
   revision: v.number(),
-  monthOrdinal: v.number(),
-  month: monthDisplayNameValidator,
+  monthOrdinal: v.union(v.number(), v.null()),
+  month: v.union(monthDisplayNameValidator, v.null()),
   alreadyApplied: v.boolean(),
 });
 
@@ -395,10 +396,11 @@ export const undo = mutation({
         throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Snapshot missing for committed revision ${existingCommand.campaignRevision}`);
       }
       validateCampaignState(snap);
+      const mo = snap.calendar.monthOrdinal;
       return {
         revision: existingCommand.campaignRevision,
-        monthOrdinal: snap.calendar.monthOrdinal as number,
-        month: displayNameFromOrdinal(snap.calendar.monthOrdinal),
+        monthOrdinal: mo,
+        month: mo !== null ? displayNameFromOrdinal(mo) : null,
         alreadyApplied: true,
       };
     }
@@ -460,10 +462,11 @@ export const undo = mutation({
       },
     });
 
+    const undoMo = receipt.state.calendar.monthOrdinal;
     return {
       revision: receipt.newRevision,
-      monthOrdinal: receipt.state.calendar.monthOrdinal as number,
-      month: displayNameFromOrdinal(receipt.state.calendar.monthOrdinal),
+      monthOrdinal: undoMo,
+      month: undoMo !== null ? displayNameFromOrdinal(undoMo) : null,
       alreadyApplied: receipt.alreadyApplied,
     };
   },
@@ -502,10 +505,11 @@ export const redo = mutation({
         throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Snapshot missing for committed revision ${existingCommand.campaignRevision}`);
       }
       validateCampaignState(snap);
+      const redoIdempMo = snap.calendar.monthOrdinal;
       return {
         revision: existingCommand.campaignRevision,
-        monthOrdinal: snap.calendar.monthOrdinal as number,
-        month: displayNameFromOrdinal(snap.calendar.monthOrdinal),
+        monthOrdinal: redoIdempMo,
+        month: redoIdempMo !== null ? displayNameFromOrdinal(redoIdempMo) : null,
         alreadyApplied: true,
       };
     }
@@ -567,10 +571,11 @@ export const redo = mutation({
       },
     });
 
+    const redoMo = receipt.state.calendar.monthOrdinal;
     return {
       revision: receipt.newRevision,
-      monthOrdinal: receipt.state.calendar.monthOrdinal as number,
-      month: displayNameFromOrdinal(receipt.state.calendar.monthOrdinal),
+      monthOrdinal: redoMo,
+      month: redoMo !== null ? displayNameFromOrdinal(redoMo) : null,
       alreadyApplied: receipt.alreadyApplied,
     };
   },
@@ -963,8 +968,8 @@ export const restoreCheckpoint = mutation({
   },
   returns: v.object({
     revision: v.number(),
-    monthOrdinal: v.number(),
-    month: monthDisplayNameValidator,
+    monthOrdinal: v.union(v.number(), v.null()),
+    month: v.union(monthDisplayNameValidator, v.null()),
     alreadyApplied: v.boolean(),
   }),
   handler: async (ctx, args) => {
@@ -1000,10 +1005,11 @@ export const restoreCheckpoint = mutation({
         throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Snapshot missing for committed revision ${existingCommand.campaignRevision}`);
       }
       validateCampaignState(snap);
+      const cpIdempMo = snap.calendar.monthOrdinal;
       return {
         revision: existingCommand.campaignRevision,
-        monthOrdinal: snap.calendar.monthOrdinal as number,
-        month: displayNameFromOrdinal(snap.calendar.monthOrdinal),
+        monthOrdinal: cpIdempMo,
+        month: cpIdempMo !== null ? displayNameFromOrdinal(cpIdempMo) : null,
         alreadyApplied: true,
       };
     }
@@ -1099,10 +1105,11 @@ export const restoreCheckpoint = mutation({
       historyControlUpdate: { kind: "logical_state_append" },
     });
 
+    const cpMo = receipt.state.calendar.monthOrdinal;
     return {
       revision: receipt.newRevision,
-      monthOrdinal: receipt.state.calendar.monthOrdinal as number,
-      month: displayNameFromOrdinal(receipt.state.calendar.monthOrdinal),
+      monthOrdinal: cpMo,
+      month: cpMo !== null ? displayNameFromOrdinal(cpMo) : null,
       alreadyApplied: receipt.alreadyApplied,
     };
   },

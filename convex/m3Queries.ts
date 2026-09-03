@@ -27,10 +27,10 @@ export const getCampaignSetup = query({
     } catch (e: unknown) {
       try {
         const any = validateAnyCampaignState(rawState);
-        if (any.schemaVersion === 1) {
+        if ((any as any).schemaVersion !== 3) {
           throw new DomainError(
             "MIGRATION_REQUIRED",
-            "Campaign state is V1. Run the explicit admin migration (adminMigration:migrateCurrentStateToV2) before using M3 queries.",
+            "Campaign state is not V3. Run the explicit admin migration before using M3 queries.",
           );
         }
       } catch (inner: unknown) {

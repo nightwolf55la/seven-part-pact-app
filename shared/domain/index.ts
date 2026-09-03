@@ -1,6 +1,6 @@
 export type { Brand } from "./brand";
 
-export type { CampaignId, CommandId, CheckpointId, PlayerId, WizardId } from "./ids";
+export type { CampaignId, CommandId, CheckpointId, PlayerId, WizardId, AllocationId, EngagementId } from "./ids";
 export {
   isValidCampaignId,
   parseCampaignId,
@@ -12,6 +12,10 @@ export {
   parsePlayerId,
   isValidWizardId,
   parseWizardId,
+  isValidAllocationId,
+  parseAllocationId,
+  isValidEngagementId,
+  parseEngagementId,
 } from "./ids";
 
 export type {
@@ -72,16 +76,23 @@ export {
 
 export type {
   CampaignRevision,
+  CampaignRuleset,
   CampaignStateV1,
   CampaignStateV2,
+  CampaignStateV3,
   CampaignPlayer,
   CampaignWizard,
   PactSeatState,
   PactSeatStatus,
+  LunarPhase,
+  MonthlyPlayState,
+  SetupLifecycle,
+  PlayLifecycle,
+  CampaignLifecycle,
   CurrentCampaignState,
   AnyCampaignState,
 } from "./campaign-state";
-export { CURRENT_STATE_SCHEMA_VERSION } from "./campaign-state";
+export { CURRENT_STATE_SCHEMA_VERSION, LUNAR_PHASES } from "./campaign-state";
 
 export type { PactSeatId } from "./pact-seats";
 export { PACT_SEAT_IDS, PACT_SEAT_COUNT, pactSeatDisplayName, isValidPactSeatId } from "./pact-seats";
@@ -89,19 +100,7 @@ export { PACT_SEAT_IDS, PACT_SEAT_COUNT, pactSeatDisplayName, isValidPactSeatId 
 export type { AgeDefinitionId } from "./ages";
 export { AGE_DEFINITION_IDS, ageDisplayName, isValidAgeDefinitionId } from "./ages";
 
-export { migrateV1toV2, migrateToCurrentVersion, loadHistoricalState, isHistoricalStateLogicallyEqual, isSupportedSchemaVersion, SUPPORTED_STATE_SCHEMA_VERSIONS } from "./state-migration";
-
-export type {
-  LegacyCampaignInput,
-  LegacyEventInput,
-  MigrationSnapshotPlan,
-  MigrationRevisionPlan,
-  MigrationNotNeeded,
-  MigrationReady,
-  MigrationInvalid,
-  MigrationAnalysisResult,
-} from "./migration-analyzer";
-export { analyzeLegacyMigration } from "./migration-analyzer";
+export { migrateToCurrentVersion, loadHistoricalState, isHistoricalStateLogicallyEqual, isSupportedSchemaVersion, SUPPORTED_STATE_SCHEMA_VERSIONS } from "./state-migration";
 
 export type { DomainErrorCode } from "./errors";
 export { DomainError } from "./errors";
@@ -292,3 +291,86 @@ export {
   processBatch,
   resolveLifecycle,
 } from "./deletion-orchestrator";
+
+// --- Orrery ---
+
+export type {
+  CentidegreePosition,
+  MovablePlanetId,
+  CelestialBodyId,
+  HouseIndex,
+  PlanetDefinition,
+  SetupOrreryState,
+  OrreryState,
+  BodyHouseOccupancy,
+  Conjunction,
+} from "./orrery";
+export {
+  FULL_CIRCLE_CENTIDEGREES,
+  HOUSE_COUNT,
+  HOUSE_WIDTH_CENTIDEGREES,
+  MOVABLE_PLANET_IDS,
+  CELESTIAL_BODY_IDS,
+  HOUSE_NAMES,
+  PLANET_DEFINITIONS,
+  isValidCentidegreePosition,
+  asCentidegreePosition,
+  houseIndexFromCentidegrees,
+  sunPositionFromMonthOrdinal,
+  arcStartAndEnd,
+  housesOccupiedByArc,
+  housesOccupiedByBody,
+  sunHouse,
+  computeAllOccupancies,
+  computeConjunctions,
+  advancePlanetPosition,
+  legalPositionsForPlanet,
+  isLegalPosition,
+  isCompleteOrrery,
+  emptySetupOrrery,
+  advanceAllPlanets,
+} from "./orrery";
+
+// --- Participants ---
+
+export type { WizardParticipantRef, TimeParticipantRef } from "./participants";
+
+// --- Time Model ---
+
+export type {
+  AllocationResolution,
+  CompanionDestination,
+  MapIsleSanctumDestination,
+  FamiliarDestination,
+  OrreryDestination,
+  MeetingDestination,
+  DomainDestination,
+  EngagementDestination,
+  SpecialUseDestination,
+  TimeDestination,
+  TimeDestinationKind,
+  TimeAllocation,
+  TimeParticipant,
+} from "./time-model";
+export { ALLOCATION_RESOLUTIONS, TIME_DESTINATION_KINDS } from "./time-model";
+
+// --- Engagement ---
+
+export type {
+  EngagementResolution,
+  WizardTarget,
+  SelfTarget,
+  FamiliarTarget,
+  NamedCharacterTarget,
+  EngagementTarget,
+  EngagementTargetKind,
+  EngagementRecord,
+} from "./engagement";
+export { ENGAGEMENT_RESOLUTIONS, ENGAGEMENT_TARGET_KINDS } from "./engagement";
+
+// --- Wizardmoot ---
+
+export type {
+  WizardmootAttendance,
+  WizardmootHistoryEntry,
+} from "./wizardmoot";

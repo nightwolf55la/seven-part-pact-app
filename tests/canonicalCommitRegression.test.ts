@@ -37,6 +37,13 @@ function makeState(monthOrdinal: number): CurrentCampaignState {
       sage: { status: null, wizardId: null, watcherPlayerId: null },
       sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
     },
+    lifecycle: {
+      kind: "play" as const,
+      phase: "new_moon" as const,
+      orrery: { saturn: 0 as any, jupiter: 9000 as any, mars: 18000 as any, venus: 27000 as any, mercury: 4500 as any },
+      currentMonth: { timeParticipants: [], engagements: [], wizardmootAttendance: null },
+    },
+    wizardmootHistory: [],
   };
 }
 
@@ -470,7 +477,7 @@ describe("pre-idempotency result type does not claim CampaignState validation", 
       expect(result.backup.state).not.toBeNull();
       // Accessing a CampaignState field should require a cast — the type is
       // intentionally opaque at this stage.
-      expect((result.backup.state as Record<string, unknown>).schemaVersion).toBe(2);
+      expect((result.backup.state as Record<string, unknown>).schemaVersion).toBe(3);
     }
   });
 
@@ -594,7 +601,7 @@ describe("pre-idempotency result type does not claim CampaignState validation", 
     const fullResult = await fullyValidateBackup(JSON.stringify(backup), validState);
     expect("backup" in fullResult).toBe(true);
     if ("backup" in fullResult) {
-      expect(fullResult.backup.state.schemaVersion).toBe(2);
+      expect(fullResult.backup.state.schemaVersion).toBe(3);
       expect(fullResult.backup.state.ruleset.id).toBe(SEVEN_PART_PACT_DRAFT4_ID);
     }
   });

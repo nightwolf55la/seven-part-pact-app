@@ -55,6 +55,13 @@ function validState(): CurrentCampaignState {
       sage: { status: null, wizardId: null, watcherPlayerId: null },
       sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
     },
+    lifecycle: {
+      kind: "play" as const,
+      phase: "new_moon" as const,
+      orrery: { saturn: 0 as any, jupiter: 9000 as any, mars: 18000 as any, venus: 27000 as any, mercury: 4500 as any },
+      currentMonth: { timeParticipants: [], engagements: [], wizardmootAttendance: null },
+    },
+    wizardmootHistory: [],
   };
 }
 
@@ -267,7 +274,7 @@ describe("validateBackupState", () => {
   });
 
   it("rejects missing calendar", () => {
-    const err = validateBackupState({ schemaVersion: 1, ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: 1 } });
+    const err = validateBackupState({ schemaVersion: CURRENT_STATE_SCHEMA_VERSION, ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION } });
     expect(err?.code).toBe("INVALID_BACKUP_FORMAT");
   });
 });

@@ -7,6 +7,8 @@ import {
   CURRENT_HISTORY_CONTROL_VERSION,
   CURRENT_CHECKPOINT_VERSION,
   PACT_SEAT_IDS,
+  MOVABLE_PLANET_IDS,
+  LUNAR_PHASES,
 } from "../shared/domain";
 
 export const monthDirectionValidator = v.union(
@@ -185,6 +187,8 @@ export const campaignEventValidator = v.union(
   watcherAssignmentChangedEventV1Validator,
 );
 
+// --- V3 Campaign State Validators ---
+
 const pactSeatStateValidator = v.object({
   status: v.union(v.literal("present"), v.literal("silent"), v.literal("absent"), v.null()),
   wizardId: v.union(v.string(), v.null()),
@@ -206,25 +210,116 @@ const pactSeatsValidator = v.object(
   Object.fromEntries(PACT_SEAT_IDS.map((id) => [id, pactSeatStateValidator])) as Record<string, typeof pactSeatStateValidator>,
 );
 
-export const campaignStateV1Validator = v.object({
-  schemaVersion: v.literal(1),
-  ruleset: v.object({
-    id: v.literal(SEVEN_PART_PACT_DRAFT4_ID),
-    version: v.literal(SEVEN_PART_PACT_DRAFT4_VERSION),
-  }),
-  calendar: v.object({
-    monthOrdinal: v.number(),
-  }),
+const participantRefValidator = v.object({
+  kind: v.literal("wizard"),
+  wizardId: v.string(),
 });
 
-export const campaignStateV2Validator = v.object({
-  schemaVersion: v.literal(2),
+const timeDestinationValidator = v.union(
+  v.object({ kind: v.literal("companion"), element: v.string() }),
+  v.object({ kind: v.literal("map_isle_sanctum") }),
+  v.object({ kind: v.literal("familiar") }),
+  v.object({ kind: v.literal("orrery") }),
+  v.object({ kind: v.literal("meeting") }),
+  v.object({ kind: v.literal("domain") }),
+  v.object({ kind: v.literal("engagement"), engagementId: v.string() }),
+  v.object({ kind: v.literal("special_use"), description: v.string() }),
+);
+
+const timeAllocationValidator = v.object({
+  allocationId: v.string(),
+  destination: v.union(timeDestinationValidator, v.null()),
+  note: v.union(v.string(), v.null()),
+  resolution: v.union(v.literal("pending"), v.literal("spent"), v.literal("wasted")),
+});
+
+const timeParticipantValidator = v.object({
+  participant: participantRefValidator,
+  effectiveBudget: v.number(),
+  rescheduleAllowance: v.number(),
+  reschedulesUsed: v.number(),
+  allocations: v.array(timeAllocationValidator),
+});
+
+const engagementTargetValidator = v.union(
+  v.object({ kind: v.literal("wizard"), wizardId: v.string() }),
+  v.object({ kind: v.literal("self") }),
+  v.object({ kind: v.literal("familiar") }),
+  v.object({ kind: v.literal("named_character"), name: v.string() }),
+);
+
+const engagementRecordValidator = v.object({
+  engagementId: v.string(),
+  actingWizardId: v.string(),
+  target: v.union(engagementTargetValidator, v.null()),
+  resolution: v.union(v.literal("pending"), v.literal("resolved")),
+  linkedTimeAllocationId: v.union(v.string(), v.null()),
+});
+
+const wizardmootAttendanceValidator = v.object({
+  wizardId: v.string(),
+  attended: v.boolean(),
+  exceptionReason: v.union(v.string(), v.null()),
+});
+
+const monthlyPlayStateValidator = v.object({
+  timeParticipants: v.array(timeParticipantValidator),
+  engagements: v.array(engagementRecordValidator),
+  wizardmootAttendance: v.union(v.array(wizardmootAttendanceValidator), v.null()),
+});
+
+const centidegreeOrNull = v.union(v.number(), v.null());
+
+const setupOrreryValidator = v.object({
+  saturn: centidegreeOrNull,
+  jupiter: centidegreeOrNull,
+  mars: centidegreeOrNull,
+  venus: centidegreeOrNull,
+  mercury: centidegreeOrNull,
+});
+
+const completeOrreryValidator = v.object({
+  saturn: v.number(),
+  jupiter: v.number(),
+  mars: v.number(),
+  venus: v.number(),
+  mercury: v.number(),
+});
+
+const lunarPhaseValidator = v.union(
+  ...LUNAR_PHASES.map((p) => v.literal(p)),
+);
+
+const setupLifecycleValidator = v.object({
+  kind: v.literal("setup"),
+  orrery: setupOrreryValidator,
+});
+
+const playLifecycleValidator = v.object({
+  kind: v.literal("play"),
+  phase: lunarPhaseValidator,
+  orrery: completeOrreryValidator,
+  currentMonth: monthlyPlayStateValidator,
+});
+
+const lifecycleValidator = v.union(setupLifecycleValidator, playLifecycleValidator);
+
+const wizardmootHistoryEntryValidator = v.object({
+  monthOrdinal: v.number(),
+  attendance: v.array(v.object({
+    wizardId: v.string(),
+    attended: v.boolean(),
+  })),
+});
+
+export const campaignStateV3Validator = v.object({
+  schemaVersion: v.literal(3),
   ruleset: v.object({
     id: v.literal(SEVEN_PART_PACT_DRAFT4_ID),
     version: v.literal(SEVEN_PART_PACT_DRAFT4_VERSION),
   }),
   calendar: v.object({
-    monthOrdinal: v.number(),
+    monthOrdinal: v.union(v.number(), v.null()),
   }),
   configuration: v.object({
     ageId: v.union(v.string(), v.null()),
@@ -233,14 +328,12 @@ export const campaignStateV2Validator = v.object({
   players: v.array(playerValidator),
   wizards: v.array(wizardValidator),
   pactSeats: pactSeatsValidator,
+  lifecycle: lifecycleValidator,
+  wizardmootHistory: v.array(wizardmootHistoryEntryValidator),
 });
 
-export const anyCampaignStateValidator = v.union(
-  campaignStateV1Validator,
-  campaignStateV2Validator,
-);
-
-export const currentCampaignStateValidator = campaignStateV2Validator;
+export const anyCampaignStateValidator = campaignStateV3Validator;
+export const currentCampaignStateValidator = campaignStateV3Validator;
 
 export const newCampaignRecordValidator = v.object({
   campaignKey: v.literal("default"),

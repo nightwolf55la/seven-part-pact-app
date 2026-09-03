@@ -61,6 +61,13 @@ function v2State(monthOrdinal: number = 0): CurrentCampaignState {
       sage: { status: null, wizardId: null, watcherPlayerId: null },
       sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
     },
+    lifecycle: {
+      kind: "play" as const,
+      phase: "new_moon" as const,
+      orrery: { saturn: 0 as any, jupiter: 9000 as any, mars: 18000 as any, venus: 27000 as any, mercury: 4500 as any },
+      currentMonth: { timeParticipants: [], engagements: [], wizardmootAttendance: null },
+    },
+    wizardmootHistory: [],
   };
 }
 
@@ -69,11 +76,9 @@ function v2State(monthOrdinal: number = 0): CurrentCampaignState {
 // ================================================================
 
 describe("loadHistoricalState (production helper)", () => {
-  it("converts V1 raw fixture to valid V2", () => {
+  it("rejects V1 raw fixture (V3-only)", () => {
     const raw = v1SnapshotFixture(0);
-    const loaded = loadHistoricalState(raw);
-    expect(loaded.schemaVersion).toBe(2);
-    validateCampaignState(loaded);
+    expect(() => loadHistoricalState(raw)).toThrow();
   });
 
   it("preserves V2 state unchanged", () => {
@@ -90,19 +95,19 @@ describe("loadHistoricalState (production helper)", () => {
     expect(() => loadHistoricalState(null)).toThrow();
   });
 
-  it("does not mutate the raw V1 fixture", () => {
+  it("does not mutate the raw V1 fixture when rejecting", () => {
     const raw = v1SnapshotFixture(5);
     const serializedBefore = JSON.stringify(raw);
-    loadHistoricalState(raw);
+    expect(() => loadHistoricalState(raw)).toThrow();
     expect(JSON.stringify(raw)).toBe(serializedBefore);
   });
 
-  it("V1 fixture remains unchanged after multiple loads", () => {
+  it("V1 fixture remains unchanged after multiple rejections", () => {
     const raw = v1SnapshotFixture(12);
     const copy = JSON.parse(JSON.stringify(raw));
-    loadHistoricalState(raw);
-    loadHistoricalState(raw);
-    loadHistoricalState(raw);
+    expect(() => loadHistoricalState(raw)).toThrow();
+    expect(() => loadHistoricalState(raw)).toThrow();
+    expect(() => loadHistoricalState(raw)).toThrow();
     expect(raw).toEqual(copy);
   });
 });
@@ -112,31 +117,31 @@ describe("loadHistoricalState (production helper)", () => {
 // ================================================================
 
 describe("isHistoricalStateLogicallyEqual (production helper)", () => {
-  it("V1 revision-0 snapshot equals its explicitly migrated V2 representation", () => {
+  it("rejects V1 revision-0 snapshot (V3-only)", () => {
     const v1Raw = v1SnapshotFixture(0);
     const v2Current = v2State(0);
-    expect(isHistoricalStateLogicallyEqual(v1Raw, v2Current)).toBe(true);
+    expect(() => isHistoricalStateLogicallyEqual(v1Raw, v2Current)).toThrow();
   });
 
-  it("detects mismatch in a V2-only field (facilitatorPlayerId)", () => {
-    const v1Raw = v1SnapshotFixture(0);
+  it("detects mismatch in facilitatorPlayerId field", () => {
+    const base = v2State(0);
     const altered = { ...v2State(0), configuration: { ageId: null, facilitatorPlayerId: "plr_fake" as any } };
-    expect(isHistoricalStateLogicallyEqual(v1Raw, altered)).toBe(false);
+    expect(isHistoricalStateLogicallyEqual(base, altered)).toBe(false);
   });
 
-  it("detects mismatch in a V2-only field (players)", () => {
-    const v1Raw = v1SnapshotFixture(0);
+  it("detects mismatch in players field", () => {
+    const base = v2State(0);
     const altered: CurrentCampaignState = {
       ...v2State(0),
       players: [{ playerId: "plr_fake" as any, name: "Ghost" }],
     };
-    expect(isHistoricalStateLogicallyEqual(v1Raw, altered)).toBe(false);
+    expect(isHistoricalStateLogicallyEqual(base, altered)).toBe(false);
   });
 
-  it("detects mismatch in a V1 field (monthOrdinal)", () => {
-    const v1Raw = v1SnapshotFixture(0);
+  it("detects mismatch in monthOrdinal field", () => {
+    const base = v2State(0);
     const altered = v2State(5);
-    expect(isHistoricalStateLogicallyEqual(v1Raw, altered)).toBe(false);
+    expect(isHistoricalStateLogicallyEqual(base, altered)).toBe(false);
   });
 
   it("fails closed on malformed historical state", () => {
@@ -152,10 +157,10 @@ describe("isHistoricalStateLogicallyEqual (production helper)", () => {
 // B: Mixed V1/V2 production paths (undo/redo through V1 snapshots)
 // ================================================================
 
-describe("Mixed V1/V2 Production Paths", () => {
-  describe("undo targeting V1 snapshot (via loadHistoricalState)", () => {
-    it("deriveUndoTransition succeeds with V1-origin target state", () => {
-      const targetState = loadHistoricalState(v1SnapshotFixture(0));
+describe("V3 Production Paths", () => {
+  describe("undo targeting V3 snapshot", () => {
+    it("deriveUndoTransition succeeds with V3 target state", () => {
+      const targetState = v2State(0);
       const currentV2 = applyMoveMonth(v2State(0), "forward").nextState;
 
       const control: CampaignHistoryControlV1 = {
@@ -177,7 +182,7 @@ describe("Mixed V1/V2 Production Paths", () => {
         control.campaignId,
       );
 
-      expect(result.nextState.schemaVersion).toBe(2);
+      expect(result.nextState.schemaVersion).toBe(3);
       validateCampaignState(result.nextState);
       expect(result.nextState.calendar.monthOrdinal).toBe(0);
       expect(result.event.type).toBe("undo_applied");
@@ -186,9 +191,9 @@ describe("Mixed V1/V2 Production Paths", () => {
     });
   });
 
-  describe("redo targeting V1 snapshot (via loadHistoricalState)", () => {
-    it("deriveRedoTransition succeeds with V1-origin target state", () => {
-      const targetState = loadHistoricalState(v1SnapshotFixture(3));
+  describe("redo targeting V3 snapshot", () => {
+    it("deriveRedoTransition succeeds with V3 target state", () => {
+      const targetState = v2State(3);
       const currentV2 = v2State(0);
 
       const control: CampaignHistoryControlV1 = {
@@ -210,17 +215,17 @@ describe("Mixed V1/V2 Production Paths", () => {
         control.campaignId,
       );
 
-      expect(result.nextState.schemaVersion).toBe(2);
+      expect(result.nextState.schemaVersion).toBe(3);
       validateCampaignState(result.nextState);
       expect(result.nextState.calendar.monthOrdinal).toBe(3);
       expect(result.event.type).toBe("redo_applied");
     });
   });
 
-  describe("checkpoint restore from V1 snapshot", () => {
-    it("V1 checkpoint source loads as valid V2 through production helper", () => {
-      const restored = loadHistoricalState(v1SnapshotFixture(7));
-      expect(restored.schemaVersion).toBe(2);
+  describe("checkpoint restore from V3 snapshot", () => {
+    it("V3 checkpoint source is valid", () => {
+      const restored = v2State(7);
+      expect(restored.schemaVersion).toBe(3);
       expect(restored.calendar.monthOrdinal).toBe(7);
       expect(restored.players).toEqual([]);
       expect(restored.wizards).toEqual([]);
@@ -228,9 +233,9 @@ describe("Mixed V1/V2 Production Paths", () => {
     });
   });
 
-  describe("verifier accepts valid mixed V1/V2 campaign", () => {
-    it("verifyMigrationInvariants passes with V1 snapshots in history", () => {
-      const v1Snap = v1SnapshotFixture(0) as unknown as SerializableCampaignState;
+  describe("verifier accepts valid V3 campaign", () => {
+    it("verifyMigrationInvariants passes with V3 snapshots in history", () => {
+      const v3Snap = v2State(0) as unknown as SerializableCampaignState;
       const v2Snap = v2State(1) as unknown as SerializableCampaignState;
 
       const revisions: RevisionRecord[] = [
@@ -240,7 +245,7 @@ describe("Mixed V1/V2 Production Paths", () => {
         { campaignRevision: 1, eventIndex: 0, event: { type: "month_changed", version: 1, data: { direction: "forward", fromOrdinal: 0, toOrdinal: 1 } } },
       ];
       const snapshots: SnapshotRecord[] = [
-        { campaignRevision: 0, state: v1Snap },
+        { campaignRevision: 0, state: v3Snap },
         { campaignRevision: 1, state: v2Snap },
       ];
       const campaignDocuments: CampaignDocument[] = [
@@ -259,8 +264,8 @@ describe("Mixed V1/V2 Production Paths", () => {
       expect(result.errors).toHaveLength(0);
     });
 
-    it("verifyHistoryControl passes with V1 snapshot at undo top (migrated via loadHistoricalState)", () => {
-      const migratedUndoTop = loadHistoricalState(v1SnapshotFixture(0)) as unknown as SerializableCampaignState;
+    it("verifyHistoryControl passes with V3 snapshot at undo top", () => {
+      const migratedUndoTop = v2State(0) as unknown as SerializableCampaignState;
 
       const control: CampaignHistoryControlV1 = {
         historyControlVersion: 1,

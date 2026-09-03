@@ -26,6 +26,13 @@ function makeState(monthOrdinal: number): CurrentCampaignState {
       sage: { status: null, wizardId: null, watcherPlayerId: null },
       sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
     },
+    lifecycle: {
+      kind: "play" as const,
+      phase: "new_moon" as const,
+      orrery: { saturn: 0 as any, jupiter: 9000 as any, mars: 18000 as any, venus: 27000 as any, mercury: 4500 as any },
+      currentMonth: { timeParticipants: [], engagements: [], wizardmootAttendance: null },
+    },
+    wizardmootHistory: [],
   };
 }
 
@@ -53,14 +60,14 @@ describe("applyMoveMonth", () => {
     const state = makeState(11);
     const result = applyMoveMonth(state, "forward");
     expect(result.nextState.calendar.monthOrdinal).toBe(12);
-    expect(displayNameFromOrdinal(result.nextState.calendar.monthOrdinal)).toBe("April");
+    expect(displayNameFromOrdinal(result.nextState.calendar.monthOrdinal!)).toBe("April");
   });
 
   it("backward from ordinal -12 produces -13 (March display)", () => {
     const state = makeState(-12);
     const result = applyMoveMonth(state, "backward");
     expect(result.nextState.calendar.monthOrdinal).toBe(-13);
-    expect(displayNameFromOrdinal(result.nextState.calendar.monthOrdinal)).toBe("March");
+    expect(displayNameFromOrdinal(result.nextState.calendar.monthOrdinal!)).toBe("March");
   });
 
   it("preserves schemaVersion and ruleset", () => {

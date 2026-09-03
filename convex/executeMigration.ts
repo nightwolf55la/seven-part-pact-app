@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation } from "./_generated/server";
 import {
-  analyzeLegacyMigration,
   syntheticMigrationCommandId,
   migrationCommandFingerprint,
   DomainError,
@@ -9,10 +8,10 @@ import {
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
 } from "../shared/domain";
-import { migrateV1toV2 } from "../shared/domain/state-migration";
+import { analyzeLegacyMigration } from "../shared/domain/migration-analyzer";
 import { serializeState } from "./persistence";
 import { assertCampaignNotDeleting } from "./deletionBarrier";
-import type { MonthDirection, CampaignStateV1, MonthOrdinal } from "../shared/domain";
+import type { MonthDirection, MonthOrdinal } from "../shared/domain";
 
 export const executeMigration = internalMutation({
   args: {
@@ -97,7 +96,7 @@ export const executeMigration = internalMutation({
           schemaVersion: snapshot.state.schemaVersion,
           ruleset: { id: snapshot.state.ruleset.id, version: snapshot.state.ruleset.version },
           calendar: { monthOrdinal: snapshot.state.calendar.monthOrdinal as number },
-        },
+        } as any,
       });
     }
 
@@ -131,18 +130,26 @@ export const executeMigration = internalMutation({
     }
 
     const finalSnapshot = analysis.snapshots[analysis.snapshots.length - 1];
-    const finalV1State: CampaignStateV1 = {
-      schemaVersion: 1,
+    // Legacy V1→V2 migration path is dead code (V1/V2 states removed).
+    // Build a minimal V3-shaped state for the campaign document.
+    const finalOrdinal = finalSnapshot.state.calendar.monthOrdinal as number as MonthOrdinal;
+    const currentState = {
+      schemaVersion: 3 as const,
       ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
-      calendar: { monthOrdinal: finalSnapshot.state.calendar.monthOrdinal as number as MonthOrdinal },
+      calendar: { monthOrdinal: finalOrdinal as number | null },
+      players: [] as any[],
+      wizards: [] as any[],
+      configuration: { ageId: null, facilitatorPlayerId: null },
+      pactSeats: {} as Record<string, any>,
+      lifecycle: { status: "active" as const },
+      wizardmootHistory: [] as any[],
     };
-    const currentState = migrateV1toV2(finalV1State);
 
     await ctx.db.replace(legacyCampaign._id, {
       campaignKey: "default" as const,
       campaignId: campaignId as string,
       campaignRevision: analysis.legacyCampaignRevision,
-      state: serializeState(currentState),
+      state: serializeState(currentState as any),
     } as any);
 
     return {

@@ -2,6 +2,7 @@ import type { MonthDirection, MonthOrdinal } from "./calendar";
 import { advanceOrdinal } from "./calendar";
 import type { CurrentCampaignState } from "./campaign-state";
 import type { MonthChangedEventV1 } from "./events";
+import { DomainError } from "./errors";
 
 export interface MoveMonthTransitionResult {
   readonly nextState: CurrentCampaignState;
@@ -12,6 +13,9 @@ export function applyMoveMonth(
   state: CurrentCampaignState,
   direction: MonthDirection,
 ): MoveMonthTransitionResult {
+  if (state.calendar.monthOrdinal === null) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Cannot move month: monthOrdinal is null (still in Setup)");
+  }
   const fromOrdinal = state.calendar.monthOrdinal;
   const toOrdinal = advanceOrdinal(fromOrdinal, direction);
 

@@ -70,10 +70,10 @@ async function loadCanonicalV2ForMutation(ctx: MutationCtx): Promise<CanonicalCa
     // Check if it's actually a valid V1 state that hasn't been migrated
     try {
       const any = validateAnyCampaignState(record.rawState);
-      if (any.schemaVersion === 1) {
+      if ((any as any).schemaVersion !== 3) {
         throw new DomainError(
           "MIGRATION_REQUIRED",
-          "Campaign state is V1. Run the explicit admin migration (adminMigration:migrateCurrentStateToV2) before using M3 commands.",
+          "Campaign state is not V3. Run the explicit admin migration before using M3 commands.",
         );
       }
     } catch (inner: unknown) {

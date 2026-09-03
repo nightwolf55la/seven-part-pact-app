@@ -24,6 +24,28 @@ import {
 import type { CampaignCommandType } from "../shared/domain/commands";
 import { moveMonthFingerprint, migrationCommandFingerprint } from "../shared/domain/command-ids";
 
+function makeSerializableState(monthOrdinal: number): SerializableCampaignState {
+  return {
+    schemaVersion: 3,
+    ruleset: { id: "seven_part_pact_draft4", version: 1 },
+    calendar: { monthOrdinal },
+    configuration: { ageId: null, facilitatorPlayerId: null },
+    players: [],
+    wizards: [],
+    pactSeats: {
+      necromancer: { status: null, wizardId: null, watcherPlayerId: null },
+      hierophant: { status: null, wizardId: null, watcherPlayerId: null },
+      warlock: { status: null, wizardId: null, watcherPlayerId: null },
+      mariner: { status: null, wizardId: null, watcherPlayerId: null },
+      faustian: { status: null, wizardId: null, watcherPlayerId: null },
+      sage: { status: null, wizardId: null, watcherPlayerId: null },
+      sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
+    },
+    lifecycle: { kind: "setup", orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } },
+    wizardmootHistory: [],
+  };
+}
+
 // --- Command Classification ---
 
 describe("isLogicalStateCommandType", () => {
@@ -367,11 +389,7 @@ describe("replayHistoryControl", () => {
 // --- verifyHistoryControl (integration) ---
 
 describe("verifyHistoryControl", () => {
-  const baseState: SerializableCampaignState = {
-    schemaVersion: 1,
-    ruleset: { id: "seven_part_pact_draft4", version: 1 },
-    calendar: { monthOrdinal: 2 },
-  };
+  const baseState: SerializableCampaignState = makeSerializableState(2);
 
   function makeVerificationInput(
     overrides: Partial<HistoryControlVerificationInput> = {},
@@ -408,11 +426,7 @@ describe("verifyHistoryControl", () => {
   });
 
   it("reports state mismatch between snapshot at undo top and campaign state", () => {
-    const differentState: SerializableCampaignState = {
-      schemaVersion: 1,
-      ruleset: { id: "seven_part_pact_draft4", version: 1 },
-      calendar: { monthOrdinal: 99 },
-    };
+    const differentState: SerializableCampaignState = makeSerializableState(99);
     const errors = verifyHistoryControl(
       makeVerificationInput({ snapshotAtUndoTop: differentState }),
     );
@@ -463,11 +477,7 @@ describe("CURRENT_HISTORY_CONTROL_VERSION", () => {
 // --- statesDeepEqual ---
 
 describe("statesDeepEqual", () => {
-  const s1: SerializableCampaignState = {
-    schemaVersion: 1,
-    ruleset: { id: "seven_part_pact_draft4", version: 1 },
-    calendar: { monthOrdinal: 5 },
-  };
+  const s1: SerializableCampaignState = makeSerializableState(5);
 
   it("returns true for identical states", () => {
     expect(statesDeepEqual(s1, { ...s1 })).toBe(true);
@@ -489,16 +499,12 @@ describe("statesDeepEqual", () => {
 // --- analyzeHistoryControlInitialization ---
 
 describe("analyzeHistoryControlInitialization", () => {
-  const baseState: SerializableCampaignState = {
-    schemaVersion: 1,
-    ruleset: { id: "seven_part_pact_draft4", version: 1 },
-    calendar: { monthOrdinal: 3 },
-  };
+  const baseState: SerializableCampaignState = makeSerializableState(3);
 
   function makeSnap(rev: number, monthOrdinal: number): InitializationSnapshotInfo {
     return {
       campaignRevision: rev,
-      state: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal } },
+      state: makeSerializableState(monthOrdinal),
     };
   }
 
@@ -543,7 +549,7 @@ describe("analyzeHistoryControlInitialization", () => {
     return {
       campaignId: "camp-1",
       campaignRevision: N,
-      campaignState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: N } },
+      campaignState: makeSerializableState(N),
       revisions,
       events,
       snapshots,
@@ -568,7 +574,7 @@ describe("analyzeHistoryControlInitialization", () => {
     const result = analyzeHistoryControlInitialization({
       campaignId: "camp-1",
       campaignRevision: 0,
-      campaignState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 0 } },
+      campaignState: makeSerializableState(0),
       revisions: [],
       events: [],
       snapshots: [makeSnap(0, 0)],
@@ -690,7 +696,7 @@ describe("analyzeHistoryControlInitialization", () => {
     const input = makeValidInput(3);
     const withBadState = {
       ...input,
-      campaignState: { schemaVersion: 1 as const, ruleset: { id: "seven_part_pact_draft4" as const, version: 1 as const }, calendar: { monthOrdinal: 99 } },
+      campaignState: makeSerializableState(99),
     };
     const result = analyzeHistoryControlInitialization(withBadState);
     expect(result.status).toBe("invalid");
@@ -867,7 +873,7 @@ describe("analyzeHistoryControlInitialization", () => {
     const result = analyzeHistoryControlInitialization({
       campaignId: "camp-1",
       campaignRevision: 3,
-      campaignState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 3 } },
+      campaignState: makeSerializableState(3),
       revisions: [
         makeRevision(1, "legacy_month_change", migrationCommandFingerprint(1, "forward")),
         makeRevision(2, "move_month", moveMonthFingerprint("forward")),
@@ -913,7 +919,7 @@ describe("analyzeHistoryControlInitialization", () => {
     const result = analyzeHistoryControlInitialization({
       campaignId: "camp-1",
       campaignRevision: 3,
-      campaignState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 1 } },
+      campaignState: makeSerializableState(1),
       revisions: [
         makeRevision(1, "move_month"),
         makeRevision(2, "move_month"),
@@ -946,7 +952,7 @@ describe("analyzeHistoryControlInitialization", () => {
     const result = analyzeHistoryControlInitialization({
       campaignId: "camp-1",
       campaignRevision: 4,
-      campaignState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 2 } },
+      campaignState: makeSerializableState(2),
       revisions: [
         makeRevision(1, "move_month"),
         makeRevision(2, "move_month"),
@@ -984,7 +990,7 @@ describe("analyzeHistoryControlInitialization", () => {
     const result = analyzeHistoryControlInitialization({
       campaignId: "camp-1",
       campaignRevision: 3,
-      campaignState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 1 } },
+      campaignState: makeSerializableState(1),
       revisions: [
         makeRevision(1, "move_month"),
         makeRevision(2, "move_month"),
@@ -1016,7 +1022,7 @@ describe("analyzeHistoryControlInitialization", () => {
     const result = analyzeHistoryControlInitialization({
       campaignId: "camp-1",
       campaignRevision: 4,
-      campaignState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 2 } },
+      campaignState: makeSerializableState(2),
       revisions: [
         makeRevision(1, "move_month"),
         makeRevision(2, "move_month"),

@@ -27,7 +27,7 @@ import type {
 } from "../shared/domain";
 import { canonicalCommit } from "./canonicalCommit";
 import { loadCanonicalRecord, serializeState } from "./persistence";
-import { currentCampaignStateValidator, campaignStateV1Validator, monthDisplayNameValidator } from "./validators";
+import { currentCampaignStateValidator, monthDisplayNameValidator } from "./validators";
 
 // ============================================================
 // Return validators
@@ -235,7 +235,7 @@ export const importPortableBackup = mutation({
         return {
           revision: existingCommand.campaignRevision,
           monthOrdinal: (snap.state as any).calendar.monthOrdinal as number,
-          month: displayNameFromOrdinal((snap.state as any).calendar.monthOrdinal),
+          month: displayNameFromOrdinal((snap.state as any).calendar.monthOrdinal as number),
           alreadyApplied: true,
         };
       }
@@ -310,7 +310,7 @@ export const importPortableBackup = mutation({
     return {
       revision: receipt.newRevision,
       monthOrdinal: receipt.state.calendar.monthOrdinal as number,
-      month: displayNameFromOrdinal(receipt.state.calendar.monthOrdinal),
+      month: displayNameFromOrdinal(receipt.state.calendar.monthOrdinal as number),
       alreadyApplied: receipt.alreadyApplied,
     };
   },

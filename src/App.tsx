@@ -54,7 +54,7 @@ export default function App() {
 
   const isLoading = campaign === undefined;
   const monthName = campaign
-    ? displayNameFromOrdinal(campaign.monthOrdinal)
+    ? (campaign.monthOrdinal != null ? displayNameFromOrdinal(campaign.monthOrdinal) : "—")
     : "—";
   const revision = campaign?.revision ?? 0;
 

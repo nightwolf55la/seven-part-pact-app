@@ -72,14 +72,10 @@ export const verifyMigration = query({
       return { status: "no_canonical_campaign" as const };
     }
 
-    const canonical = maybeCanonical as typeof maybeCanonical & {
+    const canonical = maybeCanonical as unknown as {
       campaignId: string;
       campaignRevision: number;
-      state: {
-        schemaVersion: 1;
-        ruleset: { id: string; version: number };
-        calendar: { monthOrdinal: number };
-      };
+      state: SerializableCampaignState;
     };
 
     const campaignId = canonical.campaignId;
@@ -129,10 +125,10 @@ export const verifyMigration = query({
 
     const snapshotRecords: SnapshotRecord[] = campaignSnapshots.map((s) => ({
       campaignRevision: s.campaignRevision,
-      state: s.state as SerializableCampaignState,
+      state: s.state as unknown as SerializableCampaignState,
     }));
 
-    const campaignDocuments: CampaignDocument[] = allCampaignDocs.map((d) => {
+    const campaignDocuments: CampaignDocument[] = allCampaignDocs.map((d): CampaignDocument => {
       if ("campaignKey" in d) {
         return {
           campaignKey: d.campaignKey,
@@ -149,7 +145,7 @@ export const verifyMigration = query({
           schemaVersion: 1 as const,
           ruleset: { id: "seven_part_pact_draft4", version: 1 },
           calendar: { monthOrdinal: d.monthOrdinal },
-        },
+        } as unknown as SerializableCampaignState,
       };
     });
 
