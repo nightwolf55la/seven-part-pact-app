@@ -101,7 +101,7 @@ export const getCampaign = query({
 
 export const ensureCampaign = mutation({
   args: {},
-  returns: campaignViewValidator,
+  returns: v.union(v.null(), campaignViewValidator),
   handler: async (ctx) => {
     // Deletion barrier: reject while deleting
     await assertCampaignNotDeleting(ctx);
