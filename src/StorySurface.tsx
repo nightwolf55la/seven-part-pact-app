@@ -107,6 +107,15 @@ export default function StorySurface({ phase, monthOrdinal: _monthOrdinal }: Sto
         </p>
       </div>
 
+      {actionError && (
+        <p
+          role="alert"
+          className="text-xs text-red-600 dark:text-red-400"
+        >
+          {actionError}
+        </p>
+      )}
+
       {/* Participant selector */}
       {data.timeParticipants.length === 0 ? (
         <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4">
@@ -256,10 +265,32 @@ function AllocationCard({
   const actions = classifyAllocationActions(data, wizardId, allocation.allocationId);
 
   const [showReschedule, setShowReschedule] = useState(false);
-  const [draftChoice, setDraftChoice] = useState<DestinationChoice>("unscheduled");
-  const [draftCompanion, setDraftCompanion] = useState("");
-  const [draftSpecialUse, setDraftSpecialUse] = useState("");
-  const [draftNote, setDraftNote] = useState<string | null>(null);
+  
+  const [draftChoice, setDraftChoice] = useState<DestinationChoice>(() => {
+    if (
+      allocation.destination === null ||
+      allocation.destination.kind === "engagement"
+    ) {
+      return "unscheduled";
+    }
+    return allocation.destination.kind as DestinationChoice;
+  });
+  
+  const [draftCompanion, setDraftCompanion] = useState(() => {
+    return allocation.destination?.kind === "companion"
+      ? allocation.destination.element
+      : "";
+  });
+  
+  const [draftSpecialUse, setDraftSpecialUse] = useState(() => {
+    return allocation.destination?.kind === "special_use"
+      ? allocation.destination.description
+      : "";
+  });
+  
+  const [draftNote, setDraftNote] = useState<string | null>(
+    allocation.note,
+  );
 
   const [orreryPlanet, setOrreryPlanet] = useState<MovablePlanetId>("saturn");
   const [orreryDirection, setOrreryDirection] = useState<"forward" | "backward">("forward");
@@ -587,9 +618,24 @@ function EngagementCard({
 
   const [commitAllocId, setCommitAllocId] = useState("");
   const [showTargetEdit, setShowTargetEdit] = useState(false);
-  const [draftChoice, setDraftChoice] = useState<TargetChoice>("self");
-  const [draftWizardId, setDraftWizardId] = useState("");
-  const [draftName, setDraftName] = useState("");
+  
+  const [draftChoice, setDraftChoice] = useState<TargetChoice>(() => {
+    return engagement.target === null
+      ? "self"
+      : engagement.target.kind as TargetChoice;
+  });
+  
+  const [draftWizardId, setDraftWizardId] = useState(() => {
+    return engagement.target?.kind === "wizard"
+      ? engagement.target.wizardId
+      : "";
+  });
+  
+  const [draftName, setDraftName] = useState(() => {
+    return engagement.target?.kind === "named_character"
+      ? engagement.target.name
+      : "";
+  });
 
   const tp = data.timeParticipants.find((t) => t.wizardId === engagement.actingWizardId);
   const hasAllowance = tp ? tp.reschedulesUsed < tp.rescheduleAllowance : false;
