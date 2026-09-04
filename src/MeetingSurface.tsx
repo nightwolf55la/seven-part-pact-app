@@ -75,6 +75,15 @@ export default function MeetingSurface({ phase: _phase, monthOrdinal: _monthOrdi
         </p>
       </div>
 
+      {actionError && (
+        <p
+          role="alert"
+          className="text-xs text-red-600 dark:text-red-400"
+        >
+          {actionError}
+        </p>
+      )}
+
       {data.attendance.map((row) => {
         const draft = drafts[row.wizardId] ?? {
           attended: row.actualAttended,
