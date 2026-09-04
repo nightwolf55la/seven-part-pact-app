@@ -1,6 +1,7 @@
 import { query } from "./_generated/server";
 import { validateCampaignState, evaluateSetupReadiness, displayNameFromOrdinal } from "../shared/domain";
 import type { MovablePlanetId } from "../shared/domain";
+import type { LunarPhase } from "../shared/domain";
 
 export const getCampaignSetup = query({
   args: {},
@@ -77,6 +78,67 @@ export const getCampaignSetup = query({
               planetId: i.planetId ?? null,
             })),
           },
+    };
+  },
+});
+
+export const getPlayReference = query({
+  args: {},
+  handler: async (ctx) => {
+    const maybeCanonical = await ctx.db
+      .query("campaigns")
+      .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
+      .unique();
+
+    if (
+      maybeCanonical === null ||
+      !("campaignKey" in maybeCanonical) ||
+      (maybeCanonical as any).campaignKey !== "default"
+    ) {
+      return null;
+    }
+
+    const doc = maybeCanonical as any;
+    const current = validateCampaignState(doc.state);
+
+    if (current.lifecycle.kind !== "play") {
+      return null;
+    }
+
+    const monthOrdinal = current.calendar.monthOrdinal;
+    const monthDisplayName = monthOrdinal !== null ? displayNameFromOrdinal(monthOrdinal) : null;
+
+    const orreryPositions: Record<string, number> = {};
+    for (const planetId of ["saturn", "jupiter", "mars", "venus", "mercury"] as MovablePlanetId[]) {
+      orreryPositions[planetId] = current.lifecycle.orrery[planetId];
+    }
+
+    return {
+      campaignId: doc.campaignId as string,
+      campaignRevision: doc.campaignRevision as number,
+      monthOrdinal: monthOrdinal as number,
+      monthDisplayName,
+      phase: current.lifecycle.phase as LunarPhase,
+      orreryPositions,
+      players: current.players.map((p) => ({
+        playerId: p.playerId as string,
+        name: p.name,
+      })),
+      wizards: current.wizards.map((w) => ({
+        wizardId: w.wizardId as string,
+        name: w.name,
+        portrayedByPlayerId: w.portrayedByPlayerId as string | null,
+      })),
+      pactSeats: Object.fromEntries(
+        Object.entries(current.pactSeats).map(([seatId, seat]) => [
+          seatId,
+          {
+            status: seat.status as string | null,
+            wizardId: seat.wizardId as string | null,
+            watcherPlayerId: seat.watcherPlayerId as string | null,
+          },
+        ]),
+      ),
     };
   },
 });
