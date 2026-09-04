@@ -59,13 +59,9 @@ export default function PlayShell({
   phase: LunarPhase;
 }) {
   const [showTools, setShowTools] = useState(false);
-  const [surfaceState, setSurfaceState] = useState<PlaySurfaceState>(() => initPlaySurface(phase));
-  const [initialized, setInitialized] = useState(false);
-
-  if (!initialized) {
-    setSurfaceState(initPlaySurface(phase));
-    setInitialized(true);
-  }
+  const [surfaceState, setSurfaceState] = useState<PlaySurfaceState>(() =>
+    initPlaySurface(phase),
+  );
 
   const playRef = useQuery(api.m3Queries.getPlayReference, {});
 
@@ -78,7 +74,6 @@ export default function PlayShell({
   }), []);
 
   const showSecondary = surfaceState.showSecondary && surfaceState.secondary !== null && !surfaceState.fullWidth;
-  const isWide = typeof window !== "undefined" && window.innerWidth >= 768;
 
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center px-4 py-8">
@@ -132,24 +127,22 @@ export default function PlayShell({
               Forward
             </button>
           </div>
-          {isWide && (
-            <>
+	  <div className="hidden md:flex items-center gap-2 ml-2">
+            <button
+              onClick={nav.toggle}
+              className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
+            >
+              {showSecondary ? "Hide Reference" : "Show Reference"}
+            </button>
+            {showSecondary && (
               <button
-                onClick={nav.toggle}
-                className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer ml-2"
+                onClick={nav.promote}
+                className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
               >
-                {showSecondary ? "Hide Reference" : "Show Reference"}
+                Promote
               </button>
-              {showSecondary && (
-                <button
-                  onClick={nav.promote}
-                  className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
-                >
-                  Promote
-                </button>
-              )}
-            </>
-          )}
+            )}
+          </div>
           <button
             onClick={() => setShowTools(!showTools)}
             className="text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer ml-auto"
@@ -170,7 +163,7 @@ export default function PlayShell({
             <div className="flex-1 min-w-0">
               {renderSurface(surfaceState.primary.current, playRef)}
             </div>
-            <div className="md:w-80 lg:w-96 flex-shrink-0">
+            <div className="hidden md:block md:w-80 lg:w-96 flex-shrink-0">
               <div className="flex items-center gap-1 mb-2">
                 {(Object.keys(SURFACE_LABELS) as SurfaceId[]).map((sid) => (
                   <button

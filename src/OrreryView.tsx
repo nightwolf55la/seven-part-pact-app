@@ -56,6 +56,13 @@ export default function OrreryView({
   }
 
   const model = buildOrreryDisplayModel(monthOrdinal as MonthOrdinal, positions);
+  const sunAngle = centidegreesToSvgAngle(model.sun.position);
+  const sunPoint = polarToCartesian(
+    SVG_CENTER,
+    SVG_CENTER,
+    (HOUSE_OUTER_R + HOUSE_INNER_R) / 2,
+    sunAngle,
+  );
 
   return (
     <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 flex flex-col gap-4">
@@ -79,7 +86,7 @@ export default function OrreryView({
                   stroke="#cbd5e1"
                   strokeWidth={0.5}
                 />
-                <text
+		<text
                   x={labelPos.x}
                   y={labelPos.y}
                   textAnchor="middle"
@@ -87,7 +94,16 @@ export default function OrreryView({
                   className="fill-slate-500 dark:fill-slate-400"
                   style={{ fontSize: 8, fontWeight: 600 }}
                 >
-                  {house.name}
+                  <tspan x={labelPos.x} dy="-0.3em">
+                    {house.name}
+                  </tspan>
+                  <tspan
+                    x={labelPos.x}
+                    dy="1.15em"
+                    style={{ fontSize: 6, fontWeight: 500 }}
+                  >
+                    {house.monthDisplayName}
+                  </tspan>
                 </text>
               </g>
             );
@@ -97,17 +113,17 @@ export default function OrreryView({
           <circle cx={SVG_CENTER} cy={SVG_CENTER} r={HOUSE_INNER_R} fill="none" stroke="#e2e8f0" strokeWidth={0.5} />
 
           {/* Sun indicator */}
-          <circle
-            cx={polarToCartesian(SVG_CENTER, SVG_CENTER, (HOUSE_OUTER_R + HOUSE_INNER_R) / 2, centidegreesToSvgAngle(centidegreesToSvgAngle(model.sun.position))).x}
-            cy={polarToCartesian(SVG_CENTER, SVG_CENTER, (HOUSE_OUTER_R + HOUSE_INNER_R) / 2, centidegreesToSvgAngle(centidegreesToSvgAngle(model.sun.position))).y}
+	  <circle
+            cx={sunPoint.x}
+            cy={sunPoint.y}
             r={5}
             fill="#f59e0b"
             stroke="#b45309"
             strokeWidth={1}
           />
           <text
-            x={polarToCartesian(SVG_CENTER, SVG_CENTER, (HOUSE_OUTER_R + HOUSE_INNER_R) / 2, centidegreesToSvgAngle(model.sun.position)).x}
-            y={polarToCartesian(SVG_CENTER, SVG_CENTER, (HOUSE_OUTER_R + HOUSE_INNER_R) / 2, centidegreesToSvgAngle(model.sun.position)).y - 8}
+            x={sunPoint.x}
+            y={sunPoint.y - 8}
             textAnchor="middle"
             className="fill-amber-700 dark:fill-amber-400"
             style={{ fontSize: 7, fontWeight: 700 }}
