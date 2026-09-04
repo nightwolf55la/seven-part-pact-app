@@ -2,6 +2,7 @@ import type { LunarPhase } from "../shared/domain/campaign-state";
 import { getPhaseWorkspaceModel } from "./phase-workspace-model";
 import NewMoonSurface from "./NewMoonSurface";
 import VisionsSurface from "./VisionsSurface";
+import PlanningSurface from "./PlanningSurface";
 
 export interface CurrentPhaseSurfaceProps {
   phase: LunarPhase;
@@ -16,6 +17,8 @@ export default function CurrentPhaseSurface({ phase, monthOrdinal }: CurrentPhas
       return <NewMoonSurface phase={phase} monthOrdinal={monthOrdinal} />;
     case "visions":
       return <VisionsSurface phase={phase} monthOrdinal={monthOrdinal} />;
+    case "planning":
+      return <PlanningSurface phase={phase} monthOrdinal={monthOrdinal} />;
     default:
       return (
         <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 flex flex-col gap-3">

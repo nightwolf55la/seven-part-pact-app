@@ -7,6 +7,7 @@ export interface PhaseAdvanceActionProps {
   expectedMonthOrdinal: number;
   expectedPhase: LunarPhase;
   actionLabel: string;
+  formatWarning?: (warning: WarningInfo) => string;
 }
 
 interface WarningInfo {
@@ -35,6 +36,7 @@ export default function PhaseAdvanceAction({
   expectedMonthOrdinal,
   expectedPhase,
   actionLabel,
+  formatWarning,
 }: PhaseAdvanceActionProps) {
   const advancePhase = useMutation(api.m3Commands.advancePhase);
 
@@ -113,7 +115,9 @@ export default function PhaseAdvanceAction({
                 key={w.key}
                 className="text-xs text-amber-700 dark:text-amber-400"
               >
-                <span className="font-mono">{w.kind}</span>: {w.resourceId}
+                {formatWarning
+                  ? formatWarning(w)
+                  : (<><span className="font-mono">{w.kind}</span>: {w.resourceId}</>)}
               </li>
             ))}
           </ul>
