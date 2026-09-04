@@ -147,7 +147,7 @@ describe("Sun", () => {
 describe("Conjunctions include Sun", () => {
   it("conjunction when a movable planet shares the Sun's House", () => {
     // Sun at month 0 is at position 0, House 0 (Aries).
-    // Put Saturn at 500 (arc 1000 -> spans 500..1500, occupies Houses 0 and 1).
+    // Put Saturn at 500 (arc 1000 -> spans 500..1500, entirely within House 0).
     const positions = {
       saturn: asPos(500),
       jupiter: asPos(0),

@@ -82,7 +82,7 @@ export function evaluateAgeSetup(
     if (!DOMINION_VALID_MONTH_IDS.includes(derivedMonthId)) {
       issues.push({
         code: "AGE_MONTH_MISMATCH",
-        message: `Age of Dominion requires a season-starting month (March, June, September, or December), got ${derivedMonthId} (ordinal ${monthOrdinal})`,
+        message: `Age of Dominion requires the month preceding a season (March, June, September, or December), got ${derivedMonthId} (ordinal ${monthOrdinal})`,
       });
     }
     for (const planetId of MOVABLE_PLANET_IDS) {

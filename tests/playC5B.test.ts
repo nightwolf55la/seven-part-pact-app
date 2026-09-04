@@ -639,7 +639,6 @@ describe("C5B annual wizardmoot history regression", () => {
       attendance: PRESENT_WIZARD_IDS.map((wid) => ({
         wizardId: wid,
         attended: true,
-        exceptionReason: null,
       })),
     };
     const quietWithHistory: CurrentCampaignState = {
@@ -688,7 +687,7 @@ describe("C5B annual wizardmoot history regression", () => {
     ];
     const bad: CurrentCampaignState = {
       ...quiet,
-      wizardmootHistory: badHistory as any,
+      wizardmootHistory: badHistory,
     };
 
     expect(() => validateCampaignState(bad)).toThrow(DomainError);

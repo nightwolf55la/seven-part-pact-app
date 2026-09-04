@@ -324,13 +324,14 @@ implementation semantics are determined at implementation time.
   planet-specific Arc sizes.
 
 `[INFERENCE]` 0 degrees is the Pisces/Aries boundary. Aries occupies `[0°,30°)`,
-Taurus `[30°,60°)`, ..., Pisces `[330°,360°)`. Month ordinal is absolute
-campaign chronology, not angular index: monthOrdinal 0 -> April -> Aries ->
-0 centidegrees (House 0); monthOrdinal 11 -> March -> Pisces -> 33000
-(House 11); monthOrdinal 12 -> April -> Aries -> 0 (House 0). The canonical
-house mapping is `monthOfYearIndexFromOrdinal(monthOrdinal)`.
+Taurus `[30°,60°)`, ..., Pisces `[330°,360°)`. 
 
 `[APPLICATION DESIGN]`
+- Month ordinal is absolute
+  campaign chronology, not angular index: monthOrdinal 0 -> April -> Aries ->
+  0 centidegrees (House 0); monthOrdinal 11 -> March -> Pisces -> 33000
+  (House 11); monthOrdinal 12 -> April -> Aries -> 0 (House 0). The canonical
+  house mapping is `monthOfYearIndexFromOrdinal(monthOrdinal)`.
 - monthOrdinal is absolute campaign chronology; it does NOT wrap at 12.
 - 0 -> April, 11 -> March, 12 -> April.
 - month-of-year index, month ID/name, season, and Sun position all derive
