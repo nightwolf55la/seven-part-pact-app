@@ -35,6 +35,7 @@ import {
   applySetWatcher,
   movePlanetByArc,
   isLegalPosition,
+  asCentidegreePosition,
 } from "../shared/domain";
 import type {
   CurrentCampaignState,
@@ -49,6 +50,7 @@ import type {
   EngagementTarget,
   EngagementRecord,
   OrreryMoveDirection,
+  CentidegreePosition,
 } from "../shared/domain";
 import type { PactSeatId } from "../shared/domain/pact-seats";
 
@@ -447,25 +449,42 @@ describe("applySpendOrreryTime", () => {
     });
     const story = applyAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
 
-    // Move saturn backward from its current position
     if (story.lifecycle.kind !== "play") throw new Error("unreachable");
     const planetId: MovablePlanetId = "saturn";
-    const currentPos = story.lifecycle.orrery[planetId];
-    const backwardPos = movePlanetByArc(planetId, currentPos, "backward");
+    const direction: OrreryMoveDirection = "backward";
 
-    const result = applySpendOrreryTime(story, {
+    // Inject a valid but clearly off-grid authoritative Saturn Arc-start.
+    // Saturn's legal grid positions are 500, 1500, 2500, ... (offset 500, stride 1000).
+    // 17623 is a valid centidegree integer in [0, 36000) but is NOT on that grid.
+    const offGridStart: CentidegreePosition = asCentidegreePosition(17623);
+    expect(isLegalPosition(planetId, offGridStart)).toBe(false);
+
+    const storyWithOffGrid: CurrentCampaignState = {
+      ...story,
+      lifecycle: {
+        ...story.lifecycle,
+        orrery: {
+          ...story.lifecycle.orrery,
+          [planetId]: offGridStart,
+        },
+      },
+    };
+
+    const expectedNewPos = movePlanetByArc(planetId, offGridStart, direction);
+
+    const result = applySpendOrreryTime(storyWithOffGrid, {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
-      planetId, direction: "backward",
+      planetId, direction,
     });
 
     if (result.nextState.lifecycle.kind !== "play") throw new Error("unreachable");
     const newPos = result.nextState.lifecycle.orrery[planetId];
-    // The new position must be exactly currentPos - arcCentidegrees, NOT snapped to grid
-    expect(newPos).toBe(backwardPos);
-    // It may or may not be a legal grid position — the point is no snapping
-    // Saturn's grid offset is 500, grid width 1000, so legal positions are 500, 1500, 2500...
-    // If backwardPos is not on that grid, isLegalPosition should be false
-    // Either way, the position must be exactly backwardPos
+    expect(newPos).toBe(expectedNewPos);
+    expect(isLegalPosition(planetId, newPos)).toBe(false);
+
+    const found = getAlloc(result.nextState, allocId);
+    expect(found!.alloc.resolution).toBe("spent");
+    expect(() => validateCampaignState(result.nextState)).not.toThrow();
   });
 
   it("rejects non-orrery allocation", () => {
@@ -552,6 +571,35 @@ describe("applyCommitTimeToEngagement", () => {
     expect(() => applyCommitTimeToEngagement(planning, {
       expectedMonthOrdinal: MONTH, allocationId: allocId, engagementId: engId,
     })).toThrow(DomainError);
+  });
+
+  it("rejects distinct re-commit of an already-coherent link without consuming allowance", () => {
+    const planning = buildPlanningState();
+    const allocId = firstAllocId(planning, wizId(1));
+    const engId = firstEngagementId(planning, wizId(1));
+
+    // Link allocation A to engagement E during Planning via scheduleTime
+    const scheduled = applyScheduleTime(planning, {
+      expectedMonthOrdinal: MONTH, allocationId: allocId,
+      destination: { kind: "engagement", engagementId: engId }, note: null,
+    });
+    expect(getEngagement(scheduled.nextState, engId)!.linkedTimeAllocationId).toBe(allocId);
+
+    // Advance to Story
+    const story = applyAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
+
+    expect(getReschedulesUsed(story, wizId(1))).toBe(0);
+
+    // A distinct commitTimeToEngagement request for the same A/E pair must fail
+    expect(() => applyCommitTimeToEngagement(story, {
+      expectedMonthOrdinal: MONTH, allocationId: allocId, engagementId: engId,
+    })).toThrow(DomainError);
+
+    // State remains unchanged: allowance not consumed, link still coherent
+    expect(getReschedulesUsed(story, wizId(1))).toBe(0);
+    expect(getEngagement(story, engId)!.linkedTimeAllocationId).toBe(allocId);
+    const found = getAlloc(story, allocId);
+    expect(found!.alloc.destination).toEqual({ kind: "engagement", engagementId: engId });
   });
 });
 

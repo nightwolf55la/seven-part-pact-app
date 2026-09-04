@@ -19,8 +19,8 @@ import type {
 } from "./events";
 import type { TransitionResult } from "./m3-transitions";
 import { DomainError } from "./errors";
-import type { MovablePlanetId, CentidegreePosition, OrreryMoveDirection } from "./orrery";
-import { movePlanetByArc, isLegalPosition } from "./orrery";
+import type { MovablePlanetId, OrreryMoveDirection } from "./orrery";
+import { movePlanetByArc } from "./orrery";
 
 // ============================================================
 // 1. ADVANCE PHASE
@@ -1076,6 +1076,20 @@ export function applyCommitTimeToEngagement(
     throw new DomainError(
       "INVALID_CAMPAIGN_STATE",
       `Engagement ${input.engagementId} is already linked to allocation ${eng.linkedTimeAllocationId}`,
+    );
+  }
+
+  // Reject a distinct request that would merely re-consume an already-completed commit.
+  // The allocation already points to this engagement and the engagement already points back.
+  if (
+    eng.linkedTimeAllocationId === input.allocationId &&
+    alloc.destination !== null &&
+    alloc.destination.kind === "engagement" &&
+    alloc.destination.engagementId === input.engagementId
+  ) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Allocation ${input.allocationId} is already coherently linked to engagement ${input.engagementId}`,
     );
   }
 
