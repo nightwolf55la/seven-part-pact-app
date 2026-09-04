@@ -92,6 +92,20 @@ function describeConfigEvent(event: CampaignEvent): string {
         : `Cleared ${event.data.planetId} Orrery position`;
     case "begin_play":
       return "Began Play";
+    case "time_rescheduled":
+      return "Rescheduled Time allocation";
+    case "time_spent":
+      return "Spent Time allocation";
+    case "time_wasted":
+      return "Wasted Time allocation";
+    case "orrery_time_spent":
+      return "Spent Orrery Time";
+    case "engagement_time_committed":
+      return "Committed Time to Engagement";
+    case "engagement_resolved":
+      return "Resolved Engagement";
+    case "engagement_rescheduled":
+      return "Rescheduled Engagement target";
     default:
       return "Campaign configuration changed";
   }
@@ -191,7 +205,14 @@ export function mapEventToActivityEntry(
     case "begin_play":
     case "phase_advanced":
     case "time_allocation_scheduled":
-    case "engagement_target_changed": {
+    case "engagement_target_changed":
+    case "time_rescheduled":
+    case "time_spent":
+    case "time_wasted":
+    case "orrery_time_spent":
+    case "engagement_time_committed":
+    case "engagement_resolved":
+    case "engagement_rescheduled": {
       return {
         id,
         revision,

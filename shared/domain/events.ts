@@ -277,6 +277,100 @@ export interface EngagementTargetChangedEventV1 {
   readonly data: EngagementTargetChangedDataV1;
 }
 
+// --- M4 C4: Story mechanics events ---
+
+export interface TimeRescheduledDataV1 {
+  readonly monthOrdinal: MonthOrdinal;
+  readonly allocationId: string;
+  readonly previousDestination: TimeDestination | null;
+  readonly newDestination: TimeDestination | null;
+  readonly note: string | null;
+}
+
+export interface TimeRescheduledEventV1 {
+  readonly type: "time_rescheduled";
+  readonly version: 1;
+  readonly data: TimeRescheduledDataV1;
+}
+
+export interface TimeSpentDataV1 {
+  readonly monthOrdinal: MonthOrdinal;
+  readonly allocationId: string;
+  readonly destination: TimeDestination;
+}
+
+export interface TimeSpentEventV1 {
+  readonly type: "time_spent";
+  readonly version: 1;
+  readonly data: TimeSpentDataV1;
+}
+
+export interface TimeWastedDataV1 {
+  readonly monthOrdinal: MonthOrdinal;
+  readonly allocationId: string;
+  readonly destination: TimeDestination | null;
+  readonly note: string | null;
+}
+
+export interface TimeWastedEventV1 {
+  readonly type: "time_wasted";
+  readonly version: 1;
+  readonly data: TimeWastedDataV1;
+}
+
+export interface OrreryTimeSpentDataV1 {
+  readonly monthOrdinal: MonthOrdinal;
+  readonly allocationId: string;
+  readonly planetId: MovablePlanetId;
+  readonly direction: string;
+  readonly previousPosition: CentidegreePosition;
+  readonly newPosition: CentidegreePosition;
+}
+
+export interface OrreryTimeSpentEventV1 {
+  readonly type: "orrery_time_spent";
+  readonly version: 1;
+  readonly data: OrreryTimeSpentDataV1;
+}
+
+export interface EngagementTimeCommittedDataV1 {
+  readonly monthOrdinal: MonthOrdinal;
+  readonly allocationId: string;
+  readonly engagementId: string;
+  readonly previousDestination: TimeDestination | null;
+}
+
+export interface EngagementTimeCommittedEventV1 {
+  readonly type: "engagement_time_committed";
+  readonly version: 1;
+  readonly data: EngagementTimeCommittedDataV1;
+}
+
+export interface EngagementResolvedDataV1 {
+  readonly monthOrdinal: MonthOrdinal;
+  readonly engagementId: string;
+  readonly linkedAllocationId: string | null;
+}
+
+export interface EngagementResolvedEventV1 {
+  readonly type: "engagement_resolved";
+  readonly version: 1;
+  readonly data: EngagementResolvedDataV1;
+}
+
+export interface EngagementRescheduledDataV1 {
+  readonly monthOrdinal: MonthOrdinal;
+  readonly engagementId: string;
+  readonly previousTarget: EngagementTarget | null;
+  readonly newTarget: EngagementTarget;
+}
+
+export interface EngagementRescheduledEventV1 {
+  readonly type: "engagement_rescheduled";
+  readonly version: 1;
+  readonly data: EngagementRescheduledDataV1;
+}
+
 export type CampaignEvent =
   | MonthChangedEventV1
   | UndoAppliedEventV1
@@ -299,4 +393,11 @@ export type CampaignEvent =
   | BeginPlayEventV1
   | PhaseAdvancedEventV1
   | TimeAllocationScheduledEventV1
-  | EngagementTargetChangedEventV1;
+  | EngagementTargetChangedEventV1
+  | TimeRescheduledEventV1
+  | TimeSpentEventV1
+  | TimeWastedEventV1
+  | OrreryTimeSpentEventV1
+  | EngagementTimeCommittedEventV1
+  | EngagementResolvedEventV1
+  | EngagementRescheduledEventV1;

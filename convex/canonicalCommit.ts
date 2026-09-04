@@ -160,6 +160,13 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   advance_phase: { required: ["phase_advanced"] },
   schedule_time: { required: ["time_allocation_scheduled"] },
   set_engagement_target: { required: ["engagement_target_changed"] },
+  reschedule_time: { required: ["time_rescheduled"] },
+  spend_manual_time: { required: ["time_spent"] },
+  waste_time: { required: ["time_wasted"] },
+  spend_orrery_time: { required: ["orrery_time_spent"] },
+  commit_time_to_engagement: { required: ["engagement_time_committed"] },
+  resolve_engagement: { required: ["engagement_resolved"] },
+  reschedule_engagement: { required: ["engagement_rescheduled"] },
 };
 
 function validateM3EventCoherence(input: CanonicalCommitInput): void {

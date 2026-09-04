@@ -162,6 +162,60 @@ export function setEngagementTargetFingerprint(expectedMonthOrdinal: number, eng
   return `set_engagement_target:v1:month=${expectedMonthOrdinal}:eng=${engagementId}:target=${targetCanonical}`;
 }
 
+// --- M4 C4 Story command fingerprints ---
+
+export function rescheduleTimeFingerprint(expectedMonthOrdinal: number, allocationId: string, destination: unknown, note: string | null): string {
+  if (!Number.isSafeInteger(expectedMonthOrdinal) || expectedMonthOrdinal < 0) {
+    throw new Error(`rescheduleTimeFingerprint requires a non-negative integer expectedMonthOrdinal, got ${expectedMonthOrdinal}`);
+  }
+  const destCanonical = destination === null ? "null" : canonicalJsonStringify(destination);
+  const noteCanonical = note === null ? "null" : canonicalJsonStringify(note);
+  return `reschedule_time:v1:month=${expectedMonthOrdinal}:alloc=${allocationId}:dest=${destCanonical}:note=${noteCanonical}`;
+}
+
+export function spendManualTimeFingerprint(expectedMonthOrdinal: number, allocationId: string): string {
+  if (!Number.isSafeInteger(expectedMonthOrdinal) || expectedMonthOrdinal < 0) {
+    throw new Error(`spendManualTimeFingerprint requires a non-negative integer expectedMonthOrdinal, got ${expectedMonthOrdinal}`);
+  }
+  return `spend_manual_time:v1:month=${expectedMonthOrdinal}:alloc=${allocationId}`;
+}
+
+export function wasteTimeFingerprint(expectedMonthOrdinal: number, allocationId: string): string {
+  if (!Number.isSafeInteger(expectedMonthOrdinal) || expectedMonthOrdinal < 0) {
+    throw new Error(`wasteTimeFingerprint requires a non-negative integer expectedMonthOrdinal, got ${expectedMonthOrdinal}`);
+  }
+  return `waste_time:v1:month=${expectedMonthOrdinal}:alloc=${allocationId}`;
+}
+
+export function spendOrreryTimeFingerprint(expectedMonthOrdinal: number, allocationId: string, planetId: string, direction: string): string {
+  if (!Number.isSafeInteger(expectedMonthOrdinal) || expectedMonthOrdinal < 0) {
+    throw new Error(`spendOrreryTimeFingerprint requires a non-negative integer expectedMonthOrdinal, got ${expectedMonthOrdinal}`);
+  }
+  return `spend_orrery_time:v1:month=${expectedMonthOrdinal}:alloc=${allocationId}:planet=${planetId}:dir=${direction}`;
+}
+
+export function commitTimeToEngagementFingerprint(expectedMonthOrdinal: number, allocationId: string, engagementId: string): string {
+  if (!Number.isSafeInteger(expectedMonthOrdinal) || expectedMonthOrdinal < 0) {
+    throw new Error(`commitTimeToEngagementFingerprint requires a non-negative integer expectedMonthOrdinal, got ${expectedMonthOrdinal}`);
+  }
+  return `commit_time_to_engagement:v1:month=${expectedMonthOrdinal}:alloc=${allocationId}:eng=${engagementId}`;
+}
+
+export function resolveEngagementFingerprint(expectedMonthOrdinal: number, engagementId: string): string {
+  if (!Number.isSafeInteger(expectedMonthOrdinal) || expectedMonthOrdinal < 0) {
+    throw new Error(`resolveEngagementFingerprint requires a non-negative integer expectedMonthOrdinal, got ${expectedMonthOrdinal}`);
+  }
+  return `resolve_engagement:v1:month=${expectedMonthOrdinal}:eng=${engagementId}`;
+}
+
+export function rescheduleEngagementFingerprint(expectedMonthOrdinal: number, engagementId: string, target: unknown): string {
+  if (!Number.isSafeInteger(expectedMonthOrdinal) || expectedMonthOrdinal < 0) {
+    throw new Error(`rescheduleEngagementFingerprint requires a non-negative integer expectedMonthOrdinal, got ${expectedMonthOrdinal}`);
+  }
+  const targetCanonical = canonicalJsonStringify(target);
+  return `reschedule_engagement:v1:month=${expectedMonthOrdinal}:eng=${engagementId}:target=${targetCanonical}`;
+}
+
 /**
  * Pure deterministic idempotency match for command replay.
  * Given a previously committed command record and an incoming attempt,

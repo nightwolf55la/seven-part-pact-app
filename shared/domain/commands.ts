@@ -22,6 +22,13 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "advance_phase",
   "schedule_time",
   "set_engagement_target",
+  "reschedule_time",
+  "spend_manual_time",
+  "waste_time",
+  "spend_orrery_time",
+  "commit_time_to_engagement",
+  "resolve_engagement",
+  "reschedule_engagement",
 ] as const;
 
 export type CampaignCommandType = (typeof CAMPAIGN_COMMAND_TYPES)[number];
@@ -49,6 +56,13 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "advance_phase":
     case "schedule_time":
     case "set_engagement_target":
+    case "reschedule_time":
+    case "spend_manual_time":
+    case "waste_time":
+    case "spend_orrery_time":
+    case "commit_time_to_engagement":
+    case "resolve_engagement":
+    case "reschedule_engagement":
       return true;
     case "undo":
     case "redo":

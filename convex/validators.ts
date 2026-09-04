@@ -376,6 +376,84 @@ export const engagementTargetChangedEventV1Validator = v.object({
   }),
 });
 
+export const timeRescheduledEventV1Validator = v.object({
+  type: v.literal("time_rescheduled"),
+  version: v.literal(1),
+  data: v.object({
+    monthOrdinal: v.number(),
+    allocationId: v.string(),
+    previousDestination: v.union(timeDestinationValidator, v.null()),
+    newDestination: v.union(timeDestinationValidator, v.null()),
+    note: v.union(v.string(), v.null()),
+  }),
+});
+
+export const timeSpentEventV1Validator = v.object({
+  type: v.literal("time_spent"),
+  version: v.literal(1),
+  data: v.object({
+    monthOrdinal: v.number(),
+    allocationId: v.string(),
+    destination: timeDestinationValidator,
+  }),
+});
+
+export const timeWastedEventV1Validator = v.object({
+  type: v.literal("time_wasted"),
+  version: v.literal(1),
+  data: v.object({
+    monthOrdinal: v.number(),
+    allocationId: v.string(),
+    destination: v.union(timeDestinationValidator, v.null()),
+    note: v.union(v.string(), v.null()),
+  }),
+});
+
+export const orreryTimeSpentEventV1Validator = v.object({
+  type: v.literal("orrery_time_spent"),
+  version: v.literal(1),
+  data: v.object({
+    monthOrdinal: v.number(),
+    allocationId: v.string(),
+    planetId: v.string(),
+    direction: v.string(),
+    previousPosition: v.number(),
+    newPosition: v.number(),
+  }),
+});
+
+export const engagementTimeCommittedEventV1Validator = v.object({
+  type: v.literal("engagement_time_committed"),
+  version: v.literal(1),
+  data: v.object({
+    monthOrdinal: v.number(),
+    allocationId: v.string(),
+    engagementId: v.string(),
+    previousDestination: v.union(timeDestinationValidator, v.null()),
+  }),
+});
+
+export const engagementResolvedEventV1Validator = v.object({
+  type: v.literal("engagement_resolved"),
+  version: v.literal(1),
+  data: v.object({
+    monthOrdinal: v.number(),
+    engagementId: v.string(),
+    linkedAllocationId: v.union(v.string(), v.null()),
+  }),
+});
+
+export const engagementRescheduledEventV1Validator = v.object({
+  type: v.literal("engagement_rescheduled"),
+  version: v.literal(1),
+  data: v.object({
+    monthOrdinal: v.number(),
+    engagementId: v.string(),
+    previousTarget: v.union(engagementTargetValidator, v.null()),
+    newTarget: engagementTargetValidator,
+  }),
+});
+
 export const campaignEventValidator = v.union(
   monthChangedEventV1Validator,
   undoAppliedEventV1Validator,
@@ -399,6 +477,13 @@ export const campaignEventValidator = v.union(
   phaseAdvancedEventV1Validator,
   timeAllocationScheduledEventV1Validator,
   engagementTargetChangedEventV1Validator,
+  timeRescheduledEventV1Validator,
+  timeSpentEventV1Validator,
+  timeWastedEventV1Validator,
+  orreryTimeSpentEventV1Validator,
+  engagementTimeCommittedEventV1Validator,
+  engagementResolvedEventV1Validator,
+  engagementRescheduledEventV1Validator,
 );
 
 export const anyCampaignStateValidator = campaignStateV3Validator;

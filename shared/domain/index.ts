@@ -179,6 +179,13 @@ export {
   advancePhaseFingerprint,
   scheduleTimeFingerprint,
   setEngagementTargetFingerprint,
+  rescheduleTimeFingerprint,
+  spendManualTimeFingerprint,
+  wasteTimeFingerprint,
+  spendOrreryTimeFingerprint,
+  commitTimeToEngagementFingerprint,
+  resolveEngagementFingerprint,
+  rescheduleEngagementFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
@@ -419,9 +426,16 @@ export { applyBeginPlay, collectEligibleWizardIds } from "./begin-play";
 
 // --- Play Transitions (C3) ---
 
-export type { AdvancePhaseInput, ScheduleTimeInput, SetEngagementTargetInput } from "./play-transitions";
+export type { AdvancePhaseInput, ScheduleTimeInput, SetEngagementTargetInput, RescheduleTimeInput, SpendManualTimeInput, WasteTimeInput, SpendOrreryTimeInput, CommitTimeToEngagementInput, ResolveEngagementInput, RescheduleEngagementInput } from "./play-transitions";
 export {
   applyAdvancePhase,
   applyScheduleTime,
   applySetEngagementTarget,
+  applyRescheduleTime,
+  applySpendManualTime,
+  applyWasteTime,
+  applySpendOrreryTime,
+  applyCommitTimeToEngagement,
+  applyResolveEngagement,
+  applyRescheduleEngagement,
 } from "./play-transitions";
