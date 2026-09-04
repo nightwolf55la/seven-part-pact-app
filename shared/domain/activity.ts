@@ -188,7 +188,10 @@ export function mapEventToActivityEntry(
     case "watcher_assignment_changed":
     case "setup_month_changed":
     case "setup_orrery_position_changed":
-    case "begin_play": {
+    case "begin_play":
+    case "phase_advanced":
+    case "time_allocation_scheduled":
+    case "engagement_target_changed": {
       return {
         id,
         revision,

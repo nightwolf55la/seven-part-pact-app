@@ -70,6 +70,9 @@ export type {
   SetupOrreryPositionChangedEventV1,
   BeginPlayDataV1,
   BeginPlayEventV1,
+  PhaseAdvancedEventV1,
+  TimeAllocationScheduledEventV1,
+  EngagementTargetChangedEventV1,
   CampaignEvent,
 } from "./events";
 
@@ -173,6 +176,9 @@ export {
   setSetupMonthFingerprint,
   setSetupOrreryPositionFingerprint,
   beginPlayFingerprint,
+  advancePhaseFingerprint,
+  scheduleTimeFingerprint,
+  setEngagementTargetFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
@@ -410,3 +416,12 @@ export { evaluateAgeSetup } from "./age-setup";
 
 export type { WizardInitIds, BeginPlayInput } from "./begin-play";
 export { applyBeginPlay, collectEligibleWizardIds } from "./begin-play";
+
+// --- Play Transitions (C3) ---
+
+export type { AdvancePhaseInput, ScheduleTimeInput, SetEngagementTargetInput } from "./play-transitions";
+export {
+  applyAdvancePhase,
+  applyScheduleTime,
+  applySetEngagementTarget,
+} from "./play-transitions";

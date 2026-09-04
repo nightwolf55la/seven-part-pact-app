@@ -1,5 +1,8 @@
 import type { MonthDirection, MonthOrdinal } from "./calendar";
 import type { MovablePlanetId, CentidegreePosition } from "./orrery";
+import type { LunarPhase } from "./campaign-state";
+import type { TimeDestination } from "./time-model";
+import type { EngagementTarget } from "./engagement";
 
 export interface MonthChangedDataV1 {
   readonly direction: MonthDirection;
@@ -232,6 +235,48 @@ export interface BeginPlayEventV1 {
   readonly data: BeginPlayDataV1;
 }
 
+// --- M4 C3: Play phase / planning events ---
+
+export interface PhaseAdvancedDataV1 {
+  readonly monthOrdinal: MonthOrdinal;
+  readonly fromPhase: LunarPhase;
+  readonly toPhase: LunarPhase;
+}
+
+export interface PhaseAdvancedEventV1 {
+  readonly type: "phase_advanced";
+  readonly version: 1;
+  readonly data: PhaseAdvancedDataV1;
+}
+
+export interface TimeAllocationScheduledDataV1 {
+  readonly monthOrdinal: MonthOrdinal;
+  readonly allocationId: string;
+  readonly previousDestination: TimeDestination | null;
+  readonly newDestination: TimeDestination | null;
+  readonly note: string | null;
+}
+
+export interface TimeAllocationScheduledEventV1 {
+  readonly type: "time_allocation_scheduled";
+  readonly version: 1;
+  readonly data: TimeAllocationScheduledDataV1;
+}
+
+export interface EngagementTargetChangedDataV1 {
+  readonly monthOrdinal: MonthOrdinal;
+  readonly engagementId: string;
+  readonly actingWizardId: string;
+  readonly previousTarget: EngagementTarget | null;
+  readonly newTarget: EngagementTarget | null;
+}
+
+export interface EngagementTargetChangedEventV1 {
+  readonly type: "engagement_target_changed";
+  readonly version: 1;
+  readonly data: EngagementTargetChangedDataV1;
+}
+
 export type CampaignEvent =
   | MonthChangedEventV1
   | UndoAppliedEventV1
@@ -251,4 +296,7 @@ export type CampaignEvent =
   | WatcherAssignmentChangedEventV1
   | SetupMonthChangedEventV1
   | SetupOrreryPositionChangedEventV1
-  | BeginPlayEventV1;
+  | BeginPlayEventV1
+  | PhaseAdvancedEventV1
+  | TimeAllocationScheduledEventV1
+  | EngagementTargetChangedEventV1;

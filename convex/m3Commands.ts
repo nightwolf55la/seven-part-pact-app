@@ -33,12 +33,20 @@ import {
   applySetSetupOrreryPosition,
   isValidPlayerId,
   isValidWizardId,
+  isValidAllocationId,
+  isValidEngagementId,
   generateAllocationId,
   generateEngagementId,
   beginPlayFingerprint,
   collectEligibleWizardIds,
+  advancePhaseFingerprint,
+  scheduleTimeFingerprint,
+  setEngagementTargetFingerprint,
+  applyAdvancePhase,
+  applyScheduleTime,
+  applySetEngagementTarget,
 } from "../shared/domain";
-import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId } from "../shared/domain";
+import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
 import type { WizardInitIds } from "../shared/domain/begin-play";
 import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
@@ -508,6 +516,134 @@ export const beginPlay = mutation({
 
     const result = applyBeginPlay(campaign.currentState, { wizardInits });
     const receipt = await commitM3Command(ctx, args.commandId, "begin_play", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+// ============================================================
+// M4 C3: Play phase / planning commands
+// ============================================================
+
+export const advancePhase = mutation({
+  args: {
+    commandId: v.string(),
+    expectedMonthOrdinal: v.number(),
+    expectedPhase: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+
+    if (!Number.isSafeInteger(args.expectedMonthOrdinal) || args.expectedMonthOrdinal < 0) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid expectedMonthOrdinal: ${args.expectedMonthOrdinal}`);
+    }
+
+    const fingerprint = advancePhaseFingerprint(args.expectedMonthOrdinal, args.expectedPhase);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "advance_phase", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+
+    const result = applyAdvancePhase(campaign.currentState, {
+      expectedMonthOrdinal: args.expectedMonthOrdinal as MonthOrdinal,
+      expectedPhase: args.expectedPhase as LunarPhase,
+    });
+    const receipt = await commitM3Command(ctx, args.commandId, "advance_phase", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+export const scheduleTime = mutation({
+  args: {
+    commandId: v.string(),
+    expectedMonthOrdinal: v.number(),
+    allocationId: v.string(),
+    destination: v.union(
+      v.object({ kind: v.literal("companion"), element: v.string() }),
+      v.object({ kind: v.literal("map_isle_sanctum") }),
+      v.object({ kind: v.literal("familiar") }),
+      v.object({ kind: v.literal("orrery") }),
+      v.object({ kind: v.literal("meeting") }),
+      v.object({ kind: v.literal("domain") }),
+      v.object({ kind: v.literal("engagement"), engagementId: v.string() }),
+      v.object({ kind: v.literal("special_use"), description: v.string() }),
+      v.null(),
+    ),
+    note: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+
+    if (!Number.isSafeInteger(args.expectedMonthOrdinal) || args.expectedMonthOrdinal < 0) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid expectedMonthOrdinal: ${args.expectedMonthOrdinal}`);
+    }
+    if (!isValidAllocationId(args.allocationId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid allocationId: ${args.allocationId}`);
+    }
+
+    const fingerprint = scheduleTimeFingerprint(
+      args.expectedMonthOrdinal,
+      args.allocationId,
+      args.destination,
+      args.note,
+    );
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "schedule_time", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+
+    const result = applyScheduleTime(campaign.currentState, {
+      expectedMonthOrdinal: args.expectedMonthOrdinal as MonthOrdinal,
+      allocationId: args.allocationId as AllocationId,
+      destination: args.destination as TimeDestination | null,
+      note: args.note,
+    });
+    const receipt = await commitM3Command(ctx, args.commandId, "schedule_time", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+export const setEngagementTarget = mutation({
+  args: {
+    commandId: v.string(),
+    expectedMonthOrdinal: v.number(),
+    engagementId: v.string(),
+    target: v.union(
+      v.object({ kind: v.literal("wizard"), wizardId: v.string() }),
+      v.object({ kind: v.literal("self") }),
+      v.object({ kind: v.literal("familiar") }),
+      v.object({ kind: v.literal("named_character"), name: v.string() }),
+      v.null(),
+    ),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+
+    if (!Number.isSafeInteger(args.expectedMonthOrdinal) || args.expectedMonthOrdinal < 0) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid expectedMonthOrdinal: ${args.expectedMonthOrdinal}`);
+    }
+    if (!isValidEngagementId(args.engagementId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid engagementId: ${args.engagementId}`);
+    }
+
+    const fingerprint = setEngagementTargetFingerprint(
+      args.expectedMonthOrdinal,
+      args.engagementId,
+      args.target,
+    );
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "set_engagement_target", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+
+    const result = applySetEngagementTarget(campaign.currentState, {
+      expectedMonthOrdinal: args.expectedMonthOrdinal as MonthOrdinal,
+      engagementId: args.engagementId as EngagementId,
+      target: args.target as EngagementTarget | null,
+    });
+    const receipt = await commitM3Command(ctx, args.commandId, "set_engagement_target", fingerprint, campaign, result);
     return { revision: receipt.newRevision };
   },
 });

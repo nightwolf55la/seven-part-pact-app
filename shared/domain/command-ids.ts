@@ -1,5 +1,6 @@
 import type { CommandId } from "./ids";
 import type { MonthDirection } from "./calendar";
+import { canonicalJsonStringify } from "./canonical-json";
 
 const MIGRATION_COMMAND_PREFIX = "migrated_rev_";
 
@@ -133,6 +134,32 @@ export function beginPlayFingerprint(expectedRevision: number): string {
     throw new Error(`beginPlayFingerprint requires a non-negative safe integer, got ${expectedRevision}`);
   }
   return `begin_play:v1:expectedRevision=${expectedRevision}`;
+}
+
+// --- M4 C3 Play command fingerprints ---
+
+export function advancePhaseFingerprint(expectedMonthOrdinal: number, expectedPhase: string): string {
+  if (!Number.isSafeInteger(expectedMonthOrdinal) || expectedMonthOrdinal < 0) {
+    throw new Error(`advancePhaseFingerprint requires a non-negative integer expectedMonthOrdinal, got ${expectedMonthOrdinal}`);
+  }
+  return `advance_phase:v1:month=${expectedMonthOrdinal}:phase=${expectedPhase}`;
+}
+
+export function scheduleTimeFingerprint(expectedMonthOrdinal: number, allocationId: string, destination: unknown, note: string | null): string {
+  if (!Number.isSafeInteger(expectedMonthOrdinal) || expectedMonthOrdinal < 0) {
+    throw new Error(`scheduleTimeFingerprint requires a non-negative integer expectedMonthOrdinal, got ${expectedMonthOrdinal}`);
+  }
+  const destCanonical = destination === null ? "null" : canonicalJsonStringify(destination);
+  const noteCanonical = note === null ? "null" : canonicalJsonStringify(note);
+  return `schedule_time:v1:month=${expectedMonthOrdinal}:alloc=${allocationId}:dest=${destCanonical}:note=${noteCanonical}`;
+}
+
+export function setEngagementTargetFingerprint(expectedMonthOrdinal: number, engagementId: string, target: unknown): string {
+  if (!Number.isSafeInteger(expectedMonthOrdinal) || expectedMonthOrdinal < 0) {
+    throw new Error(`setEngagementTargetFingerprint requires a non-negative integer expectedMonthOrdinal, got ${expectedMonthOrdinal}`);
+  }
+  const targetCanonical = target === null ? "null" : canonicalJsonStringify(target);
+  return `set_engagement_target:v1:month=${expectedMonthOrdinal}:eng=${engagementId}:target=${targetCanonical}`;
 }
 
 /**

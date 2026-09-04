@@ -197,27 +197,15 @@ export const beginPlayEventV1Validator = v.object({
   }),
 });
 
-export const campaignEventValidator = v.union(
-  monthChangedEventV1Validator,
-  undoAppliedEventV1Validator,
-  redoAppliedEventV1Validator,
-  checkpointRestoredEventV1Validator,
-  backupImportedEventV1Validator,
-  playerAddedEventV1Validator,
-  playerRenamedEventV1Validator,
-  playerRemovedEventV1Validator,
-  campaignAgeChangedEventV1Validator,
-  facilitatorAssignmentChangedEventV1Validator,
-  wizardCreatedEventV1Validator,
-  wizardNameChangedEventV1Validator,
-  wizardPortrayalChangedEventV1Validator,
-  pactSeatWizardChangedEventV1Validator,
-  pactSeatStatusChangedEventV1Validator,
-  watcherAssignmentChangedEventV1Validator,
-  setupMonthChangedEventV1Validator,
-  setupOrreryPositionChangedEventV1Validator,
-  beginPlayEventV1Validator,
-);
+export const phaseAdvancedEventV1Validator = v.object({
+  type: v.literal("phase_advanced"),
+  version: v.literal(1),
+  data: v.object({
+    monthOrdinal: v.number(),
+    fromPhase: v.string(),
+    toPhase: v.string(),
+  }),
+});
 
 // --- V3 Campaign State Validators ---
 
@@ -363,6 +351,55 @@ export const campaignStateV3Validator = v.object({
   lifecycle: lifecycleValidator,
   wizardmootHistory: v.array(wizardmootHistoryEntryValidator),
 });
+
+export const timeAllocationScheduledEventV1Validator = v.object({
+  type: v.literal("time_allocation_scheduled"),
+  version: v.literal(1),
+  data: v.object({
+    monthOrdinal: v.number(),
+    allocationId: v.string(),
+    previousDestination: v.union(timeDestinationValidator, v.null()),
+    newDestination: v.union(timeDestinationValidator, v.null()),
+    note: v.union(v.string(), v.null()),
+  }),
+});
+
+export const engagementTargetChangedEventV1Validator = v.object({
+  type: v.literal("engagement_target_changed"),
+  version: v.literal(1),
+  data: v.object({
+    monthOrdinal: v.number(),
+    engagementId: v.string(),
+    actingWizardId: v.string(),
+    previousTarget: v.union(engagementTargetValidator, v.null()),
+    newTarget: v.union(engagementTargetValidator, v.null()),
+  }),
+});
+
+export const campaignEventValidator = v.union(
+  monthChangedEventV1Validator,
+  undoAppliedEventV1Validator,
+  redoAppliedEventV1Validator,
+  checkpointRestoredEventV1Validator,
+  backupImportedEventV1Validator,
+  playerAddedEventV1Validator,
+  playerRenamedEventV1Validator,
+  playerRemovedEventV1Validator,
+  campaignAgeChangedEventV1Validator,
+  facilitatorAssignmentChangedEventV1Validator,
+  wizardCreatedEventV1Validator,
+  wizardNameChangedEventV1Validator,
+  wizardPortrayalChangedEventV1Validator,
+  pactSeatWizardChangedEventV1Validator,
+  pactSeatStatusChangedEventV1Validator,
+  watcherAssignmentChangedEventV1Validator,
+  setupMonthChangedEventV1Validator,
+  setupOrreryPositionChangedEventV1Validator,
+  beginPlayEventV1Validator,
+  phaseAdvancedEventV1Validator,
+  timeAllocationScheduledEventV1Validator,
+  engagementTargetChangedEventV1Validator,
+);
 
 export const anyCampaignStateValidator = campaignStateV3Validator;
 export const currentCampaignStateValidator = campaignStateV3Validator;
