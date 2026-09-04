@@ -1,5 +1,6 @@
 import { query } from "./_generated/server";
-import { validateCampaignState } from "../shared/domain";
+import { validateCampaignState, evaluateSetupReadiness, displayNameFromOrdinal } from "../shared/domain";
+import type { MovablePlanetId } from "../shared/domain";
 
 export const getCampaignSetup = query({
   args: {},
@@ -21,6 +22,20 @@ export const getCampaignSetup = query({
     const rawState = doc.state;
 
     const current = validateCampaignState(rawState);
+
+    if (current.lifecycle.kind !== "setup") {
+      return null;
+    }
+
+    const readiness = evaluateSetupReadiness(current);
+
+    const orreryPositions: Record<string, number | null> = {};
+    for (const planetId of ["saturn", "jupiter", "mars", "venus", "mercury"] as MovablePlanetId[]) {
+      orreryPositions[planetId] = current.lifecycle.orrery[planetId];
+    }
+
+    const monthOrdinal = current.calendar.monthOrdinal;
+    const monthDisplayName = monthOrdinal !== null ? displayNameFromOrdinal(monthOrdinal) : null;
 
     return {
       campaignId: doc.campaignId as string,
@@ -48,6 +63,20 @@ export const getCampaignSetup = query({
           },
         ]),
       ),
+      monthOrdinal: monthOrdinal as number | null,
+      monthDisplayName,
+      orreryPositions,
+      readiness: readiness.ready
+        ? { ready: true as const }
+        : {
+            ready: false as const,
+            issues: readiness.issues.map((i) => ({
+              code: i.code,
+              message: i.message,
+              seatId: i.seatId ?? null,
+              planetId: i.planetId ?? null,
+            })),
+          },
     };
   },
 });

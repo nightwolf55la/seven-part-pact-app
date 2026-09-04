@@ -1,6 +1,7 @@
 import { useState } from "react";
 import CampaignSetup from "./CampaignSetup";
 import CampaignTools from "./CampaignTools";
+import SetupCompletion from "./SetupCompletion";
 
 export default function SetupView({
   campaignId,
@@ -41,7 +42,10 @@ export default function SetupView({
             campaignRevision={campaignRevision}
           />
         ) : (
-          <CampaignSetup />
+          <>
+            <CampaignSetup />
+            <SetupCompletion />
+          </>
         )}
       </div>
     </main>

@@ -52,6 +52,14 @@ function presetPositions(indices: Record<MovablePlanetId, number>): Record<Movab
 const AWAKENING_POSITIONS = presetPositions(AWAKENING_POSITION_INDICES);
 const CALAMITY_POSITIONS = presetPositions(CALAMITY_POSITION_INDICES);
 
+export function getFixedAgePresetIndices(
+  ageId: AgeDefinitionId,
+): Record<MovablePlanetId, number> | null {
+  if (ageId === "awakening") return { ...AWAKENING_POSITION_INDICES };
+  if (ageId === "calamity") return { ...CALAMITY_POSITION_INDICES };
+  return null;
+}
+
 export function evaluateAgeSetup(
   ageId: AgeDefinitionId,
   monthOrdinal: MonthOrdinal,

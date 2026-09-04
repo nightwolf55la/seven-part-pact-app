@@ -59,6 +59,10 @@ export function displayNameFromOrdinal(
   return MONTH_DISPLAY_NAMES[monthOfYearIndexFromOrdinal(ordinal)];
 }
 
+export function firstCycleOrdinalForMonthId(monthId: MonthId): MonthOrdinal {
+  return MONTH_IDS.indexOf(monthId) as MonthOrdinal;
+}
+
 export function seasonIdFromOrdinal(ordinal: MonthOrdinal | number): SeasonId {
   return SEASON_BY_MONTH_INDEX[monthOfYearIndexFromOrdinal(ordinal)];
 }
