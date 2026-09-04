@@ -157,6 +157,9 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   set_setup_month: { required: ["setup_month_changed"] },
   set_setup_orrery_position: { required: ["setup_orrery_position_changed"] },
   begin_play: { required: ["begin_play"] },
+  advance_phase: { required: ["phase_advanced"] },
+  schedule_time: { required: ["time_allocation_scheduled"] },
+  set_engagement_target: { required: ["engagement_target_changed"] },
 };
 
 function validateM3EventCoherence(input: CanonicalCommitInput): void {

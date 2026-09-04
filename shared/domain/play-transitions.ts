@@ -124,11 +124,6 @@ export function applyScheduleTime(
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid allocationId: ${input.allocationId}`);
   }
 
-  const normalizedNote = input.note !== null ? input.note.trim() : null;
-  if (normalizedNote !== null && normalizedNote.length === 0) {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", "note must be non-empty or null");
-  }
-
   validateTimeDestination(input.destination);
 
   const { timeParticipants, engagements } = state.lifecycle.currentMonth;
@@ -169,7 +164,7 @@ export function applyScheduleTime(
 
   const newAllocations: TimeAllocation[] = tp.allocations.map((a, j) =>
     j === allocIndex
-      ? { ...a, destination: input.destination, note: normalizedNote }
+      ? { ...a, destination: input.destination, note: input.note }
       : a,
   );
 
@@ -251,7 +246,7 @@ export function applyScheduleTime(
       allocationId: input.allocationId,
       previousDestination,
       newDestination: input.destination,
-      note: normalizedNote,
+      note: input.note,
     },
   };
 

@@ -35,6 +35,7 @@ import type {
   MovablePlanetId,
   TimeDestination,
   EngagementTarget,
+  EngagementRecord,
 } from "../shared/domain";
 import type { PactSeatId } from "../shared/domain/pact-seats";
 
@@ -454,39 +455,54 @@ describe("applyScheduleTime engagement linking", () => {
   it("changing Engagement A -> B clears A and links B", () => {
     const planning = buildPlanningState();
     const w1 = wizId(1);
-    const w2 = wizId(2);
     const allocId = firstAllocId(planning, w1);
     const engA = firstEngagementId(planning, w1);
-    // Use w2's engagement as B
-    const engB = firstEngagementId(planning, w2);
 
-    // First, engB belongs to w2, so we can't link w1's allocation to it
-    // Instead, let's use a second allocation of w1 linked to engA, then switch to a different scenario
-    // Actually, we need two engagements for the same wizard. But each wizard has only one engagement.
-    // So let's test A -> null -> B pattern instead, where A and B are for different wizards
-    // Actually the spec says "changing Engagement A -> B clears A and links B"
-    // But a wizard only has one engagement. So A and B must be the same wizard's.
-    // That's impossible with one engagement per wizard. Let's test with different wizards:
-    // link w1's alloc to w1's eng (A), then switch to w2's eng (B) -- should reject because B belongs to w2.
-    // So the A->B test only makes sense if we could have multiple engagements per wizard.
-    // Since each wizard has exactly 1 engagement, let's test A -> null -> A instead.
-    const r1 = applyScheduleTime(planning, {
+    // Add a second pending Engagement for the same acting Wizard
+    const engBId = makeEngagementId(999);
+    const engB: EngagementRecord = {
+      engagementId: engBId,
+      actingWizardId: w1,
+      target: null,
+      resolution: "pending",
+      linkedTimeAllocationId: null,
+    };
+    if (planning.lifecycle.kind !== "play") throw new Error("unreachable");
+    const planningWithB: CurrentCampaignState = {
+      ...planning,
+      lifecycle: {
+        ...planning.lifecycle,
+        currentMonth: {
+          ...planning.lifecycle.currentMonth,
+          engagements: [...planning.lifecycle.currentMonth.engagements, engB],
+        },
+      },
+    };
+
+    // 1. schedule the allocation to Engagement A
+    const r1 = applyScheduleTime(planningWithB, {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
       destination: { kind: "engagement", engagementId: engA }, note: null,
     });
     expect(getEngagement(r1.nextState, engA)!.linkedTimeAllocationId).toBe(allocId);
+    expect(getEngagement(r1.nextState, engBId)!.linkedTimeAllocationId).toBeNull();
 
+    // 2. reschedule the same allocation to Engagement B
     const r2 = applyScheduleTime(r1.nextState, {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
-      destination: null, note: null,
+      destination: { kind: "engagement", engagementId: engBId }, note: null,
     });
-    expect(getEngagement(r2.nextState, engA)!.linkedTimeAllocationId).toBeNull();
 
-    const r3 = applyScheduleTime(r2.nextState, {
-      expectedMonthOrdinal: MONTH, allocationId: allocId,
-      destination: { kind: "engagement", engagementId: engA }, note: null,
+    // 3. A is unlinked
+    expect(getEngagement(r2.nextState, engA)!.linkedTimeAllocationId).toBeNull();
+    // 4. B is linked to this allocation
+    expect(getEngagement(r2.nextState, engBId)!.linkedTimeAllocationId).toBe(allocId);
+    // 5. allocation destination identifies B
+    expect(getAlloc(r2.nextState, allocId)!.alloc.destination).toEqual({
+      kind: "engagement", engagementId: engBId,
     });
-    expect(getEngagement(r3.nextState, engA)!.linkedTimeAllocationId).toBe(allocId);
+    // 6. resulting state validates
+    expect(() => validateCampaignState(r2.nextState)).not.toThrow();
   });
 
   it("different-Wizard Engagement rejects", () => {
@@ -525,6 +541,16 @@ describe("applyScheduleTime engagement linking", () => {
       expectedMonthOrdinal: MONTH, allocationId: alloc2,
       destination: { kind: "engagement", engagementId: engId }, note: null,
     })).toThrow(DomainError);
+  });
+
+  it("empty-string note is accepted and preserved", () => {
+    const planning = buildPlanningState();
+    const allocId = firstAllocId(planning, wizId(1));
+    const result = applyScheduleTime(planning, {
+      expectedMonthOrdinal: MONTH, allocationId: allocId,
+      destination: { kind: "meeting" }, note: "",
+    });
+    expect(getAlloc(result.nextState, allocId)!.alloc.note).toBe("");
   });
 
   it("resulting linked states pass validateCampaignState", () => {
