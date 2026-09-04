@@ -4,7 +4,6 @@ import {
   monthIdFromOrdinal,
   displayNameFromMonthId,
 } from "../shared/domain/calendar";
-import type { AgeDefinitionId } from "../shared/domain/ages";
 import type { MovablePlanetId, CentidegreePosition } from "../shared/domain/orrery";
 import {
   legalPositionsForPlanet,

@@ -8,6 +8,7 @@ import {
 import { legalPositionsForPlanet, MOVABLE_PLANET_IDS } from "../shared/domain/orrery";
 import type { MovablePlanetId, CentidegreePosition } from "../shared/domain/orrery";
 import type { MonthOrdinal } from "../shared/domain/calendar";
+import { getFixedAgePresetIndices } from "../shared/domain/age-setup";
 
 describe("getFixedAgeSetupSummary", () => {
   it("Awakening resolves to March / ordinal 11 with preset indices", () => {
@@ -15,11 +16,9 @@ describe("getFixedAgeSetupSummary", () => {
     expect(s.requiredMonthId).toBe("march");
     expect(s.requiredMonthDisplayName).toBe("March");
     expect(s.requiredMonthOrdinal).toBe(11);
-    expect(s.presetIndices.saturn).toBe(16);
-    expect(s.presetIndices.jupiter).toBe(1);
-    expect(s.presetIndices.mars).toBe(18);
-    expect(s.presetIndices.venus).toBe(14);
-    expect(s.presetIndices.mercury).toBe(17);
+    expect(s.presetIndices).toEqual(
+      getFixedAgePresetIndices("awakening"),
+    );
   });
 
   it("Calamity resolves to December / ordinal 8 with preset indices", () => {
@@ -27,11 +26,9 @@ describe("getFixedAgeSetupSummary", () => {
     expect(s.requiredMonthId).toBe("december");
     expect(s.requiredMonthDisplayName).toBe("December");
     expect(s.requiredMonthOrdinal).toBe(8);
-    expect(s.presetIndices.saturn).toBe(31);
-    expect(s.presetIndices.jupiter).toBe(33);
-    expect(s.presetIndices.mars).toBe(21);
-    expect(s.presetIndices.venus).toBe(4);
-    expect(s.presetIndices.mercury).toBe(20);
+    expect(s.presetIndices).toEqual(
+      getFixedAgePresetIndices("calamity"),
+    );
   });
 });
 

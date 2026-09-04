@@ -2,7 +2,11 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api.js";
 import { useState } from "react";
 import { MOVABLE_PLANET_IDS } from "../shared/domain/orrery";
-import type { MovablePlanetId } from "../shared/domain/orrery";
+import type {
+  CentidegreePosition,
+  MovablePlanetId,
+} from "../shared/domain/orrery";
+import type { MonthOrdinal } from "../shared/domain/calendar";
 import {
   getFixedAgeSetupSummary,
   dominionSeasonToMonthOrdinal,
@@ -49,8 +53,11 @@ export default function SetupCompletion() {
   }
 
   const ageId = setup.configuration.ageId;
-  const orreryPositions = setup.orreryPositions as Record<MovablePlanetId, number | null>;
-  const monthOrdinal = setup.monthOrdinal as number | null;
+  const orreryPositions = setup.orreryPositions as Record<
+    MovablePlanetId,
+    CentidegreePosition | null
+  >;
+  const monthOrdinal = setup.monthOrdinal as MonthOrdinal | null;
 
   async function applyFixedPreset(summary: ReturnType<typeof getFixedAgeSetupSummary>) {
     if (pending) return;
@@ -247,7 +254,7 @@ function AwakeningSetup({
   onApply,
 }: {
   pending: boolean;
-  orreryPositions: Record<MovablePlanetId, number | null>;
+  orreryPositions: Record<MovablePlanetId, CentidegreePosition | null>;
   onApply: () => void;
 }) {
   const summary = getFixedAgeSetupSummary("awakening");
@@ -264,7 +271,8 @@ function AwakeningSetup({
         {MOVABLE_PLANET_IDS.map((p) => {
           const current = orreryPositions[p];
           const target = summary.presetIndices[p];
-          const matches = current !== null && current === target;
+          const matches =
+            buildPlanetPositionSelector(p, current).currentIndex === target;
           return (
             <div
               key={p}
@@ -295,7 +303,7 @@ function CalamitySetup({
   onApply,
 }: {
   pending: boolean;
-  orreryPositions: Record<MovablePlanetId, number | null>;
+  orreryPositions: Record<MovablePlanetId, CentidegreePosition | null>;
   onApply: () => void;
 }) {
   const summary = getFixedAgeSetupSummary("calamity");
@@ -312,7 +320,8 @@ function CalamitySetup({
         {MOVABLE_PLANET_IDS.map((p) => {
           const current = orreryPositions[p];
           const target = summary.presetIndices[p];
-          const matches = current !== null && current === target;
+          const matches =
+            buildPlanetPositionSelector(p, current).currentIndex === target;
           return (
             <div
               key={p}
@@ -345,12 +354,12 @@ function DominionSetup({
   onPlanetChange,
 }: {
   pending: boolean;
-  monthOrdinal: number | null;
-  orreryPositions: Record<MovablePlanetId, number | null>;
+  monthOrdinal: MonthOrdinal | null;
+  orreryPositions: Record<MovablePlanetId, CentidegreePosition | null>;
   onSeasonChange: (season: DominionSeasonId) => void;
   onPlanetChange: (planetId: MovablePlanetId, positionIndex: number) => void;
 }) {
-  const currentSeason = dominionSeasonFromMonthOrdinal(monthOrdinal as any);
+  const currentSeason = dominionSeasonFromMonthOrdinal(monthOrdinal);
 
   return (
     <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 flex flex-col gap-4">
@@ -391,7 +400,7 @@ function DominionSetup({
         {MOVABLE_PLANET_IDS.map((planetId) => {
           const selector = buildPlanetPositionSelector(
             planetId,
-            orreryPositions[planetId] as any,
+            orreryPositions[planetId],
           );
           return (
             <div key={planetId} className="flex flex-col gap-1">
