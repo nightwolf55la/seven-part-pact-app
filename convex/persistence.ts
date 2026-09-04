@@ -46,12 +46,33 @@ export async function loadCanonicalRecord(
 }
 
 /**
- * Serialize CurrentCampaignState for Convex persistence.
- * Branded types are structurally identical to their base types at runtime;
- * this assertion documents the persistence boundary.
+ * Mutable persistence representation of a readonly domain value.
+ *
+ * Convex validator inference models arrays/objects as mutable, while the
+ * domain state is intentionally readonly. The runtime representation is
+ * identical; this type removes readonly only at the persistence boundary.
  */
-export function serializeState(state: CurrentCampaignState): Record<string, unknown> {
-  return state as unknown as Record<string, unknown>;
+type PersistedValue<T> =
+  T extends string | number | boolean | bigint | symbol | null | undefined
+    ? T
+    : T extends readonly (infer U)[]
+      ? PersistedValue<U>[]
+      : T extends object
+        ? { -readonly [K in keyof T]: PersistedValue<T[K]> }
+        : T;
+
+type PersistedCampaignState = PersistedValue<CurrentCampaignState>;
+
+/**
+ * Serialize CurrentCampaignState for Convex persistence.
+ *
+ * This is an identity operation at runtime. The assertion only adapts the
+ * domain's readonly type to Convex's mutable validator-inferred type.
+ */
+export function serializeState(
+  state: CurrentCampaignState,
+): PersistedCampaignState {
+  return state as PersistedCampaignState;
 }
 
 /**

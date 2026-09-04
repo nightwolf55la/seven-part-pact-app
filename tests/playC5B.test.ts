@@ -26,6 +26,9 @@ import {
   MOVABLE_PLANET_IDS,
   PACT_SEAT_IDS,
   advanceAllPlanets,
+  asCentidegreePosition,
+  isLegalPosition,
+  movePlanetByArc,
 } from "../shared/domain";
 import type {
   CurrentCampaignState,
@@ -348,14 +351,20 @@ describe("C5B stale/mismatched acknowledgement", () => {
     expect(r.warnings.some((w) => w.resourceId !== "alc_fake")).toBe(true);
   });
 
-  it("stale non-empty acknowledgement when current set is empty throws", () => {
+  it("stale non-empty acknowledgement when current set is empty returns current empty warnings", () => {
     const quiet = buildQuietState();
-    expect(() =>
-      applyBeginNextMonth(quiet, {
+    const result = applyBeginNextMonth(
+      quiet,
+      {
         expectedMonthOrdinal: MONTH,
         acknowledgedWarningKeys: ["unresolved_time:alc_fake"],
-      }, NEXT_MONTH_INITS),
-    ).toThrow(DomainError);
+      },
+      NEXT_MONTH_INITS,
+    );
+  
+    expect(result.outcome).toBe("warnings");
+    if (result.outcome !== "warnings") throw new Error("unreachable");
+    expect(result.warnings).toEqual([]);
   });
 });
 
@@ -424,22 +433,39 @@ describe("C5B successful rollover atomicity", () => {
 // ============================================================
 
 describe("C5B exceptional planet movement", () => {
-  it("saturn with grid offset moves by exact arc, not grid-snapped", () => {
+  it("genuinely off-grid Saturn moves by exact arc without grid snapping", () => {
     const quiet = buildQuietState();
     if (quiet.lifecycle.kind !== "play") throw new Error("unreachable");
-    const saturnBefore = quiet.lifecycle.orrery.saturn;
-
-    const r = applyBeginNextMonth(quiet, { expectedMonthOrdinal: MONTH }, NEXT_MONTH_INITS);
+  
+    const offGridStart = asCentidegreePosition(17623);
+    expect(isLegalPosition("saturn", offGridStart)).toBe(false);
+  
+    const offGridQuiet: CurrentCampaignState = {
+      ...quiet,
+      lifecycle: {
+        ...quiet.lifecycle,
+        orrery: {
+          ...quiet.lifecycle.orrery,
+          saturn: offGridStart,
+        },
+      },
+    };
+  
+    const r = applyBeginNextMonth(
+      offGridQuiet,
+      { expectedMonthOrdinal: MONTH },
+      NEXT_MONTH_INITS,
+    );
+  
     if (r.outcome !== "applied") throw new Error("expected applied");
     if (r.nextState.lifecycle.kind !== "play") throw new Error("unreachable");
-
+  
     const saturnAfter = r.nextState.lifecycle.orrery.saturn;
-    const expected = (saturnBefore + 1000) % 36000;
+    const expected = movePlanetByArc("saturn", offGridStart, "forward");
+  
     expect(saturnAfter).toBe(expected);
-
-    if (saturnBefore % 1000 !== 0) {
-      expect(saturnAfter % 1000).not.toBe(0);
-    }
+    expect(isLegalPosition("saturn", saturnAfter)).toBe(false);
+    expect(() => validateCampaignState(r.nextState)).not.toThrow();
   });
 });
 
