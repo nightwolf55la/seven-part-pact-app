@@ -4,6 +4,8 @@ import NewMoonSurface from "./NewMoonSurface";
 import VisionsSurface from "./VisionsSurface";
 import PlanningSurface from "./PlanningSurface";
 import StorySurface from "./StorySurface";
+import MeetingSurface from "./MeetingSurface";
+import QuietSurface from "./QuietSurface";
 
 export interface CurrentPhaseSurfaceProps {
   phase: LunarPhase;
@@ -22,6 +24,10 @@ export default function CurrentPhaseSurface({ phase, monthOrdinal }: CurrentPhas
       return <PlanningSurface phase={phase} monthOrdinal={monthOrdinal} />;
     case "story":
       return <StorySurface phase={phase} monthOrdinal={monthOrdinal} />;
+    case "meeting":
+      return <MeetingSurface phase={phase} monthOrdinal={monthOrdinal} />;
+    case "quiet":
+      return <QuietSurface phase={phase} monthOrdinal={monthOrdinal} />;
     default:
       return (
         <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 flex flex-col gap-3">

@@ -239,6 +239,168 @@ export const getStoryWorkspace = query({
   },
 });
 
+export const getMeetingWorkspace = query({
+  args: {},
+  handler: async (ctx) => {
+    const maybeCanonical = await ctx.db
+      .query("campaigns")
+      .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
+      .unique();
+
+    if (
+      maybeCanonical === null ||
+      !("campaignKey" in maybeCanonical) ||
+      (maybeCanonical as any).campaignKey !== "default"
+    ) {
+      return null;
+    }
+
+    const doc = maybeCanonical as any;
+    const current = validateCampaignState(doc.state);
+
+    if (current.lifecycle.kind !== "play" || current.lifecycle.phase !== "meeting") {
+      return null;
+    }
+
+    const monthOrdinal = current.calendar.monthOrdinal;
+    if (monthOrdinal === null) return null;
+
+    const wizardNameById = new Map<string, string>();
+    for (const w of current.wizards) {
+      wizardNameById.set(w.wizardId as string, w.name);
+    }
+
+    const month = current.lifecycle.currentMonth;
+    const attendance = month.wizardmootAttendance;
+    if (attendance === null) return null;
+
+    const timeParticipants = month.timeParticipants;
+
+    const attendanceRows = attendance.map((a) => {
+      const wizardId = a.wizardId as string;
+      const wizardName = wizardNameById.get(wizardId);
+      if (!wizardName) {
+        throw new Error(`Unresolved wizard for attendance: ${wizardId}`);
+      }
+      const tp = timeParticipants.find(
+        (t) => t.participant.wizardId as string === wizardId,
+      );
+      const meetingAllocs = tp
+        ? tp.allocations.filter(
+            (al) => al.destination !== null && al.destination.kind === "meeting",
+          )
+        : [];
+      const pendingMeetingAllocs = meetingAllocs.filter(
+        (al) => al.resolution === "pending",
+      );
+      const expectedAttended = meetingAllocs.length > 0;
+      return {
+        wizardId,
+        wizardName,
+        expectedAttended,
+        actualAttended: a.attended,
+        exceptionReason: a.exceptionReason as string | null,
+        meetingAllocationCount: meetingAllocs.length,
+        pendingMeetingAllocationCount: pendingMeetingAllocs.length,
+      };
+    });
+
+    return {
+      monthOrdinal: monthOrdinal as number,
+      attendance: attendanceRows,
+    };
+  },
+});
+
+export const getQuietWorkspace = query({
+  args: {},
+  handler: async (ctx) => {
+    const maybeCanonical = await ctx.db
+      .query("campaigns")
+      .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
+      .unique();
+
+    if (
+      maybeCanonical === null ||
+      !("campaignKey" in maybeCanonical) ||
+      (maybeCanonical as any).campaignKey !== "default"
+    ) {
+      return null;
+    }
+
+    const doc = maybeCanonical as any;
+    const current = validateCampaignState(doc.state);
+
+    if (current.lifecycle.kind !== "play" || current.lifecycle.phase !== "quiet") {
+      return null;
+    }
+
+    const monthOrdinal = current.calendar.monthOrdinal;
+    if (monthOrdinal === null) return null;
+
+    const wizardNameById = new Map<string, string>();
+    for (const w of current.wizards) {
+      wizardNameById.set(w.wizardId as string, w.name);
+    }
+
+    const timeParticipants = current.lifecycle.currentMonth.timeParticipants.map((tp) => {
+      const wizardId = tp.participant.wizardId as string;
+      const wizardName = wizardNameById.get(wizardId);
+      if (!wizardName) {
+        throw new Error(`Unresolved wizard for time participant: ${wizardId}`);
+      }
+      return {
+        wizardId,
+        wizardName,
+        allocations: tp.allocations.map((a) => ({
+          allocationId: a.allocationId as string,
+          destination: a.destination,
+          note: a.note,
+          resolution: a.resolution,
+        })),
+      };
+    });
+
+    const engagements = current.lifecycle.currentMonth.engagements.map((e) => ({
+      engagementId: e.engagementId as string,
+      actingWizardId: e.actingWizardId as string,
+      target: e.target,
+      resolution: e.resolution,
+      linkedTimeAllocationId: e.linkedTimeAllocationId as string | null,
+    }));
+
+    const wizardmootAttendance =
+      current.lifecycle.currentMonth.wizardmootAttendance !== null
+        ? current.lifecycle.currentMonth.wizardmootAttendance.map((a) => {
+            const wizardId = a.wizardId as string;
+            const wizardName = wizardNameById.get(wizardId);
+            if (!wizardName) {
+              throw new Error(`Unresolved wizard for attendance: ${wizardId}`);
+            }
+            return {
+              wizardId,
+              wizardName,
+              attended: a.attended,
+              exceptionReason: a.exceptionReason as string | null,
+            };
+          })
+        : [];
+
+    const modeledWizards = current.wizards.map((w) => ({
+      wizardId: w.wizardId as string,
+      name: w.name,
+    }));
+
+    return {
+      monthOrdinal: monthOrdinal as number,
+      timeParticipants,
+      engagements,
+      wizardmootAttendance,
+      modeledWizards,
+    };
+  },
+});
+
 export const getPlayReference = query({
   args: {},
   handler: async (ctx) => {
