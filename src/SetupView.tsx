@@ -36,7 +36,10 @@ export default function SetupView({
         </div>
 
         {showTools ? (
-          <CampaignTools campaignId={campaignId} />
+          <CampaignTools
+            campaignId={campaignId}
+            campaignRevision={campaignRevision}
+          />
         ) : (
           <CampaignSetup />
         )}

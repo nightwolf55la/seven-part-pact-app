@@ -2,6 +2,16 @@ import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api.js";
 import { useState } from "react";
 
+const DELETION_PHASE_LABELS: Record<string, string> = {
+  campaignEvents: "Removing activity history",
+  campaignSnapshots: "Removing snapshots",
+  campaignRevisions: "Removing revision records",
+  campaignCheckpoints: "Removing checkpoints",
+  campaignHistoryControl: "Removing recovery history",
+  campaign: "Removing campaign",
+  verify: "Verifying cleanup",
+};
+
 export default function DeletionInProgress({
   campaignId,
   phase,
@@ -30,6 +40,8 @@ export default function DeletionInProgress({
     }
   }
 
+  const phaseLabel = DELETION_PHASE_LABELS[phase] ?? "Continuing cleanup";
+
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center justify-center px-4 py-12">
       <div className="w-full max-w-md flex flex-col gap-6 items-center text-center">
@@ -44,7 +56,7 @@ export default function DeletionInProgress({
             The campaign is being permanently deleted. This cannot be undone.
           </p>
           <p className="text-xs text-slate-400 dark:text-slate-500">
-            Current phase: {phase}
+            Current phase: {phaseLabel}
           </p>
           <p className="text-xs text-slate-400 dark:text-slate-500">
             Cleanup is resumable and the browser does not need to stay open.

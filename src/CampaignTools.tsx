@@ -26,12 +26,14 @@ type PendingAction =
   | "createCheckpoint"
   | "restoreCheckpoint"
   | "exportBackup"
-  | "importBackup";
-
+  | "importBackup"
+  | "delete";
 export default function CampaignTools({
   campaignId,
+  campaignRevision,
 }: {
   campaignId: string;
+  campaignRevision: number;
 }) {
   const undoRedoState = useQuery(api.campaign.getUndoRedoState, {});
   const events = useQuery(api.campaign.getRecentEvents, { count: 20 });
@@ -61,7 +63,8 @@ export default function CampaignTools({
 
   const historyStateIsCurrent =
     undoRedoState !== undefined &&
-    undoRedoState !== null;
+    undoRedoState !== null &&
+    undoRedoState.campaignRevision === campaignRevision;
 
   const navigationPending = pendingAction !== null;
 
@@ -241,7 +244,7 @@ export default function CampaignTools({
 
   async function handleConfirmDelete() {
     if (deleteConfirmText !== "DELETE") return;
-    setPendingAction("importBackup");
+    setPendingAction("delete");
     setDeleteError(null);
     try {
       await requestDeletionMutation({
@@ -529,7 +532,7 @@ export default function CampaignTools({
                   onClick={handleConfirmDelete}
                   className="rounded-lg border border-red-700 dark:border-red-300 bg-red-700 dark:bg-red-300 px-3 py-1.5 text-xs font-medium text-white dark:text-slate-900 hover:bg-red-800 dark:hover:bg-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  {pendingAction === "importBackup" ? "Deleting…" : "Confirm Delete"}
+                  {pendingAction === "delete" ? "Deleting…" : "Confirm Delete"}
                 </button>
               </div>
             </div>

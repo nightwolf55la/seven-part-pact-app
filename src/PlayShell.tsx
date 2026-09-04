@@ -58,7 +58,10 @@ export default function PlayShell({
         </div>
 
         {showTools ? (
-          <CampaignTools campaignId={campaignId} />
+          <CampaignTools
+            campaignId={campaignId}
+            campaignRevision={campaignRevision}
+          />
         ) : (
           <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-8 flex flex-col items-center gap-4">
             <p className="text-sm text-slate-500 dark:text-slate-400 text-center">
