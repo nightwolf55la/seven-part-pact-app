@@ -24,7 +24,7 @@ export interface BeginPlayInput {
   readonly wizardInits: readonly WizardInitIds[];
 }
 
-function collectEligibleWizardIds(state: CurrentCampaignState): WizardId[] {
+export function collectEligibleWizardIds(state: CurrentCampaignState): WizardId[] {
   const eligible: WizardId[] = [];
   for (const seatId of PACT_SEAT_IDS) {
     const seat = state.pactSeats[seatId];
@@ -103,6 +103,12 @@ export function applyBeginPlay(
   for (const init of input.wizardInits) {
     if (!isValidWizardId(init.wizardId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId in beginPlay input: ${init.wizardId}`);
+    }
+    if (init.allocationIds.length !== 4) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `Wizard ${init.wizardId} must have exactly 4 allocationIds, got ${init.allocationIds.length}`,
+      );
     }
     if (initByWizard.has(init.wizardId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate wizardId in beginPlay input: ${init.wizardId}`);

@@ -17,6 +17,18 @@ const WIZARD_ID_REGEX = /^wiz_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0
 const ALLOCATION_ID_REGEX = /^alc_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const ENGAGEMENT_ID_REGEX = /^eng_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+function generateBrandedId(prefix: string): string {
+  return `${prefix}_${crypto.randomUUID()}`;
+}
+
+export function generateAllocationId(): AllocationId {
+  return generateBrandedId("alc") as AllocationId;
+}
+
+export function generateEngagementId(): EngagementId {
+  return generateBrandedId("eng") as EngagementId;
+}
+
 export function isValidCampaignId(value: string): value is CampaignId {
   return CAMPAIGN_ID_REGEX.test(value);
 }

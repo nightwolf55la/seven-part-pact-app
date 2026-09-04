@@ -19,6 +19,10 @@ import {
   applySetPactSeatWizard,
   applySetPactSeatStatus,
   applySetWatcher,
+  generateAllocationId,
+  generateEngagementId,
+  isValidAllocationId,
+  isValidEngagementId,
 } from "../shared/domain";
 import type {
   CurrentCampaignState,
@@ -315,6 +319,42 @@ describe("applyBeginPlay", () => {
     const dup = [...inits, inits[0]];
     expect(() => applyBeginPlay(setup, { wizardInits: dup })).toThrow(DomainError);
   });
+
+  it("rejects fewer than 4 allocation IDs at runtime", () => {
+    const setup = buildReadyState("awakening", 0, AWAKENING_INDICES);
+    const inits = makeWizardInits(PRESENT_WIZARD_IDS);
+    const bad = inits.map((init, i) => {
+      if (i === 0) {
+        return {
+          ...init,
+          allocationIds: [
+            init.allocationIds[0],
+            init.allocationIds[1],
+          ] as unknown as [AllocationId, AllocationId, AllocationId, AllocationId],
+        };
+      }
+      return init;
+    });
+    expect(() => applyBeginPlay(setup, { wizardInits: bad })).toThrow(DomainError);
+  });
+
+  it("rejects more than 4 allocation IDs at runtime", () => {
+    const setup = buildReadyState("awakening", 0, AWAKENING_INDICES);
+    const inits = makeWizardInits(PRESENT_WIZARD_IDS);
+    const bad = inits.map((init, i) => {
+      if (i === 0) {
+        return {
+          ...init,
+          allocationIds: [
+            ...init.allocationIds,
+            makeAllocationId(999),
+          ] as unknown as [AllocationId, AllocationId, AllocationId, AllocationId],
+        };
+      }
+      return init;
+    });
+    expect(() => applyBeginPlay(setup, { wizardInits: bad })).toThrow(DomainError);
+  });
 });
 
 // ============================================================
@@ -350,5 +390,20 @@ describe("begin_play command infrastructure", () => {
       expect(evt.data.eligibleWizardIds).toContain(wid);
     }
     expect(evt.data.eligibleWizardIds).not.toContain(SILENT_WIZARD_ID);
+  });
+
+  it("server-generated allocation and engagement IDs are valid and distinct", () => {
+    const ids = new Set<string>();
+    for (let i = 0; i < 100; i++) {
+      const aid = generateAllocationId();
+      expect(isValidAllocationId(aid)).toBe(true);
+      expect(ids.has(aid)).toBe(false);
+      ids.add(aid);
+
+      const eid = generateEngagementId();
+      expect(isValidEngagementId(eid)).toBe(true);
+      expect(ids.has(eid)).toBe(false);
+      ids.add(eid);
+    }
   });
 });

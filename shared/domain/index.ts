@@ -14,8 +14,10 @@ export {
   parseWizardId,
   isValidAllocationId,
   parseAllocationId,
+  generateAllocationId,
   isValidEngagementId,
   parseEngagementId,
+  generateEngagementId,
 } from "./ids";
 
 export type {
@@ -407,4 +409,4 @@ export { evaluateAgeSetup } from "./age-setup";
 // --- Begin Play ---
 
 export type { WizardInitIds, BeginPlayInput } from "./begin-play";
-export { applyBeginPlay } from "./begin-play";
+export { applyBeginPlay, collectEligibleWizardIds } from "./begin-play";
