@@ -138,6 +138,14 @@ export default function PlanningSurface({ phase, monthOrdinal: _monthOrdinal }: 
             <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
               Time Allocations
             </h4>
+            {scheduleError && (
+              <p
+                role="alert"
+                className="text-xs text-red-600 dark:text-red-400"
+              >
+                {scheduleError}
+              </p>
+            )}
             {selectedParticipant.allocations.map((alloc, idx) => (
               <AllocationCard
                 key={alloc.allocationId}
@@ -155,6 +163,14 @@ export default function PlanningSurface({ phase, monthOrdinal: _monthOrdinal }: 
           </div>
 
           {/* Engagements */}
+          {targetError && (
+            <p
+              role="alert"
+              className="text-xs text-red-600 dark:text-red-400"
+            >
+              {targetError}
+            </p>
+          )}
           <EngagementSection
             data={data}
             actingWizardId={selectedParticipant.wizardId}
@@ -293,11 +309,10 @@ function AllocationCard({
     tp.allocations.some((a) => a.allocationId === allocation.allocationId),
   )?.wizardId;
 
-  const availableEngagements = data.engagements.filter(
+  const planningEngagements = data.engagements.filter(
     (e) =>
       e.actingWizardId === actingWizardId &&
-      e.resolution === "pending" &&
-      (e.linkedTimeAllocationId === null || e.linkedTimeAllocationId === allocation.allocationId),
+      e.resolution === "pending",
   );
 
   return (
@@ -364,12 +379,27 @@ function AllocationCard({
                 className="text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-slate-700 dark:text-slate-200"
               >
                 <option value="">Select engagement…</option>
-                {availableEngagements.map((e) => (
-                  <option key={e.engagementId} value={e.engagementId}>
-                    {e.engagementId}
-                    {e.linkedTimeAllocationId === allocation.allocationId ? " (current)" : ""}
-                  </option>
-                ))}
+                {planningEngagements.map((e) => {
+                  const isCurrent =
+                    e.linkedTimeAllocationId === allocation.allocationId;
+                  const linkedElsewhere =
+                    e.linkedTimeAllocationId !== null && !isCurrent;
+                
+                  return (
+                    <option
+                      key={e.engagementId}
+                      value={e.engagementId}
+                      disabled={linkedElsewhere}
+                    >
+                      {e.engagementId}
+                      {isCurrent
+                        ? " (current)"
+                        : linkedElsewhere
+                          ? " (already linked)"
+                          : ""}
+                    </option>
+                  );
+                })}
               </select>
             )}
 
