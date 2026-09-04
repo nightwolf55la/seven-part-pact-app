@@ -62,12 +62,17 @@ export function selectParticipant(
 
 // --- B. Allocation destination display ---
 
-function wizardNameById(data: PlanningWorkspaceData, wizardId: string): string | null {
+export interface WorkspaceDataLike {
+  readonly engagements: readonly { engagementId: string; actingWizardId: string }[];
+  readonly modeledWizards: readonly ModeledWizard[];
+}
+
+function wizardNameById(data: WorkspaceDataLike, wizardId: string): string | null {
   const w = data.modeledWizards.find((mw) => mw.wizardId === wizardId);
   return w ? w.name : null;
 }
 
-function engagementDisplay(data: PlanningWorkspaceData, engagementId: string): string {
+function engagementDisplay(data: WorkspaceDataLike, engagementId: string): string {
   const eng = data.engagements.find((e) => e.engagementId === engagementId);
   if (!eng) return engagementId;
   const name = wizardNameById(data, eng.actingWizardId);
@@ -76,7 +81,7 @@ function engagementDisplay(data: PlanningWorkspaceData, engagementId: string): s
 
 export function destinationLabel(
   dest: TimeDestination | null,
-  data?: PlanningWorkspaceData,
+  data?: WorkspaceDataLike,
 ): string {
   if (dest === null) return "Unscheduled";
   switch (dest.kind) {
@@ -103,7 +108,7 @@ export function destinationLabel(
 
 export function engagementTargetLabel(
   target: EngagementTarget | null,
-  data?: PlanningWorkspaceData,
+  data?: WorkspaceDataLike,
 ): string {
   if (target === null) return "Not targeted";
   switch (target.kind) {

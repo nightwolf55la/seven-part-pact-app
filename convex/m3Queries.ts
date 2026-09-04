@@ -156,6 +156,89 @@ export const getPlanningWorkspace = query({
   },
 });
 
+export const getStoryWorkspace = query({
+  args: {},
+  handler: async (ctx) => {
+    const maybeCanonical = await ctx.db
+      .query("campaigns")
+      .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
+      .unique();
+
+    if (
+      maybeCanonical === null ||
+      !("campaignKey" in maybeCanonical) ||
+      (maybeCanonical as any).campaignKey !== "default"
+    ) {
+      return null;
+    }
+
+    const doc = maybeCanonical as any;
+    const current = validateCampaignState(doc.state);
+
+    if (current.lifecycle.kind !== "play" || current.lifecycle.phase !== "story") {
+      return null;
+    }
+
+    const monthOrdinal = current.calendar.monthOrdinal;
+    if (monthOrdinal === null) return null;
+
+    const wizardNameById = new Map<string, string>();
+    for (const w of current.wizards) {
+      wizardNameById.set(w.wizardId as string, w.name);
+    }
+
+    const timeParticipants = current.lifecycle.currentMonth.timeParticipants.map((tp) => {
+      const wizardId = tp.participant.wizardId as string;
+      const wizardName = wizardNameById.get(wizardId);
+      if (!wizardName) {
+        throw new Error(`Unresolved wizard for time participant: ${wizardId}`);
+      }
+      return {
+        wizardId,
+        wizardName,
+        effectiveBudget: tp.effectiveBudget,
+        rescheduleAllowance: tp.rescheduleAllowance,
+        reschedulesUsed: tp.reschedulesUsed,
+        allocations: tp.allocations.map((a) => ({
+          allocationId: a.allocationId as string,
+          destination: a.destination,
+          note: a.note,
+          resolution: a.resolution,
+        })),
+      };
+    });
+
+    const engagements = current.lifecycle.currentMonth.engagements.map((e) => ({
+      engagementId: e.engagementId as string,
+      actingWizardId: e.actingWizardId as string,
+      target: e.target,
+      resolution: e.resolution,
+      linkedTimeAllocationId: e.linkedTimeAllocationId as string | null,
+    }));
+
+    const modeledWizards = current.wizards.map((w) => ({
+      wizardId: w.wizardId as string,
+      name: w.name,
+    }));
+
+    const orreryPositions = {
+      saturn: current.lifecycle.orrery.saturn as number,
+      jupiter: current.lifecycle.orrery.jupiter as number,
+      mars: current.lifecycle.orrery.mars as number,
+      venus: current.lifecycle.orrery.venus as number,
+      mercury: current.lifecycle.orrery.mercury as number,
+    };
+
+    return {
+      monthOrdinal: monthOrdinal as number,
+      timeParticipants,
+      engagements,
+      modeledWizards,
+      orreryPositions,
+    };
+  },
+});
+
 export const getPlayReference = query({
   args: {},
   handler: async (ctx) => {
