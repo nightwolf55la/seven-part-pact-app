@@ -154,6 +154,9 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   set_pact_seat_wizard: { required: ["pact_seat_wizard_changed"], optional: ["pact_seat_status_changed"] },
   set_pact_seat_status: { required: ["pact_seat_status_changed"] },
   set_watcher: { required: ["watcher_assignment_changed"] },
+  set_setup_month: { required: ["setup_month_changed"] },
+  set_setup_orrery_position: { required: ["setup_orrery_position_changed"] },
+  begin_play: { required: ["begin_play"] },
 };
 
 function validateM3EventCoherence(input: CanonicalCommitInput): void {

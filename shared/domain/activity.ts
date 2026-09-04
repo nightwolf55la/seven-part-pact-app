@@ -90,6 +90,8 @@ function describeConfigEvent(event: CampaignEvent): string {
       return event.data.newPosition !== null
         ? `Set ${event.data.planetId} Orrery position to ${event.data.newPosition}`
         : `Cleared ${event.data.planetId} Orrery position`;
+    case "begin_play":
+      return "Began Play";
     default:
       return "Campaign configuration changed";
   }
@@ -185,7 +187,8 @@ export function mapEventToActivityEntry(
     case "pact_seat_status_changed":
     case "watcher_assignment_changed":
     case "setup_month_changed":
-    case "setup_orrery_position_changed": {
+    case "setup_orrery_position_changed":
+    case "begin_play": {
       return {
         id,
         revision,

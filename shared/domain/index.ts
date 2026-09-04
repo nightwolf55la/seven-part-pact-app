@@ -66,6 +66,8 @@ export type {
   WatcherAssignmentChangedEventV1,
   SetupMonthChangedEventV1,
   SetupOrreryPositionChangedEventV1,
+  BeginPlayDataV1,
+  BeginPlayEventV1,
   CampaignEvent,
 } from "./events";
 
@@ -168,6 +170,7 @@ export {
   setWatcherFingerprint,
   setSetupMonthFingerprint,
   setSetupOrreryPositionFingerprint,
+  beginPlayFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
@@ -400,3 +403,8 @@ export type {
   AgeSetupResult,
 } from "./age-setup";
 export { evaluateAgeSetup } from "./age-setup";
+
+// --- Begin Play ---
+
+export type { WizardInitIds, BeginPlayInput } from "./begin-play";
+export { applyBeginPlay } from "./begin-play";

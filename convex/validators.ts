@@ -187,6 +187,16 @@ export const setupOrreryPositionChangedEventV1Validator = v.object({
   }),
 });
 
+export const beginPlayEventV1Validator = v.object({
+  type: v.literal("begin_play"),
+  version: v.literal(1),
+  data: v.object({
+    fromMonthOrdinal: v.number(),
+    toMonthOrdinal: v.number(),
+    eligibleWizardIds: v.array(v.string()),
+  }),
+});
+
 export const campaignEventValidator = v.union(
   monthChangedEventV1Validator,
   undoAppliedEventV1Validator,
@@ -206,6 +216,7 @@ export const campaignEventValidator = v.union(
   watcherAssignmentChangedEventV1Validator,
   setupMonthChangedEventV1Validator,
   setupOrreryPositionChangedEventV1Validator,
+  beginPlayEventV1Validator,
 );
 
 // --- V3 Campaign State Validators ---

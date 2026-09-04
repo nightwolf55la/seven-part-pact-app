@@ -218,6 +218,20 @@ export interface SetupOrreryPositionChangedEventV1 {
   readonly data: SetupOrreryPositionChangedDataV1;
 }
 
+// --- M4: Begin Play event ---
+
+export interface BeginPlayDataV1 {
+  readonly fromMonthOrdinal: MonthOrdinal;
+  readonly toMonthOrdinal: MonthOrdinal;
+  readonly eligibleWizardIds: readonly string[];
+}
+
+export interface BeginPlayEventV1 {
+  readonly type: "begin_play";
+  readonly version: 1;
+  readonly data: BeginPlayDataV1;
+}
+
 export type CampaignEvent =
   | MonthChangedEventV1
   | UndoAppliedEventV1
@@ -236,4 +250,5 @@ export type CampaignEvent =
   | PactSeatStatusChangedEventV1
   | WatcherAssignmentChangedEventV1
   | SetupMonthChangedEventV1
-  | SetupOrreryPositionChangedEventV1;
+  | SetupOrreryPositionChangedEventV1
+  | BeginPlayEventV1;

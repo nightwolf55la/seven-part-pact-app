@@ -18,6 +18,7 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "set_watcher",
   "set_setup_month",
   "set_setup_orrery_position",
+  "begin_play",
 ] as const;
 
 export type CampaignCommandType = (typeof CAMPAIGN_COMMAND_TYPES)[number];
@@ -41,6 +42,7 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "set_watcher":
     case "set_setup_month":
     case "set_setup_orrery_position":
+    case "begin_play":
       return true;
     case "undo":
     case "redo":

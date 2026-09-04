@@ -126,6 +126,15 @@ export function setSetupOrreryPositionFingerprint(planetId: string, positionInde
   return `set_setup_orrery_position:v1:${planetId}:${positionIndex ?? "null"}`;
 }
 
+// --- M4 Begin Play fingerprint ---
+
+export function beginPlayFingerprint(expectedRevision: number): string {
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+    throw new Error(`beginPlayFingerprint requires a non-negative safe integer, got ${expectedRevision}`);
+  }
+  return `begin_play:v1:expectedRevision=${expectedRevision}`;
+}
+
 /**
  * Pure deterministic idempotency match for command replay.
  * Given a previously committed command record and an incoming attempt,

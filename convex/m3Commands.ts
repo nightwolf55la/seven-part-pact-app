@@ -33,8 +33,13 @@ import {
   applySetSetupOrreryPosition,
   isValidPlayerId,
   isValidWizardId,
+  isValidAllocationId,
+  isValidEngagementId,
+  beginPlayFingerprint,
 } from "../shared/domain";
-import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, MonthOrdinal, MovablePlanetId } from "../shared/domain";
+import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId } from "../shared/domain";
+import { applyBeginPlay } from "../shared/domain/begin-play";
+import type { WizardInitIds } from "../shared/domain/begin-play";
 import type { PactSeatId } from "../shared/domain/pact-seats";
 import { isValidPactSeatId } from "../shared/domain/pact-seats";
 import type { AgeDefinitionId } from "../shared/domain/ages";
@@ -453,6 +458,71 @@ export const setSetupOrreryPosition = mutation({
       args.positionIndex,
     );
     const receipt = await commitM3Command(ctx, args.commandId, "set_setup_orrery_position", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+// ============================================================
+// M4: Begin Play
+// ============================================================
+
+const wizardInitValidator = v.object({
+  wizardId: v.string(),
+  allocationIds: v.array(v.string()),
+  engagementId: v.string(),
+});
+
+export const beginPlay = mutation({
+  args: {
+    commandId: v.string(),
+    expectedRevision: v.number(),
+    wizardInits: v.array(wizardInitValidator),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+
+    if (!Number.isSafeInteger(args.expectedRevision) || args.expectedRevision < 0) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid expectedRevision: ${args.expectedRevision}`);
+    }
+
+    const fingerprint = beginPlayFingerprint(args.expectedRevision);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "begin_play", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+
+    if (campaign.currentRevision !== args.expectedRevision) {
+      throw new DomainError(
+        "STALE_CAMPAIGN_REVISION",
+        `Expected revision ${args.expectedRevision} but current is ${campaign.currentRevision}`,
+      );
+    }
+
+    const wizardInits: WizardInitIds[] = args.wizardInits.map((wi) => {
+      if (!isValidWizardId(wi.wizardId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${wi.wizardId}`);
+      }
+      if (wi.allocationIds.length !== 4) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Expected 4 allocationIds for wizard ${wi.wizardId}, got ${wi.allocationIds.length}`);
+      }
+      for (const aid of wi.allocationIds) {
+        if (!isValidAllocationId(aid)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid allocationId: ${aid}`);
+        }
+      }
+      if (!isValidEngagementId(wi.engagementId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid engagementId: ${wi.engagementId}`);
+      }
+      return {
+        wizardId: wi.wizardId as WizardId,
+        allocationIds: wi.allocationIds as unknown as [AllocationId, AllocationId, AllocationId, AllocationId],
+        engagementId: wi.engagementId as EngagementId,
+      };
+    });
+
+    const result = applyBeginPlay(campaign.currentState, { wizardInits });
+    const receipt = await commitM3Command(ctx, args.commandId, "begin_play", fingerprint, campaign, result);
     return { revision: receipt.newRevision };
   },
 });
