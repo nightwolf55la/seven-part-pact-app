@@ -77,6 +77,7 @@ export default function PhaseAdvanceAction({
         } else {
           setError(message);
         }
+        setWarnings(null);
         setCommandId(null);
       } finally {
         setPending(false);
