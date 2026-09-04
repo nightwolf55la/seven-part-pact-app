@@ -1,5 +1,6 @@
 import type { Brand } from "./brand";
 import type { MonthOrdinal } from "./calendar";
+import { monthOfYearIndexFromOrdinal } from "./calendar";
 
 export type CentidegreePosition = Brand<number, "CentidegreePosition">;
 
@@ -87,7 +88,7 @@ export function houseIndexFromCentidegrees(position: number): HouseIndex {
 }
 
 export function sunPositionFromMonthOrdinal(monthOrdinal: MonthOrdinal): CentidegreePosition {
-  const index = (((monthOrdinal + 11) % HOUSE_COUNT) + HOUSE_COUNT) % HOUSE_COUNT;
+  const index = monthOfYearIndexFromOrdinal(monthOrdinal);
   return (index * HOUSE_WIDTH_CENTIDEGREES) as CentidegreePosition;
 }
 

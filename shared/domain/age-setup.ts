@@ -1,5 +1,6 @@
 import type { AgeDefinitionId } from "./ages";
-import type { MonthOrdinal } from "./calendar";
+import type { MonthOrdinal, MonthId } from "./calendar";
+import { monthIdFromOrdinal } from "./calendar";
 import type { SetupOrreryState, MovablePlanetId, CentidegreePosition } from "./orrery";
 import { MOVABLE_PLANET_IDS, legalPositionsForPlanet, isLegalPosition } from "./orrery";
 
@@ -18,7 +19,7 @@ export type AgeSetupResult =
   | { readonly valid: true }
   | { readonly valid: false; readonly issues: readonly AgeSetupIssue[] };
 
-const AWAKENING_MONTH = 0 as MonthOrdinal;
+const AWAKENING_REQUIRED_MONTH_ID: MonthId = "march";
 
 const AWAKENING_POSITION_INDICES: Record<MovablePlanetId, number> = {
   saturn: 16,
@@ -28,7 +29,7 @@ const AWAKENING_POSITION_INDICES: Record<MovablePlanetId, number> = {
   mercury: 17,
 };
 
-const CALAMITY_MONTH = 9 as MonthOrdinal;
+const CALAMITY_REQUIRED_MONTH_ID: MonthId = "december";
 
 const CALAMITY_POSITION_INDICES: Record<MovablePlanetId, number> = {
   saturn: 31,
@@ -38,7 +39,7 @@ const CALAMITY_POSITION_INDICES: Record<MovablePlanetId, number> = {
   mercury: 20,
 };
 
-const DOMINION_VALID_MONTHS: readonly number[] = [0, 3, 6, 9];
+const DOMINION_VALID_MONTH_IDS: readonly MonthId[] = ["march", "june", "september", "december"];
 
 function presetPositions(indices: Record<MovablePlanetId, number>): Record<MovablePlanetId, CentidegreePosition> {
   const result = {} as Record<MovablePlanetId, CentidegreePosition>;
@@ -59,10 +60,11 @@ export function evaluateAgeSetup(
   const issues: AgeSetupIssue[] = [];
 
   if (ageId === "awakening") {
-    if (monthOrdinal !== AWAKENING_MONTH) {
+    const derivedMonthId = monthIdFromOrdinal(monthOrdinal);
+    if (derivedMonthId !== AWAKENING_REQUIRED_MONTH_ID) {
       issues.push({
         code: "AGE_MONTH_MISMATCH",
-        message: `Age of Awakening requires starting month March (ordinal 0), got ordinal ${monthOrdinal}`,
+        message: `Age of Awakening requires starting month March, got ${derivedMonthId} (ordinal ${monthOrdinal})`,
       });
     }
     for (const planetId of MOVABLE_PLANET_IDS) {
@@ -76,10 +78,11 @@ export function evaluateAgeSetup(
       }
     }
   } else if (ageId === "dominion") {
-    if (!DOMINION_VALID_MONTHS.includes(monthOrdinal)) {
+    const derivedMonthId = monthIdFromOrdinal(monthOrdinal);
+    if (!DOMINION_VALID_MONTH_IDS.includes(derivedMonthId)) {
       issues.push({
         code: "AGE_MONTH_MISMATCH",
-        message: `Age of Dominion requires a season-starting month (ordinal 0, 3, 6, or 9), got ordinal ${monthOrdinal}`,
+        message: `Age of Dominion requires a season-starting month (March, June, September, or December), got ${derivedMonthId} (ordinal ${monthOrdinal})`,
       });
     }
     for (const planetId of MOVABLE_PLANET_IDS) {
@@ -93,10 +96,11 @@ export function evaluateAgeSetup(
       }
     }
   } else if (ageId === "calamity") {
-    if (monthOrdinal !== CALAMITY_MONTH) {
+    const derivedMonthId = monthIdFromOrdinal(monthOrdinal);
+    if (derivedMonthId !== CALAMITY_REQUIRED_MONTH_ID) {
       issues.push({
         code: "AGE_MONTH_MISMATCH",
-        message: `Age of Calamity requires starting month December (ordinal 9), got ordinal ${monthOrdinal}`,
+        message: `Age of Calamity requires starting month December, got ${derivedMonthId} (ordinal ${monthOrdinal})`,
       });
     }
     for (const planetId of MOVABLE_PLANET_IDS) {

@@ -29,6 +29,8 @@ import {
   asCentidegreePosition,
   isLegalPosition,
   movePlanetByArc,
+  monthIdFromOrdinal,
+  sunHouse,
 } from "../shared/domain";
 import type {
   CurrentCampaignState,
@@ -40,6 +42,7 @@ import type {
   MonthOrdinal,
   LunarPhase,
   TransitionResult,
+  WizardmootHistoryEntry,
 } from "../shared/domain";
 import type { PactSeatId } from "../shared/domain/pact-seats";
 
@@ -94,7 +97,7 @@ function buildReadyState(): CurrentCampaignState {
   }
   state = applySetCampaignAge(state, "awakening").nextState;
   state = applySetFacilitator(state, P1).nextState;
-  state = applySetSetupMonth(state, 0 as MonthOrdinal).nextState;
+  state = applySetSetupMonth(state, 11 as MonthOrdinal).nextState;
   for (const planetId of MOVABLE_PLANET_IDS) {
     state = applySetSetupOrreryPosition(state, planetId, AWAKENING_INDICES[planetId]).nextState;
   }
@@ -113,7 +116,7 @@ function buildReadyState(): CurrentCampaignState {
 }
 
 const PRESENT_WIZARD_IDS: WizardId[] = Array.from({ length: 6 }, (_, i) => wizId(i + 1));
-const MONTH = 1 as MonthOrdinal;
+const MONTH = 12 as MonthOrdinal;
 const WIZARD_INITS = makeWizardInits(PRESENT_WIZARD_IDS);
 
 function buildPlayState(): CurrentCampaignState {
@@ -618,5 +621,76 @@ describe("C5B month_begun event", () => {
     expect(evt.data.toMonthOrdinal).toBe(MONTH + 1);
     expect(evt.data.acknowledgedWarningKeys).toEqual([]);
     expect(evt.data.eligibleWizardIds.length).toBe(6);
+  });
+});
+
+// ============================================================
+// 11. ANNUAL WIZARDMOOT HISTORY REGRESSION
+// ============================================================
+
+describe("C5B annual wizardmoot history regression", () => {
+  it("archives absolute monthOrdinal 12 alongside pre-existing 0, both distinct", () => {
+    const quiet = buildQuietState();
+    if (quiet.lifecycle.kind !== "play") throw new Error("unreachable");
+
+    // Inject a pre-existing history entry for absolute monthOrdinal 0.
+    const priorEntry: WizardmootHistoryEntry = {
+      monthOrdinal: 0 as MonthOrdinal,
+      attendance: PRESENT_WIZARD_IDS.map((wid) => ({
+        wizardId: wid,
+        attended: true,
+        exceptionReason: null,
+      })),
+    };
+    const quietWithHistory: CurrentCampaignState = {
+      ...quiet,
+      wizardmootHistory: [priorEntry],
+    };
+
+    const r = applyBeginNextMonth(quietWithHistory, { expectedMonthOrdinal: MONTH }, NEXT_MONTH_INITS);
+    if (r.outcome !== "applied") throw new Error("expected applied");
+    const next = r.nextState;
+
+    // History contains BOTH absolute 0 and 12.
+    const ordinals = next.wizardmootHistory.map((h) => h.monthOrdinal);
+    expect(ordinals).toContain(0);
+    expect(ordinals).toContain(12);
+    expect(next.wizardmootHistory.length).toBe(2);
+
+    // The two entries remain distinct.
+    expect(next.wizardmootHistory[0].monthOrdinal).not.toBe(next.wizardmootHistory[1].monthOrdinal);
+
+    // monthIdFromOrdinal(0) === monthIdFromOrdinal(12) === "april" — same cyclic month.
+    expect(monthIdFromOrdinal(0)).toBe("april");
+    expect(monthIdFromOrdinal(12)).toBe("april");
+
+    // sunHouse(0) === sunHouse(12) === 0 (Aries/House 0).
+    expect(sunHouse(0 as MonthOrdinal)).toBe(0);
+    expect(sunHouse(12 as MonthOrdinal)).toBe(0);
+
+    // Resulting state validates.
+    expect(() => validateCampaignState(next)).not.toThrow();
+  });
+
+  it("rejects out-of-order wizardmoot history (descending)", () => {
+    const quiet = buildQuietState();
+    if (quiet.lifecycle.kind !== "play") throw new Error("unreachable");
+
+    const badHistory: WizardmootHistoryEntry[] = [
+      {
+        monthOrdinal: 5 as MonthOrdinal,
+        attendance: [],
+      },
+      {
+        monthOrdinal: 3 as MonthOrdinal,
+        attendance: [],
+      },
+    ];
+    const bad: CurrentCampaignState = {
+      ...quiet,
+      wizardmootHistory: badHistory as any,
+    };
+
+    expect(() => validateCampaignState(bad)).toThrow(DomainError);
   });
 });

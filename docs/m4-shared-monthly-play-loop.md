@@ -324,15 +324,26 @@ implementation semantics are determined at implementation time.
   planet-specific Arc sizes.
 
 `[INFERENCE]` 0 degrees is the Pisces/Aries boundary. Aries occupies `[0°,30°)`,
-Taurus `[30°,60°)`, ..., Pisces `[330°,360°)`. Month ordinal is chronology, not
-angular index: monthOrdinal 0 = March -> Pisces -> 33000 centidegrees (House 11).
-The equivalent house mapping is `(monthOrdinal + 11) % 12`.
+Taurus `[30°,60°)`, ..., Pisces `[330°,360°)`. Month ordinal is absolute
+campaign chronology, not angular index: monthOrdinal 0 -> April -> Aries ->
+0 centidegrees (House 0); monthOrdinal 11 -> March -> Pisces -> 33000
+(House 11); monthOrdinal 12 -> April -> Aries -> 0 (House 0). The canonical
+house mapping is `monthOfYearIndexFromOrdinal(monthOrdinal)`.
 
 `[APPLICATION DESIGN]`
+- monthOrdinal is absolute campaign chronology; it does NOT wrap at 12.
+- 0 -> April, 11 -> March, 12 -> April.
+- month-of-year index, month ID/name, season, and Sun position all derive
+  from the single canonical helper `monthOfYearIndexFromOrdinal`.
 - Sun is NOT independent persisted state. Sun/current House derives solely
   from `calendar.monthOrdinal`.
 - Persist only the start position of each movable planetary Arc.
 - House membership and conjunctions are derived, not persisted.
+- Wizardmoot history stores absolute monthOrdinal values that remain
+  globally unique and strictly increasing. 0 and 12 are distinct history
+  keys even though both derive to April/Aries.
+- Age setup checks named cyclic month semantics (via `monthIdFromOrdinal`)
+  against the absolute ordinal, not magic absolute ordinal constants.
 
 `[INFERENCE]` Conjunction means bodies share at least one occupied House. Arc
 and House overlap uses half-open intervals `[start, end)`: touching the next
@@ -399,7 +410,9 @@ invent the missing option.
 | Venus | 14 | 21000 |
 | Mercury | 17 | 25500 |
 
-Starting month: monthOrdinal 0 (March). Sun derives to Pisces (33000, House 11).
+Starting month: March. A canonical first-cycle nonnegative setup
+representative is monthOrdinal 11 (derives to March). Sun derives to Pisces
+(33000, House 11). Begin Play advances to monthOrdinal 12 (April/Aries).
 
 **Dominion:**
 `[SOURCE]` A ceremonial placement sequence exists. The source permits placing
@@ -409,9 +422,11 @@ as normal placement on that planet's legal printed track positions rather
 than arbitrary angle selection.
 `[APPLICATION DESIGN]` The app records the final resulting setup Orrery. Do
 not build a multiplayer setup turn engine. Normal placement uses the printed
-legal track positions. Valid final pre-advance months: 0, 3, 6, 9
-(March, June, September, December). Each planet may be at any legal printed
-setup position.
+legal track positions. Valid pre-advance months are those whose derived
+monthId is March, June, September, or December (the month preceding each
+season). Canonical first-cycle nonnegative setup representatives: 11 (March),
+2 (June), 5 (September), 8 (December). Each planet may be at any legal
+printed setup position.
 
 **Calamity:**
 `[SOURCE]` Uses a fixed starting Orrery arrangement.
@@ -424,8 +439,9 @@ setup position.
 | Venus | 4 | 6000 |
 | Mercury | 20 | 30000 |
 
-Starting month: monthOrdinal 9 (December). Sun derives to Sagittarius
-(24000, House 8).
+Starting month: December. A canonical first-cycle nonnegative setup
+representative is monthOrdinal 8 (derives to December). Sun derives to
+Sagittarius (24000, House 8).
 
 `[APPLICATION DESIGN]` Setup contains the pre-Begin-Play Orrery for every
 supported Age. Begin Play performs one normal month advance from whatever the

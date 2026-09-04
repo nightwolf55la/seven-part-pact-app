@@ -91,14 +91,20 @@ function withMonth(state: CurrentCampaignState, monthOrdinal: number): CurrentCa
 }
 
 describe("C1D: age-specific setup readiness", () => {
-  it("valid Awakening arrangement passes", () => {
-    const state = buildReadyState("awakening", 0, AWAKENING_INDICES);
+  it("valid Awakening arrangement passes (canonical ordinal 11 -> March)", () => {
+    const state = buildReadyState("awakening", 11, AWAKENING_INDICES);
     const result = evaluateSetupReadiness(state);
     expect(result).toEqual({ ready: true });
   });
 
-  it("Awakening wrong month fails", () => {
-    const state = withMonth(buildReadyState("awakening", 0, AWAKENING_INDICES), 1);
+  it("Awakening later-cycle March ordinal 23 also passes", () => {
+    const state = buildReadyState("awakening", 23, AWAKENING_INDICES);
+    const result = evaluateSetupReadiness(state);
+    expect(result).toEqual({ ready: true });
+  });
+
+  it("Awakening wrong derived month fails", () => {
+    const state = withMonth(buildReadyState("awakening", 11, AWAKENING_INDICES), 0);
     const result = evaluateSetupReadiness(state);
     expect(result.ready).toBe(false);
     if (!result.ready) {
@@ -107,7 +113,7 @@ describe("C1D: age-specific setup readiness", () => {
   });
 
   it("Awakening wrong planet position fails", () => {
-    const state = withOrreryPosition(buildReadyState("awakening", 0, AWAKENING_INDICES), "saturn", 0);
+    const state = withOrreryPosition(buildReadyState("awakening", 11, AWAKENING_INDICES), "saturn", 0);
     const result = evaluateSetupReadiness(state);
     expect(result.ready).toBe(false);
     if (!result.ready) {
@@ -115,7 +121,7 @@ describe("C1D: age-specific setup readiness", () => {
     }
   });
 
-  it.each([0, 3, 6, 9])("Dominion valid starting month %d passes with legal positions", (month) => {
+  it.each([11, 2, 5, 8])("Dominion valid starting month %d passes with legal positions", (month) => {
     const indices: Record<MovablePlanetId, number> = {
       saturn: 0,
       jupiter: 1,
@@ -152,13 +158,13 @@ describe("C1D: age-specific setup readiness", () => {
       venus: 3,
       mercury: 8,
     };
-    const state = buildReadyState("dominion", 3, indices);
+    const state = buildReadyState("dominion", 2, indices);
     const result = evaluateSetupReadiness(state);
     expect(result).toEqual({ ready: true });
   });
 
   it("Dominion off-grid position rejected", () => {
-    const state = buildReadyState("dominion", 0, {
+    const state = buildReadyState("dominion", 11, {
       saturn: 0,
       jupiter: 0,
       mars: 0,
@@ -181,14 +187,14 @@ describe("C1D: age-specific setup readiness", () => {
     void offGridPos;
   });
 
-  it("valid Calamity arrangement passes", () => {
-    const state = buildReadyState("calamity", 9, CALAMITY_INDICES);
+  it("valid Calamity arrangement passes (canonical ordinal 8 -> December)", () => {
+    const state = buildReadyState("calamity", 8, CALAMITY_INDICES);
     const result = evaluateSetupReadiness(state);
     expect(result).toEqual({ ready: true });
   });
 
   it("Calamity wrong month fails", () => {
-    const state = withMonth(buildReadyState("calamity", 9, CALAMITY_INDICES), 0);
+    const state = withMonth(buildReadyState("calamity", 8, CALAMITY_INDICES), 0);
     const result = evaluateSetupReadiness(state);
     expect(result.ready).toBe(false);
     if (!result.ready) {
@@ -197,7 +203,7 @@ describe("C1D: age-specific setup readiness", () => {
   });
 
   it("Calamity wrong planet position fails", () => {
-    const state = withOrreryPosition(buildReadyState("calamity", 9, CALAMITY_INDICES), "jupiter", 0);
+    const state = withOrreryPosition(buildReadyState("calamity", 8, CALAMITY_INDICES), "jupiter", 0);
     const result = evaluateSetupReadiness(state);
     expect(result.ready).toBe(false);
     if (!result.ready) {
@@ -206,7 +212,7 @@ describe("C1D: age-specific setup readiness", () => {
   });
 
   it("Calamity does not enforce player-count restriction", () => {
-    const state = buildReadyState("calamity", 9, CALAMITY_INDICES);
+    const state = buildReadyState("calamity", 8, CALAMITY_INDICES);
     const result = evaluateSetupReadiness(state);
     expect(result).toEqual({ ready: true });
   });

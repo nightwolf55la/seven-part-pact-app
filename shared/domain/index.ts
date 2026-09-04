@@ -25,15 +25,19 @@ export type {
   MonthId,
   MonthDirection,
   MonthDisplayName,
+  MonthOfYearIndex,
+  SeasonId,
 } from "./calendar";
 export {
   MONTH_IDS,
   MONTH_DISPLAY_NAMES,
   MONTH_COUNT,
   INITIAL_MONTH_ORDINAL,
+  monthOfYearIndexFromOrdinal,
   monthIdFromOrdinal,
   displayNameFromMonthId,
   displayNameFromOrdinal,
+  seasonIdFromOrdinal,
   advanceOrdinal,
 } from "./calendar";
 

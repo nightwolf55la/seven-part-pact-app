@@ -93,7 +93,7 @@ function buildReadyState(): CurrentCampaignState {
   }
   state = applySetCampaignAge(state, "awakening").nextState;
   state = applySetFacilitator(state, P1).nextState;
-  state = applySetSetupMonth(state, 0 as MonthOrdinal).nextState;
+  state = applySetSetupMonth(state, 11 as MonthOrdinal).nextState;
   for (const planetId of MOVABLE_PLANET_IDS) {
     state = applySetSetupOrreryPosition(state, planetId, AWAKENING_INDICES[planetId]).nextState;
   }
@@ -112,7 +112,7 @@ function buildReadyState(): CurrentCampaignState {
 }
 
 const PRESENT_WIZARD_IDS: WizardId[] = Array.from({ length: 6 }, (_, i) => wizId(i + 1));
-const MONTH = 1 as MonthOrdinal;
+const MONTH = 12 as MonthOrdinal;
 const WIZARD_INITS = makeWizardInits(PRESENT_WIZARD_IDS);
 
 function buildPlayState(): CurrentCampaignState {

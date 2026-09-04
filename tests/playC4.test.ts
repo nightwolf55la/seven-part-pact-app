@@ -134,10 +134,10 @@ function buildReadyState(
 
 const PRESENT_WIZARD_IDS: WizardId[] = Array.from({ length: 6 }, (_, i) => wizId(i + 1));
 
-const MONTH = 1 as MonthOrdinal;
+const MONTH = 12 as MonthOrdinal;
 
 function buildPlayState(): CurrentCampaignState {
-  const setup = buildReadyState("awakening", 0, AWAKENING_INDICES);
+  const setup = buildReadyState("awakening", 11, AWAKENING_INDICES);
   const inits = makeWizardInits(PRESENT_WIZARD_IDS);
   return applyBeginPlay(setup, { wizardInits: inits }).nextState;
 }

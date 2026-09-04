@@ -39,7 +39,7 @@ function buildReadyState(): CurrentCampaignState {
 
   state = applySetCampaignAge(state, "awakening").nextState;
   state = applySetFacilitator(state, P1).nextState;
-  state = applySetSetupMonth(state, 0 as MonthOrdinal).nextState;
+  state = applySetSetupMonth(state, 11 as MonthOrdinal).nextState;
 
   const awakeningIndices: Record<string, number> = {
     saturn: 16,

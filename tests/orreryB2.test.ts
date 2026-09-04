@@ -103,24 +103,24 @@ describe("Half-open house occupancy", () => {
 // --- 3. SUN ---
 
 describe("Sun", () => {
-  // Corrected mapping: monthOrdinal is chronology, not angular index.
-  // monthOrdinal 0 = March -> Pisces -> 33000 / House 11
-  // monthOrdinal 1 = April -> Aries -> 0 / House 0
-  // Equivalent house: (monthOrdinal + 11) % 12
+  // Canonical mapping: monthOrdinal is absolute chronology.
+  // monthOrdinal 0 -> April -> Aries -> 0 / House 0
+  // monthOrdinal 11 -> March -> Pisces -> 33000 / House 11
+  // monthOrdinal 12 -> April -> Aries -> 0 / House 0
 
   it.each([
-    [0, 33000, 11],   // March -> Pisces
-    [1, 0, 0],        // April -> Aries
-    [2, 3000, 1],     // May -> Taurus
-    [3, 6000, 2],     // June -> Gemini
-    [4, 9000, 3],     // July -> Cancer
-    [5, 12000, 4],    // August -> Leo
-    [6, 15000, 5],    // September -> Virgo
-    [7, 18000, 6],    // October -> Libra
-    [8, 21000, 7],    // November -> Scorpio
-    [9, 24000, 8],    // December -> Sagittarius
-    [10, 27000, 9],   // January -> Capricorn
-    [11, 30000, 10],  // February -> Aquarius
+    [0, 0, 0],       // April -> Aries
+    [1, 3000, 1],    // May -> Taurus
+    [2, 6000, 2],    // June -> Gemini
+    [3, 9000, 3],    // July -> Cancer
+    [4, 12000, 4],   // August -> Leo
+    [5, 15000, 5],   // September -> Virgo
+    [6, 18000, 6],   // October -> Libra
+    [7, 21000, 7],   // November -> Scorpio
+    [8, 24000, 8],   // December -> Sagittarius
+    [9, 27000, 9],   // January -> Capricorn
+    [10, 30000, 10], // February -> Aquarius
+    [11, 33000, 11], // March -> Pisces
   ] as const)("monthOrdinal %i derives Sun at %i / House %i", (month, pos, house) => {
     expect(sunPositionFromMonthOrdinal(asMonth(month))).toBe(pos);
     expect(sunHouse(asMonth(month))).toBe(house);
@@ -131,14 +131,14 @@ describe("Sun", () => {
       const pos = sunPositionFromMonthOrdinal(asMonth(m));
       const houses = housesOccupiedByArc(pos, HOUSE_WIDTH_CENTIDEGREES);
       expect(houses.length).toBe(1);
-      expect(houses[0]).toBe((m + 11) % 12);
+      expect(houses[0]).toBe(m);
     }
   });
 
   it("monthOrdinal wraps modulo 12", () => {
-    expect(sunHouse(asMonth(12))).toBe(11);
-    expect(sunHouse(asMonth(13))).toBe(0);
-    expect(sunHouse(asMonth(-1))).toBe(10);
+    expect(sunHouse(asMonth(12))).toBe(0);
+    expect(sunHouse(asMonth(13))).toBe(1);
+    expect(sunHouse(asMonth(-1))).toBe(11);
   });
 });
 
@@ -146,22 +146,22 @@ describe("Sun", () => {
 
 describe("Conjunctions include Sun", () => {
   it("conjunction when a movable planet shares the Sun's House", () => {
-    // Sun at month 0 is at position 33000, House 11 (Pisces).
-    // Put Saturn at 33500 (arc 1000 → spans 33500..34500, occupies Houses 11 and 0).
+    // Sun at month 0 is at position 0, House 0 (Aries).
+    // Put Saturn at 500 (arc 1000 -> spans 500..1500, occupies Houses 0 and 1).
     const positions = {
-      saturn: asPos(33500),
-      jupiter: asPos(33000),
-      mars: asPos(33000),
-      venus: asPos(33000),
-      mercury: asPos(33000),
+      saturn: asPos(500),
+      jupiter: asPos(0),
+      mars: asPos(0),
+      venus: asPos(0),
+      mercury: asPos(0),
     };
     const occupancies = computeAllOccupancies(positions, asMonth(0));
     const sunOcc = occupancies.find((o) => o.bodyId === "sun");
     expect(sunOcc).toBeDefined();
-    expect(sunOcc!.houses).toContain(11);
+    expect(sunOcc!.houses).toContain(0);
 
     const conjunctions = computeConjunctions(occupancies);
-    // Sun shares House 11 with Saturn, Jupiter, Mars, Venus, Mercury
+    // Sun shares House 0 with Saturn, Jupiter, Mars, Venus, Mercury
     const sunConjunctions = conjunctions.filter(
       (c) => c.bodyA === "sun" || c.bodyB === "sun",
     );
@@ -169,7 +169,7 @@ describe("Conjunctions include Sun", () => {
   });
 
   it("no conjunction when no movable planet shares the Sun's House", () => {
-    // Sun at month 0 → House 11 (position 33000, arc [33000, 36000)).
+    // Sun at month 0 -> House 0 (position 0, arc [0, 3000)).
     // Put all planets far away in House 5 (position 15000+).
     const positions = {
       saturn: asPos(15500),
@@ -315,10 +315,10 @@ describe("Legal setup positions", () => {
 // --- 7. RULEBOOK SAMPLE ORRERY REGRESSION ---
 
 describe("Rulebook Sample Orrery", () => {
-  // monthOrdinal 0 -> Sun in Pisces (House 11)
+  // monthOrdinal 11 -> March -> Sun in Pisces (House 11)
   // Representative fixture positions reproducing the sidebar's stated
   // House memberships and conjunctions. NOT Awakening coordinates.
-  const month = asMonth(0);
+  const month = asMonth(11);
   const positions: Record<MovablePlanetId, CentidegreePosition> = {
     saturn: asPos(16500),
     jupiter: asPos(1500),

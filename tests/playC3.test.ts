@@ -123,10 +123,10 @@ const PRESENT_WIZARD_IDS: WizardId[] = Array.from({ length: 6 }, (_, i) => wizId
 
 // --- Build a Play state at new_moon ---
 
-const MONTH = 1 as MonthOrdinal;
+const MONTH = 12 as MonthOrdinal;
 
 function buildPlayState(): CurrentCampaignState {
-  const setup = buildReadyState("awakening", 0, AWAKENING_INDICES);
+  const setup = buildReadyState("awakening", 11, AWAKENING_INDICES);
   const inits = makeWizardInits(PRESENT_WIZARD_IDS);
   return applyBeginPlay(setup, { wizardInits: inits }).nextState;
 }
@@ -261,7 +261,7 @@ describe("applyAdvancePhase", () => {
     if (evt.type !== "phase_advanced") throw new Error("unreachable");
     expect(evt.data.fromPhase).toBe("new_moon");
     expect(evt.data.toPhase).toBe("visions");
-    expect(evt.data.monthOrdinal).toBe(1);
+    expect(evt.data.monthOrdinal).toBe(MONTH);
   });
 
   it("resulting state passes validateCampaignState", () => {

@@ -570,6 +570,7 @@ function validateWizardmootHistory(
   wizardIds: Set<string>,
 ): void {
   const seenMonths = new Set<number>();
+  let prevMonth: number | null = null;
   for (let i = 0; i < history.length; i++) {
     const entry = history[i];
     const entryPath = `wizardmootHistory[${i}]`;
@@ -584,6 +585,13 @@ function validateWizardmootHistory(
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${entryPath}: duplicate monthOrdinal ${entryObj.monthOrdinal}`);
     }
     seenMonths.add(entryObj.monthOrdinal as number);
+    if (prevMonth !== null && (entryObj.monthOrdinal as number) <= prevMonth) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${entryPath}: monthOrdinal ${entryObj.monthOrdinal} is not strictly greater than previous ${prevMonth}`,
+      );
+    }
+    prevMonth = entryObj.monthOrdinal as number;
     if (!Array.isArray(entryObj.attendance)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${entryPath}.attendance must be an array`);
     }

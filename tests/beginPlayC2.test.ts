@@ -126,7 +126,7 @@ const SILENT_WIZARD_ID = wizId(7);
 
 describe("applyBeginPlay", () => {
   describe("Awakening -> Play/new_moon", () => {
-    const setup = buildReadyState("awakening", 0, AWAKENING_INDICES);
+    const setup = buildReadyState("awakening", 11, AWAKENING_INDICES);
     const inits = makeWizardInits(PRESENT_WIZARD_IDS);
     const result = applyBeginPlay(setup, { wizardInits: inits });
     const next = result.nextState;
@@ -137,9 +137,9 @@ describe("applyBeginPlay", () => {
       expect(next.lifecycle.phase).toBe("new_moon");
     });
 
-    it("advances calendar from March (0) to April (1)", () => {
-      expect(setup.calendar.monthOrdinal).toBe(0);
-      expect(next.calendar.monthOrdinal).toBe(1);
+    it("advances calendar from March (11) to April (12)", () => {
+      expect(setup.calendar.monthOrdinal).toBe(11);
+      expect(next.calendar.monthOrdinal).toBe(12);
     });
 
     it("advances all five planets by exactly one arc", () => {
@@ -221,8 +221,8 @@ describe("applyBeginPlay", () => {
       expect(evt.type).toBe("begin_play");
       expect(evt.version).toBe(1);
       if (evt.type !== "begin_play") throw new Error("unreachable");
-      expect(evt.data.fromMonthOrdinal).toBe(0);
-      expect(evt.data.toMonthOrdinal).toBe(1);
+      expect(evt.data.fromMonthOrdinal).toBe(11);
+      expect(evt.data.toMonthOrdinal).toBe(12);
       expect(evt.data.eligibleWizardIds.length).toBe(PRESENT_WIZARD_IDS.length);
     });
 
@@ -243,14 +243,14 @@ describe("applyBeginPlay", () => {
   });
 
   describe("Calamity -> Play/new_moon", () => {
-    const setup = buildReadyState("calamity", 9, CALAMITY_INDICES);
+    const setup = buildReadyState("calamity", 8, CALAMITY_INDICES);
     const inits = makeWizardInits(PRESENT_WIZARD_IDS);
     const result = applyBeginPlay(setup, { wizardInits: inits });
     const next = result.nextState;
 
-    it("advances calendar from December (9) to January (10)", () => {
-      expect(setup.calendar.monthOrdinal).toBe(9);
-      expect(next.calendar.monthOrdinal).toBe(10);
+    it("advances calendar from December (8) to January (9)", () => {
+      expect(setup.calendar.monthOrdinal).toBe(8);
+      expect(next.calendar.monthOrdinal).toBe(9);
     });
 
     it("advances all five planets by exactly one arc", () => {
@@ -271,14 +271,14 @@ describe("applyBeginPlay", () => {
   // --- Rejection tests ---
 
   it("rejects non-Setup lifecycle", () => {
-    const setup = buildReadyState("awakening", 0, AWAKENING_INDICES);
+    const setup = buildReadyState("awakening", 11, AWAKENING_INDICES);
     const inits = makeWizardInits(PRESENT_WIZARD_IDS);
     const play = applyBeginPlay(setup, { wizardInits: inits }).nextState;
     expect(() => applyBeginPlay(play, { wizardInits: inits })).toThrow(DomainError);
   });
 
   it("rejects non-ready Setup (missing facilitator)", () => {
-    const setup = buildReadyState("awakening", 0, AWAKENING_INDICES);
+    const setup = buildReadyState("awakening", 11, AWAKENING_INDICES);
     const broken: CurrentCampaignState = {
       ...setup,
       configuration: { ...setup.configuration, facilitatorPlayerId: null },
@@ -288,13 +288,13 @@ describe("applyBeginPlay", () => {
   });
 
   it("rejects mismatched wizard init count", () => {
-    const setup = buildReadyState("awakening", 0, AWAKENING_INDICES);
+    const setup = buildReadyState("awakening", 11, AWAKENING_INDICES);
     const inits = makeWizardInits(PRESENT_WIZARD_IDS.slice(0, 2));
     expect(() => applyBeginPlay(setup, { wizardInits: inits })).toThrow(DomainError);
   });
 
   it("rejects duplicate allocation IDs", () => {
-    const setup = buildReadyState("awakening", 0, AWAKENING_INDICES);
+    const setup = buildReadyState("awakening", 11, AWAKENING_INDICES);
     const inits = makeWizardInits(PRESENT_WIZARD_IDS);
     const bad: WizardInitIds[] = inits.map((init, i) => {
       if (i === 1) {
@@ -314,14 +314,14 @@ describe("applyBeginPlay", () => {
   });
 
   it("rejects duplicate wizard IDs in input", () => {
-    const setup = buildReadyState("awakening", 0, AWAKENING_INDICES);
+    const setup = buildReadyState("awakening", 11, AWAKENING_INDICES);
     const inits = makeWizardInits(PRESENT_WIZARD_IDS);
     const dup = [...inits, inits[0]];
     expect(() => applyBeginPlay(setup, { wizardInits: dup })).toThrow(DomainError);
   });
 
   it("rejects fewer than 4 allocation IDs at runtime", () => {
-    const setup = buildReadyState("awakening", 0, AWAKENING_INDICES);
+    const setup = buildReadyState("awakening", 11, AWAKENING_INDICES);
     const inits = makeWizardInits(PRESENT_WIZARD_IDS);
     const bad = inits.map((init, i) => {
       if (i === 0) {
@@ -339,7 +339,7 @@ describe("applyBeginPlay", () => {
   });
 
   it("rejects more than 4 allocation IDs at runtime", () => {
-    const setup = buildReadyState("awakening", 0, AWAKENING_INDICES);
+    const setup = buildReadyState("awakening", 11, AWAKENING_INDICES);
     const inits = makeWizardInits(PRESENT_WIZARD_IDS);
     const bad = inits.map((init, i) => {
       if (i === 0) {
@@ -381,7 +381,7 @@ describe("begin_play command infrastructure", () => {
   });
 
   it("event records eligible wizard IDs and excludes silent", () => {
-    const setup = buildReadyState("awakening", 0, AWAKENING_INDICES);
+    const setup = buildReadyState("awakening", 11, AWAKENING_INDICES);
     const inits = makeWizardInits(PRESENT_WIZARD_IDS);
     const result = applyBeginPlay(setup, { wizardInits: inits });
     const evt = result.events[0];
