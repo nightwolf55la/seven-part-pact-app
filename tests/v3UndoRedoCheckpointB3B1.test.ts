@@ -96,7 +96,7 @@ function v3PlayState(): CurrentCampaignState {
       resolution: "pending",
       linkedTimeAllocationId: ALC,
     }],
-    wizardmootAttendance: [{ wizardId: WIZ, attended: true, exceptionReason: null }],
+    wizardmootAttendance: [{ wizardId: WIZ, attended: false, exceptionReason: null }],
   };
 
   return {
@@ -112,7 +112,7 @@ function v3PlayState(): CurrentCampaignState {
     },
     lifecycle: {
       kind: "play",
-      phase: "story",
+      phase: "meeting",
       orrery: {
         saturn: asCentidegreePosition(500),
         jupiter: asCentidegreePosition(750),
@@ -174,7 +174,7 @@ describe("B3B1: Undo restores complete V3 snapshots", () => {
 
     expect(statesDeepEqual(result.nextState, play)).toBe(true);
     if (result.nextState.lifecycle.kind === "play") {
-      expect(result.nextState.lifecycle.phase).toBe("story");
+      expect(result.nextState.lifecycle.phase).toBe("meeting");
       expect(result.nextState.lifecycle.orrery.saturn).toBe(500);
       expect(result.nextState.lifecycle.currentMonth.timeParticipants.length).toBe(1);
       expect(result.nextState.lifecycle.currentMonth.engagements.length).toBe(1);

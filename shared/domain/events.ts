@@ -371,12 +371,55 @@ export interface EngagementRescheduledEventV1 {
   readonly data: EngagementRescheduledDataV1;
 }
 
-export type CampaignEvent =
+// --- M4 C5A: Phase advancement V2, Wizardmoot, Meeting events ---
+
+export interface PhaseAdvancedDataV2 {
+  readonly monthOrdinal: MonthOrdinal;
+  readonly fromPhase: LunarPhase;
+  readonly toPhase: LunarPhase;
+  readonly acknowledgedWarningKeys: readonly string[];
+}
+
+export interface PhaseAdvancedEventV2 {
+  readonly type: "phase_advanced";
+  readonly version: 2;
+  readonly data: PhaseAdvancedDataV2;
+}
+
+export interface WizardmootAttendanceAdjustedDataV1 {
+  readonly monthOrdinal: MonthOrdinal;
+  readonly wizardId: string;
+  readonly previousAttended: boolean;
+  readonly previousExceptionReason: string | null;
+  readonly newAttended: boolean;
+  readonly newExceptionReason: string | null;
+}
+
+export interface WizardmootAttendanceAdjustedEventV1 {
+  readonly type: "wizardmoot_attendance_adjusted";
+  readonly version: 1;
+  readonly data: WizardmootAttendanceAdjustedDataV1;
+}
+
+export interface MeetingCompletedDataV1 {
+  readonly monthOrdinal: MonthOrdinal;
+  readonly meetingAllocationsSpent: readonly string[];
+}
+
+export interface MeetingCompletedEventV1 {
+  readonly type: "meeting_completed";
+  readonly version: 1;
+  readonly data: MeetingCompletedDataV1;
+}
+
+export type InfrastructureEvent =
   | MonthChangedEventV1
   | UndoAppliedEventV1
   | RedoAppliedEventV1
   | CheckpointRestoredEventV1
-  | BackupImportedEventV1
+  | BackupImportedEventV1;
+
+export type SetupEvent =
   | PlayerAddedEventV1
   | PlayerRenamedEventV1
   | PlayerRemovedEventV1
@@ -390,8 +433,10 @@ export type CampaignEvent =
   | WatcherAssignmentChangedEventV1
   | SetupMonthChangedEventV1
   | SetupOrreryPositionChangedEventV1
-  | BeginPlayEventV1
-  | PhaseAdvancedEventV1
+  | BeginPlayEventV1;
+
+export type PlayEvent =
+  | PhaseAdvancedEvent
   | TimeAllocationScheduledEventV1
   | EngagementTargetChangedEventV1
   | TimeRescheduledEventV1
@@ -400,4 +445,13 @@ export type CampaignEvent =
   | OrreryTimeSpentEventV1
   | EngagementTimeCommittedEventV1
   | EngagementResolvedEventV1
-  | EngagementRescheduledEventV1;
+  | EngagementRescheduledEventV1
+  | WizardmootAttendanceAdjustedEventV1
+  | MeetingCompletedEventV1;
+
+export type CampaignEvent =
+  | InfrastructureEvent
+  | SetupEvent
+  | PlayEvent;
+
+export type PhaseAdvancedEvent = PhaseAdvancedEventV1 | PhaseAdvancedEventV2;

@@ -82,7 +82,7 @@ function richPlayState(): CampaignStateV3 {
       resolution: "pending",
       linkedTimeAllocationId: allocId,
     }],
-    wizardmootAttendance: [{ wizardId, attended: true, exceptionReason: null }],
+    wizardmootAttendance: [{ wizardId, attended: false, exceptionReason: null }],
   };
 
   return {
@@ -98,7 +98,7 @@ function richPlayState(): CampaignStateV3 {
     },
     lifecycle: {
       kind: "play",
-      phase: "story",
+      phase: "meeting",
       orrery: {
         saturn: asCentidegreePosition(500),
         jupiter: asCentidegreePosition(750),
@@ -197,7 +197,7 @@ describe("B3A: V3 Play state serialize/validate roundtrip", () => {
     const parsed = JSON.parse(json);
     expect(parsed.schemaVersion).toBe(3);
     expect(parsed.lifecycle.kind).toBe("play");
-    expect(parsed.lifecycle.phase).toBe("story");
+    expect(parsed.lifecycle.phase).toBe("meeting");
     expect(parsed.lifecycle.orrery.saturn).toBe(500);
     expect(parsed.lifecycle.currentMonth.timeParticipants.length).toBe(1);
     expect(parsed.lifecycle.currentMonth.engagements.length).toBe(1);

@@ -485,9 +485,29 @@ function validateEngagements(
 function validateWizardmootAttendance(
   attendance: unknown[] | null,
   wizardIds: Set<string>,
+  phase: string,
+  timeParticipants: unknown[] | null,
   path: string,
 ): void {
+  const preMeetingPhases = new Set(["new_moon", "visions", "planning", "story"]);
+  const postMeetingPhases = new Set(["meeting", "quiet"]);
+
+  if (preMeetingPhases.has(phase)) {
+    if (attendance !== null) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be null during ${phase} phase`);
+    }
+    return;
+  }
+
+  if (postMeetingPhases.has(phase)) {
+    if (attendance === null) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be initialized during ${phase} phase`);
+    }
+  }
+
   if (attendance === null) return;
+
+  const seenWizardIds = new Set<string>();
   for (let i = 0; i < attendance.length; i++) {
     const entry = attendance[i];
     const entryPath = `${path}[${i}]`;
@@ -501,13 +521,48 @@ function validateWizardmootAttendance(
     if (!wizardIds.has(entryObj.wizardId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${entryPath}.wizardId "${entryObj.wizardId}" does not reference an existing wizard`);
     }
+    if (seenWizardIds.has(entryObj.wizardId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${entryPath}: duplicate wizardId "${entryObj.wizardId}"`);
+    }
+    seenWizardIds.add(entryObj.wizardId);
     if (typeof entryObj.attended !== "boolean") {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${entryPath}.attended must be boolean`);
     }
     if (entryObj.exceptionReason !== null && typeof entryObj.exceptionReason !== "string") {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${entryPath}.exceptionReason must be string or null`);
     }
+
+    if (timeParticipants !== null) {
+      const expectedAttended = deriveExpectedAttendanceFromRaw(entryObj.wizardId as string, timeParticipants);
+      if (entryObj.attended !== expectedAttended) {
+        if (entryObj.exceptionReason === null || (typeof entryObj.exceptionReason === "string" && entryObj.exceptionReason.trim().length === 0)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `${entryPath}: attendance differs from expected (${expectedAttended}) but exceptionReason is blank`);
+        }
+      } else {
+        if (entryObj.exceptionReason !== null) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `${entryPath}: attendance matches expected but exceptionReason is non-null`);
+        }
+      }
+    }
   }
+}
+
+function deriveExpectedAttendanceFromRaw(wizardId: string, timeParticipants: unknown[]): boolean {
+  for (const tp of timeParticipants) {
+    const tpObj = tp as Record<string, unknown>;
+    const pRef = tpObj.participant as Record<string, unknown>;
+    if (pRef.wizardId !== wizardId) continue;
+    const allocations = tpObj.allocations as unknown[];
+    for (const alloc of allocations) {
+      const allocObj = alloc as Record<string, unknown>;
+      if (allocObj.destination !== null && typeof allocObj.destination === "object") {
+        const dest = allocObj.destination as Record<string, unknown>;
+        if (dest.kind === "meeting") return true;
+      }
+    }
+    return false;
+  }
+  return false;
 }
 
 function validateWizardmootHistory(
@@ -613,16 +668,16 @@ function validateLifecycle(
       "currentMonth.engagements",
     );
 
-    if (currentMonth.wizardmootAttendance !== null) {
-      if (!Array.isArray(currentMonth.wizardmootAttendance)) {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", "currentMonth.wizardmootAttendance must be array or null");
-      }
+    if (currentMonth.wizardmootAttendance !== null && !Array.isArray(currentMonth.wizardmootAttendance)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", "currentMonth.wizardmootAttendance must be array or null");
+    }
       validateWizardmootAttendance(
-        currentMonth.wizardmootAttendance as unknown[],
+        currentMonth.wizardmootAttendance as unknown[] | null,
         wizardIds,
+        lifecycle.phase as string,
+        currentMonth.timeParticipants as unknown[],
         "currentMonth.wizardmootAttendance",
       );
-    }
   }
 }
 

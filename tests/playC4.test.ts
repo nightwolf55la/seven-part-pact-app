@@ -51,6 +51,8 @@ import type {
   EngagementRecord,
   OrreryMoveDirection,
   CentidegreePosition,
+  TransitionResult,
+  LunarPhase,
 } from "../shared/domain";
 import type { PactSeatId } from "../shared/domain/pact-seats";
 
@@ -140,16 +142,28 @@ function buildPlayState(): CurrentCampaignState {
   return applyBeginPlay(setup, { wizardInits: inits }).nextState;
 }
 
+function forceAdvancePhase(
+  state: CurrentCampaignState,
+  input: { expectedMonthOrdinal: MonthOrdinal; expectedPhase: LunarPhase },
+): TransitionResult {
+  const r = applyAdvancePhase(state, input);
+  if (r.outcome === "applied") return r;
+  const ackKeys = r.warnings.map((w) => w.key);
+  const r2 = applyAdvancePhase(state, { ...input, acknowledgedWarningKeys: ackKeys });
+  if (r2.outcome === "applied") return r2;
+  throw new Error("Unexpected warnings after acknowledgement");
+}
+
 function buildPlanningState(): CurrentCampaignState {
   const play = buildPlayState();
-  const r1 = applyAdvancePhase(play, { expectedMonthOrdinal: MONTH, expectedPhase: "new_moon" });
-  const r2 = applyAdvancePhase(r1.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "visions" });
+  const r1 = forceAdvancePhase(play, { expectedMonthOrdinal: MONTH, expectedPhase: "new_moon" });
+  const r2 = forceAdvancePhase(r1.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "visions" });
   return r2.nextState;
 }
 
 function buildStoryState(): CurrentCampaignState {
   const planning = buildPlanningState();
-  const r = applyAdvancePhase(planning, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" });
+  const r = forceAdvancePhase(planning, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" });
   return r.nextState;
 }
 
@@ -204,7 +218,7 @@ describe("applySpendManualTime", () => {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
       destination: { kind: "companion", element: "fire" }, note: null,
     });
-    const storyFromScheduled = applyAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
+    const storyFromScheduled = forceAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
 
     const result = applySpendManualTime(storyFromScheduled, {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
@@ -222,7 +236,7 @@ describe("applySpendManualTime", () => {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
       destination: { kind: "meeting" }, note: null,
     });
-    const story = applyAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
+    const story = forceAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
 
     expect(() => applySpendManualTime(story, {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
@@ -236,7 +250,7 @@ describe("applySpendManualTime", () => {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
       destination: { kind: "orrery" }, note: null,
     });
-    const story = applyAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
+    const story = forceAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
 
     expect(() => applySpendManualTime(story, {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
@@ -251,7 +265,7 @@ describe("applySpendManualTime", () => {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
       destination: { kind: "engagement", engagementId: engId }, note: null,
     });
-    const story = applyAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
+    const story = forceAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
 
     expect(() => applySpendManualTime(story, {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
@@ -279,7 +293,7 @@ describe("applyWasteTime", () => {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
       destination: { kind: "domain" }, note: "preserve me",
     });
-    const story = applyAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
+    const story = forceAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
 
     const result = applyWasteTime(story, {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
@@ -298,7 +312,7 @@ describe("applyWasteTime", () => {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
       destination: { kind: "meeting" }, note: null,
     });
-    const story = applyAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
+    const story = forceAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
 
     expect(() => applyWasteTime(story, {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
@@ -326,7 +340,7 @@ describe("applyRescheduleTime", () => {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
       destination: { kind: "meeting" }, note: null,
     });
-    const story = applyAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
+    const story = forceAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
 
     expect(getReschedulesUsed(story, wizId(1))).toBe(0);
 
@@ -347,7 +361,7 @@ describe("applyRescheduleTime", () => {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
       destination: { kind: "meeting" }, note: null,
     });
-    const story = applyAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
+    const story = forceAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
 
     // Use the one allowance
     const r1 = applyRescheduleTime(story, {
@@ -374,7 +388,7 @@ describe("applyRescheduleTime", () => {
     });
     expect(getEngagement(scheduled.nextState, engId)!.linkedTimeAllocationId).toBe(allocId);
 
-    const story = applyAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
+    const story = forceAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
 
     // Reschedule away from engagement to domain
     const result = applyRescheduleTime(story, {
@@ -419,7 +433,7 @@ describe("applySpendOrreryTime", () => {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
       destination: { kind: "orrery" }, note: null,
     });
-    const story = applyAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
+    const story = forceAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
 
     if (story.lifecycle.kind !== "play") throw new Error("unreachable");
     const planetId: MovablePlanetId = "saturn";
@@ -447,7 +461,7 @@ describe("applySpendOrreryTime", () => {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
       destination: { kind: "orrery" }, note: null,
     });
-    const story = applyAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
+    const story = forceAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
 
     if (story.lifecycle.kind !== "play") throw new Error("unreachable");
     const planetId: MovablePlanetId = "saturn";
@@ -494,7 +508,7 @@ describe("applySpendOrreryTime", () => {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
       destination: { kind: "domain" }, note: null,
     });
-    const story = applyAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
+    const story = forceAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
 
     expect(() => applySpendOrreryTime(story, {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
@@ -550,7 +564,7 @@ describe("applyCommitTimeToEngagement", () => {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
       destination: { kind: "meeting" }, note: null,
     });
-    const story = applyAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
+    const story = forceAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
 
     // Consume the one allowance
     const r1 = applyRescheduleTime(story, {
@@ -586,7 +600,7 @@ describe("applyCommitTimeToEngagement", () => {
     expect(getEngagement(scheduled.nextState, engId)!.linkedTimeAllocationId).toBe(allocId);
 
     // Advance to Story
-    const story = applyAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
+    const story = forceAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
 
     expect(getReschedulesUsed(story, wizId(1))).toBe(0);
 
@@ -618,7 +632,7 @@ describe("applyResolveEngagement", () => {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
       destination: { kind: "engagement", engagementId: engId }, note: null,
     });
-    const story = applyAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
+    const story = forceAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
 
     const result = applyResolveEngagement(story, {
       expectedMonthOrdinal: MONTH, engagementId: engId,
@@ -684,7 +698,7 @@ describe("applyRescheduleEngagement", () => {
       expectedMonthOrdinal: MONTH, allocationId: allocId,
       destination: { kind: "engagement", engagementId: engId }, note: null,
     });
-    const story = applyAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
+    const story = forceAdvancePhase(scheduled.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" }).nextState;
 
     expect(getReschedulesUsed(story, wizId(1))).toBe(0);
 

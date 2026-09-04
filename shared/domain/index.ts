@@ -71,8 +71,13 @@ export type {
   BeginPlayDataV1,
   BeginPlayEventV1,
   PhaseAdvancedEventV1,
+  PhaseAdvancedEventV2,
   TimeAllocationScheduledEventV1,
   EngagementTargetChangedEventV1,
+  WizardmootAttendanceAdjustedEventV1,
+  MeetingCompletedEventV1,
+  InfrastructureEvent,
+  PhaseAdvancedEvent,
   CampaignEvent,
 } from "./events";
 
@@ -177,6 +182,7 @@ export {
   setSetupOrreryPositionFingerprint,
   beginPlayFingerprint,
   advancePhaseFingerprint,
+  normalizeWarningKeys,
   scheduleTimeFingerprint,
   setEngagementTargetFingerprint,
   rescheduleTimeFingerprint,
@@ -186,6 +192,8 @@ export {
   commitTimeToEngagementFingerprint,
   resolveEngagementFingerprint,
   rescheduleEngagementFingerprint,
+  adjustWizardmootAttendanceFingerprint,
+  completeMeetingFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
@@ -424,9 +432,9 @@ export { evaluateAgeSetup } from "./age-setup";
 export type { WizardInitIds, BeginPlayInput } from "./begin-play";
 export { applyBeginPlay, collectEligibleWizardIds } from "./begin-play";
 
-// --- Play Transitions (C3) ---
+// --- Play Transitions (C3/C4/C5A) ---
 
-export type { AdvancePhaseInput, ScheduleTimeInput, SetEngagementTargetInput, RescheduleTimeInput, SpendManualTimeInput, WasteTimeInput, SpendOrreryTimeInput, CommitTimeToEngagementInput, ResolveEngagementInput, RescheduleEngagementInput } from "./play-transitions";
+export type { AdvancePhaseInput, AdvancePhaseResult, PhaseTransitionWarning, ScheduleTimeInput, SetEngagementTargetInput, RescheduleTimeInput, SpendManualTimeInput, WasteTimeInput, SpendOrreryTimeInput, CommitTimeToEngagementInput, ResolveEngagementInput, RescheduleEngagementInput, AdjustWizardmootAttendanceInput, CompleteMeetingInput } from "./play-transitions";
 export {
   applyAdvancePhase,
   applyScheduleTime,
@@ -438,4 +446,7 @@ export {
   applyCommitTimeToEngagement,
   applyResolveEngagement,
   applyRescheduleEngagement,
+  applyAdjustWizardmootAttendance,
+  applyCompleteMeeting,
+  computePhaseTransitionWarnings,
 } from "./play-transitions";

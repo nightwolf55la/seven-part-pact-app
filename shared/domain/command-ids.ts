@@ -138,11 +138,19 @@ export function beginPlayFingerprint(expectedRevision: number): string {
 
 // --- M4 C3 Play command fingerprints ---
 
-export function advancePhaseFingerprint(expectedMonthOrdinal: number, expectedPhase: string): string {
+export function normalizeWarningKeys(keys: readonly string[]): readonly string[] {
+  return [...new Set(keys)].sort();
+}
+
+export function advancePhaseFingerprint(expectedMonthOrdinal: number, expectedPhase: string, acknowledgedWarningKeys?: readonly string[]): string {
   if (!Number.isSafeInteger(expectedMonthOrdinal) || expectedMonthOrdinal < 0) {
     throw new Error(`advancePhaseFingerprint requires a non-negative integer expectedMonthOrdinal, got ${expectedMonthOrdinal}`);
   }
-  return `advance_phase:v1:month=${expectedMonthOrdinal}:phase=${expectedPhase}`;
+  const normalized = acknowledgedWarningKeys ? normalizeWarningKeys(acknowledgedWarningKeys) : [];
+  if (normalized.length === 0) {
+    return `advance_phase:v1:month=${expectedMonthOrdinal}:phase=${expectedPhase}`;
+  }
+  return `advance_phase:v2:month=${expectedMonthOrdinal}:phase=${expectedPhase}:ack=${normalized.join(",")}`;
 }
 
 export function scheduleTimeFingerprint(expectedMonthOrdinal: number, allocationId: string, destination: unknown, note: string | null): string {
@@ -206,6 +214,26 @@ export function resolveEngagementFingerprint(expectedMonthOrdinal: number, engag
     throw new Error(`resolveEngagementFingerprint requires a non-negative integer expectedMonthOrdinal, got ${expectedMonthOrdinal}`);
   }
   return `resolve_engagement:v1:month=${expectedMonthOrdinal}:eng=${engagementId}`;
+}
+
+export function adjustWizardmootAttendanceFingerprint(
+  expectedMonthOrdinal: number,
+  wizardId: string,
+  attended: boolean,
+  exceptionReason: string | null,
+): string {
+  if (!Number.isSafeInteger(expectedMonthOrdinal) || expectedMonthOrdinal < 0) {
+    throw new Error(`adjustWizardmootAttendanceFingerprint requires a non-negative integer expectedMonthOrdinal, got ${expectedMonthOrdinal}`);
+  }
+  const reasonCanonical = exceptionReason === null ? "null" : canonicalJsonStringify(exceptionReason);
+  return `adjust_wizardmoot_attendance:v1:month=${expectedMonthOrdinal}:wizard=${wizardId}:attended=${attended}:reason=${reasonCanonical}`;
+}
+
+export function completeMeetingFingerprint(expectedMonthOrdinal: number): string {
+  if (!Number.isSafeInteger(expectedMonthOrdinal) || expectedMonthOrdinal < 0) {
+    throw new Error(`completeMeetingFingerprint requires a non-negative integer expectedMonthOrdinal, got ${expectedMonthOrdinal}`);
+  }
+  return `complete_meeting:v1:month=${expectedMonthOrdinal}`;
 }
 
 export function rescheduleEngagementFingerprint(expectedMonthOrdinal: number, engagementId: string, target: unknown): string {

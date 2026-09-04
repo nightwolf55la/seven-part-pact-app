@@ -207,6 +207,39 @@ export const phaseAdvancedEventV1Validator = v.object({
   }),
 });
 
+export const phaseAdvancedEventV2Validator = v.object({
+  type: v.literal("phase_advanced"),
+  version: v.literal(2),
+  data: v.object({
+    monthOrdinal: v.number(),
+    fromPhase: v.string(),
+    toPhase: v.string(),
+    acknowledgedWarningKeys: v.array(v.string()),
+  }),
+});
+
+export const wizardmootAttendanceAdjustedEventV1Validator = v.object({
+  type: v.literal("wizardmoot_attendance_adjusted"),
+  version: v.literal(1),
+  data: v.object({
+    monthOrdinal: v.number(),
+    wizardId: v.string(),
+    previousAttended: v.boolean(),
+    previousExceptionReason: v.union(v.string(), v.null()),
+    newAttended: v.boolean(),
+    newExceptionReason: v.union(v.string(), v.null()),
+  }),
+});
+
+export const meetingCompletedEventV1Validator = v.object({
+  type: v.literal("meeting_completed"),
+  version: v.literal(1),
+  data: v.object({
+    monthOrdinal: v.number(),
+    meetingAllocationsSpent: v.array(v.string()),
+  }),
+});
+
 // --- V3 Campaign State Validators ---
 
 const pactSeatStateValidator = v.object({
@@ -475,6 +508,7 @@ export const campaignEventValidator = v.union(
   setupOrreryPositionChangedEventV1Validator,
   beginPlayEventV1Validator,
   phaseAdvancedEventV1Validator,
+  phaseAdvancedEventV2Validator,
   timeAllocationScheduledEventV1Validator,
   engagementTargetChangedEventV1Validator,
   timeRescheduledEventV1Validator,
@@ -484,6 +518,8 @@ export const campaignEventValidator = v.union(
   engagementTimeCommittedEventV1Validator,
   engagementResolvedEventV1Validator,
   engagementRescheduledEventV1Validator,
+  wizardmootAttendanceAdjustedEventV1Validator,
+  meetingCompletedEventV1Validator,
 );
 
 export const anyCampaignStateValidator = campaignStateV3Validator;

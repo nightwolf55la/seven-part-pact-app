@@ -5,6 +5,7 @@ import {
   applyAdvancePhase,
   applyScheduleTime,
   applySetEngagementTarget,
+  computePhaseTransitionWarnings,
   DomainError,
   advancePhaseFingerprint,
   scheduleTimeFingerprint,
@@ -36,6 +37,9 @@ import type {
   TimeDestination,
   EngagementTarget,
   EngagementRecord,
+  AdvancePhaseResult,
+  TransitionResult,
+  LunarPhase,
 } from "../shared/domain";
 import type { PactSeatId } from "../shared/domain/pact-seats";
 
@@ -127,16 +131,28 @@ function buildPlayState(): CurrentCampaignState {
   return applyBeginPlay(setup, { wizardInits: inits }).nextState;
 }
 
+function forceAdvancePhase(
+  state: CurrentCampaignState,
+  input: { expectedMonthOrdinal: MonthOrdinal; expectedPhase: LunarPhase },
+): TransitionResult {
+  const r = applyAdvancePhase(state, input);
+  if (r.outcome === "applied") return r;
+  const ackKeys = r.warnings.map((w) => w.key);
+  const r2 = applyAdvancePhase(state, { ...input, acknowledgedWarningKeys: ackKeys });
+  if (r2.outcome === "applied") return r2;
+  throw new Error("Unexpected warnings after acknowledgement");
+}
+
 function buildPlanningState(): CurrentCampaignState {
   const play = buildPlayState();
-  const r1 = applyAdvancePhase(play, { expectedMonthOrdinal: MONTH, expectedPhase: "new_moon" });
-  const r2 = applyAdvancePhase(r1.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "visions" });
+  const r1 = forceAdvancePhase(play, { expectedMonthOrdinal: MONTH, expectedPhase: "new_moon" });
+  const r2 = forceAdvancePhase(r1.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "visions" });
   return r2.nextState;
 }
 
 function buildStoryState(): CurrentCampaignState {
   const planning = buildPlanningState();
-  const r = applyAdvancePhase(planning, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" });
+  const r = forceAdvancePhase(planning, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" });
   return r.nextState;
 }
 
@@ -178,6 +194,8 @@ describe("applyAdvancePhase", () => {
   it("new_moon -> visions", () => {
     const play = buildPlayState();
     const result = applyAdvancePhase(play, { expectedMonthOrdinal: MONTH, expectedPhase: "new_moon" });
+    expect(result.outcome).toBe("applied");
+    if (result.outcome !== "applied") throw new Error("unreachable");
     if (result.nextState.lifecycle.kind !== "play") throw new Error("unreachable");
     expect(result.nextState.lifecycle.phase).toBe("visions");
   });
@@ -185,21 +203,30 @@ describe("applyAdvancePhase", () => {
   it("visions -> planning", () => {
     const play = buildPlayState();
     const r1 = applyAdvancePhase(play, { expectedMonthOrdinal: MONTH, expectedPhase: "new_moon" });
+    if (r1.outcome !== "applied") throw new Error("unreachable");
     const r2 = applyAdvancePhase(r1.nextState, { expectedMonthOrdinal: MONTH, expectedPhase: "visions" });
+    if (r2.outcome !== "applied") throw new Error("unreachable");
     if (r2.nextState.lifecycle.kind !== "play") throw new Error("unreachable");
     expect(r2.nextState.lifecycle.phase).toBe("planning");
   });
 
-  it("planning -> story", () => {
+  it("planning -> story with acknowledgement", () => {
     const planning = buildPlanningState();
-    const result = applyAdvancePhase(planning, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" });
-    if (result.nextState.lifecycle.kind !== "play") throw new Error("unreachable");
-    expect(result.nextState.lifecycle.phase).toBe("story");
+    const r1 = applyAdvancePhase(planning, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" });
+    expect(r1.outcome).toBe("warnings");
+    if (r1.outcome !== "warnings") throw new Error("unreachable");
+    const ackKeys = r1.warnings.map((w) => w.key);
+    const r2 = applyAdvancePhase(planning, { expectedMonthOrdinal: MONTH, expectedPhase: "planning", acknowledgedWarningKeys: ackKeys });
+    expect(r2.outcome).toBe("applied");
+    if (r2.outcome !== "applied") throw new Error("unreachable");
+    if (r2.nextState.lifecycle.kind !== "play") throw new Error("unreachable");
+    expect(r2.nextState.lifecycle.phase).toBe("story");
   });
 
-  it("story -> meeting rejects in C3", () => {
+  it("story -> meeting returns warnings when unacknowledged", () => {
     const story = buildStoryState();
-    expect(() => applyAdvancePhase(story, { expectedMonthOrdinal: MONTH, expectedPhase: "story" })).toThrow(DomainError);
+    const r = applyAdvancePhase(story, { expectedMonthOrdinal: MONTH, expectedPhase: "story" });
+    expect(r.outcome).toBe("warnings");
   });
 
   it("stale month rejects", () => {
@@ -214,7 +241,7 @@ describe("applyAdvancePhase", () => {
 
   it("phase change preserves month, Orrery, and currentMonth exactly", () => {
     const planning = buildPlanningState();
-    const result = applyAdvancePhase(planning, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" });
+    const result = forceAdvancePhase(planning, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" });
     if (planning.lifecycle.kind !== "play" || result.nextState.lifecycle.kind !== "play") throw new Error("unreachable");
     expect(result.nextState.calendar.monthOrdinal).toBe(planning.calendar.monthOrdinal);
     expect(result.nextState.lifecycle.orrery).toEqual(planning.lifecycle.orrery);
@@ -222,13 +249,15 @@ describe("applyAdvancePhase", () => {
     expect(result.nextState.lifecycle.currentMonth.engagements).toEqual(planning.lifecycle.currentMonth.engagements);
   });
 
-  it("produces phase_advanced event", () => {
+  it("produces phase_advanced V2 event", () => {
     const play = buildPlayState();
     const result = applyAdvancePhase(play, { expectedMonthOrdinal: MONTH, expectedPhase: "new_moon" });
+    expect(result.outcome).toBe("applied");
+    if (result.outcome !== "applied") throw new Error("unreachable");
     expect(result.events.length).toBe(1);
     const evt = result.events[0];
     expect(evt.type).toBe("phase_advanced");
-    expect(evt.version).toBe(1);
+    expect(evt.version).toBe(2);
     if (evt.type !== "phase_advanced") throw new Error("unreachable");
     expect(evt.data.fromPhase).toBe("new_moon");
     expect(evt.data.toPhase).toBe("visions");
@@ -237,7 +266,7 @@ describe("applyAdvancePhase", () => {
 
   it("resulting state passes validateCampaignState", () => {
     const planning = buildPlanningState();
-    const result = applyAdvancePhase(planning, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" });
+    const result = forceAdvancePhase(planning, { expectedMonthOrdinal: MONTH, expectedPhase: "planning" });
     expect(() => validateCampaignState(result.nextState)).not.toThrow();
   });
 });

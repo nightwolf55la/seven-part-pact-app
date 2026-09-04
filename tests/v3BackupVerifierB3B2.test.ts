@@ -93,7 +93,7 @@ function v3PlayState(): CurrentCampaignState {
       resolution: "pending",
       linkedTimeAllocationId: ALC,
     }],
-    wizardmootAttendance: [{ wizardId: WIZ, attended: true, exceptionReason: null }],
+    wizardmootAttendance: [{ wizardId: WIZ, attended: false, exceptionReason: null }],
   };
 
   return {
@@ -109,7 +109,7 @@ function v3PlayState(): CurrentCampaignState {
     },
     lifecycle: {
       kind: "play",
-      phase: "story",
+      phase: "meeting",
       orrery: {
         saturn: asCentidegreePosition(500),
         jupiter: asCentidegreePosition(750),
@@ -184,7 +184,7 @@ describe("B3B2: V3 Play backup roundtrip", () => {
     expect(restored.wizardmootHistory.length).toBe(2);
 
     if (restored.lifecycle.kind === "play") {
-      expect(restored.lifecycle.phase).toBe("story");
+      expect(restored.lifecycle.phase).toBe("meeting");
       expect(restored.lifecycle.orrery.saturn).toBe(500);
       expect(restored.lifecycle.orrery.jupiter).toBe(750);
       expect(restored.lifecycle.currentMonth.timeParticipants.length).toBe(1);

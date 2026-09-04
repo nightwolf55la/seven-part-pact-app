@@ -6,7 +6,7 @@ import type { TimeDestination, TimeAllocation, TimeParticipant } from "./time-mo
 import type { EngagementRecord, EngagementTarget } from "./engagement";
 import type {
   CampaignEvent,
-  PhaseAdvancedEventV1,
+  PhaseAdvancedEventV2,
   TimeAllocationScheduledEventV1,
   EngagementTargetChangedEventV1,
   TimeRescheduledEventV1,
@@ -16,34 +16,131 @@ import type {
   EngagementTimeCommittedEventV1,
   EngagementResolvedEventV1,
   EngagementRescheduledEventV1,
+  WizardmootAttendanceAdjustedEventV1,
+  MeetingCompletedEventV1,
 } from "./events";
+import type { WizardmootAttendance } from "./wizardmoot";
 import type { TransitionResult } from "./m3-transitions";
 import { DomainError } from "./errors";
 import type { MovablePlanetId, OrreryMoveDirection } from "./orrery";
 import { movePlanetByArc } from "./orrery";
+import { normalizeWarningKeys } from "./command-ids";
 
 // ============================================================
-// 1. ADVANCE PHASE
+// 1. ADVANCE PHASE (with C5A warning model)
 // ============================================================
 
 const PHASE_ADVANCE_MAP: Record<LunarPhase, LunarPhase | null> = {
   new_moon: "visions",
   visions: "planning",
   planning: "story",
-  story: null,
+  story: "meeting",
   meeting: null,
   quiet: null,
 };
 
+// --- Phase transition warning model ---
+
+export interface PhaseTransitionWarning {
+  readonly key: string;
+  readonly kind: string;
+  readonly resourceId: string;
+}
+
+export type AdvancePhaseResult =
+  | { readonly outcome: "applied" } & TransitionResult
+  | { readonly outcome: "warnings"; readonly warnings: readonly PhaseTransitionWarning[] };
+
+function computePlanningToStoryWarnings(month: MonthlyPlayState): readonly PhaseTransitionWarning[] {
+  const warnings: PhaseTransitionWarning[] = [];
+  for (const tp of month.timeParticipants) {
+    for (const alloc of tp.allocations) {
+      if (alloc.resolution === "pending" && alloc.destination === null) {
+        warnings.push({
+          key: `unscheduled_time:${alloc.allocationId}`,
+          kind: "unscheduled_time",
+          resourceId: alloc.allocationId,
+        });
+      }
+    }
+  }
+  for (const eng of month.engagements) {
+    if (eng.resolution === "pending" && eng.target === null) {
+      warnings.push({
+        key: `untargeted_engagement:${eng.engagementId}`,
+        kind: "untargeted_engagement",
+        resourceId: eng.engagementId,
+      });
+    }
+  }
+  return warnings;
+}
+
+function computeStoryToMeetingWarnings(month: MonthlyPlayState): readonly PhaseTransitionWarning[] {
+  const warnings: PhaseTransitionWarning[] = [];
+  for (const tp of month.timeParticipants) {
+    for (const alloc of tp.allocations) {
+      if (alloc.resolution !== "pending") continue;
+      if (alloc.destination !== null && alloc.destination.kind === "meeting") continue;
+      warnings.push({
+        key: `unresolved_time:${alloc.allocationId}`,
+        kind: "unresolved_time",
+        resourceId: alloc.allocationId,
+      });
+    }
+  }
+  for (const eng of month.engagements) {
+    if (eng.resolution === "pending") {
+      warnings.push({
+        key: `unresolved_engagement:${eng.engagementId}`,
+        kind: "unresolved_engagement",
+        resourceId: eng.engagementId,
+      });
+    }
+  }
+  return warnings;
+}
+
+export function computePhaseTransitionWarnings(
+  fromPhase: LunarPhase,
+  month: MonthlyPlayState,
+): readonly PhaseTransitionWarning[] {
+  switch (fromPhase) {
+    case "planning":
+      return computePlanningToStoryWarnings(month);
+    case "story":
+      return computeStoryToMeetingWarnings(month);
+    default:
+      return [];
+  }
+}
+
+function deriveExpectedAttendance(wizardId: WizardId, month: MonthlyPlayState): boolean {
+  const tp = month.timeParticipants.find((t) => t.participant.wizardId === wizardId);
+  if (!tp) return false;
+  return tp.allocations.some((a) => a.destination !== null && a.destination.kind === "meeting");
+}
+
+function initializeWizardmootAttendance(
+  month: MonthlyPlayState,
+): readonly WizardmootAttendance[] {
+  return month.timeParticipants.map((tp) => {
+    const wizardId = tp.participant.wizardId as WizardId;
+    const attended = deriveExpectedAttendance(wizardId, month);
+    return { wizardId, attended, exceptionReason: null };
+  });
+}
+
 export interface AdvancePhaseInput {
   readonly expectedMonthOrdinal: MonthOrdinal;
   readonly expectedPhase: LunarPhase;
+  readonly acknowledgedWarningKeys?: readonly string[];
 }
 
 export function applyAdvancePhase(
   state: CurrentCampaignState,
   input: AdvancePhaseInput,
-): TransitionResult {
+): AdvancePhaseResult {
   if (state.lifecycle.kind !== "play") {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "advance_phase requires lifecycle kind 'play'");
   }
@@ -68,13 +165,40 @@ export function applyAdvancePhase(
   if (nextPhase === null) {
     throw new DomainError(
       "INVALID_CAMPAIGN_STATE",
-      `Phase "${currentPhase}" cannot be advanced in C3`,
+      `Phase "${currentPhase}" cannot be advanced via advancePhase`,
     );
+  }
+
+  const currentWarnings = computePhaseTransitionWarnings(currentPhase, state.lifecycle.currentMonth);
+  const currentWarningKeys = normalizeWarningKeys(currentWarnings.map((w) => w.key));
+  const ackKeys = normalizeWarningKeys(input.acknowledgedWarningKeys ?? []);
+
+  const keysMatch =
+    currentWarningKeys.length === ackKeys.length &&
+    currentWarningKeys.every((k, i) => k === ackKeys[i]);
+
+  if (!keysMatch) {
+    if (currentWarningKeys.length > 0) {
+      return { outcome: "warnings", warnings: currentWarnings };
+    }
+    if (ackKeys.length > 0) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        "Acknowledged warnings but current warning set is empty",
+      );
+    }
+  }
+
+  let nextCurrentMonth = state.lifecycle.currentMonth;
+  if (currentPhase === "story" && nextPhase === "meeting") {
+    const attendance = initializeWizardmootAttendance(state.lifecycle.currentMonth);
+    nextCurrentMonth = { ...nextCurrentMonth, wizardmootAttendance: attendance };
   }
 
   const lifecycle: PlayLifecycle = {
     ...state.lifecycle,
     phase: nextPhase,
+    currentMonth: nextCurrentMonth,
   };
 
   const nextState: CurrentCampaignState = {
@@ -82,17 +206,18 @@ export function applyAdvancePhase(
     lifecycle,
   };
 
-  const event: PhaseAdvancedEventV1 = {
+  const event: PhaseAdvancedEventV2 = {
     type: "phase_advanced",
-    version: 1,
+    version: 2,
     data: {
       monthOrdinal: currentMonth,
       fromPhase: currentPhase,
       toPhase: nextPhase,
+      acknowledgedWarningKeys: [...currentWarningKeys],
     },
   };
 
-  return { nextState, events: [event] };
+  return { outcome: "applied", nextState, events: [event] };
 }
 
 // ============================================================
@@ -1391,6 +1516,186 @@ export function applyRescheduleEngagement(
       engagementId: input.engagementId,
       previousTarget,
       newTarget: input.target,
+    },
+  };
+
+  return { nextState, events: [event] };
+}
+
+// ============================================================
+// 11. ADJUST WIZARDMOOT ATTENDANCE (Meeting)
+// ============================================================
+
+export interface AdjustWizardmootAttendanceInput {
+  readonly expectedMonthOrdinal: MonthOrdinal;
+  readonly wizardId: WizardId;
+  readonly attended: boolean;
+  readonly exceptionReason: string | null;
+}
+
+export function applyAdjustWizardmootAttendance(
+  state: CurrentCampaignState,
+  input: AdjustWizardmootAttendanceInput,
+): TransitionResult {
+  if (state.lifecycle.kind !== "play") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "adjust_wizardmoot_attendance requires lifecycle kind 'play'");
+  }
+
+  if (state.lifecycle.phase !== "meeting") {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `adjust_wizardmoot_attendance is only allowed during meeting, current phase is "${state.lifecycle.phase}"`,
+    );
+  }
+
+  const currentMonth = state.calendar.monthOrdinal;
+  if (currentMonth === null || currentMonth !== input.expectedMonthOrdinal) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Expected month ${input.expectedMonthOrdinal} but current is ${currentMonth}`,
+    );
+  }
+
+  if (!isValidWizardId(input.wizardId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${input.wizardId}`);
+  }
+
+  const { wizardmootAttendance } = state.lifecycle.currentMonth;
+  if (wizardmootAttendance === null) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Wizardmoot attendance not yet initialized");
+  }
+
+  const attIdx = wizardmootAttendance.findIndex((a) => a.wizardId === input.wizardId);
+  if (attIdx < 0) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `No attendance entry for wizard ${input.wizardId}`,
+    );
+  }
+
+  const existing = wizardmootAttendance[attIdx];
+  const expected = deriveExpectedAttendance(input.wizardId, state.lifecycle.currentMonth);
+
+  let newExceptionReason: string | null;
+  if (input.attended !== expected) {
+    if (input.exceptionReason === null || input.exceptionReason.trim().length === 0) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `Wizard ${input.wizardId} attendance differs from expected (${expected}); a nonblank exceptionReason is required`,
+      );
+    }
+    newExceptionReason = input.exceptionReason;
+  } else {
+    newExceptionReason = null;
+  }
+
+  const newAttendance: readonly WizardmootAttendance[] = wizardmootAttendance.map((a, i) =>
+    i === attIdx
+      ? { ...a, attended: input.attended, exceptionReason: newExceptionReason }
+      : a,
+  );
+
+  const currentMonthState: MonthlyPlayState = {
+    ...state.lifecycle.currentMonth,
+    wizardmootAttendance: newAttendance,
+  };
+
+  const lifecycle: PlayLifecycle = {
+    ...state.lifecycle,
+    currentMonth: currentMonthState,
+  };
+
+  const nextState: CurrentCampaignState = {
+    ...state,
+    lifecycle,
+  };
+
+  const event: WizardmootAttendanceAdjustedEventV1 = {
+    type: "wizardmoot_attendance_adjusted",
+    version: 1,
+    data: {
+      monthOrdinal: currentMonth,
+      wizardId: input.wizardId,
+      previousAttended: existing.attended,
+      previousExceptionReason: existing.exceptionReason,
+      newAttended: input.attended,
+      newExceptionReason,
+    },
+  };
+
+  return { nextState, events: [event] };
+}
+
+// ============================================================
+// 12. COMPLETE MEETING
+// ============================================================
+
+export interface CompleteMeetingInput {
+  readonly expectedMonthOrdinal: MonthOrdinal;
+}
+
+export function applyCompleteMeeting(
+  state: CurrentCampaignState,
+  input: CompleteMeetingInput,
+): TransitionResult {
+  if (state.lifecycle.kind !== "play") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "complete_meeting requires lifecycle kind 'play'");
+  }
+
+  if (state.lifecycle.phase !== "meeting") {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `complete_meeting is only allowed during meeting, current phase is "${state.lifecycle.phase}"`,
+    );
+  }
+
+  const currentMonth = state.calendar.monthOrdinal;
+  if (currentMonth === null || currentMonth !== input.expectedMonthOrdinal) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Expected month ${input.expectedMonthOrdinal} but current is ${currentMonth}`,
+    );
+  }
+
+  const { wizardmootAttendance, timeParticipants } = state.lifecycle.currentMonth;
+  if (wizardmootAttendance === null) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Wizardmoot attendance not yet initialized");
+  }
+
+  const meetingAllocationsSpent: string[] = [];
+  const newTimeParticipants: TimeParticipant[] = timeParticipants.map((tp) => {
+    const newAllocations: TimeAllocation[] = tp.allocations.map((a) => {
+      if (a.resolution === "pending" && a.destination !== null && a.destination.kind === "meeting") {
+        meetingAllocationsSpent.push(a.allocationId);
+        return { ...a, resolution: "spent" as const };
+      }
+      return a;
+    });
+    return { ...tp, allocations: newAllocations };
+  });
+
+  const currentMonthState: MonthlyPlayState = {
+    ...state.lifecycle.currentMonth,
+    timeParticipants: newTimeParticipants,
+  };
+
+  const lifecycle: PlayLifecycle = {
+    ...state.lifecycle,
+    phase: "quiet" as LunarPhase,
+    currentMonth: currentMonthState,
+  };
+
+  const nextState: CurrentCampaignState = {
+    ...state,
+    lifecycle,
+  };
+
+  const event: MeetingCompletedEventV1 = {
+    type: "meeting_completed",
+    version: 1,
+    data: {
+      monthOrdinal: currentMonth,
+      meetingAllocationsSpent,
     },
   };
 

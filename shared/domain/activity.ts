@@ -1,4 +1,4 @@
-import type { CampaignEvent } from "./events";
+import type { CampaignEvent, InfrastructureEvent } from "./events";
 import { displayNameFromOrdinal } from "./calendar";
 
 export type ActivityEntry =
@@ -106,15 +106,19 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Resolved Engagement";
     case "engagement_rescheduled":
       return "Rescheduled Engagement target";
+    case "wizardmoot_attendance_adjusted":
+      return "Adjusted Wizardmoot attendance";
+    case "meeting_completed":
+      return "Completed Meeting";
     default:
       return "Campaign configuration changed";
   }
 }
 
-export function mapEventToActivityEntry(
+function mapInfrastructureEvent(
   id: string,
   revision: number,
-  event: CampaignEvent,
+  event: InfrastructureEvent,
 ): ActivityEntry {
   switch (event.type) {
     case "month_changed": {
@@ -189,6 +193,21 @@ export function mapEventToActivityEntry(
         exportedAtMs: event.data.exportedAtMs,
       };
     }
+  }
+}
+
+export function mapEventToActivityEntry(
+  id: string,
+  revision: number,
+  event: CampaignEvent,
+): ActivityEntry {
+  switch (event.type) {
+    case "month_changed":
+    case "undo_applied":
+    case "redo_applied":
+    case "checkpoint_restored":
+    case "backup_imported":
+      return mapInfrastructureEvent(id, revision, event as InfrastructureEvent);
     case "player_added":
     case "player_renamed":
     case "player_removed":
@@ -212,7 +231,9 @@ export function mapEventToActivityEntry(
     case "orrery_time_spent":
     case "engagement_time_committed":
     case "engagement_resolved":
-    case "engagement_rescheduled": {
+    case "engagement_rescheduled":
+    case "wizardmoot_attendance_adjusted":
+    case "meeting_completed": {
       return {
         id,
         revision,
