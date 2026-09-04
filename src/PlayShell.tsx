@@ -39,7 +39,7 @@ function renderSurface(
 ) {
   switch (surface) {
     case "current_phase":
-      return <CurrentPhaseSurface phase={ref.phase} />;
+      return <CurrentPhaseSurface phase={ref.phase} monthOrdinal={ref.monthOrdinal} />;
     case "orrery":
       return <OrreryView monthOrdinal={ref.monthOrdinal} orreryPositions={ref.orreryPositions} />;
     case "table_wizards":
