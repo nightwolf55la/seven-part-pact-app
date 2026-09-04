@@ -178,15 +178,7 @@ export function applyAdvancePhase(
     currentWarningKeys.every((k, i) => k === ackKeys[i]);
 
   if (!keysMatch) {
-    if (currentWarningKeys.length > 0) {
-      return { outcome: "warnings", warnings: currentWarnings };
-    }
-    if (ackKeys.length > 0) {
-      throw new DomainError(
-        "INVALID_CAMPAIGN_STATE",
-        "Acknowledged warnings but current warning set is empty",
-      );
-    }
+    return { outcome: "warnings", warnings: currentWarnings };
   }
 
   let nextCurrentMonth = state.lifecycle.currentMonth;
