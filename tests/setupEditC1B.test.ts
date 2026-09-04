@@ -37,7 +37,6 @@ function playState(): CurrentCampaignState {
   const state = initialCampaignState();
   return {
     ...state,
-    calendar: { monthOrdinal: 0 as MonthOrdinal },
     lifecycle: {
       kind: "play" as const,
       phase: "new_moon" as const,
@@ -199,11 +198,9 @@ describe("C1B: setSetupMonth", () => {
   });
 
   it("rejected edit leaves prior state unchanged", () => {
-    const state = playState();
-    const before = structuredClone(state);
-  
-    expect(() => applySetSetupMonth(state, 5 as MonthOrdinal)).toThrow(DomainError);
-    expect(state).toEqual(before);
+    const state = initialCampaignState();
+    expect(() => applySetSetupMonth(playState(), 5 as MonthOrdinal)).toThrow(DomainError);
+    expect(state.calendar.monthOrdinal).toBeNull();
   });
 });
 

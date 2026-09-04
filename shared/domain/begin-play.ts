@@ -38,7 +38,7 @@ export function collectEligibleWizardIds(state: CurrentCampaignState): WizardId[
 const INITIAL_EFFECTIVE_BUDGET = 4;
 const INITIAL_RESCHEDULE_ALLOWANCE = 1;
 
-function buildTimeParticipant(init: WizardInitIds): TimeParticipant {
+export function buildTimeParticipant(init: WizardInitIds): TimeParticipant {
   const participant: WizardParticipantRef = { kind: "wizard", wizardId: init.wizardId };
   const allocations: TimeAllocation[] = init.allocationIds.map((allocationId) => ({
     allocationId,
@@ -56,7 +56,7 @@ function buildTimeParticipant(init: WizardInitIds): TimeParticipant {
   };
 }
 
-function buildEngagement(init: WizardInitIds): EngagementRecord {
+export function buildEngagement(init: WizardInitIds): EngagementRecord {
   return {
     engagementId: init.engagementId,
     actingWizardId: init.wizardId,

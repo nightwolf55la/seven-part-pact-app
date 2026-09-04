@@ -240,6 +240,17 @@ export const meetingCompletedEventV1Validator = v.object({
   }),
 });
 
+export const monthBegunEventV1Validator = v.object({
+  type: v.literal("month_begun"),
+  version: v.literal(1),
+  data: v.object({
+    fromMonthOrdinal: v.number(),
+    toMonthOrdinal: v.number(),
+    acknowledgedWarningKeys: v.array(v.string()),
+    eligibleWizardIds: v.array(v.string()),
+  }),
+});
+
 // --- V3 Campaign State Validators ---
 
 const pactSeatStateValidator = v.object({
@@ -520,6 +531,7 @@ export const campaignEventValidator = v.union(
   engagementRescheduledEventV1Validator,
   wizardmootAttendanceAdjustedEventV1Validator,
   meetingCompletedEventV1Validator,
+  monthBegunEventV1Validator,
 );
 
 export const anyCampaignStateValidator = campaignStateV3Validator;

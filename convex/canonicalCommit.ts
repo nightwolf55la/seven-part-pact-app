@@ -169,6 +169,7 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   reschedule_engagement: { required: ["engagement_rescheduled"] },
   adjust_wizardmoot_attendance: { required: ["wizardmoot_attendance_adjusted"] },
   complete_meeting: { required: ["meeting_completed"] },
+  begin_next_month: { required: ["month_begun"] },
 };
 
 function validateM3EventCoherence(input: CanonicalCommitInput): void {

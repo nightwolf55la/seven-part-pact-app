@@ -185,12 +185,9 @@ export const startNewCampaign = mutation({
       throw new DomainError("CAMPAIGN_ALREADY_EXISTS", "A campaign already exists");
     }
 
-    const anyCampaign = await ctx.db.query("campaigns").first();
-    if (anyCampaign !== null) {
-      throw new DomainError(
-        "CAMPAIGN_GRAPH_NOT_EMPTY",
-        "Unexpected campaign document exists outside the canonical campaign key",
-      );
+    const allCampaigns = await ctx.db.query("campaigns").collect();
+    if (allCampaigns.length > 0) {
+      throw new DomainError("CAMPAIGN_GRAPH_NOT_EMPTY", `Found ${allCampaigns.length} orphaned campaign document(s)`);
     }
 
     const orphanChecks = await Promise.all([
@@ -226,7 +223,7 @@ export const startNewCampaign = mutation({
       campaignId,
       campaignRevision,
       state: serializeState(state),
-    });
+    } as any);
 
     await ctx.db.insert("campaignSnapshots", snapshotRecord(campaignId, campaignRevision, state));
 

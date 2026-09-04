@@ -236,6 +236,17 @@ export function completeMeetingFingerprint(expectedMonthOrdinal: number): string
   return `complete_meeting:v1:month=${expectedMonthOrdinal}`;
 }
 
+export function beginNextMonthFingerprint(expectedMonthOrdinal: number, acknowledgedWarningKeys?: readonly string[]): string {
+  if (!Number.isSafeInteger(expectedMonthOrdinal) || expectedMonthOrdinal < 0) {
+    throw new Error(`beginNextMonthFingerprint requires a non-negative integer expectedMonthOrdinal, got ${expectedMonthOrdinal}`);
+  }
+  const normalized = acknowledgedWarningKeys ? normalizeWarningKeys(acknowledgedWarningKeys) : [];
+  if (normalized.length === 0) {
+    return `begin_next_month:v1:month=${expectedMonthOrdinal}`;
+  }
+  return `begin_next_month:v2:month=${expectedMonthOrdinal}:ack=${normalized.join(",")}`;
+}
+
 export function rescheduleEngagementFingerprint(expectedMonthOrdinal: number, engagementId: string, target: unknown): string {
   if (!Number.isSafeInteger(expectedMonthOrdinal) || expectedMonthOrdinal < 0) {
     throw new Error(`rescheduleEngagementFingerprint requires a non-negative integer expectedMonthOrdinal, got ${expectedMonthOrdinal}`);

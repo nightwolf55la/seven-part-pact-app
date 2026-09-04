@@ -257,17 +257,15 @@ describe("planning -> story warnings", () => {
     expect(r3.outcome).toBe("applied");
   });
 
-  it("stale acknowledgement returns the current empty warning set", () => {
+  it("acknowledging warnings when none exist throws DomainError", () => {
     const play = buildPlayState();
-    const result = applyAdvancePhase(play, {
-      expectedMonthOrdinal: MONTH,
-      expectedPhase: "new_moon",
-      acknowledgedWarningKeys: ["fake_warning:abc"],
-    });
-  
-    expect(result.outcome).toBe("warnings");
-    if (result.outcome !== "warnings") throw new Error("unreachable");
-    expect(result.warnings).toEqual([]);
+    expect(() =>
+      applyAdvancePhase(play, {
+        expectedMonthOrdinal: MONTH,
+        expectedPhase: "new_moon",
+        acknowledgedWarningKeys: ["fake_warning:abc"],
+      }),
+    ).toThrow(DomainError);
   });
 });
 

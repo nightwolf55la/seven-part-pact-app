@@ -76,6 +76,7 @@ export type {
   EngagementTargetChangedEventV1,
   WizardmootAttendanceAdjustedEventV1,
   MeetingCompletedEventV1,
+  MonthBegunEventV1,
   InfrastructureEvent,
   PhaseAdvancedEvent,
   CampaignEvent,
@@ -194,6 +195,7 @@ export {
   rescheduleEngagementFingerprint,
   adjustWizardmootAttendanceFingerprint,
   completeMeetingFingerprint,
+  beginNextMonthFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
@@ -429,12 +431,14 @@ export { evaluateAgeSetup } from "./age-setup";
 
 // --- Begin Play ---
 
-export type { WizardInitIds, BeginPlayInput } from "./begin-play";
-export { applyBeginPlay, collectEligibleWizardIds } from "./begin-play";
+export type {
+  WizardInitIds, BeginPlayInput,
+} from "./begin-play";
+export { applyBeginPlay, collectEligibleWizardIds, buildTimeParticipant, buildEngagement } from "./begin-play";
 
 // --- Play Transitions (C3/C4/C5A) ---
 
-export type { AdvancePhaseInput, AdvancePhaseResult, PhaseTransitionWarning, ScheduleTimeInput, SetEngagementTargetInput, RescheduleTimeInput, SpendManualTimeInput, WasteTimeInput, SpendOrreryTimeInput, CommitTimeToEngagementInput, ResolveEngagementInput, RescheduleEngagementInput, AdjustWizardmootAttendanceInput, CompleteMeetingInput } from "./play-transitions";
+export type { AdvancePhaseInput, AdvancePhaseResult, PhaseTransitionWarning, ScheduleTimeInput, SetEngagementTargetInput, RescheduleTimeInput, SpendManualTimeInput, WasteTimeInput, SpendOrreryTimeInput, CommitTimeToEngagementInput, ResolveEngagementInput, RescheduleEngagementInput, AdjustWizardmootAttendanceInput, CompleteMeetingInput, BeginNextMonthInput, BeginNextMonthResult } from "./play-transitions";
 export {
   applyAdvancePhase,
   applyScheduleTime,
@@ -448,5 +452,6 @@ export {
   applyRescheduleEngagement,
   applyAdjustWizardmootAttendance,
   applyCompleteMeeting,
+  applyBeginNextMonth,
   computePhaseTransitionWarnings,
 } from "./play-transitions";

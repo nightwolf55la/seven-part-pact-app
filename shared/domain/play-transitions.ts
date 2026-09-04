@@ -18,13 +18,17 @@ import type {
   EngagementRescheduledEventV1,
   WizardmootAttendanceAdjustedEventV1,
   MeetingCompletedEventV1,
+  MonthBegunEventV1,
 } from "./events";
-import type { WizardmootAttendance } from "./wizardmoot";
+import type { WizardmootAttendance, WizardmootHistoryEntry } from "./wizardmoot";
 import type { TransitionResult } from "./m3-transitions";
 import { DomainError } from "./errors";
 import type { MovablePlanetId, OrreryMoveDirection } from "./orrery";
-import { movePlanetByArc } from "./orrery";
+import { movePlanetByArc, advanceAllPlanets } from "./orrery";
 import { normalizeWarningKeys } from "./command-ids";
+import { advanceOrdinal } from "./calendar";
+import type { WizardInitIds } from "./begin-play";
+import { collectEligibleWizardIds, buildTimeParticipant, buildEngagement } from "./begin-play";
 
 // ============================================================
 // 1. ADVANCE PHASE (with C5A warning model)
@@ -178,7 +182,15 @@ export function applyAdvancePhase(
     currentWarningKeys.every((k, i) => k === ackKeys[i]);
 
   if (!keysMatch) {
-    return { outcome: "warnings", warnings: currentWarnings };
+    if (currentWarningKeys.length > 0) {
+      return { outcome: "warnings", warnings: currentWarnings };
+    }
+    if (ackKeys.length > 0) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        "Acknowledged warnings but current warning set is empty",
+      );
+    }
   }
 
   let nextCurrentMonth = state.lifecycle.currentMonth;
@@ -1692,4 +1704,213 @@ export function applyCompleteMeeting(
   };
 
   return { nextState, events: [event] };
+}
+
+// ============================================================
+// 13. BEGIN NEXT MONTH (Quiet -> New Moon)
+// ============================================================
+
+export interface BeginNextMonthInput {
+  readonly expectedMonthOrdinal: MonthOrdinal;
+  readonly acknowledgedWarningKeys?: readonly string[];
+}
+
+export type BeginNextMonthResult =
+  | { readonly outcome: "applied" } & TransitionResult
+  | { readonly outcome: "warnings"; readonly warnings: readonly PhaseTransitionWarning[] };
+
+function computeQuietWarnings(month: MonthlyPlayState): readonly PhaseTransitionWarning[] {
+  const warnings: PhaseTransitionWarning[] = [];
+  for (const tp of month.timeParticipants) {
+    for (const alloc of tp.allocations) {
+      if (alloc.resolution === "pending") {
+        warnings.push({
+          key: `unresolved_time:${alloc.allocationId}`,
+          kind: "unresolved_time",
+          resourceId: alloc.allocationId,
+        });
+      }
+    }
+  }
+  for (const eng of month.engagements) {
+    if (eng.resolution === "pending") {
+      warnings.push({
+        key: `unresolved_engagement:${eng.engagementId}`,
+        kind: "unresolved_engagement",
+        resourceId: eng.engagementId,
+      });
+    }
+  }
+  return warnings;
+}
+
+export function applyBeginNextMonth(
+  state: CurrentCampaignState,
+  input: BeginNextMonthInput,
+  wizardInits: readonly WizardInitIds[],
+): BeginNextMonthResult {
+  if (state.lifecycle.kind !== "play") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "begin_next_month requires lifecycle kind 'play'");
+  }
+
+  const currentMonth = state.calendar.monthOrdinal;
+  if (currentMonth === null || currentMonth !== input.expectedMonthOrdinal) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Expected month ${input.expectedMonthOrdinal} but current is ${currentMonth}`,
+    );
+  }
+
+  if (state.lifecycle.phase !== "quiet") {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `begin_next_month is only allowed during quiet, current phase is "${state.lifecycle.phase}"`,
+    );
+  }
+
+  const currentWarnings = computeQuietWarnings(state.lifecycle.currentMonth);
+  const currentWarningKeys = normalizeWarningKeys(currentWarnings.map((w) => w.key));
+  const ackKeys = normalizeWarningKeys(input.acknowledgedWarningKeys ?? []);
+
+  const keysMatch =
+    currentWarningKeys.length === ackKeys.length &&
+    currentWarningKeys.every((k, i) => k === ackKeys[i]);
+
+  if (!keysMatch) {
+    if (currentWarningKeys.length > 0) {
+      return { outcome: "warnings", warnings: currentWarnings };
+    }
+    if (ackKeys.length > 0) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        "Acknowledged warnings but current warning set is empty",
+      );
+    }
+  }
+
+  const oldMonth = state.lifecycle.currentMonth;
+
+  // 1. Archive completed month's wizardmoot attendance
+  let wizardmootHistory = state.wizardmootHistory;
+  if (oldMonth.wizardmootAttendance !== null) {
+    const existingEntry = wizardmootHistory.find(
+      (h) => h.monthOrdinal === currentMonth,
+    );
+    if (existingEntry) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `Wizardmoot history already contains entry for month ${currentMonth}`,
+      );
+    }
+    const historyEntry: WizardmootHistoryEntry = {
+      monthOrdinal: currentMonth,
+      attendance: oldMonth.wizardmootAttendance.map((a) => ({
+        wizardId: a.wizardId,
+        attended: a.attended,
+      })),
+    };
+    wizardmootHistory = [...wizardmootHistory, historyEntry];
+  }
+
+  // 2. Advance calendar
+  const advancedMonth = advanceOrdinal(currentMonth, "forward");
+
+  // 3. Advance orrery
+  const advancedOrrery = advanceAllPlanets(state.lifecycle.orrery);
+
+  // 4. Recompute eligible wizards from current Pact-seat state
+  const eligibleWizardIds = collectEligibleWizardIds(state);
+
+  // 5-6. Create fresh monthly resources
+  const initByWizard = new Map<string, WizardInitIds>();
+  for (const init of wizardInits) {
+    if (!isValidWizardId(init.wizardId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId in beginNextMonth input: ${init.wizardId}`);
+    }
+    if (init.allocationIds.length !== 4) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `Wizard ${init.wizardId} must have exactly 4 allocationIds, got ${init.allocationIds.length}`,
+      );
+    }
+    if (initByWizard.has(init.wizardId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate wizardId in beginNextMonth input: ${init.wizardId}`);
+    }
+    initByWizard.set(init.wizardId, init);
+  }
+
+  if (initByWizard.size !== eligibleWizardIds.length) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `beginNextMonth input has ${initByWizard.size} wizard inits but ${eligibleWizardIds.length} eligible wizards`,
+    );
+  }
+  for (const wid of eligibleWizardIds) {
+    if (!initByWizard.has(wid)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Missing init for eligible wizard: ${wid}`);
+    }
+  }
+
+  const allIds = new Set<string>();
+  for (const init of wizardInits) {
+    if (!isValidEngagementId(init.engagementId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid engagementId: ${init.engagementId}`);
+    }
+    if (allIds.has(init.engagementId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate ID in beginNextMonth input: ${init.engagementId}`);
+    }
+    allIds.add(init.engagementId);
+
+    for (const aid of init.allocationIds) {
+      if (!isValidAllocationId(aid)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid allocationId: ${aid}`);
+      }
+      if (allIds.has(aid)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate ID in beginNextMonth input: ${aid}`);
+      }
+      allIds.add(aid);
+    }
+  }
+
+  const timeParticipants: TimeParticipant[] = [];
+  const engagements: EngagementRecord[] = [];
+
+  for (const wid of eligibleWizardIds) {
+    const init = initByWizard.get(wid)!;
+    timeParticipants.push(buildTimeParticipant(init));
+    engagements.push(buildEngagement(init));
+  }
+
+  const newCurrentMonth: MonthlyPlayState = {
+    timeParticipants,
+    engagements,
+    wizardmootAttendance: null,
+  };
+
+  const lifecycle: PlayLifecycle = {
+    ...state.lifecycle,
+    phase: "new_moon" as LunarPhase,
+    orrery: advancedOrrery,
+    currentMonth: newCurrentMonth,
+  };
+
+  const nextState: CurrentCampaignState = {
+    ...state,
+    calendar: { monthOrdinal: advancedMonth },
+    lifecycle,
+    wizardmootHistory,
+  };
+
+  const event: MonthBegunEventV1 = {
+    type: "month_begun",
+    version: 1,
+    data: {
+      fromMonthOrdinal: currentMonth,
+      toMonthOrdinal: advancedMonth,
+      acknowledgedWarningKeys: [...currentWarningKeys],
+      eligibleWizardIds: eligibleWizardIds.map((id) => id as string),
+    },
+  };
+
+  return { outcome: "applied", nextState, events: [event] };
 }

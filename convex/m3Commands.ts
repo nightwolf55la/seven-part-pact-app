@@ -63,6 +63,8 @@ import {
   completeMeetingFingerprint,
   applyAdjustWizardmootAttendance,
   applyCompleteMeeting,
+  applyBeginNextMonth,
+  beginNextMonthFingerprint,
 } from "../shared/domain";
 import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
@@ -1010,6 +1012,60 @@ export const completeMeeting = mutation({
       expectedMonthOrdinal: args.expectedMonthOrdinal as MonthOrdinal,
     });
     const receipt = await commitM3Command(ctx, args.commandId, "complete_meeting", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+
+// ============================================================
+// M4 C5B: Begin Next Month (Quiet -> New Moon)
+// ============================================================
+
+export const beginNextMonth = mutation({
+  args: {
+    commandId: v.string(),
+    expectedMonthOrdinal: v.number(),
+    acknowledgedWarningKeys: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+
+    if (!Number.isSafeInteger(args.expectedMonthOrdinal) || args.expectedMonthOrdinal < 0) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid expectedMonthOrdinal: ${args.expectedMonthOrdinal}`);
+    }
+
+    const fingerprint = beginNextMonthFingerprint(args.expectedMonthOrdinal, args.acknowledgedWarningKeys);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "begin_next_month", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+
+    const eligibleWizardIds = collectEligibleWizardIds(campaign.currentState);
+    const wizardInits: WizardInitIds[] = eligibleWizardIds.map((wizardId) => ({
+      wizardId,
+      allocationIds: [
+        generateAllocationId(),
+        generateAllocationId(),
+        generateAllocationId(),
+        generateAllocationId(),
+      ] as [AllocationId, AllocationId, AllocationId, AllocationId],
+      engagementId: generateEngagementId(),
+    }));
+
+    const result = applyBeginNextMonth(campaign.currentState, {
+      expectedMonthOrdinal: args.expectedMonthOrdinal as MonthOrdinal,
+      acknowledgedWarningKeys: args.acknowledgedWarningKeys,
+    }, wizardInits);
+
+    if (result.outcome === "warnings") {
+      return {
+        revision: null,
+        warnings: result.warnings,
+      };
+    }
+
+    const receipt = await commitM3Command(ctx, args.commandId, "begin_next_month", fingerprint, campaign, result);
     return { revision: receipt.newRevision };
   },
 });

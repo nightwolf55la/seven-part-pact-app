@@ -412,6 +412,21 @@ export interface MeetingCompletedEventV1 {
   readonly data: MeetingCompletedDataV1;
 }
 
+// --- M4 C5B: Begin Next Month event ---
+
+export interface MonthBegunDataV1 {
+  readonly fromMonthOrdinal: MonthOrdinal;
+  readonly toMonthOrdinal: MonthOrdinal;
+  readonly acknowledgedWarningKeys: readonly string[];
+  readonly eligibleWizardIds: readonly string[];
+}
+
+export interface MonthBegunEventV1 {
+  readonly type: "month_begun";
+  readonly version: 1;
+  readonly data: MonthBegunDataV1;
+}
+
 export type InfrastructureEvent =
   | MonthChangedEventV1
   | UndoAppliedEventV1
@@ -447,7 +462,8 @@ export type PlayEvent =
   | EngagementResolvedEventV1
   | EngagementRescheduledEventV1
   | WizardmootAttendanceAdjustedEventV1
-  | MeetingCompletedEventV1;
+  | MeetingCompletedEventV1
+  | MonthBegunEventV1;
 
 export type CampaignEvent =
   | InfrastructureEvent

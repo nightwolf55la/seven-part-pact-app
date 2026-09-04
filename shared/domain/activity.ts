@@ -110,6 +110,8 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Adjusted Wizardmoot attendance";
     case "meeting_completed":
       return "Completed Meeting";
+    case "month_begun":
+      return "Began Next Month";
     default:
       return "Campaign configuration changed";
   }
@@ -233,7 +235,8 @@ export function mapEventToActivityEntry(
     case "engagement_resolved":
     case "engagement_rescheduled":
     case "wizardmoot_attendance_adjusted":
-    case "meeting_completed": {
+    case "meeting_completed":
+    case "month_begun": {
       return {
         id,
         revision,
