@@ -30,19 +30,19 @@ function wizId(n: number): WizardId {
 }
 
 const AWAKENING_INDICES: Record<MovablePlanetId, number> = {
-  saturn: 20,
-  jupiter: 5,
-  mars: 22,
-  venus: 16,
-  mercury: 19,
+  saturn: 16,
+  jupiter: 1,
+  mars: 18,
+  venus: 14,
+  mercury: 17,
 };
 
 const CALAMITY_INDICES: Record<MovablePlanetId, number> = {
-  saturn: 35,
-  jupiter: 37,
-  mars: 25,
-  venus: 6,
-  mercury: 22,
+  saturn: 31,
+  jupiter: 33,
+  mars: 21,
+  venus: 4,
+  mercury: 20,
 };
 
 function buildReadyState(

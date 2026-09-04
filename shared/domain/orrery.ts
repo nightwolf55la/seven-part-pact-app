@@ -87,7 +87,7 @@ export function houseIndexFromCentidegrees(position: number): HouseIndex {
 }
 
 export function sunPositionFromMonthOrdinal(monthOrdinal: MonthOrdinal): CentidegreePosition {
-  const index = ((monthOrdinal % HOUSE_COUNT) + HOUSE_COUNT) % HOUSE_COUNT;
+  const index = (((monthOrdinal + 11) % HOUSE_COUNT) + HOUSE_COUNT) % HOUSE_COUNT;
   return (index * HOUSE_WIDTH_CENTIDEGREES) as CentidegreePosition;
 }
 

@@ -42,11 +42,11 @@ function buildReadyState(): CurrentCampaignState {
   state = applySetSetupMonth(state, 0 as MonthOrdinal).nextState;
 
   const awakeningIndices: Record<string, number> = {
-    saturn: 20,
-    jupiter: 5,
-    mars: 22,
-    venus: 16,
-    mercury: 19,
+    saturn: 16,
+    jupiter: 1,
+    mars: 18,
+    venus: 14,
+    mercury: 17,
   };
   for (const planetId of MOVABLE_PLANET_IDS) {
     state = applySetSetupOrreryPosition(state, planetId as MovablePlanetId, awakeningIndices[planetId]).nextState;

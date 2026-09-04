@@ -323,7 +323,10 @@ implementation semantics are determined at implementation time.
 - Five movable planets (Saturn, Jupiter, Mars, Venus, Mercury) with
   planet-specific Arc sizes.
 
-`[INFERENCE]` 0 degrees is the Aries/April boundary.
+`[INFERENCE]` 0 degrees is the Pisces/Aries boundary. Aries occupies `[0°,30°)`,
+Taurus `[30°,60°)`, ..., Pisces `[330°,360°)`. Month ordinal is chronology, not
+angular index: monthOrdinal 0 = March -> Pisces -> 33000 centidegrees (House 11).
+The equivalent house mapping is `(monthOrdinal + 11) % 12`.
 
 `[APPLICATION DESIGN]`
 - Sun is NOT independent persisted state. Sun/current House derives solely
@@ -376,11 +379,27 @@ positions, not expose degree input or free drag.
 `[SOURCE]` Each Age has specific starting Orrery setup instructions in the
 printed materials.
 
+`[APPLICATION DESIGN]` `positionIndex` is a zero-based index into
+`legalPositionsForPlanet(planetId)` — the planet-specific legal Arc-start
+placements. Saturn alone has a 5° (500 centidegree) start offset; all other
+planets start at 0°. Preset centidegrees are always derived via
+`legalPositionsForPlanet(planetId)[positionIndex]`, never hardcoded.
+
 **Awakening:**
 `[SOURCE]` Draft 4 contains one complete starting Orrery arrangement.
 `[INFERENCE]` Draft 4 also contains an unfinished placeholder for a second
 arrangement. M4 supports only the completed source-defined arrangement. Do not
 invent the missing option.
+
+| Planet | positionIndex | Arc start (centidegrees) |
+|---|---|---|
+| Saturn | 16 | 16500 |
+| Jupiter | 1 | 750 |
+| Mars | 18 | 13500 |
+| Venus | 14 | 21000 |
+| Mercury | 17 | 25500 |
+
+Starting month: monthOrdinal 0 (March). Sun derives to Pisces (33000, House 11).
 
 **Dominion:**
 `[SOURCE]` A ceremonial placement sequence exists. The source permits placing
@@ -390,16 +409,33 @@ as normal placement on that planet's legal printed track positions rather
 than arbitrary angle selection.
 `[APPLICATION DESIGN]` The app records the final resulting setup Orrery. Do
 not build a multiplayer setup turn engine. Normal placement uses the printed
-legal track positions.
+legal track positions. Valid final pre-advance months: 0, 3, 6, 9
+(March, June, September, December). Each planet may be at any legal printed
+setup position.
 
 **Calamity:**
 `[SOURCE]` Uses a fixed starting Orrery arrangement.
+
+| Planet | positionIndex | Arc start (centidegrees) |
+|---|---|---|
+| Saturn | 31 | 31500 |
+| Jupiter | 33 | 24750 |
+| Mars | 21 | 15750 |
+| Venus | 4 | 6000 |
+| Mercury | 20 | 30000 |
+
+Starting month: monthOrdinal 9 (December). Sun derives to Sagittarius
+(24000, House 8).
 
 `[APPLICATION DESIGN]` Setup contains the pre-Begin-Play Orrery for every
 supported Age. Begin Play performs one normal month advance from whatever the
 Age-specific setup Orrery was, uniformly for all Ages. This uniform
 application lifecycle is an application design decision informed by the
 individual Age instructions, not a universal verbatim source rule.
+
+`[NOTE]` The Rulebook Sample Orrery (Sun in Pisces/March, Mercury in
+Capricorn-Aquarius-Pisces-Aries, etc.) is a separate illustrative example. It
+is NOT an Age preset and must not be used to derive Age preset constants.
 
 ### Normal Orrery Time
 
