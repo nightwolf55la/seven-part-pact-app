@@ -165,3 +165,57 @@ export function occupiedHousesOfBody(
   if (!planet) return [];
   return [...planet.occupiedHouses];
 }
+
+export interface BodyConjunctionSummaryEntry {
+  readonly otherBodyId: CelestialBodyId;
+  readonly otherBodyName: string;
+  readonly sharedHouseNames: readonly string[];
+}
+
+export interface BodyHoverSummary {
+  readonly bodyId: CelestialBodyId;
+  readonly bodyName: string;
+  readonly occupiedHouseNames: readonly string[];
+  readonly conjunctions: readonly BodyConjunctionSummaryEntry[];
+}
+
+const BODY_DISPLAY_NAMES: Record<CelestialBodyId, string> = {
+  sun: "Sun",
+  saturn: "Saturn",
+  jupiter: "Jupiter",
+  mars: "Mars",
+  venus: "Venus",
+  mercury: "Mercury",
+};
+
+export function buildBodyHoverSummary(
+  model: OrreryDisplayModel,
+  bodyId: CelestialBodyId,
+): BodyHoverSummary {
+  const occupiedHouses = occupiedHousesOfBody(model, bodyId);
+  const occupiedHouseNames = occupiedHouses.map((h) => HOUSE_NAMES[h]);
+
+  const conjunctions: BodyConjunctionSummaryEntry[] = [];
+  for (const c of model.conjunctions) {
+    if (c.bodyA === bodyId) {
+      conjunctions.push({
+        otherBodyId: c.bodyB,
+        otherBodyName: BODY_DISPLAY_NAMES[c.bodyB],
+        sharedHouseNames: c.sharedHouseNames,
+      });
+    } else if (c.bodyB === bodyId) {
+      conjunctions.push({
+        otherBodyId: c.bodyA,
+        otherBodyName: BODY_DISPLAY_NAMES[c.bodyA],
+        sharedHouseNames: c.sharedHouseNames,
+      });
+    }
+  }
+
+  return {
+    bodyId,
+    bodyName: BODY_DISPLAY_NAMES[bodyId],
+    occupiedHouseNames,
+    conjunctions,
+  };
+}

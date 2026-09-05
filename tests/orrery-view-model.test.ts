@@ -7,6 +7,7 @@ import {
   sunDisplaySvgAngle,
   bodiesConjunctWith,
   occupiedHousesOfBody,
+  buildBodyHoverSummary,
 } from "../src/orrery-view-model";
 import {
   legalPositionsForPlanet,
@@ -184,20 +185,23 @@ describe("bodiesConjunctWith (hover highlighting helper)", () => {
 });
 
 describe("occupiedHousesOfBody (presentation occupancy query)", () => {
-  it("returns ALL occupied Houses for a planet, not just conjunction Houses", () => {
-    // Venus at index 2 should occupy multiple houses (e.g. Aries, Taurus, Gemini).
-    // We need a fixture where Venus occupies Aries but no other body shares Aries,
-    // so Aries is NOT a conjunction House.
-    const monthOrdinal = 0 as MonthOrdinal;
-    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 20, venus: 2, mercury: 0 });
+  it("returns ALL occupied Houses for a planet, including a House with no conjunction", () => {
+    // monthOrdinal 3 -> Sun in Cancer (House 3). Venus at index 0 starts at 0
+    // centidegrees with a 75-degree arc, occupying Aries (0), Taurus (1), Gemini (2).
+    // No other body is placed in Aries, so Aries is NOT a conjunction House.
+    const monthOrdinal = 3 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 20, jupiter: 10, mars: 20, venus: 0, mercury: 10 });
     const model = buildOrreryDisplayModel(monthOrdinal, positions);
 
     const venusHouses = occupiedHousesOfBody(model, "venus" as CelestialBodyId);
-    expect(venusHouses.length).toBeGreaterThanOrEqual(2);
+    expect(venusHouses).toEqual([0, 1, 2]);
 
-    // Verify the returned indices match the planet's existing occupiedHouses
-    const venusInfo = model.planets.find((pi) => pi.planetId === "venus")!;
-    expect(venusHouses).toEqual([...venusInfo.occupiedHouses]);
+    // Verify Aries (House 0) is not a conjunction House for Venus
+    const venusConjunctions = model.conjunctions.filter(
+      (c) => c.bodyA === "venus" || c.bodyB === "venus",
+    );
+    const venusConjunctionHouseNames = venusConjunctions.flatMap((c) => c.sharedHouseNames);
+    expect(venusConjunctionHouseNames).not.toContain("Aries");
   });
 
   it("returns the Sun's single House for 'sun'", () => {
@@ -207,5 +211,64 @@ describe("occupiedHousesOfBody (presentation occupancy query)", () => {
 
     const sunHouses = occupiedHousesOfBody(model, "sun" as CelestialBodyId);
     expect(sunHouses).toEqual([model.sun.houseIndex]);
+  });
+});
+
+describe("buildBodyHoverSummary (hover/focus text summary)", () => {
+  it("reports all occupied Houses and separately lists conjunction Houses/bodies", () => {
+    // monthOrdinal 3 -> Sun in Cancer (House 3). Venus at index 0 occupies
+    // Aries (0), Taurus (1), Gemini (2). Jupiter at index 10 starts at 7500
+    // (House 2, Gemini) with 22.5-degree arc spanning Houses 2,3 — so Venus
+    // and Jupiter share Gemini. Sun is in Cancer (House 3), which Jupiter
+    // also occupies, so Jupiter-Sun share Cancer. Venus does NOT share
+    // Aries with anyone.
+    const monthOrdinal = 3 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 20, jupiter: 10, mars: 20, venus: 0, mercury: 10 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const summary = buildBodyHoverSummary(model, "venus" as CelestialBodyId);
+
+    // Must include ALL occupied Houses, including Aries which is not a conjunction
+    expect(summary.occupiedHouseNames).toEqual(["Aries", "Taurus", "Gemini"]);
+
+    // Must separately report conjunctions
+    expect(summary.conjunctions.length).toBeGreaterThanOrEqual(1);
+    const jupiterConj = summary.conjunctions.find((c) => c.otherBodyName === "Jupiter");
+    expect(jupiterConj).toBeDefined();
+    expect(jupiterConj!.sharedHouseNames).toContain("Gemini");
+
+    // Aries must not appear in any conjunction entry
+    for (const c of summary.conjunctions) {
+      expect(c.sharedHouseNames).not.toContain("Aries");
+    }
+  });
+
+  it("reports no conjunctions for an isolated body while still listing occupied Houses", () => {
+    // Mars at index 23 starts at 17250, arc 52.5deg -> Houses 5,6,7 (Leo, Virgo, Libra).
+    // All other bodies are at index 0, occupying Houses 0-3 only. Mars is isolated.
+    const monthOrdinal = 3 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 23, venus: 0, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const summary = buildBodyHoverSummary(model, "mars" as CelestialBodyId);
+
+    expect(summary.occupiedHouseNames.length).toBeGreaterThanOrEqual(2);
+    expect(summary.conjunctions).toEqual([]);
+  });
+
+  it("reports Sun occupancy and conjunctions", () => {
+    // monthOrdinal 3 -> Sun in Cancer (House 3). Jupiter at index 10 occupies
+    // Houses 2,3 (Gemini, Cancer), so Sun-Jupiter share Cancer.
+    const monthOrdinal = 3 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 20, jupiter: 10, mars: 20, venus: 0, mercury: 10 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const summary = buildBodyHoverSummary(model, "sun" as CelestialBodyId);
+
+    expect(summary.bodyName).toBe("Sun");
+    expect(summary.occupiedHouseNames).toEqual(["Cancer"]);
+    const jupiterConj = summary.conjunctions.find((c) => c.otherBodyName === "Jupiter");
+    expect(jupiterConj).toBeDefined();
+    expect(jupiterConj!.sharedHouseNames).toContain("Cancer");
   });
 });
