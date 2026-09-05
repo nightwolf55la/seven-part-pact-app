@@ -1,4 +1,9 @@
-import type { CampaignEvent, InfrastructureEvent } from "./events";
+import type {
+  CampaignEvent,
+  InfrastructureEvent,
+  MonthChangedEventV1,
+} from "./events";
+import { displayNameFromOrdinal } from "./calendar";
 
 export type ActivityEntry =
   | {
@@ -179,9 +184,16 @@ function mapInfrastructureEvent(
 export function mapEventToActivityEntry(
   id: string,
   revision: number,
-  event: CampaignEvent,
+  event: CampaignEvent | MonthChangedEventV1,
 ): ActivityEntry {
   switch (event.type) {
+    case "month_changed":
+      return {
+        id,
+        revision,
+        type: "campaign_configuration",
+        description: `${displayNameFromOrdinal(event.data.fromOrdinal)} → ${displayNameFromOrdinal(event.data.toOrdinal)}`,
+      };
     case "undo_applied":
     case "redo_applied":
     case "checkpoint_restored":

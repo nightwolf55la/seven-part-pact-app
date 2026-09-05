@@ -8,6 +8,27 @@ import type { CampaignEvent, MonthOrdinal } from "../shared/domain";
 const ord = (n: number) => n as MonthOrdinal;
 
 describe("mapEventToActivityEntry", () => {
+  it("maps historical month_changed to a display-only activity entry", () => {
+    const event = {
+      type: "month_changed" as const,
+      version: 1 as const,
+      data: {
+        direction: "forward" as const,
+        fromOrdinal: ord(0),
+        toOrdinal: ord(1),
+      },
+    };
+
+    const entry = mapEventToActivityEntry("evt_legacy", 5, event);
+
+    expect(entry).toEqual({
+      id: "evt_legacy",
+      revision: 5,
+      type: "campaign_configuration",
+      description: "April → May",
+    });
+    expect(describeActivityEntry(entry)).toBe("Revision 5 — April → May");
+  });
   it("maps undo_applied v1 to undo_applied entry", () => {
     const event: CampaignEvent = {
       type: "undo_applied",
