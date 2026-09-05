@@ -49,8 +49,6 @@ export {
 } from "./commands";
 
 export type {
-  MonthChangedDataV1,
-  MonthChangedEventV1,
   UndoAppliedDataV1,
   UndoAppliedEventV1,
   RedoAppliedDataV1,
@@ -128,9 +126,6 @@ export { validateCampaignState, validateAnyCampaignState } from "./state-validat
 
 export { initialCampaignState } from "./initial-state";
 
-export type { MoveMonthTransitionResult } from "./transitions";
-export { applyMoveMonth } from "./transitions";
-
 export type { TransitionResult } from "./m3-transitions";
 export {
   applyAddPlayer,
@@ -167,7 +162,6 @@ export {
   syntheticMigrationCommandId,
   isSyntheticMigrationCommandId,
   migrationCommandFingerprint,
-  moveMonthFingerprint,
   undoFingerprint,
   redoFingerprint,
   checkpointRestoreFingerprint,
@@ -215,7 +209,6 @@ export type {
   SerializableCampaignState,
 } from "./verification";
 export {
-  validateMoveMonthTransaction,
   verifyMigrationInvariants,
 } from "./verification";
 

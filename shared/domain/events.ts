@@ -1,20 +1,9 @@
-import type { MonthDirection, MonthOrdinal } from "./calendar";
+import type { MonthOrdinal } from "./calendar";
+import type { MonthDirection } from "./calendar";
 import type { MovablePlanetId, CentidegreePosition } from "./orrery";
 import type { LunarPhase } from "./campaign-state";
 import type { TimeDestination } from "./time-model";
 import type { EngagementTarget } from "./engagement";
-
-export interface MonthChangedDataV1 {
-  readonly direction: MonthDirection;
-  readonly fromOrdinal: MonthOrdinal;
-  readonly toOrdinal: MonthOrdinal;
-}
-
-export interface MonthChangedEventV1 {
-  readonly type: "month_changed";
-  readonly version: 1;
-  readonly data: MonthChangedDataV1;
-}
 
 export interface UndoAppliedDataV1 {
   readonly fromRevision: number;
@@ -428,11 +417,23 @@ export interface MonthBegunEventV1 {
 }
 
 export type InfrastructureEvent =
-  | MonthChangedEventV1
   | UndoAppliedEventV1
   | RedoAppliedEventV1
   | CheckpointRestoredEventV1
   | BackupImportedEventV1;
+
+// Historical event types retained for migration tooling (not part of active InfrastructureEvent union).
+export interface MonthChangedDataV1 {
+  readonly direction: MonthDirection;
+  readonly fromOrdinal: MonthOrdinal;
+  readonly toOrdinal: MonthOrdinal;
+}
+
+export interface MonthChangedEventV1 {
+  readonly type: "month_changed";
+  readonly version: 1;
+  readonly data: MonthChangedDataV1;
+}
 
 export type SetupEvent =
   | PlayerAddedEventV1

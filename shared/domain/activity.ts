@@ -1,14 +1,6 @@
 import type { CampaignEvent, InfrastructureEvent } from "./events";
-import { displayNameFromOrdinal } from "./calendar";
 
 export type ActivityEntry =
-  | {
-      readonly id: string;
-      readonly revision: number;
-      readonly type: "month_changed";
-      readonly previousMonth: string;
-      readonly newMonth: string;
-    }
   | {
       readonly id: string;
       readonly revision: number;
@@ -123,20 +115,6 @@ function mapInfrastructureEvent(
   event: InfrastructureEvent,
 ): ActivityEntry {
   switch (event.type) {
-    case "month_changed": {
-      if (event.version !== 1) {
-        throw new Error(
-          `Unsupported month_changed event version ${event.version}`,
-        );
-      }
-      return {
-        id,
-        revision,
-        type: "month_changed",
-        previousMonth: displayNameFromOrdinal(event.data.fromOrdinal),
-        newMonth: displayNameFromOrdinal(event.data.toOrdinal),
-      };
-    }
     case "undo_applied": {
       if (event.version !== 1) {
         throw new Error(
@@ -204,7 +182,6 @@ export function mapEventToActivityEntry(
   event: CampaignEvent,
 ): ActivityEntry {
   switch (event.type) {
-    case "month_changed":
     case "undo_applied":
     case "redo_applied":
     case "checkpoint_restored":
@@ -249,8 +226,6 @@ export function mapEventToActivityEntry(
 
 export function describeActivityEntry(entry: ActivityEntry): string {
   switch (entry.type) {
-    case "month_changed":
-      return `Revision ${entry.revision} — ${entry.previousMonth} → ${entry.newMonth}`;
     case "undo_applied":
       return `Revision ${entry.revision} — Undo: revision ${entry.fromRevision} → ${entry.targetRevision}`;
     case "redo_applied":

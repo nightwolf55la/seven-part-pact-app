@@ -1,6 +1,4 @@
 export const CAMPAIGN_COMMAND_TYPES = [
-  "move_month",
-  "legacy_month_change",
   "checkpoint_restore",
   "backup_import",
   "undo",
@@ -34,12 +32,19 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "begin_next_month",
 ] as const;
 
-export type CampaignCommandType = (typeof CAMPAIGN_COMMAND_TYPES)[number];
+// Historical command types that may appear in persisted revision records but
+// are no longer emitted by active runtime code (M4 retirement).
+export const HISTORICAL_COMMAND_TYPES = [
+  "move_month",
+  "legacy_month_change",
+] as const;
+
+export type CampaignCommandType =
+  | (typeof CAMPAIGN_COMMAND_TYPES)[number]
+  | (typeof HISTORICAL_COMMAND_TYPES)[number];
 
 export function isLogicalStateCommandType(commandType: CampaignCommandType): boolean {
   switch (commandType) {
-    case "move_month":
-    case "legacy_month_change":
     case "checkpoint_restore":
     case "backup_import":
     case "add_player":
@@ -69,9 +74,13 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "adjust_wizardmoot_attendance":
     case "complete_meeting":
     case "begin_next_month":
+    case "move_month":
+    case "legacy_month_change":
       return true;
     case "undo":
     case "redo":
+      return false;
+    default:
       return false;
   }
 }

@@ -24,15 +24,13 @@ export const campaignCommandTypeValidator = v.union(
   ...CAMPAIGN_COMMAND_TYPES.map((t) => v.literal(t)),
 );
 
-export const monthChangedEventV1Validator = v.object({
-  type: v.literal("month_changed"),
-  version: v.literal(1),
-  data: v.object({
-    direction: monthDirectionValidator,
-    fromOrdinal: v.number(),
-    toOrdinal: v.number(),
-  }),
-});
+// Historical command types that may exist in persisted revision records but are
+// no longer created by active runtime code (M4 retirement).
+export const persistedCommandTypeValidator = v.union(
+  ...CAMPAIGN_COMMAND_TYPES.map((t) => v.literal(t)),
+  v.literal("move_month"),
+  v.literal("legacy_month_change"),
+);
 
 export const undoAppliedEventV1Validator = v.object({
   type: v.literal("undo_applied"),
@@ -498,8 +496,20 @@ export const engagementRescheduledEventV1Validator = v.object({
   }),
 });
 
+// Historical event validators for persisted data (M4 retirement). These event
+// shapes may exist in campaignEvents rows but are no longer created at runtime.
+const historicalMonthChangedEventV1Validator = v.object({
+  type: v.literal("month_changed"),
+  version: v.literal(1),
+  data: v.object({
+    direction: monthDirectionValidator,
+    fromOrdinal: v.number(),
+    toOrdinal: v.number(),
+  }),
+});
+
 export const campaignEventValidator = v.union(
-  monthChangedEventV1Validator,
+  historicalMonthChangedEventV1Validator,
   undoAppliedEventV1Validator,
   redoAppliedEventV1Validator,
   checkpointRestoredEventV1Validator,
@@ -548,7 +558,7 @@ export const campaignRevisionRecordValidator = v.object({
   campaignId: v.string(),
   campaignRevision: v.number(),
   commandId: v.string(),
-  commandType: campaignCommandTypeValidator,
+  commandType: persistedCommandTypeValidator,
   commandFingerprint: v.string(),
 });
 
@@ -582,13 +592,6 @@ export const campaignCheckpointValidator = v.object({
 });
 
 export const activityEntryValidator = v.union(
-  v.object({
-    id: v.string(),
-    revision: v.number(),
-    type: v.literal("month_changed"),
-    previousMonth: v.string(),
-    newMonth: v.string(),
-  }),
   v.object({
     id: v.string(),
     revision: v.number(),

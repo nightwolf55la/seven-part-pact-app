@@ -1,9 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  validateMoveMonthTransaction,
   verifyMigrationInvariants,
-  moveMonthFingerprint,
-  applyMoveMonth,
   backupImportFingerprint,
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
@@ -17,7 +14,6 @@ import * as path from "node:path";
 import type {
   CurrentCampaignState,
   MonthOrdinal,
-  MonthDirection,
   RevisionRecord,
   EventRecord,
   SnapshotRecord,
@@ -55,7 +51,7 @@ function makeState(monthOrdinal: number): CurrentCampaignState {
 }
 
 function makeEvent(
-  direction: MonthDirection,
+  direction: "forward" | "backward",
   from: number,
   to: number,
 ): EventRecord["event"] {
@@ -93,87 +89,6 @@ function makeCanonicalDoc(revision: number, monthOrdinal: number): CampaignDocum
     state: makeState(monthOrdinal),
   };
 }
-
-describe("validateMoveMonthTransaction", () => {
-  it("accepts a valid forward transaction", () => {
-    const state = makeState(5);
-    const { nextState, events } = applyMoveMonth(state, "forward");
-    const fp = moveMonthFingerprint("forward");
-    const errors = validateMoveMonthTransaction(state, events, nextState, fp);
-    expect(errors).toEqual([]);
-  });
-
-  it("accepts a valid backward transaction", () => {
-    const state = makeState(3);
-    const { nextState, events } = applyMoveMonth(state, "backward");
-    const fp = moveMonthFingerprint("backward");
-    const errors = validateMoveMonthTransaction(state, events, nextState, fp);
-    expect(errors).toEqual([]);
-  });
-
-  it("rejects zero events", () => {
-    const state = makeState(5);
-    const errors = validateMoveMonthTransaction(state, [], state, moveMonthFingerprint("forward"));
-    expect(errors.length).toBe(1);
-    expect(errors[0]).toContain("exactly one event");
-  });
-
-  it("rejects two events", () => {
-    const state = makeState(5);
-    const e1 = makeEvent("forward", 5, 6);
-    const e2 = makeEvent("forward", 6, 7);
-    const errors = validateMoveMonthTransaction(state, [e1, e2], makeState(7), moveMonthFingerprint("forward"));
-    expect(errors.length).toBe(1);
-    expect(errors[0]).toContain("exactly one event");
-  });
-
-  it("rejects wrong event type", () => {
-    const state = makeState(5);
-    const badEvent = {
-      type: "spell_cast",
-      version: 1,
-      data: { direction: "forward", fromOrdinal: 5, toOrdinal: 6 },
-    } as unknown as EventRecord["event"];
-    const errors = validateMoveMonthTransaction(state, [badEvent], makeState(6), moveMonthFingerprint("forward"));
-    expect(errors.length).toBe(1);
-    expect(errors[0]).toContain("month_changed version 1");
-  });
-
-  it("rejects fromOrdinal mismatch", () => {
-    const state = makeState(5);
-    const evt = makeEvent("forward", 99, 100);
-    const errors = validateMoveMonthTransaction(state, [evt], makeState(100), moveMonthFingerprint("forward"));
-    expect(errors.some((e) => e.includes("fromOrdinal"))).toBe(true);
-  });
-
-  it("rejects toOrdinal inconsistent with direction", () => {
-    const state = makeState(5);
-    const evt = makeEvent("forward", 5, 99);
-    const errors = validateMoveMonthTransaction(state, [evt], makeState(99), moveMonthFingerprint("forward"));
-    expect(errors.some((e) => e.includes("toOrdinal"))).toBe(true);
-  });
-
-  it("rejects nextState monthOrdinal not matching toOrdinal", () => {
-    const state = makeState(5);
-    const evt = makeEvent("forward", 5, 6);
-    const errors = validateMoveMonthTransaction(state, [evt], makeState(99), moveMonthFingerprint("forward"));
-    expect(errors.some((e) => e.includes("Next state monthOrdinal"))).toBe(true);
-  });
-
-  it("rejects wrong commandFingerprint", () => {
-    const state = makeState(5);
-    const { nextState, events } = applyMoveMonth(state, "forward");
-    const errors = validateMoveMonthTransaction(state, events, nextState, "wrong:fingerprint");
-    expect(errors.some((e) => e.includes("commandFingerprint"))).toBe(true);
-  });
-
-  it("rejects backward fingerprint for forward event", () => {
-    const state = makeState(5);
-    const { nextState, events } = applyMoveMonth(state, "forward");
-    const errors = validateMoveMonthTransaction(state, events, nextState, moveMonthFingerprint("backward"));
-    expect(errors.some((e) => e.includes("commandFingerprint"))).toBe(true);
-  });
-});
 
 describe("historical snapshot loading uses loadSnapshotState (V1/V2 regression)", () => {
   const campaignSource = fs.readFileSync(

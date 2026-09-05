@@ -1,6 +1,6 @@
 import type { MutationCtx } from "./_generated/server";
-import type { CampaignCommandType, CurrentCampaignState, CampaignEvent, InfrastructureEvent, MonthDirection, EventRecord } from "../shared/domain";
-import { validateCampaignState, validateAnyCampaignState, DomainError, advanceOrdinal, validateMoveMonthTransaction, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION, validateHistoryControlStructure, statesDeepEqual, isValidCheckpointId, validateCheckpointLabel, normalizeCheckpointLabel, checkpointRestoreFingerprint, CURRENT_CHECKPOINT_VERSION, isValidCampaignId, backupImportFingerprint, fullyValidateBackup, isValidPlayerId, isValidWizardId } from "../shared/domain";
+import type { CampaignCommandType, CurrentCampaignState, CampaignEvent, InfrastructureEvent } from "../shared/domain";
+import { validateCampaignState, validateAnyCampaignState, DomainError, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION, validateHistoryControlStructure, statesDeepEqual, isValidCheckpointId, validateCheckpointLabel, normalizeCheckpointLabel, checkpointRestoreFingerprint, CURRENT_CHECKPOINT_VERSION, isValidCampaignId, backupImportFingerprint, fullyValidateBackup, isValidPlayerId, isValidWizardId } from "../shared/domain";
 import { migrateToCurrentVersion } from "../shared/domain/state-migration";
 import { assertPortableCampaignState } from "../shared/domain/state-equality";
 import { validateUndoTransactionCoherence, validateRedoTransactionCoherence } from "../shared/domain/undo-redo";
@@ -49,30 +49,6 @@ function validateEventCoherence(
   const { currentState, nextState, events, commandType, commandFingerprint } = input;
 
   switch (commandType) {
-    case "move_month": {
-      const moveErrors = validateMoveMonthTransaction(
-        currentState,
-        events as EventRecord["event"][],
-        nextState,
-        commandFingerprint,
-      );
-      if (moveErrors.length > 0) {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", `move_month coherence: ${moveErrors.join("; ")}`);
-      }
-      if (input.historyControlUpdate.kind !== "logical_state_append") {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", "move_month must use logical_state_append history update");
-      }
-      break;
-    }
-    case "legacy_month_change": {
-      if (events.length !== 1) {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", "legacy_month_change must produce exactly one event");
-      }
-      if (input.historyControlUpdate.kind !== "logical_state_append") {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", "legacy_month_change must use logical_state_append history update");
-      }
-      break;
-    }
     case "checkpoint_restore": {
       if (events.length !== 1) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", "checkpoint_restore must produce exactly one event");
@@ -414,14 +390,6 @@ async function validateCheckpointRestoreCoherence(
 
 function validateInfrastructureEventStructure(evt: InfrastructureEvent): void {
   switch (evt.type) {
-    case "month_changed":
-      if (evt.version !== 1) {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", `Unsupported month_changed version: ${evt.version}`);
-      }
-      if (evt.data.direction !== "forward" && evt.data.direction !== "backward") {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid month_changed direction: ${evt.data.direction}`);
-      }
-      break;
     case "undo_applied":
       if (evt.version !== 1) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `Unsupported undo_applied version: ${evt.version}`);
@@ -486,7 +454,7 @@ export async function canonicalCommit(
 
   // --- Event-level validation per event structure ---
   for (const evt of input.events) {
-    if (evt.type === "month_changed" || evt.type === "undo_applied" || evt.type === "redo_applied" || evt.type === "checkpoint_restored" || evt.type === "backup_imported") {
+    if (evt.type === "undo_applied" || evt.type === "redo_applied" || evt.type === "checkpoint_restored" || evt.type === "backup_imported") {
       validateInfrastructureEventStructure(evt as InfrastructureEvent);
     }
   }
@@ -782,20 +750,6 @@ export async function canonicalCommit(
     };
 
     switch (evt.type) {
-      case "month_changed":
-        await ctx.db.insert("campaignEvents", {
-          ...baseRecord,
-          event: {
-            type: "month_changed" as const,
-            version: 1 as const,
-            data: {
-              direction: evt.data.direction,
-              fromOrdinal: evt.data.fromOrdinal as number,
-              toOrdinal: evt.data.toOrdinal as number,
-            },
-          },
-        });
-        break;
       case "undo_applied":
         await ctx.db.insert("campaignEvents", {
           ...baseRecord,

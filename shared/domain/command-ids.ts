@@ -36,6 +36,7 @@ export function migrationCommandFingerprint(revision: number, direction: MonthDi
   return `legacy_month_change:v1:rev${revision}:${direction}`;
 }
 
+// Retained for historical tooling (history-control.ts). Not re-exported from index.ts.
 export function moveMonthFingerprint(direction: MonthDirection): string {
   return `move_month:v1:${direction}`;
 }

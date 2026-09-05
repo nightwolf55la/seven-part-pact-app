@@ -4,11 +4,11 @@ import {
   parseCampaignId,
   isValidLiveCommandId,
   parseLiveCommandId,
-  moveMonthFingerprint,
   migrationCommandFingerprint,
   isSyntheticMigrationCommandId,
   syntheticMigrationCommandId,
   DomainError,
+  undoFingerprint,
 } from "../shared/domain";
 
 describe("CampaignId validation", () => {
@@ -84,51 +84,16 @@ describe("live CommandId validation", () => {
   });
 });
 
-describe("moveMonthFingerprint", () => {
-  it("produces deterministic fingerprint for forward", () => {
-    expect(moveMonthFingerprint("forward")).toBe("move_month:v1:forward");
-  });
-
-  it("produces deterministic fingerprint for backward", () => {
-    expect(moveMonthFingerprint("backward")).toBe("move_month:v1:backward");
-  });
-
-  it("forward and backward produce different fingerprints", () => {
-    expect(moveMonthFingerprint("forward")).not.toBe(moveMonthFingerprint("backward"));
-  });
-
-  it("same direction always produces same fingerprint", () => {
-    expect(moveMonthFingerprint("forward")).toBe(moveMonthFingerprint("forward"));
-  });
-});
-
-describe("migrationCommandFingerprint", () => {
-  it("includes revision and direction", () => {
-    const fp = migrationCommandFingerprint(5, "forward");
-    expect(fp).toBe("legacy_month_change:v1:rev5:forward");
-  });
-
-  it("different revisions produce different fingerprints", () => {
-    expect(migrationCommandFingerprint(1, "forward"))
-      .not.toBe(migrationCommandFingerprint(2, "forward"));
-  });
-
-  it("same revision different direction produces different fingerprint", () => {
-    expect(migrationCommandFingerprint(3, "forward"))
-      .not.toBe(migrationCommandFingerprint(3, "backward"));
-  });
-});
-
 describe("command idempotency logic (pure)", () => {
-  it("same commandId + same fingerprint = compatible retry", () => {
-    const fp1 = moveMonthFingerprint("forward");
-    const fp2 = moveMonthFingerprint("forward");
+  it("same fingerprint function + same args = compatible retry", () => {
+    const fp1 = undoFingerprint(5);
+    const fp2 = undoFingerprint(5);
     expect(fp1).toBe(fp2);
   });
 
-  it("same commandId + opposite direction = incompatible reuse (different fingerprint)", () => {
-    const fp1 = moveMonthFingerprint("forward");
-    const fp2 = moveMonthFingerprint("backward");
+  it("same fingerprint function + different args = incompatible reuse", () => {
+    const fp1 = undoFingerprint(5);
+    const fp2 = undoFingerprint(6);
     expect(fp1).not.toBe(fp2);
   });
 

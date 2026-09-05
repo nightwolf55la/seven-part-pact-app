@@ -2,12 +2,9 @@ import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import {
   displayNameFromOrdinal,
-  advanceOrdinal,
   INITIAL_MONTH_ORDINAL,
-  applyMoveMonth,
   validateCampaignState,
   parseLiveCommandId,
-  moveMonthFingerprint,
   undoFingerprint,
   redoFingerprint,
   checkpointRestoreFingerprint,
@@ -25,7 +22,7 @@ import {
   statesDeepEqual,
   mapEventToActivityEntry,
 } from "../shared/domain";
-import type { MonthDirection, CampaignId, CampaignHistoryControlV1, CurrentCampaignState, CampaignEvent, CheckpointRestoredEventV1 } from "../shared/domain";
+import type { CampaignId, CampaignHistoryControlV1, CurrentCampaignState, CampaignEvent, CheckpointRestoredEventV1 } from "../shared/domain";
 import { validateAnyCampaignState } from "../shared/domain";
 import { loadHistoricalState, isHistoricalStateLogicallyEqual } from "../shared/domain/state-migration";
 import { deriveUndoTransition, deriveRedoTransition } from "../shared/domain/undo-redo";
@@ -87,15 +84,7 @@ export const getCampaign = query({
       };
     }
 
-    const legacy = await ctx.db.query("campaigns").first();
-    if (legacy === null) return null;
-    if (!("monthOrdinal" in legacy)) return null;
-    return {
-      _id: legacy._id,
-      _creationTime: legacy._creationTime,
-      monthOrdinal: legacy.monthOrdinal,
-      revision: legacy.revision,
-    };
+    return null;
   },
 });
 
@@ -146,19 +135,9 @@ export const ensureCampaign = mutation({
     const allCampaigns = await ctx.db.query("campaigns").collect();
 
     if (allCampaigns.length > 0) {
-      const hasLegacy = allCampaigns.some((c) => "monthOrdinal" in c && !("campaignKey" in c));
-      if (hasLegacy) {
-        const legacy = allCampaigns.find((c) => "monthOrdinal" in c && !("campaignKey" in c))!;
-        return {
-          _id: legacy._id,
-          _creationTime: legacy._creationTime,
-          monthOrdinal: (legacy as any).monthOrdinal,
-          revision: (legacy as any).revision,
-        };
-      }
       throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        `Unexpected campaign documents found (${allCampaigns.length}) but none are canonical or legacy`,
+        "CAMPAIGN_GRAPH_NOT_EMPTY",
+        `Unexpected campaign documents found (${allCampaigns.length}) but none are canonical`,
       );
     }
 
@@ -250,115 +229,21 @@ export const getRecentEvents = query({
       .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
       .unique();
 
-    if (maybeCanonical !== null && isCanonical(maybeCanonical)) {
-      const events = await ctx.db
-        .query("campaignEvents")
-        .withIndex("by_campaign_revision_index", (q) =>
-          q.eq("campaignId", maybeCanonical.campaignId),
-        )
-        .order("desc")
-        .take(args.count);
-
-      return events.map((e) =>
-        mapEventToActivityEntry(e._id, e.campaignRevision, e.event as CampaignEvent),
-      );
+    if (maybeCanonical === null || !isCanonical(maybeCanonical)) {
+      return [];
     }
 
-    const legacyEvents = await ctx.db.query("events").order("desc").take(args.count);
-    return legacyEvents.map((e) => ({
-      id: e._id,
-      revision: e.revision,
-      type: "month_changed" as const,
-      previousMonth: e.previousMonth,
-      newMonth: e.newMonth,
-    }));
-  },
-});
+    const events = await ctx.db
+      .query("campaignEvents")
+      .withIndex("by_campaign_revision_index", (q) =>
+        q.eq("campaignId", maybeCanonical.campaignId),
+      )
+      .order("desc")
+      .take(args.count);
 
-export const moveMonth = mutation({
-  args: {
-    direction: monthDirectionValidator,
-    commandId: v.string(),
-  },
-  returns: v.object({
-    revision: v.number(),
-    monthOrdinal: v.union(v.number(), v.null()),
-    month: v.union(monthDisplayNameValidator, v.null()),
-  }),
-  handler: async (ctx, args) => {
-    const maybeCanonical = await ctx.db
-      .query("campaigns")
-      .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
-      .unique();
-
-    if (maybeCanonical !== null && isCanonical(maybeCanonical)) {
-      const commandId = parseLiveCommandId(args.commandId);
-      const currentState = validateCampaignState(maybeCanonical.state);
-      const direction = args.direction as MonthDirection;
-      const { nextState, events } = applyMoveMonth(currentState, direction);
-      const fingerprint = moveMonthFingerprint(direction);
-
-      const receipt = await canonicalCommit(ctx, {
-        campaignDocId: maybeCanonical._id,
-        campaignId: maybeCanonical.campaignId,
-        currentRevision: maybeCanonical.campaignRevision,
-        currentState,
-        commandId,
-        commandType: "move_month",
-        commandFingerprint: fingerprint,
-        nextState,
-        events,
-        historyControlUpdate: { kind: "logical_state_append" },
-      });
-
-      const mo = receipt.state.calendar.monthOrdinal;
-      return {
-        revision: receipt.newRevision,
-        monthOrdinal: mo,
-        month: mo !== null ? displayNameFromOrdinal(mo) : null,
-      };
-    }
-
-    const legacy = await ctx.db.query("campaigns").first();
-
-    if (legacy === null) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        "No campaign exists. Call ensureCampaign first.",
-      );
-    }
-
-    if (!("monthOrdinal" in legacy)) {
-      throw new Error("Campaign has been migrated to new format");
-    }
-
-    const previousMonthOrdinal = legacy.monthOrdinal;
-    const previousMonth = displayNameFromOrdinal(previousMonthOrdinal);
-
-    const newMonthOrdinal = advanceOrdinal(previousMonthOrdinal, args.direction);
-    const newMonth = displayNameFromOrdinal(newMonthOrdinal);
-    const newRevision = legacy.revision + 1;
-
-    await ctx.db.patch(legacy._id, {
-      monthOrdinal: newMonthOrdinal,
-      revision: newRevision,
-    });
-
-    await ctx.db.insert("events", {
-      type: "month_changed",
-      revision: newRevision,
-      direction: args.direction,
-      previousMonthOrdinal,
-      newMonthOrdinal,
-      previousMonth,
-      newMonth,
-    });
-
-    return {
-      revision: newRevision,
-      monthOrdinal: newMonthOrdinal as number,
-      month: newMonth,
-    };
+    return events.map((e) =>
+      mapEventToActivityEntry(e._id, e.campaignRevision, e.event as CampaignEvent),
+    );
   },
 });
 

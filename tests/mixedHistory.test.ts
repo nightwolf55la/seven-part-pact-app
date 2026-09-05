@@ -4,7 +4,6 @@ import {
   isHistoricalStateLogicallyEqual,
   validateCampaignState,
   validateAnyCampaignState,
-  applyMoveMonth,
   verifyMigrationInvariants,
   verifyHistoryControl,
   deriveUndoTransition,
@@ -14,7 +13,7 @@ import {
   addPlayerFingerprint,
   createWizardFingerprint,
   removePlayerFingerprint,
-  moveMonthFingerprint,
+
   CURRENT_STATE_SCHEMA_VERSION,
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
@@ -161,7 +160,7 @@ describe("V3 Production Paths", () => {
   describe("undo targeting V3 snapshot", () => {
     it("deriveUndoTransition succeeds with V3 target state", () => {
       const targetState = v2State(0);
-      const currentV2 = applyMoveMonth(v2State(0), "forward").nextState;
+      const currentV2 = v2State(1);
 
       const control: CampaignHistoryControlV1 = {
         historyControlVersion: 1,
@@ -210,7 +209,7 @@ describe("V3 Production Paths", () => {
           campaignState: currentV2,
           targetSnapshotState: targetState,
           currentLogicalSnapshotState: currentV2,
-          targetRevisionCommandType: "move_month",
+          targetRevisionCommandType: "legacy_month_change",
         },
         control.campaignId,
       );
@@ -239,7 +238,7 @@ describe("V3 Production Paths", () => {
       const v2Snap = v2State(1) as unknown as SerializableCampaignState;
 
       const revisions: RevisionRecord[] = [
-        { campaignRevision: 1, commandType: "move_month", commandFingerprint: moveMonthFingerprint("forward") },
+        { campaignRevision: 1, commandType: "legacy_month_change", commandFingerprint: "legacy_month_change:v1:rev1:forward" },
       ];
       const events: EventRecord[] = [
         { campaignRevision: 1, eventIndex: 0, event: { type: "month_changed", version: 1, data: { direction: "forward", fromOrdinal: 0, toOrdinal: 1 } } },
@@ -294,7 +293,7 @@ describe("V3 Production Paths", () => {
       const v2Snap = v2State(1) as unknown as SerializableCampaignState;
 
       const revisions: RevisionRecord[] = [
-        { campaignRevision: 1, commandType: "move_month", commandFingerprint: moveMonthFingerprint("forward") },
+        { campaignRevision: 1, commandType: "legacy_month_change", commandFingerprint: "legacy_month_change:v1:rev1:forward" },
       ];
       const events: EventRecord[] = [
         { campaignRevision: 1, eventIndex: 0, event: { type: "month_changed", version: 1, data: { direction: "forward", fromOrdinal: 0, toOrdinal: 1 } } },

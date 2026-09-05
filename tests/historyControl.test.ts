@@ -20,9 +20,9 @@ import {
   type InitializationRevisionInfo,
   type InitializationEventInfo,
   type InitializationSnapshotInfo,
+  type CampaignCommandType,
 } from "../shared/domain";
-import type { CampaignCommandType } from "../shared/domain/commands";
-import { moveMonthFingerprint, migrationCommandFingerprint } from "../shared/domain/command-ids";
+import { migrationCommandFingerprint, moveMonthFingerprint } from "../shared/domain/command-ids";
 
 function makeSerializableState(monthOrdinal: number): SerializableCampaignState {
   return {
@@ -49,14 +49,6 @@ function makeSerializableState(monthOrdinal: number): SerializableCampaignState 
 // --- Command Classification ---
 
 describe("isLogicalStateCommandType", () => {
-  it("returns true for move_month", () => {
-    expect(isLogicalStateCommandType("move_month")).toBe(true);
-  });
-
-  it("returns true for legacy_month_change", () => {
-    expect(isLogicalStateCommandType("legacy_month_change")).toBe(true);
-  });
-
   it("returns false for undo", () => {
     expect(isLogicalStateCommandType("undo")).toBe(false);
   });
@@ -73,14 +65,6 @@ describe("isHistoryNavigationCommandType", () => {
 
   it("returns true for redo", () => {
     expect(isHistoryNavigationCommandType("redo")).toBe(true);
-  });
-
-  it("returns false for move_month", () => {
-    expect(isHistoryNavigationCommandType("move_month")).toBe(false);
-  });
-
-  it("returns false for legacy_month_change", () => {
-    expect(isHistoryNavigationCommandType("legacy_month_change")).toBe(false);
   });
 });
 
@@ -510,12 +494,10 @@ describe("analyzeHistoryControlInitialization", () => {
 
   function makeRevision(
     rev: number,
-    commandType: CampaignCommandType = "move_month",
+    commandType: CampaignCommandType = "legacy_month_change",
     fingerprint?: string,
   ): InitializationRevisionInfo {
-    const fp = fingerprint ?? (commandType === "move_month"
-      ? moveMonthFingerprint("forward")
-      : migrationCommandFingerprint(rev, "forward"));
+    const fp = fingerprint ?? migrationCommandFingerprint(rev, "forward");
     return { campaignRevision: rev, commandType, commandFingerprint: fp };
   }
 
@@ -858,7 +840,7 @@ describe("analyzeHistoryControlInitialization", () => {
       ...input,
       revisions: input.revisions.map((r) =>
         r.campaignRevision === 1
-          ? { ...r, commandFingerprint: "move_month:v1:backward" }
+          ? { ...r, commandFingerprint: "bad_fingerprint:v1:backward" }
           : r,
       ),
     };
