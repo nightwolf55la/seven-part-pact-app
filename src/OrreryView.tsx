@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { buildOrreryDisplayModel, arcSvgAngles, centidegreesToSvgAngle, sunDisplaySvgAngle, bodiesConjunctWith } from "./orrery-view-model";
+import { buildOrreryDisplayModel, arcSvgAngles, centidegreesToSvgAngle, sunDisplaySvgAngle, bodiesConjunctWith, occupiedHousesOfBody } from "./orrery-view-model";
 import type { OrreryDisplayModel, PlanetDisplayInfo, ConjunctionDisplayInfo } from "./orrery-view-model";
 import { MOVABLE_PLANET_IDS, PLANET_DEFINITIONS, FULL_CIRCLE_CENTIDEGREES, HOUSE_WIDTH_CENTIDEGREES } from "../shared/domain/orrery";
 import type { MovablePlanetId, CentidegreePosition, HouseIndex, CelestialBodyId } from "../shared/domain/orrery";
@@ -109,6 +109,11 @@ export default function OrreryView({
     return houses;
   }, [hoveredBody, model.conjunctions]);
 
+  const occupiedHousesForHovered = useMemo(() => {
+    if (hoveredBody === null) return new Set<HouseIndex>();
+    return new Set(occupiedHousesOfBody(model, hoveredBody));
+  }, [hoveredBody, model]);
+
   const sunAngle = sunDisplaySvgAngle(monthOrdinal as MonthOrdinal);
   const sunPoint = polarToCartesian(SVG_CENTER, SVG_CENTER, SUN_R, sunAngle);
 
@@ -117,9 +122,14 @@ export default function OrreryView({
     return hoveredBody === bodyId || conjunctWithHovered.has(bodyId);
   };
 
-  const isHouseEmphasized = (houseIndex: HouseIndex): boolean => {
+  const isHouseConjunction = (houseIndex: HouseIndex): boolean => {
     if (hoveredBody === null) return false;
     return conjunctHousesForHovered.has(houseIndex);
+  };
+
+  const isHouseOccupied = (houseIndex: HouseIndex): boolean => {
+    if (hoveredBody === null) return false;
+    return occupiedHousesForHovered.has(houseIndex);
   };
 
   const bodyOpacity = (bodyId: CelestialBodyId): number => {
@@ -144,16 +154,19 @@ export default function OrreryView({
             const startAngle = centidegreesToSvgAngle(house.index * HOUSE_WIDTH_CENTIDEGREES);
             const endAngle = centidegreesToSvgAngle((house.index + 1) * HOUSE_WIDTH_CENTIDEGREES);
             const isSunHouse = house.hasSun;
-            const isHighlighted = isHouseEmphasized(house.index);
+            const isConjunction = isHouseConjunction(house.index);
+            const isOccupied = isHouseOccupied(house.index);
             const midAngle = (startAngle + endAngle) / 2;
             const labelPos = polarToCartesian(SVG_CENTER, SVG_CENTER, LABEL_R, midAngle);
-            const fillColor = isHighlighted
+            const fillColor = isConjunction
               ? "#fde68a"
-              : isSunHouse
-                ? "#fef3c7"
-                : house.index % 2 === 0
-                  ? "#f8fafc"
-                  : "#f1f5f9";
+              : isOccupied
+                ? "#e0f2fe"
+                : isSunHouse
+                  ? "#fef3c7"
+                  : house.index % 2 === 0
+                    ? "#f8fafc"
+                    : "#f1f5f9";
             return (
               <g key={house.index}>
                 <path

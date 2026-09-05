@@ -153,3 +153,15 @@ export function bodiesConjunctWith(
   }
   return result;
 }
+
+export function occupiedHousesOfBody(
+  model: OrreryDisplayModel,
+  bodyId: CelestialBodyId,
+): readonly HouseIndex[] {
+  if (bodyId === "sun") {
+    return [model.sun.houseIndex];
+  }
+  const planet = model.planets.find((pi) => pi.planetId === bodyId);
+  if (!planet) return [];
+  return [...planet.occupiedHouses];
+}

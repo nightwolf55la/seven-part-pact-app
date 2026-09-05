@@ -6,6 +6,7 @@ import {
   sunDisplayPosition,
   sunDisplaySvgAngle,
   bodiesConjunctWith,
+  occupiedHousesOfBody,
 } from "../src/orrery-view-model";
 import {
   legalPositionsForPlanet,
@@ -179,5 +180,32 @@ describe("bodiesConjunctWith (hover highlighting helper)", () => {
       const conjunctWithOther = bodiesConjunctWith(model.conjunctions, other as CelestialBodyId);
       expect(conjunctWithOther).toContain("saturn");
     }
+  });
+});
+
+describe("occupiedHousesOfBody (presentation occupancy query)", () => {
+  it("returns ALL occupied Houses for a planet, not just conjunction Houses", () => {
+    // Venus at index 2 should occupy multiple houses (e.g. Aries, Taurus, Gemini).
+    // We need a fixture where Venus occupies Aries but no other body shares Aries,
+    // so Aries is NOT a conjunction House.
+    const monthOrdinal = 0 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 20, venus: 2, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const venusHouses = occupiedHousesOfBody(model, "venus" as CelestialBodyId);
+    expect(venusHouses.length).toBeGreaterThanOrEqual(2);
+
+    // Verify the returned indices match the planet's existing occupiedHouses
+    const venusInfo = model.planets.find((pi) => pi.planetId === "venus")!;
+    expect(venusHouses).toEqual([...venusInfo.occupiedHouses]);
+  });
+
+  it("returns the Sun's single House for 'sun'", () => {
+    const monthOrdinal = 0 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 0, venus: 0, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const sunHouses = occupiedHousesOfBody(model, "sun" as CelestialBodyId);
+    expect(sunHouses).toEqual([model.sun.houseIndex]);
   });
 });
