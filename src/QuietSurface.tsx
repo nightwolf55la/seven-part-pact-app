@@ -1,4 +1,3 @@
-import { useCallback } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../convex/_generated/api.js";
 import type { LunarPhase } from "../shared/domain/campaign-state";
@@ -39,10 +38,7 @@ export default function QuietSurface({ phase: _phase, monthOrdinal: _monthOrdina
   }
 
   const summary = quietSummary(data);
-  const formatWarning = useCallback(
-    (w: QuietWarning) => formatQuietWarning(w, data),
-    [data],
-  );
+  const formatWarning = (w: QuietWarning) => formatQuietWarning(w, data);
 
   return (
     <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 flex flex-col gap-5">
