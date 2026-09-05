@@ -4,6 +4,12 @@
 **Prerequisite:** This document, all M3 code changes, and the EXPAND-phase schema
 must be deployed before running the migration.
 
+> **Supersession (M4):** This document is a historical record of the M3
+> rollout. M4 retires V1 and V2 entirely; M4 implementation will remove the
+> V1-to-V2 migration path described here. Pre-M4 campaign data are explicitly
+> disposable. The historical M3 procedure below remains a record of what
+> occurred during M3. See [M4 Shared Monthly Play Loop](m4-shared-monthly-play-loop.md).
+
 ### Rehearsal Record
 
 A realistic disposable EXPAND + MIGRATE rehearsal was completed successfully

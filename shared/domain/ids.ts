@@ -5,12 +5,29 @@ export type CommandId = Brand<string, "CommandId">;
 export type CheckpointId = Brand<string, "CheckpointId">;
 export type PlayerId = Brand<string, "PlayerId">;
 export type WizardId = Brand<string, "WizardId">;
+export type AllocationId = Brand<string, "AllocationId">;
+export type EngagementId = Brand<string, "EngagementId">;
+
 
 const CAMPAIGN_ID_REGEX = /^cmp_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const LIVE_COMMAND_ID_REGEX = /^cmd_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const CHECKPOINT_ID_REGEX = /^chk_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const PLAYER_ID_REGEX = /^plr_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const WIZARD_ID_REGEX = /^wiz_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const ALLOCATION_ID_REGEX = /^alc_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const ENGAGEMENT_ID_REGEX = /^eng_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+function generateBrandedId(prefix: string): string {
+  return `${prefix}_${crypto.randomUUID()}`;
+}
+
+export function generateAllocationId(): AllocationId {
+  return generateBrandedId("alc") as AllocationId;
+}
+
+export function generateEngagementId(): EngagementId {
+  return generateBrandedId("eng") as EngagementId;
+}
 
 export function isValidCampaignId(value: string): value is CampaignId {
   return CAMPAIGN_ID_REGEX.test(value);
@@ -63,6 +80,28 @@ export function isValidWizardId(value: string): value is WizardId {
 export function parseWizardId(value: string): WizardId {
   if (!isValidWizardId(value)) {
     throw new Error(`Invalid WizardId format: "${value}". Expected wiz_<UUID>.`);
+  }
+  return value;
+}
+
+export function isValidAllocationId(value: string): value is AllocationId {
+  return ALLOCATION_ID_REGEX.test(value);
+}
+
+export function parseAllocationId(value: string): AllocationId {
+  if (!isValidAllocationId(value)) {
+    throw new Error(`Invalid AllocationId format: "${value}". Expected alc_<UUID>.`);
+  }
+  return value;
+}
+
+export function isValidEngagementId(value: string): value is EngagementId {
+  return ENGAGEMENT_ID_REGEX.test(value);
+}
+
+export function parseEngagementId(value: string): EngagementId {
+  if (!isValidEngagementId(value)) {
+    throw new Error(`Invalid EngagementId format: "${value}". Expected eng_<UUID>.`);
   }
   return value;
 }

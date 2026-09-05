@@ -1,6 +1,6 @@
 import type { MutationCtx } from "./_generated/server";
-import type { CampaignCommandType, CurrentCampaignState, CampaignEvent, MonthDirection, EventRecord } from "../shared/domain";
-import { validateCampaignState, validateAnyCampaignState, DomainError, advanceOrdinal, validateMoveMonthTransaction, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION, validateHistoryControlStructure, statesDeepEqual, isValidCheckpointId, validateCheckpointLabel, normalizeCheckpointLabel, checkpointRestoreFingerprint, CURRENT_CHECKPOINT_VERSION, isValidCampaignId, backupImportFingerprint, fullyValidateBackup, isValidPlayerId, isValidWizardId } from "../shared/domain";
+import type { CampaignCommandType, CurrentCampaignState, CampaignEvent, InfrastructureEvent } from "../shared/domain";
+import { validateCampaignState, validateAnyCampaignState, DomainError, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION, validateHistoryControlStructure, statesDeepEqual, isValidCheckpointId, validateCheckpointLabel, normalizeCheckpointLabel, checkpointRestoreFingerprint, CURRENT_CHECKPOINT_VERSION, isValidCampaignId, backupImportFingerprint, fullyValidateBackup, isValidPlayerId, isValidWizardId } from "../shared/domain";
 import { migrateToCurrentVersion } from "../shared/domain/state-migration";
 import { assertPortableCampaignState } from "../shared/domain/state-equality";
 import { validateUndoTransactionCoherence, validateRedoTransactionCoherence } from "../shared/domain/undo-redo";
@@ -8,6 +8,7 @@ import { isValidPactSeatId, PACT_SEAT_IDS } from "../shared/domain/pact-seats";
 import { isValidAgeDefinitionId } from "../shared/domain/ages";
 import type { Id } from "./_generated/dataModel";
 import { serializeState, snapshotRecord, campaignPatch } from "./persistence";
+import { assertCampaignNotDeleting } from "./deletionBarrier";
 
 export type HistoryControlUpdate =
   | { readonly kind: "logical_state_append" }
@@ -48,30 +49,6 @@ function validateEventCoherence(
   const { currentState, nextState, events, commandType, commandFingerprint } = input;
 
   switch (commandType) {
-    case "move_month": {
-      const moveErrors = validateMoveMonthTransaction(
-        currentState,
-        events as EventRecord["event"][],
-        nextState,
-        commandFingerprint,
-      );
-      if (moveErrors.length > 0) {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", `move_month coherence: ${moveErrors.join("; ")}`);
-      }
-      if (input.historyControlUpdate.kind !== "logical_state_append") {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", "move_month must use logical_state_append history update");
-      }
-      break;
-    }
-    case "legacy_month_change": {
-      if (events.length !== 1) {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", "legacy_month_change must produce exactly one event");
-      }
-      if (input.historyControlUpdate.kind !== "logical_state_append") {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", "legacy_month_change must use logical_state_append history update");
-      }
-      break;
-    }
     case "checkpoint_restore": {
       if (events.length !== 1) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", "checkpoint_restore must produce exactly one event");
@@ -153,6 +130,22 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   set_pact_seat_wizard: { required: ["pact_seat_wizard_changed"], optional: ["pact_seat_status_changed"] },
   set_pact_seat_status: { required: ["pact_seat_status_changed"] },
   set_watcher: { required: ["watcher_assignment_changed"] },
+  set_setup_month: { required: ["setup_month_changed"] },
+  set_setup_orrery_position: { required: ["setup_orrery_position_changed"] },
+  begin_play: { required: ["begin_play"] },
+  advance_phase: { required: ["phase_advanced"] },
+  schedule_time: { required: ["time_allocation_scheduled"] },
+  set_engagement_target: { required: ["engagement_target_changed"] },
+  reschedule_time: { required: ["time_rescheduled"] },
+  spend_manual_time: { required: ["time_spent"] },
+  waste_time: { required: ["time_wasted"] },
+  spend_orrery_time: { required: ["orrery_time_spent"] },
+  commit_time_to_engagement: { required: ["engagement_time_committed"] },
+  resolve_engagement: { required: ["engagement_resolved"] },
+  reschedule_engagement: { required: ["engagement_rescheduled"] },
+  adjust_wizardmoot_attendance: { required: ["wizardmoot_attendance_adjusted"] },
+  complete_meeting: { required: ["meeting_completed"] },
+  begin_next_month: { required: ["month_begun"] },
 };
 
 function validateM3EventCoherence(input: CanonicalCommitInput): void {
@@ -187,8 +180,13 @@ function validateM3EventCoherence(input: CanonicalCommitInput): void {
   }
 
   for (const evt of events) {
-    if (evt.version !== 1) {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `${commandType} event ${evt.type} has unsupported version ${evt.version}`);
+    const e = evt as { type: string; version: number };
+    if (e.type === "phase_advanced") {
+      if (e.version !== 1 && e.version !== 2) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${commandType} event ${e.type} has unsupported version ${e.version}`);
+      }
+    } else if (e.version !== 1) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${commandType} event ${e.type} has unsupported version ${e.version}`);
     }
     validateM3EventPayload(evt);
   }
@@ -390,75 +388,74 @@ async function validateCheckpointRestoreCoherence(
   }
 }
 
+function validateInfrastructureEventStructure(evt: InfrastructureEvent): void {
+  switch (evt.type) {
+    case "undo_applied":
+      if (evt.version !== 1) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Unsupported undo_applied version: ${evt.version}`);
+      }
+      break;
+    case "redo_applied":
+      if (evt.version !== 1) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Unsupported redo_applied version: ${evt.version}`);
+      }
+      break;
+    case "checkpoint_restored":
+      if (evt.version !== 1) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Unsupported checkpoint_restored version: ${evt.version}`);
+      }
+      if (!isValidCheckpointId(evt.data.checkpointId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "checkpoint_restored checkpointId is not valid");
+      }
+      if (!Number.isSafeInteger(evt.data.sourceRevision) || evt.data.sourceRevision < 0) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "checkpoint_restored sourceRevision is not valid");
+      }
+      if (typeof evt.data.labelAtRestore !== "string" || evt.data.labelAtRestore.length === 0) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "checkpoint_restored labelAtRestore is not valid");
+      }
+      break;
+    case "backup_imported":
+      if (evt.version !== 1) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Unsupported backup_imported version: ${evt.version}`);
+      }
+      if (evt.data.backupFormatVersion !== 1) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported backupFormatVersion is not valid");
+      }
+      if (typeof evt.data.sourceCampaignId !== "string" || !isValidCampaignId(evt.data.sourceCampaignId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported sourceCampaignId is not valid");
+      }
+      if (!Number.isSafeInteger(evt.data.sourceCampaignRevision) || evt.data.sourceCampaignRevision < 0) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported sourceCampaignRevision is not valid");
+      }
+      if (!Number.isSafeInteger(evt.data.sourceLogicalRevision) || evt.data.sourceLogicalRevision < 0) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported sourceLogicalRevision is not valid");
+      }
+      if (evt.data.sourceLogicalRevision > evt.data.sourceCampaignRevision) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported sourceLogicalRevision exceeds sourceCampaignRevision");
+      }
+      if (!Number.isSafeInteger(evt.data.exportedAtMs) || evt.data.exportedAtMs < 0) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported exportedAtMs is not valid");
+      }
+      if (typeof evt.data.payloadDigest !== "string" || !/^[0-9a-f]{64}$/.test(evt.data.payloadDigest)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported payloadDigest is not a valid sha256 hex string");
+      }
+      break;
+  }
+}
+
 export async function canonicalCommit(
   ctx: MutationCtx,
   input: CanonicalCommitInput,
 ): Promise<CanonicalCommitReceipt> {
   const newRevision = input.currentRevision + 1;
 
+  // --- Deletion barrier: reject all gameplay writes while deleting ---
+  await assertCampaignNotDeleting(ctx);
+
   // --- Event-level validation per event structure ---
   for (const evt of input.events) {
-    switch (evt.type) {
-      case "month_changed":
-        if (evt.version !== 1) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", `Unsupported month_changed version: ${evt.version}`);
-        }
-        if (evt.data.direction !== "forward" && evt.data.direction !== "backward") {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid month_changed direction: ${evt.data.direction}`);
-        }
-        break;
-      case "undo_applied":
-        if (evt.version !== 1) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", `Unsupported undo_applied version: ${evt.version}`);
-        }
-        break;
-      case "redo_applied":
-        if (evt.version !== 1) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", `Unsupported redo_applied version: ${evt.version}`);
-        }
-        break;
-      case "checkpoint_restored":
-        if (evt.version !== 1) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", `Unsupported checkpoint_restored version: ${evt.version}`);
-        }
-        if (!isValidCheckpointId(evt.data.checkpointId)) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", "checkpoint_restored checkpointId is not valid");
-        }
-        if (!Number.isSafeInteger(evt.data.sourceRevision) || evt.data.sourceRevision < 0) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", "checkpoint_restored sourceRevision is not valid");
-        }
-        if (typeof evt.data.labelAtRestore !== "string" || evt.data.labelAtRestore.length === 0) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", "checkpoint_restored labelAtRestore is not valid");
-        }
-        break;
-      case "backup_imported":
-        if (evt.version !== 1) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", `Unsupported backup_imported version: ${evt.version}`);
-        }
-        if (evt.data.backupFormatVersion !== 1) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported backupFormatVersion is not valid");
-        }
-        if (typeof evt.data.sourceCampaignId !== "string" || !isValidCampaignId(evt.data.sourceCampaignId)) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported sourceCampaignId is not valid");
-        }
-        if (!Number.isSafeInteger(evt.data.sourceCampaignRevision) || evt.data.sourceCampaignRevision < 0) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported sourceCampaignRevision is not valid");
-        }
-        if (!Number.isSafeInteger(evt.data.sourceLogicalRevision) || evt.data.sourceLogicalRevision < 0) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported sourceLogicalRevision is not valid");
-        }
-        if (evt.data.sourceLogicalRevision > evt.data.sourceCampaignRevision) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported sourceLogicalRevision exceeds sourceCampaignRevision");
-        }
-        if (!Number.isSafeInteger(evt.data.exportedAtMs) || evt.data.exportedAtMs < 0) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported exportedAtMs is not valid");
-        }
-        if (typeof evt.data.payloadDigest !== "string" || !/^[0-9a-f]{64}$/.test(evt.data.payloadDigest)) {
-          throw new DomainError("INVALID_CAMPAIGN_STATE", "backup_imported payloadDigest is not a valid sha256 hex string");
-        }
-        break;
-      default:
-        break;
+    if (evt.type === "undo_applied" || evt.type === "redo_applied" || evt.type === "checkpoint_restored" || evt.type === "backup_imported") {
+      validateInfrastructureEventStructure(evt as InfrastructureEvent);
     }
   }
 
@@ -753,20 +750,6 @@ export async function canonicalCommit(
     };
 
     switch (evt.type) {
-      case "month_changed":
-        await ctx.db.insert("campaignEvents", {
-          ...baseRecord,
-          event: {
-            type: "month_changed" as const,
-            version: 1 as const,
-            data: {
-              direction: evt.data.direction,
-              fromOrdinal: evt.data.fromOrdinal as number,
-              toOrdinal: evt.data.toOrdinal as number,
-            },
-          },
-        });
-        break;
       case "undo_applied":
         await ctx.db.insert("campaignEvents", {
           ...baseRecord,

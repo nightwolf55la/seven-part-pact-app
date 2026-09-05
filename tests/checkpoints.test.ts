@@ -293,7 +293,7 @@ describe("Checkpoint verification", () => {
       campaignId: "cmp_00000000-0000-0000-0000-000000000001",
       campaignRevision: 10,
       snapshotExists: true,
-      snapshotState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 3 } },
+      snapshotState: { schemaVersion: 3, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 3 }, configuration: { ageId: null, facilitatorPlayerId: null }, players: [], wizards: [], pactSeats: { necromancer: { status: null, wizardId: null, watcherPlayerId: null }, hierophant: { status: null, wizardId: null, watcherPlayerId: null }, warlock: { status: null, wizardId: null, watcherPlayerId: null }, mariner: { status: null, wizardId: null, watcherPlayerId: null }, faustian: { status: null, wizardId: null, watcherPlayerId: null }, sage: { status: null, wizardId: null, watcherPlayerId: null }, sorcerer: { status: null, wizardId: null, watcherPlayerId: null } }, lifecycle: { kind: "setup", orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } }, wizardmootHistory: [] },
       revisionCommandType: "move_month",
     });
     expect(errors).toEqual([]);
@@ -537,9 +537,9 @@ describe("verifyCheckpointRestoreRevision", () => {
     eventSourceRevision: 7,
     eventLabelAtRestore: "Before Ritual",
     sourceSnapshotExists: true,
-    sourceSnapshotState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 3 } } as any,
+    sourceSnapshotState: { schemaVersion: 3, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 3 }, configuration: { ageId: null, facilitatorPlayerId: null }, players: [], wizards: [], pactSeats: { necromancer: { status: null, wizardId: null, watcherPlayerId: null }, hierophant: { status: null, wizardId: null, watcherPlayerId: null }, warlock: { status: null, wizardId: null, watcherPlayerId: null }, mariner: { status: null, wizardId: null, watcherPlayerId: null }, faustian: { status: null, wizardId: null, watcherPlayerId: null }, sage: { status: null, wizardId: null, watcherPlayerId: null }, sorcerer: { status: null, wizardId: null, watcherPlayerId: null } }, lifecycle: { kind: "setup", orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } }, wizardmootHistory: [] } as any,
     resultSnapshotExists: true,
-    resultSnapshotState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 3 } } as any,
+    resultSnapshotState: { schemaVersion: 3, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 3 }, configuration: { ageId: null, facilitatorPlayerId: null }, players: [], wizards: [], pactSeats: { necromancer: { status: null, wizardId: null, watcherPlayerId: null }, hierophant: { status: null, wizardId: null, watcherPlayerId: null }, warlock: { status: null, wizardId: null, watcherPlayerId: null }, mariner: { status: null, wizardId: null, watcherPlayerId: null }, faustian: { status: null, wizardId: null, watcherPlayerId: null }, sage: { status: null, wizardId: null, watcherPlayerId: null }, sorcerer: { status: null, wizardId: null, watcherPlayerId: null } }, lifecycle: { kind: "setup", orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } }, wizardmootHistory: [] } as any,
     sourceRevisionCommandType: "move_month" as const,
   };
 
@@ -571,7 +571,7 @@ describe("verifyCheckpointRestoreRevision", () => {
   it("rejects result snapshot differing from source snapshot", () => {
     const errors = verifyCheckpointRestoreRevision({
       ...validInput,
-      resultSnapshotState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 99 } } as any,
+      resultSnapshotState: { schemaVersion: 3, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 99 }, configuration: { ageId: null, facilitatorPlayerId: null }, players: [], wizards: [], pactSeats: { necromancer: { status: null, wizardId: null, watcherPlayerId: null }, hierophant: { status: null, wizardId: null, watcherPlayerId: null }, warlock: { status: null, wizardId: null, watcherPlayerId: null }, mariner: { status: null, wizardId: null, watcherPlayerId: null }, faustian: { status: null, wizardId: null, watcherPlayerId: null }, sage: { status: null, wizardId: null, watcherPlayerId: null }, sorcerer: { status: null, wizardId: null, watcherPlayerId: null } }, lifecycle: { kind: "setup", orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } }, wizardmootHistory: [] } as any,
     });
     expect(errors.some((e) => e.includes("result snapshot state does not match"))).toBe(true);
   });
@@ -661,7 +661,7 @@ describe("listCheckpoints full validation via verifyCheckpoint", () => {
     campaignId,
     campaignRevision: 10,
     snapshotExists: true,
-    snapshotState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 3 } } as any,
+    snapshotState: { schemaVersion: 3, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 3 }, configuration: { ageId: null, facilitatorPlayerId: null }, players: [], wizards: [], pactSeats: { necromancer: { status: null, wizardId: null, watcherPlayerId: null }, hierophant: { status: null, wizardId: null, watcherPlayerId: null }, warlock: { status: null, wizardId: null, watcherPlayerId: null }, mariner: { status: null, wizardId: null, watcherPlayerId: null }, faustian: { status: null, wizardId: null, watcherPlayerId: null }, sage: { status: null, wizardId: null, watcherPlayerId: null }, sorcerer: { status: null, wizardId: null, watcherPlayerId: null } }, lifecycle: { kind: "setup", orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } }, wizardmootHistory: [] } as any,
     revisionCommandType: "move_month" as const,
   });
 
@@ -778,7 +778,7 @@ describe("verifyCheckpoint: CampaignState validation", () => {
       campaignId,
       campaignRevision: 10,
       snapshotExists: true,
-      snapshotState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 3 } } as any,
+      snapshotState: { schemaVersion: 3, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 3 }, configuration: { ageId: null, facilitatorPlayerId: null }, players: [], wizards: [], pactSeats: { necromancer: { status: null, wizardId: null, watcherPlayerId: null }, hierophant: { status: null, wizardId: null, watcherPlayerId: null }, warlock: { status: null, wizardId: null, watcherPlayerId: null }, mariner: { status: null, wizardId: null, watcherPlayerId: null }, faustian: { status: null, wizardId: null, watcherPlayerId: null }, sage: { status: null, wizardId: null, watcherPlayerId: null }, sorcerer: { status: null, wizardId: null, watcherPlayerId: null } }, lifecycle: { kind: "setup", orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } }, wizardmootHistory: [] } as any,
       revisionCommandType: "move_month",
     });
     expect(errors).toEqual([]);
@@ -853,7 +853,7 @@ describe("canonicalCommit restore persisted checkpoint metadata", () => {
       campaignId: "cmp_00000000-0000-0000-0000-000000000001",
       campaignRevision: 10,
       snapshotExists: true,
-      snapshotState: { schemaVersion: 1, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 3 } } as any,
+      snapshotState: { schemaVersion: 3, ruleset: { id: "seven_part_pact_draft4", version: 1 }, calendar: { monthOrdinal: 3 }, configuration: { ageId: null, facilitatorPlayerId: null }, players: [], wizards: [], pactSeats: { necromancer: { status: null, wizardId: null, watcherPlayerId: null }, hierophant: { status: null, wizardId: null, watcherPlayerId: null }, warlock: { status: null, wizardId: null, watcherPlayerId: null }, mariner: { status: null, wizardId: null, watcherPlayerId: null }, faustian: { status: null, wizardId: null, watcherPlayerId: null }, sage: { status: null, wizardId: null, watcherPlayerId: null }, sorcerer: { status: null, wizardId: null, watcherPlayerId: null } }, lifecycle: { kind: "setup", orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } }, wizardmootHistory: [] } as any,
       revisionCommandType: "move_month",
     });
     expect(errors).toEqual([]);

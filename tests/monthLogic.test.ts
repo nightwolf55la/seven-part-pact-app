@@ -4,12 +4,54 @@ import {
   displayNameFromMonthId,
   displayNameFromOrdinal,
   advanceOrdinal,
+  monthOfYearIndexFromOrdinal,
+  seasonIdFromOrdinal,
   MONTH_IDS,
   MONTH_DISPLAY_NAMES,
   MONTH_COUNT,
   INITIAL_MONTH_ORDINAL,
 } from "../shared/domain";
 import type { MonthOrdinal } from "../shared/domain";
+
+describe("monthOfYearIndexFromOrdinal", () => {
+  it("maps ordinal 0 to index 0", () => {
+    expect(monthOfYearIndexFromOrdinal(0)).toBe(0);
+  });
+
+  it("maps ordinal 11 to index 11", () => {
+    expect(monthOfYearIndexFromOrdinal(11)).toBe(11);
+  });
+
+  it("wraps ordinal 12 back to index 0", () => {
+    expect(monthOfYearIndexFromOrdinal(12)).toBe(0);
+  });
+
+  it("wraps ordinal -1 to index 11", () => {
+    expect(monthOfYearIndexFromOrdinal(-1)).toBe(11);
+  });
+});
+
+describe("seasonIdFromOrdinal", () => {
+  it.each([[0], [1], [2]])("ordinal %i -> spring", (n) => {
+    expect(seasonIdFromOrdinal(n)).toBe("spring");
+  });
+
+  it.each([[3], [4], [5]])("ordinal %i -> summer", (n) => {
+    expect(seasonIdFromOrdinal(n)).toBe("summer");
+  });
+
+  it.each([[6], [7], [8]])("ordinal %i -> autumn", (n) => {
+    expect(seasonIdFromOrdinal(n)).toBe("autumn");
+  });
+
+  it.each([[9], [10], [11]])("ordinal %i -> winter", (n) => {
+    expect(seasonIdFromOrdinal(n)).toBe("winter");
+  });
+
+  it("wraps ordinal 12 to spring", () => {
+    expect(seasonIdFromOrdinal(12)).toBe("spring");
+  });
+});
 
 describe("monthIdFromOrdinal", () => {
   it("maps ordinal 0 to april", () => {
@@ -120,9 +162,10 @@ describe("advanceOrdinal", () => {
     expect(displayNameFromOrdinal(result)).toBe("April");
   });
 
-  it("March (11) forward -> April (12)", () => {
+  it("March (11) forward -> April (12), not 0", () => {
     const result = advanceOrdinal(11, "forward");
     expect(result).toBe(12);
+    expect(result).not.toBe(0);
     expect(displayNameFromOrdinal(result)).toBe("April");
   });
 

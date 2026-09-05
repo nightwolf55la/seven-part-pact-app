@@ -4,9 +4,9 @@ import {
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
 } from "./ruleset";
-import { INITIAL_MONTH_ORDINAL } from "./calendar";
 import { PACT_SEAT_IDS } from "./pact-seats";
 import type { PactSeatId } from "./pact-seats";
+import { emptySetupOrrery } from "./orrery";
 
 function emptyPactSeats(): { readonly [K in PactSeatId]: PactSeatState } {
   const seats = {} as Record<PactSeatId, PactSeatState>;
@@ -24,7 +24,7 @@ export function initialCampaignState(): CurrentCampaignState {
       version: SEVEN_PART_PACT_DRAFT4_VERSION,
     },
     calendar: {
-      monthOrdinal: INITIAL_MONTH_ORDINAL,
+      monthOrdinal: null,
     },
     configuration: {
       ageId: null,
@@ -33,5 +33,10 @@ export function initialCampaignState(): CurrentCampaignState {
     players: [],
     wizards: [],
     pactSeats: emptyPactSeats(),
+    lifecycle: {
+      kind: "setup",
+      orrery: emptySetupOrrery(),
+    },
+    wizardmootHistory: [],
   };
 }

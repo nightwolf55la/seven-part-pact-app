@@ -5,7 +5,6 @@ import {
   CURRENT_STATE_SCHEMA_VERSION,
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
-  INITIAL_MONTH_ORDINAL,
   verifyMigrationInvariants,
   isValidCampaignId,
 } from "../shared/domain";
@@ -33,9 +32,9 @@ describe("initialCampaignState", () => {
     expect(state.ruleset.version).toBe(SEVEN_PART_PACT_DRAFT4_VERSION);
   });
 
-  it("monthOrdinal is INITIAL_MONTH_ORDINAL", () => {
+  it("monthOrdinal is null initially", () => {
     const state = initialCampaignState();
-    expect(state.calendar.monthOrdinal).toBe(INITIAL_MONTH_ORDINAL);
+    expect(state.calendar.monthOrdinal).toBeNull();
   });
 
   it("passes domain validation", () => {
@@ -66,7 +65,7 @@ function makeInitialState(): SerializableCampaignState {
   return {
     schemaVersion: CURRENT_STATE_SCHEMA_VERSION,
     ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
-    calendar: { monthOrdinal: INITIAL_MONTH_ORDINAL as number },
+    calendar: { monthOrdinal: null },
     configuration: { ageId: null, facilitatorPlayerId: null },
     players: [],
     wizards: [],
@@ -79,6 +78,11 @@ function makeInitialState(): SerializableCampaignState {
       sage: { status: null, wizardId: null, watcherPlayerId: null },
       sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
     },
+    lifecycle: {
+      kind: "setup" as const,
+      orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
+    },
+    wizardmootHistory: [],
   };
 }
 

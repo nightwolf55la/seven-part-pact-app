@@ -1,6 +1,6 @@
 export type { Brand } from "./brand";
 
-export type { CampaignId, CommandId, CheckpointId, PlayerId, WizardId } from "./ids";
+export type { CampaignId, CommandId, CheckpointId, PlayerId, WizardId, AllocationId, EngagementId } from "./ids";
 export {
   isValidCampaignId,
   parseCampaignId,
@@ -12,6 +12,12 @@ export {
   parsePlayerId,
   isValidWizardId,
   parseWizardId,
+  isValidAllocationId,
+  parseAllocationId,
+  generateAllocationId,
+  isValidEngagementId,
+  parseEngagementId,
+  generateEngagementId,
 } from "./ids";
 
 export type {
@@ -19,15 +25,19 @@ export type {
   MonthId,
   MonthDirection,
   MonthDisplayName,
+  MonthOfYearIndex,
+  SeasonId,
 } from "./calendar";
 export {
   MONTH_IDS,
   MONTH_DISPLAY_NAMES,
   MONTH_COUNT,
   INITIAL_MONTH_ORDINAL,
+  monthOfYearIndexFromOrdinal,
   monthIdFromOrdinal,
   displayNameFromMonthId,
   displayNameFromOrdinal,
+  seasonIdFromOrdinal,
   advanceOrdinal,
 } from "./calendar";
 
@@ -39,8 +49,6 @@ export {
 } from "./commands";
 
 export type {
-  MonthChangedDataV1,
-  MonthChangedEventV1,
   UndoAppliedDataV1,
   UndoAppliedEventV1,
   RedoAppliedDataV1,
@@ -60,6 +68,19 @@ export type {
   PactSeatWizardChangedEventV1,
   PactSeatStatusChangedEventV1,
   WatcherAssignmentChangedEventV1,
+  SetupMonthChangedEventV1,
+  SetupOrreryPositionChangedEventV1,
+  BeginPlayDataV1,
+  BeginPlayEventV1,
+  PhaseAdvancedEventV1,
+  PhaseAdvancedEventV2,
+  TimeAllocationScheduledEventV1,
+  EngagementTargetChangedEventV1,
+  WizardmootAttendanceAdjustedEventV1,
+  MeetingCompletedEventV1,
+  MonthBegunEventV1,
+  InfrastructureEvent,
+  PhaseAdvancedEvent,
   CampaignEvent,
 } from "./events";
 
@@ -72,16 +93,23 @@ export {
 
 export type {
   CampaignRevision,
+  CampaignRuleset,
   CampaignStateV1,
   CampaignStateV2,
+  CampaignStateV3,
   CampaignPlayer,
   CampaignWizard,
   PactSeatState,
   PactSeatStatus,
+  LunarPhase,
+  MonthlyPlayState,
+  SetupLifecycle,
+  PlayLifecycle,
+  CampaignLifecycle,
   CurrentCampaignState,
   AnyCampaignState,
 } from "./campaign-state";
-export { CURRENT_STATE_SCHEMA_VERSION } from "./campaign-state";
+export { CURRENT_STATE_SCHEMA_VERSION, LUNAR_PHASES } from "./campaign-state";
 
 export type { PactSeatId } from "./pact-seats";
 export { PACT_SEAT_IDS, PACT_SEAT_COUNT, pactSeatDisplayName, isValidPactSeatId } from "./pact-seats";
@@ -89,19 +117,7 @@ export { PACT_SEAT_IDS, PACT_SEAT_COUNT, pactSeatDisplayName, isValidPactSeatId 
 export type { AgeDefinitionId } from "./ages";
 export { AGE_DEFINITION_IDS, ageDisplayName, isValidAgeDefinitionId } from "./ages";
 
-export { migrateV1toV2, migrateToCurrentVersion, loadHistoricalState, isHistoricalStateLogicallyEqual, isSupportedSchemaVersion, SUPPORTED_STATE_SCHEMA_VERSIONS } from "./state-migration";
-
-export type {
-  LegacyCampaignInput,
-  LegacyEventInput,
-  MigrationSnapshotPlan,
-  MigrationRevisionPlan,
-  MigrationNotNeeded,
-  MigrationReady,
-  MigrationInvalid,
-  MigrationAnalysisResult,
-} from "./migration-analyzer";
-export { analyzeLegacyMigration } from "./migration-analyzer";
+export { migrateToCurrentVersion, loadHistoricalState, isHistoricalStateLogicallyEqual, isSupportedSchemaVersion, SUPPORTED_STATE_SCHEMA_VERSIONS } from "./state-migration";
 
 export type { DomainErrorCode } from "./errors";
 export { DomainError } from "./errors";
@@ -109,9 +125,6 @@ export { DomainError } from "./errors";
 export { validateCampaignState, validateAnyCampaignState } from "./state-validation";
 
 export { initialCampaignState } from "./initial-state";
-
-export type { MoveMonthTransitionResult } from "./transitions";
-export { applyMoveMonth } from "./transitions";
 
 export type { TransitionResult } from "./m3-transitions";
 export {
@@ -126,6 +139,8 @@ export {
   applySetPactSeatWizard,
   applySetPactSeatStatus,
   applySetWatcher,
+  applySetSetupMonth,
+  applySetSetupOrreryPosition,
 } from "./m3-transitions";
 
 export type {
@@ -147,7 +162,6 @@ export {
   syntheticMigrationCommandId,
   isSyntheticMigrationCommandId,
   migrationCommandFingerprint,
-  moveMonthFingerprint,
   undoFingerprint,
   redoFingerprint,
   checkpointRestoreFingerprint,
@@ -163,6 +177,23 @@ export {
   setPactSeatWizardFingerprint,
   setPactSeatStatusFingerprint,
   setWatcherFingerprint,
+  setSetupMonthFingerprint,
+  setSetupOrreryPositionFingerprint,
+  beginPlayFingerprint,
+  advancePhaseFingerprint,
+  normalizeWarningKeys,
+  scheduleTimeFingerprint,
+  setEngagementTargetFingerprint,
+  rescheduleTimeFingerprint,
+  spendManualTimeFingerprint,
+  wasteTimeFingerprint,
+  spendOrreryTimeFingerprint,
+  commitTimeToEngagementFingerprint,
+  resolveEngagementFingerprint,
+  rescheduleEngagementFingerprint,
+  adjustWizardmootAttendanceFingerprint,
+  completeMeetingFingerprint,
+  beginNextMonthFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
@@ -178,7 +209,6 @@ export type {
   SerializableCampaignState,
 } from "./verification";
 export {
-  validateMoveMonthTransaction,
   verifyMigrationInvariants,
 } from "./verification";
 
@@ -258,8 +288,167 @@ export {
   CanonicalJsonError,
 } from "./canonical-json";
 
+export type {
+  DeletionPhase,
+  DeletionOperation,
+  CampaignOwnedChildCollection,
+} from "./campaign-deletion";
+export {
+  DELETION_BATCH_SIZE,
+  DELETION_CONFIRMATION_STRING,
+  DELETION_PHASE_ORDER,
+  CAMPAIGN_OWNED_CHILD_COLLECTIONS,
+  validateDeletionRequest,
+  validateCampaignIdentityMatch,
+  assertNotDeleting,
+  nextDeletionPhase,
+  isDeletionChildCleanupPhase,
+} from "./campaign-deletion";
+
 export type { BackupImportRevisionVerificationInput } from "./backup-verification";
 export {
   verifyBackupImportRevisionStructure,
   verifyBackupImportRevisionDigest,
 } from "./backup-verification";
+
+export type {
+  DeletionPersistenceAdapter,
+  RequestDeletionResult,
+  BatchResult,
+  LifecycleStatus,
+} from "./deletion-orchestrator";
+export {
+  requestDeletion,
+  processBatch,
+  resolveLifecycle,
+} from "./deletion-orchestrator";
+
+// --- Orrery ---
+
+export type {
+  CentidegreePosition,
+  MovablePlanetId,
+  CelestialBodyId,
+  HouseIndex,
+  PlanetDefinition,
+  SetupOrreryState,
+  OrreryState,
+  OrreryMoveDirection,
+  BodyHouseOccupancy,
+  Conjunction,
+} from "./orrery";
+export {
+  FULL_CIRCLE_CENTIDEGREES,
+  HOUSE_COUNT,
+  HOUSE_WIDTH_CENTIDEGREES,
+  MOVABLE_PLANET_IDS,
+  CELESTIAL_BODY_IDS,
+  HOUSE_NAMES,
+  PLANET_DEFINITIONS,
+  isValidCentidegreePosition,
+  asCentidegreePosition,
+  houseIndexFromCentidegrees,
+  sunPositionFromMonthOrdinal,
+  arcStartAndEnd,
+  housesOccupiedByArc,
+  housesOccupiedByBody,
+  sunHouse,
+  computeAllOccupancies,
+  computeConjunctions,
+  advancePlanetPosition,
+  movePlanetByArc,
+  legalPositionsForPlanet,
+  isLegalPosition,
+  isCompleteOrrery,
+  emptySetupOrrery,
+  advanceAllPlanets,
+} from "./orrery";
+
+// --- Participants ---
+
+export type { WizardParticipantRef, TimeParticipantRef } from "./participants";
+
+// --- Time Model ---
+
+export type {
+  AllocationResolution,
+  CompanionDestination,
+  MapIsleSanctumDestination,
+  FamiliarDestination,
+  OrreryDestination,
+  MeetingDestination,
+  DomainDestination,
+  EngagementDestination,
+  SpecialUseDestination,
+  TimeDestination,
+  TimeDestinationKind,
+  TimeAllocation,
+  TimeParticipant,
+} from "./time-model";
+export { ALLOCATION_RESOLUTIONS, TIME_DESTINATION_KINDS } from "./time-model";
+
+// --- Engagement ---
+
+export type {
+  EngagementResolution,
+  WizardTarget,
+  SelfTarget,
+  FamiliarTarget,
+  NamedCharacterTarget,
+  EngagementTarget,
+  EngagementTargetKind,
+  EngagementRecord,
+} from "./engagement";
+export { ENGAGEMENT_RESOLUTIONS, ENGAGEMENT_TARGET_KINDS } from "./engagement";
+
+// --- Wizardmoot ---
+
+export type {
+  WizardmootAttendance,
+  WizardmootHistoryEntry,
+} from "./wizardmoot";
+
+// --- Setup Readiness ---
+
+export type {
+  SetupReadinessIssueCode,
+  SetupReadinessIssue,
+  SetupReadinessResult,
+} from "./setup-readiness";
+export { evaluateSetupReadiness } from "./setup-readiness";
+
+// --- Age Setup ---
+
+export type {
+  AgeSetupIssueCode,
+  AgeSetupIssue,
+  AgeSetupResult,
+} from "./age-setup";
+export { evaluateAgeSetup } from "./age-setup";
+
+// --- Begin Play ---
+
+export type {
+  WizardInitIds, BeginPlayInput,
+} from "./begin-play";
+export { applyBeginPlay, collectEligibleWizardIds, buildTimeParticipant, buildEngagement } from "./begin-play";
+
+// --- Play Transitions (C3/C4/C5A) ---
+
+export type { AdvancePhaseInput, AdvancePhaseResult, PhaseTransitionWarning, ScheduleTimeInput, SetEngagementTargetInput, RescheduleTimeInput, SpendManualTimeInput, WasteTimeInput, SpendOrreryTimeInput, CommitTimeToEngagementInput, ResolveEngagementInput, RescheduleEngagementInput, AdjustWizardmootAttendanceInput, CompleteMeetingInput, BeginNextMonthInput, BeginNextMonthResult } from "./play-transitions";
+export {
+  applyAdvancePhase,
+  applyScheduleTime,
+  applySetEngagementTarget,
+  applyRescheduleTime,
+  applySpendManualTime,
+  applyWasteTime,
+  applySpendOrreryTime,
+  applyCommitTimeToEngagement,
+  applyResolveEngagement,
+  applyRescheduleEngagement,
+  applyAdjustWizardmootAttendance,
+  applyCompleteMeeting,
+  applyBeginNextMonth,
+  computePhaseTransitionWarnings,
+} from "./play-transitions";

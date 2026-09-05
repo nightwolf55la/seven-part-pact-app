@@ -5,8 +5,8 @@ export interface BackupPreview {
   readonly exportedAtMs: number;
   readonly sourceCampaignRevision: number;
   readonly sourceLogicalRevision: number;
-  readonly monthOrdinal: number;
-  readonly monthDisplayName: string;
+  readonly monthOrdinal: number | null;
+  readonly monthDisplayName: string | null;
   readonly backupFormatVersion: number;
 }
 
@@ -51,10 +51,17 @@ export function extractBackupPreview(parsed: unknown): BackupPreview | null {
   const cal = state.calendar;
   if (!isPlainObject(cal)) return null;
 
-  const monthOrdinal = asSafeInteger(cal.monthOrdinal);
-  if (monthOrdinal === null) return null;
-
-  const monthDisplayName = displayNameFromOrdinal(monthOrdinal);
+  const rawMonthOrdinal = cal.monthOrdinal;
+  let monthOrdinal: number | null;
+  let monthDisplayName: string | null;
+  if (rawMonthOrdinal === null) {
+    monthOrdinal = null;
+    monthDisplayName = null;
+  } else {
+    monthOrdinal = asSafeInteger(rawMonthOrdinal);
+    if (monthOrdinal === null) return null;
+    monthDisplayName = displayNameFromOrdinal(monthOrdinal);
+  }
 
   return {
     exportedAtMs,

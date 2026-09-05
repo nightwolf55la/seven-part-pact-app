@@ -14,7 +14,7 @@ import {
 
 function makeState(monthOrdinal: number): CurrentCampaignState {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     ruleset: { id: "seven_part_pact_draft4", version: 1 },
     calendar: { monthOrdinal: monthOrdinal as any },
     configuration: { ageId: null, facilitatorPlayerId: null },
@@ -29,6 +29,13 @@ function makeState(monthOrdinal: number): CurrentCampaignState {
       sage: { status: null, wizardId: null, watcherPlayerId: null },
       sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
     },
+    lifecycle: {
+      kind: "play" as const,
+      phase: "new_moon" as const,
+      orrery: { saturn: 0 as any, jupiter: 9000 as any, mars: 18000 as any, venus: 27000 as any, mercury: 4500 as any },
+      currentMonth: { timeParticipants: [], engagements: [], wizardmootAttendance: null },
+    },
+    wizardmootHistory: [],
   };
 }
 

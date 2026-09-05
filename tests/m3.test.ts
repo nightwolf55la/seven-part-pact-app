@@ -19,8 +19,7 @@ import {
 } from "../shared/domain";
 import type { CurrentCampaignState, PlayerId, WizardId } from "../shared/domain";
 import type { PactSeatId } from "../shared/domain/pact-seats";
-import { migrateToCurrentVersion, migrateV1toV2 } from "../shared/domain/state-migration";
-import type { CampaignStateV1 } from "../shared/domain";
+import { migrateToCurrentVersion } from "../shared/domain/state-migration";
 
 function emptyState(): CurrentCampaignState {
   return initialCampaignState();
@@ -41,10 +40,10 @@ function stateWithWizard(): { state: CurrentCampaignState; playerId: PlayerId; w
 }
 
 describe("M3 State Validation", () => {
-  it("accepts canonical empty V2 state", () => {
+  it("accepts canonical empty V3 state", () => {
     const state = emptyState();
     expect(() => validateCampaignState(state)).not.toThrow();
-    expect(state.schemaVersion).toBe(2);
+    expect(state.schemaVersion).toBe(3);
   });
 
   it("rejects invalid Player ID at mutation boundary (pure transition accepts any string)", () => {
@@ -290,43 +289,8 @@ describe("M3 Command/Event Semantics", () => {
   });
 });
 
-describe("V1 -> V2 Migration", () => {
-  const v1State: CampaignStateV1 = {
-    schemaVersion: 1,
-    ruleset: { id: "seven_part_pact_draft4", version: 1 },
-    calendar: { monthOrdinal: 7 as any },
-  };
-
-  it("produces exact deterministic V2 result", () => {
-    const v2 = migrateV1toV2(v1State);
-    expect(v2.schemaVersion).toBe(2);
-    expect(v2.ruleset).toEqual(v1State.ruleset);
-    expect(v2.calendar).toEqual(v1State.calendar);
-    expect(v2.configuration.ageId).toBeNull();
-    expect(v2.configuration.facilitatorPlayerId).toBeNull();
-    expect(v2.players).toEqual([]);
-    expect(v2.wizards).toEqual([]);
-    expect(Object.keys(v2.pactSeats).length).toBe(7);
-    for (const seat of Object.values(v2.pactSeats)) {
-      expect(seat).toEqual({ status: null, wizardId: null, watcherPlayerId: null });
-    }
-  });
-
-  it("preserves ruleset and calendar exactly", () => {
-    const v2 = migrateV1toV2(v1State);
-    expect(v2.ruleset.id).toBe(v1State.ruleset.id);
-    expect(v2.ruleset.version).toBe(v1State.ruleset.version);
-    expect(v2.calendar.monthOrdinal).toBe(v1State.calendar.monthOrdinal);
-  });
-
-  it("migrateToCurrentVersion handles V1", () => {
-    const validated = validateAnyCampaignState(v1State);
-    const current = migrateToCurrentVersion(validated);
-    expect(current.schemaVersion).toBe(2);
-    validateCampaignState(current);
-  });
-
-  it("migrateToCurrentVersion is idempotent for V2", () => {
+describe("State Migration (V3-only)", () => {
+  it("migrateToCurrentVersion is idempotent for V3", () => {
     const state = emptyState();
     const migrated = migrateToCurrentVersion(state);
     expect(migrated).toEqual(state);
@@ -337,50 +301,47 @@ describe("V1 -> V2 Migration", () => {
     expect(() => migrateToCurrentVersion({ schemaVersion: 99 } as any)).toThrow();
   });
 
-  it("V1 state validates as AnyCampaignState", () => {
-    expect(() => validateAnyCampaignState(v1State)).not.toThrow();
+  it("V1 state does NOT validate as AnyCampaignState (V3-only)", () => {
+    const v1State = {
+      schemaVersion: 1,
+      ruleset: { id: "seven_part_pact_draft4", version: 1 },
+      calendar: { monthOrdinal: 7 },
+    };
+    expect(() => validateAnyCampaignState(v1State)).toThrow();
   });
 
   it("V1 state does NOT validate as CurrentCampaignState", () => {
+    const v1State = {
+      schemaVersion: 1,
+      ruleset: { id: "seven_part_pact_draft4", version: 1 },
+      calendar: { monthOrdinal: 7 },
+    };
     expect(() => validateCampaignState(v1State)).toThrow();
   });
 });
 
-describe("Historical V1 Snapshot Interop", () => {
-  const v1State: CampaignStateV1 = {
-    schemaVersion: 1,
-    ruleset: { id: "seven_part_pact_draft4", version: 1 },
-    calendar: { monthOrdinal: 5 as any },
-  };
-
-  it("validates and migrates V1 to usable V2", () => {
-    const validated = validateAnyCampaignState(v1State);
+describe("Historical V3 Snapshot Interop", () => {
+  it("validates and returns V3 state unchanged", () => {
+    const state = emptyState();
+    const validated = validateAnyCampaignState(state);
     const migrated = migrateToCurrentVersion(validated);
     expect(migrated.schemaVersion).toBe(CURRENT_STATE_SCHEMA_VERSION);
-    expect(migrated.calendar.monthOrdinal).toBe(5);
     validateCampaignState(migrated);
   });
 
-  it("migrated V2 from V1 snapshot can receive normal commands", () => {
-    const validated = validateAnyCampaignState(v1State);
-    const migrated = migrateToCurrentVersion(validated);
-    // Apply a normal M2 command (month advance equivalent - use add_player as proxy)
+  it("migrated V3 snapshot can receive normal commands", () => {
+    const state = emptyState();
+    const migrated = migrateToCurrentVersion(validateAnyCampaignState(state));
     const p1 = "plr_00000000-0000-0000-0000-000000000001" as PlayerId;
     const result = applyAddPlayer(migrated, p1, "Test Player");
     expect(result.nextState.players.length).toBe(1);
     validateCampaignState(result.nextState);
   });
 
-  it("undo to V1 target yields V2 restored state", () => {
-    // Simulates: validate + migrate a V1 snapshot → V2 state for comparison
-    const migrated = migrateToCurrentVersion(validateAnyCampaignState(v1State));
-    expect(migrated.schemaVersion).toBe(2);
-    validateCampaignState(migrated);
-  });
-
-  it("old V1 snapshots remain unchanged by migration", () => {
-    const original = JSON.parse(JSON.stringify(v1State));
-    migrateToCurrentVersion(validateAnyCampaignState(v1State));
-    expect(v1State).toEqual(original);
+  it("V3 snapshots remain unchanged by migration", () => {
+    const state = emptyState();
+    const original = JSON.parse(JSON.stringify(state));
+    migrateToCurrentVersion(validateAnyCampaignState(state));
+    expect(state).toEqual(original);
   });
 });

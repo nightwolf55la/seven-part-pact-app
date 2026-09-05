@@ -1,16 +1,16 @@
 import { internalMutation } from "./_generated/server";
 import {
-  validateAnyCampaignState,
   validateCampaignState,
   DomainError,
   CURRENT_STATE_SCHEMA_VERSION,
 } from "../shared/domain";
-import { migrateToCurrentVersion } from "../shared/domain/state-migration";
-import { assertPortableCampaignState } from "../shared/domain/state-equality";
+import { assertCampaignNotDeleting } from "./deletionBarrier";
 
 export const migrateCurrentStateToV2 = internalMutation({
   args: {},
   handler: async (ctx) => {
+    await assertCampaignNotDeleting(ctx);
+
     const maybeCanonical = await ctx.db
       .query("campaigns")
       .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
@@ -21,41 +21,29 @@ export const migrateCurrentStateToV2 = internalMutation({
       !("campaignKey" in maybeCanonical) ||
       (maybeCanonical as any).campaignKey !== "default"
     ) {
-      throw new DomainError("CAMPAIGN_STATE_CORRUPT", "No canonical campaign found for migration");
+      throw new DomainError("CAMPAIGN_STATE_CORRUPT", "No canonical campaign found");
     }
 
     const doc = maybeCanonical as any;
     const rawState = doc.state;
 
-    // Validate raw state is a supported version
-    const validated = validateAnyCampaignState(rawState);
-
-    // Already V2 - idempotent success
-    if (validated.schemaVersion === CURRENT_STATE_SCHEMA_VERSION) {
-      validateCampaignState(validated);
-      return {
-        migrated: false,
-        campaignId: doc.campaignId,
-        campaignRevision: doc.campaignRevision,
-        schemaVersion: CURRENT_STATE_SCHEMA_VERSION,
-      };
+    if (
+      rawState == null ||
+      typeof rawState !== "object" ||
+      rawState.schemaVersion !== CURRENT_STATE_SCHEMA_VERSION
+    ) {
+      throw new DomainError(
+        "UNSUPPORTED_LEGACY_STATE",
+        "V1/V2 to V3 migration is not supported. " +
+        "Pre-M4 campaign data cannot be automatically migrated to the V3 state format. " +
+        "The campaign must be reset to begin with a fresh V3 state.",
+      );
     }
 
-    // Perform deterministic migration
-    const migratedState = migrateToCurrentVersion(validated);
-
-    // Validate the result
-    validateCampaignState(migratedState);
-    assertPortableCampaignState(migratedState);
-
-    // Persist: update campaign document ONLY (not historical snapshots)
-    // preserves campaignId, campaignRevision exactly
-    await ctx.db.patch(doc._id, {
-      state: migratedState as unknown as Record<string, unknown>,
-    } as any);
+    validateCampaignState(rawState);
 
     return {
-      migrated: true,
+      migrated: false,
       campaignId: doc.campaignId,
       campaignRevision: doc.campaignRevision,
       schemaVersion: CURRENT_STATE_SCHEMA_VERSION,

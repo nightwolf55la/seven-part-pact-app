@@ -33,18 +33,17 @@ import type {
 // ============================================================
 
 describe("M3 CONTRACT: authoritative campaign record state validator", () => {
-  it("authoritative campaign record state field uses currentCampaignStateValidator (V2-only)", () => {
-    // After CONTRACT, the campaigns table's authoritative record must use
-    // the V2-only validator — not the EXPAND-phase V1|V2 union.
+  it("authoritative campaign record state field uses currentCampaignStateValidator (V3-only)", () => {
+    // After V3 CONTRACT, anyCampaignStateValidator === currentCampaignStateValidator
+    // because V1/V2 have been removed from the union.
     const stateField = (newCampaignRecordValidator as any).fields?.state
       ?? (newCampaignRecordValidator as any).validator?.fields?.state;
     expect(stateField).toBeDefined();
     expect(stateField).toBe(currentCampaignStateValidator);
-    expect(stateField).not.toBe(anyCampaignStateValidator);
   });
 
-  it("snapshot record state field still uses anyCampaignStateValidator (V1|V2)", () => {
-    // Historical snapshots must continue accepting V1 or V2.
+  it("snapshot record state field still uses anyCampaignStateValidator (V3-only)", () => {
+    // Historical snapshots use anyCampaignStateValidator (V3-only).
     const stateField = (campaignSnapshotRecordValidator as any).fields?.state
       ?? (campaignSnapshotRecordValidator as any).validator?.fields?.state;
     expect(stateField).toBeDefined();
@@ -79,6 +78,11 @@ function makeV2State(monthOrdinal: number = 3): CurrentCampaignState {
       sage: { status: null, wizardId: null, watcherPlayerId: null },
       sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
     },
+    lifecycle: {
+      kind: "setup" as const,
+      orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
+    },
+    wizardmootHistory: [],
   };
 }
 
@@ -91,24 +95,22 @@ describe("M3 CONTRACT: domain-level current-state validation rejects V1", () => 
 
   it("validateCampaignState accepts V2 state", () => {
     const result = validateCampaignState(makeV2State());
-    expect(result.schemaVersion).toBe(2);
+    expect(result.schemaVersion).toBe(3);
   });
 });
 
-describe("M3 CONTRACT: historical V1 acceptance paths remain intact", () => {
-  it("validateAnyCampaignState still accepts V1", () => {
-    const result = validateAnyCampaignState(v1State);
-    expect(result.schemaVersion).toBe(1);
+describe("M3 CONTRACT: V1/V2 rejection and V3-only acceptance", () => {
+  it("validateAnyCampaignState rejects V1", () => {
+    expect(() => validateAnyCampaignState(v1State)).toThrow();
   });
 
-  it("validateAnyCampaignState still accepts V2", () => {
+  it("validateAnyCampaignState accepts V3", () => {
     const result = validateAnyCampaignState(makeV2State());
-    expect(result.schemaVersion).toBe(2);
+    expect(result.schemaVersion).toBe(3);
   });
 
-  it("loadHistoricalState migrates V1 to current V2", () => {
-    const result = loadHistoricalState(v1State);
-    expect(result.schemaVersion).toBe(2);
+  it("loadHistoricalState rejects V1", () => {
+    expect(() => loadHistoricalState(v1State)).toThrow();
   });
 
   it("unknown schema version fails closed", () => {
@@ -138,8 +140,8 @@ async function buildLegacyV1Backup(v1: CampaignStateV1) {
   };
 }
 
-describe("M3 CONTRACT: legacy V1 backup import (requirement 7)", () => {
-  it("backupFormatVersion 1 backup with physically V1 CampaignState passes fullyValidateBackup", async () => {
+describe("M3 CONTRACT: V1 backup rejection (V3-only)", () => {
+  it("backupFormatVersion 1 backup with physically V1 CampaignState is rejected by fullyValidateBackup", async () => {
     const v1ForBackup: CampaignStateV1 = {
       schemaVersion: 1,
       ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
@@ -152,15 +154,10 @@ describe("M3 CONTRACT: legacy V1 backup import (requirement 7)", () => {
 
     const result = await fullyValidateBackup(JSON.stringify(backup), null);
 
-    expect("backup" in result).toBe(true);
-    if ("backup" in result) {
-      expect(result.backup.state.schemaVersion).toBe(CURRENT_STATE_SCHEMA_VERSION);
-      expect(result.backup.state.calendar.monthOrdinal).toBe(7);
-      validateCampaignState(result.backup.state);
-    }
+    expect("error" in result).toBe(true);
   });
 
-  it("V1 backup with target-state compatibility check also passes", async () => {
+  it("V1 backup with target-state compatibility check is also rejected", async () => {
     const v1ForBackup: CampaignStateV1 = {
       schemaVersion: 1,
       ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
@@ -170,10 +167,7 @@ describe("M3 CONTRACT: legacy V1 backup import (requirement 7)", () => {
     const currentTarget = makeV2State(3);
 
     const result = await fullyValidateBackup(JSON.stringify(backup), currentTarget);
-    expect("backup" in result).toBe(true);
-    if ("backup" in result) {
-      expect(result.backup.state.schemaVersion).toBe(CURRENT_STATE_SCHEMA_VERSION);
-    }
+    expect("error" in result).toBe(true);
   });
 });
 
@@ -181,25 +175,21 @@ describe("M3 CONTRACT: legacy V1 backup import (requirement 7)", () => {
 // Production-shaped edge case (requirement 4)
 // ============================================================
 
-describe("M3 CONTRACT: production-shaped revision-0 with V1 physical snapshot", () => {
-  it("verifier accepts campaignRevision 0 with V2 current and physical V1 snapshot at rev 0", () => {
-    const v1Snap: CampaignStateV1 = {
-      schemaVersion: 1,
-      ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
-      calendar: { monthOrdinal: 0 as MonthOrdinal },
-    };
-    const v2Current = makeV2State(0);
+describe("M3 CONTRACT: production-shaped revision-0 with V3 snapshot", () => {
+  it("verifier accepts campaignRevision 0 with V3 current and V3 snapshot at rev 0", () => {
+    const v3Snap = makeV2State(0);
+    const v3Current = makeV2State(0);
 
     const result = verifyMigrationInvariants({
       campaignRevision: 0,
       revisions: [],
       events: [],
-      snapshots: [{ campaignRevision: 0, state: v1Snap as unknown as SerializableCampaignState }],
+      snapshots: [{ campaignRevision: 0, state: v3Snap as unknown as SerializableCampaignState }],
       campaignDocuments: [{
         campaignKey: "default",
         campaignId: "cmp_production",
         campaignRevision: 0,
-        state: v2Current as unknown as SerializableCampaignState,
+        state: v3Current as unknown as SerializableCampaignState,
       } as CampaignDocument],
     });
 
@@ -207,15 +197,12 @@ describe("M3 CONTRACT: production-shaped revision-0 with V1 physical snapshot", 
     expect(result.errors).toHaveLength(0);
   });
 
-  it("V1 physical snapshot at rev 0 migrates to logically equal V2 current", () => {
+  it("V1 physical snapshot at rev 0 is rejected by loadHistoricalState", () => {
     const v1Snap: CampaignStateV1 = {
       schemaVersion: 1,
       ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
       calendar: { monthOrdinal: 0 as MonthOrdinal },
     };
-    const migrated = loadHistoricalState(v1Snap);
-    expect(migrated.schemaVersion).toBe(CURRENT_STATE_SCHEMA_VERSION);
-    expect(migrated).toEqual(makeV2State(0));
-    validateCampaignState(migrated);
+    expect(() => loadHistoricalState(v1Snap)).toThrow();
   });
 });

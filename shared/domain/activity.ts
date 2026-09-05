@@ -1,14 +1,11 @@
-import type { CampaignEvent } from "./events";
+import type {
+  CampaignEvent,
+  InfrastructureEvent,
+  MonthChangedEventV1,
+} from "./events";
 import { displayNameFromOrdinal } from "./calendar";
 
 export type ActivityEntry =
-  | {
-      readonly id: string;
-      readonly revision: number;
-      readonly type: "month_changed";
-      readonly previousMonth: string;
-      readonly newMonth: string;
-    }
   | {
       readonly id: string;
       readonly revision: number;
@@ -82,31 +79,47 @@ function describeConfigEvent(event: CampaignEvent): string {
       return event.data.newPlayerId
         ? `Assigned watcher to ${event.data.seatId} seat`
         : `Cleared watcher from ${event.data.seatId} seat`;
+    case "setup_month_changed":
+      return event.data.newMonthOrdinal !== null
+        ? `Set starting month to ordinal ${event.data.newMonthOrdinal}`
+        : "Cleared starting month";
+    case "setup_orrery_position_changed":
+      return event.data.newPosition !== null
+        ? `Set ${event.data.planetId} Orrery position to ${event.data.newPosition}`
+        : `Cleared ${event.data.planetId} Orrery position`;
+    case "begin_play":
+      return "Began Play";
+    case "time_rescheduled":
+      return "Rescheduled Time allocation";
+    case "time_spent":
+      return "Spent Time allocation";
+    case "time_wasted":
+      return "Wasted Time allocation";
+    case "orrery_time_spent":
+      return "Spent Orrery Time";
+    case "engagement_time_committed":
+      return "Committed Time to Engagement";
+    case "engagement_resolved":
+      return "Resolved Engagement";
+    case "engagement_rescheduled":
+      return "Rescheduled Engagement target";
+    case "wizardmoot_attendance_adjusted":
+      return "Adjusted Wizardmoot attendance";
+    case "meeting_completed":
+      return "Completed Meeting";
+    case "month_begun":
+      return "Began Next Month";
     default:
       return "Campaign configuration changed";
   }
 }
 
-export function mapEventToActivityEntry(
+function mapInfrastructureEvent(
   id: string,
   revision: number,
-  event: CampaignEvent,
+  event: InfrastructureEvent,
 ): ActivityEntry {
   switch (event.type) {
-    case "month_changed": {
-      if (event.version !== 1) {
-        throw new Error(
-          `Unsupported month_changed event version ${event.version}`,
-        );
-      }
-      return {
-        id,
-        revision,
-        type: "month_changed",
-        previousMonth: displayNameFromOrdinal(event.data.fromOrdinal),
-        newMonth: displayNameFromOrdinal(event.data.toOrdinal),
-      };
-    }
     case "undo_applied": {
       if (event.version !== 1) {
         throw new Error(
@@ -165,6 +178,27 @@ export function mapEventToActivityEntry(
         exportedAtMs: event.data.exportedAtMs,
       };
     }
+  }
+}
+
+export function mapEventToActivityEntry(
+  id: string,
+  revision: number,
+  event: CampaignEvent | MonthChangedEventV1,
+): ActivityEntry {
+  switch (event.type) {
+    case "month_changed":
+      return {
+        id,
+        revision,
+        type: "campaign_configuration",
+        description: `${displayNameFromOrdinal(event.data.fromOrdinal)} → ${displayNameFromOrdinal(event.data.toOrdinal)}`,
+      };
+    case "undo_applied":
+    case "redo_applied":
+    case "checkpoint_restored":
+    case "backup_imported":
+      return mapInfrastructureEvent(id, revision, event as InfrastructureEvent);
     case "player_added":
     case "player_renamed":
     case "player_removed":
@@ -175,7 +209,23 @@ export function mapEventToActivityEntry(
     case "wizard_portrayal_changed":
     case "pact_seat_wizard_changed":
     case "pact_seat_status_changed":
-    case "watcher_assignment_changed": {
+    case "watcher_assignment_changed":
+    case "setup_month_changed":
+    case "setup_orrery_position_changed":
+    case "begin_play":
+    case "phase_advanced":
+    case "time_allocation_scheduled":
+    case "engagement_target_changed":
+    case "time_rescheduled":
+    case "time_spent":
+    case "time_wasted":
+    case "orrery_time_spent":
+    case "engagement_time_committed":
+    case "engagement_resolved":
+    case "engagement_rescheduled":
+    case "wizardmoot_attendance_adjusted":
+    case "meeting_completed":
+    case "month_begun": {
       return {
         id,
         revision,
@@ -188,8 +238,6 @@ export function mapEventToActivityEntry(
 
 export function describeActivityEntry(entry: ActivityEntry): string {
   switch (entry.type) {
-    case "month_changed":
-      return `Revision ${entry.revision} — ${entry.previousMonth} → ${entry.newMonth}`;
     case "undo_applied":
       return `Revision ${entry.revision} — Undo: revision ${entry.fromRevision} → ${entry.targetRevision}`;
     case "redo_applied":

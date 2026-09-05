@@ -2,16 +2,18 @@ import { describe, it, expect } from "vitest";
 import {
   syntheticMigrationCommandId,
   isSyntheticMigrationCommandId,
-  analyzeLegacyMigration,
   displayNameFromOrdinal,
   INITIAL_MONTH_ORDINAL,
   DomainError,
 } from "../shared/domain";
+import {
+  analyzeLegacyMigration,
+} from "../shared/domain/migration-analyzer";
 import type {
   LegacyCampaignInput,
   LegacyEventInput,
   MigrationReady,
-} from "../shared/domain";
+} from "../shared/domain/migration-analyzer";
 
 function makeEvent(
   revision: number,

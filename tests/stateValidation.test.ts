@@ -24,22 +24,27 @@ function validState(monthOrdinal: number = 0) {
       sage: { status: null, wizardId: null, watcherPlayerId: null },
       sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
     },
+    lifecycle: {
+      kind: "setup" as const,
+      orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
+    },
+    wizardmootHistory: [],
   };
 }
 
 describe("validateCampaignState", () => {
-  it("accepts a valid V1 state with ordinal 0", () => {
+  it("accepts a valid V3 state with ordinal 0", () => {
     const state = validState(0);
     const result = validateCampaignState(state);
     expect(result).toEqual(state);
   });
 
-  it("accepts a valid V1 state with negative ordinal", () => {
+  it("accepts a valid V3 state with negative ordinal", () => {
     const state = validState(-16);
     expect(() => validateCampaignState(state)).not.toThrow();
   });
 
-  it("accepts a valid V1 state with large positive ordinal", () => {
+  it("accepts a valid V3 state with large positive ordinal", () => {
     const state = validState(999);
     expect(() => validateCampaignState(state)).not.toThrow();
   });

@@ -8,36 +8,27 @@ import type { CampaignEvent, MonthOrdinal } from "../shared/domain";
 const ord = (n: number) => n as MonthOrdinal;
 
 describe("mapEventToActivityEntry", () => {
-  it("maps month_changed v1 to month_changed entry", () => {
-    const event: CampaignEvent = {
-      type: "month_changed",
-      version: 1,
-      data: { direction: "forward", fromOrdinal: ord(0), toOrdinal: ord(1) },
+  it("maps historical month_changed to a display-only activity entry", () => {
+    const event = {
+      type: "month_changed" as const,
+      version: 1 as const,
+      data: {
+        direction: "forward" as const,
+        fromOrdinal: ord(0),
+        toOrdinal: ord(1),
+      },
     };
-    const entry = mapEventToActivityEntry("evt_1", 5, event);
+
+    const entry = mapEventToActivityEntry("evt_legacy", 5, event);
+
     expect(entry).toEqual({
-      id: "evt_1",
+      id: "evt_legacy",
       revision: 5,
-      type: "month_changed",
-      previousMonth: "April",
-      newMonth: "May",
+      type: "campaign_configuration",
+      description: "April → May",
     });
+    expect(describeActivityEntry(entry)).toBe("Revision 5 — April → May");
   });
-
-  it("maps month_changed backward correctly", () => {
-    const event: CampaignEvent = {
-      type: "month_changed",
-      version: 1,
-      data: { direction: "backward", fromOrdinal: ord(1), toOrdinal: ord(0) },
-    };
-    const entry = mapEventToActivityEntry("evt_2", 6, event);
-    expect(entry.type).toBe("month_changed");
-    if (entry.type === "month_changed") {
-      expect(entry.previousMonth).toBe("May");
-      expect(entry.newMonth).toBe("April");
-    }
-  });
-
   it("maps undo_applied v1 to undo_applied entry", () => {
     const event: CampaignEvent = {
       type: "undo_applied",
@@ -70,15 +61,6 @@ describe("mapEventToActivityEntry", () => {
     });
   });
 
-  it("throws on unsupported month_changed version", () => {
-    const event = {
-      type: "month_changed" as const,
-      version: 99 as unknown as 1,
-      data: { direction: "forward" as const, fromOrdinal: ord(0), toOrdinal: ord(1) },
-    };
-    expect(() => mapEventToActivityEntry("evt_5", 7, event as CampaignEvent)).toThrow();
-  });
-
   it("throws on unsupported undo_applied version", () => {
     const event = {
       type: "undo_applied" as const,
@@ -99,22 +81,13 @@ describe("mapEventToActivityEntry", () => {
 });
 
 describe("describeActivityEntry", () => {
-  it("describes month_changed", () => {
-    const entry = mapEventToActivityEntry("e1", 32, {
-      type: "month_changed",
-      version: 1,
-      data: { direction: "forward", fromOrdinal: ord(0), toOrdinal: ord(1) },
-    });
-    expect(describeActivityEntry(entry)).toBe("Revision 32 — April → May");
-  });
-
   it("describes undo_applied", () => {
     const entry = mapEventToActivityEntry("e2", 33, {
       type: "undo_applied",
       version: 1,
       data: { fromRevision: 32, targetRevision: 31 },
     });
-    expect(describeActivityEntry(entry)).toBe("Revision 33 — Undo: revision 32 → 31");
+    expect(describeActivityEntry(entry)).toBe("Revision 33 \u2014 Undo: revision 32 \u2192 31");
   });
 
   it("describes redo_applied", () => {
@@ -123,6 +96,6 @@ describe("describeActivityEntry", () => {
       version: 1,
       data: { fromRevision: 31, targetRevision: 32 },
     });
-    expect(describeActivityEntry(entry)).toBe("Revision 34 — Redo: revision 31 → 32");
+    expect(describeActivityEntry(entry)).toBe("Revision 34 \u2014 Redo: revision 31 \u2192 32");
   });
 });

@@ -22,6 +22,17 @@ const MONTH_DEFINITIONS = [
 export type MonthId = (typeof MONTH_DEFINITIONS)[number]["id"];
 export type MonthDisplayName = (typeof MONTH_DEFINITIONS)[number]["displayName"];
 
+export type MonthOfYearIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11;
+
+export type SeasonId = "spring" | "summer" | "autumn" | "winter";
+
+const SEASON_BY_MONTH_INDEX: readonly SeasonId[] = [
+  "spring", "spring", "spring",
+  "summer", "summer", "summer",
+  "autumn", "autumn", "autumn",
+  "winter", "winter", "winter",
+];
+
 export const MONTH_IDS: readonly MonthId[] = MONTH_DEFINITIONS.map((m) => m.id);
 export const MONTH_DISPLAY_NAMES: readonly MonthDisplayName[] =
   MONTH_DEFINITIONS.map((m) => m.displayName);
@@ -30,12 +41,12 @@ export const MONTH_COUNT = MONTH_DEFINITIONS.length;
 
 export const INITIAL_MONTH_ORDINAL = 0 as MonthOrdinal;
 
-function normalizeIndex(ordinal: number): number {
-  return ((ordinal % MONTH_COUNT) + MONTH_COUNT) % MONTH_COUNT;
+export function monthOfYearIndexFromOrdinal(ordinal: MonthOrdinal | number): MonthOfYearIndex {
+  return (((ordinal % MONTH_COUNT) + MONTH_COUNT) % MONTH_COUNT) as MonthOfYearIndex;
 }
 
 export function monthIdFromOrdinal(ordinal: MonthOrdinal | number): MonthId {
-  return MONTH_IDS[normalizeIndex(ordinal)];
+  return MONTH_IDS[monthOfYearIndexFromOrdinal(ordinal)];
 }
 
 export function displayNameFromMonthId(id: MonthId): MonthDisplayName {
@@ -45,7 +56,15 @@ export function displayNameFromMonthId(id: MonthId): MonthDisplayName {
 export function displayNameFromOrdinal(
   ordinal: MonthOrdinal | number,
 ): MonthDisplayName {
-  return MONTH_DISPLAY_NAMES[normalizeIndex(ordinal)];
+  return MONTH_DISPLAY_NAMES[monthOfYearIndexFromOrdinal(ordinal)];
+}
+
+export function firstCycleOrdinalForMonthId(monthId: MonthId): MonthOrdinal {
+  return MONTH_IDS.indexOf(monthId) as MonthOrdinal;
+}
+
+export function seasonIdFromOrdinal(ordinal: MonthOrdinal | number): SeasonId {
+  return SEASON_BY_MONTH_INDEX[monthOfYearIndexFromOrdinal(ordinal)];
 }
 
 export function advanceOrdinal(

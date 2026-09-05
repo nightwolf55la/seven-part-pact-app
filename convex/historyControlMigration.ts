@@ -14,6 +14,7 @@ import type {
   CampaignHistoryControlV1,
   HistoryControlInitResult,
 } from "../shared/domain";
+import { assertCampaignNotDeleting } from "./deletionBarrier";
 
 // Shared helper: loads authoritative records from the database and invokes the
 // pure analyzeHistoryControlInitialization function.
@@ -207,6 +208,8 @@ export const executeHistoryControlMigration = internalMutation({
   returns: executionResultValidator,
   handler: async (ctx, args) => {
     const loaded = await loadAndAnalyze(ctx);
+
+    await assertCampaignNotDeleting(ctx);
 
     if (!loaded.found) {
       throw new DomainError(

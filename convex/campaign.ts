@@ -2,12 +2,9 @@ import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
 import {
   displayNameFromOrdinal,
-  advanceOrdinal,
   INITIAL_MONTH_ORDINAL,
-  applyMoveMonth,
   validateCampaignState,
   parseLiveCommandId,
-  moveMonthFingerprint,
   undoFingerprint,
   redoFingerprint,
   checkpointRestoreFingerprint,
@@ -25,7 +22,7 @@ import {
   statesDeepEqual,
   mapEventToActivityEntry,
 } from "../shared/domain";
-import type { MonthDirection, CampaignId, CampaignHistoryControlV1, CurrentCampaignState, CampaignEvent, CheckpointRestoredEventV1 } from "../shared/domain";
+import type { CampaignId, CampaignHistoryControlV1, CurrentCampaignState, CampaignEvent, CheckpointRestoredEventV1 } from "../shared/domain";
 import { validateAnyCampaignState } from "../shared/domain";
 import { loadHistoricalState, isHistoricalStateLogicallyEqual } from "../shared/domain/state-migration";
 import { deriveUndoTransition, deriveRedoTransition } from "../shared/domain/undo-redo";
@@ -36,6 +33,7 @@ import {
 } from "./validators";
 import { canonicalCommit } from "./canonicalCommit";
 import { loadCanonicalRecord, serializeState, snapshotRecord } from "./persistence";
+import { assertCampaignNotDeleting, loadActiveDeletion } from "./deletionBarrier";
 
 type CanonicalCampaignDoc = {
   _id: any;
@@ -62,7 +60,7 @@ const campaignViewValidator = v.union(
   v.object({
     _id: v.id("campaigns"),
     _creationTime: v.number(),
-    monthOrdinal: v.number(),
+    monthOrdinal: v.union(v.number(), v.null()),
     revision: v.number(),
   }),
   v.null(),
@@ -86,22 +84,17 @@ export const getCampaign = query({
       };
     }
 
-    const legacy = await ctx.db.query("campaigns").first();
-    if (legacy === null) return null;
-    if (!("monthOrdinal" in legacy)) return null;
-    return {
-      _id: legacy._id,
-      _creationTime: legacy._creationTime,
-      monthOrdinal: legacy.monthOrdinal,
-      revision: legacy.revision,
-    };
+    return null;
   },
 });
 
 export const ensureCampaign = mutation({
   args: {},
-  returns: campaignViewValidator,
+  returns: v.union(v.null(), campaignViewValidator),
   handler: async (ctx) => {
+    // Deletion barrier: reject while deleting
+    await assertCampaignNotDeleting(ctx);
+
     const maybeCanonical = await ctx.db
       .query("campaigns")
       .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
@@ -142,102 +135,88 @@ export const ensureCampaign = mutation({
     const allCampaigns = await ctx.db.query("campaigns").collect();
 
     if (allCampaigns.length > 0) {
-      const hasLegacy = allCampaigns.some((c) => "monthOrdinal" in c && !("campaignKey" in c));
-      if (hasLegacy) {
-        const legacy = allCampaigns.find((c) => "monthOrdinal" in c && !("campaignKey" in c))!;
-        return {
-          _id: legacy._id,
-          _creationTime: legacy._creationTime,
-          monthOrdinal: (legacy as any).monthOrdinal,
-          revision: (legacy as any).revision,
-        };
-      }
       throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        `Unexpected campaign documents found (${allCampaigns.length}) but none are canonical or legacy`,
+        "CAMPAIGN_GRAPH_NOT_EMPTY",
+        `Unexpected campaign documents found (${allCampaigns.length}) but none are canonical`,
       );
     }
 
-    const legacyEvents = await ctx.db.query("events").first();
-    if (legacyEvents !== null) {
+    // No campaign exists — return null instead of auto-creating
+    return null;
+  },
+});
+
+export const startNewCampaign = mutation({
+  args: {},
+  returns: v.object({
+    campaignId: v.string(),
+    campaignRevision: v.number(),
+  }),
+  handler: async (ctx) => {
+    await assertCampaignNotDeleting(ctx);
+
+    const existingCanonical = await ctx.db
+      .query("campaigns")
+      .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
+      .unique();
+
+    if (existingCanonical !== null) {
+      throw new DomainError("CAMPAIGN_ALREADY_EXISTS", "A campaign already exists");
+    }
+
+    const anyCampaign = await ctx.db.query("campaigns").first();
+    if (anyCampaign !== null) {
       throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        "Legacy events exist but no campaign document found",
+        "CAMPAIGN_GRAPH_NOT_EMPTY",
+        "Unexpected campaign document exists outside the canonical campaign key",
       );
     }
 
-    const orphanRevisions = await ctx.db.query("campaignRevisions").first();
-    if (orphanRevisions !== null) {
+    const orphanChecks = await Promise.all([
+      ctx.db.query("campaignRevisions").first(),
+      ctx.db.query("campaignEvents").first(),
+      ctx.db.query("campaignSnapshots").first(),
+      ctx.db.query("campaignHistoryControl").first(),
+      ctx.db.query("campaignCheckpoints").first(),
+    ]);
+    const orphanTableNames = [
+      "campaignRevisions",
+      "campaignEvents",
+      "campaignSnapshots",
+      "campaignHistoryControl",
+      "campaignCheckpoints",
+    ];
+    const orphanFound = orphanChecks
+      .map((r, i) => (r !== null ? orphanTableNames[i] : null))
+      .filter(Boolean);
+    if (orphanFound.length > 0) {
       throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        "Orphan campaignRevisions exist but no campaign document found",
+        "CAMPAIGN_GRAPH_NOT_EMPTY",
+        `Orphaned records found in: ${orphanFound.join(", ")}`,
       );
     }
-
-    const orphanEvents = await ctx.db.query("campaignEvents").first();
-    if (orphanEvents !== null) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        "Orphan campaignEvents exist but no campaign document found",
-      );
-    }
-
-    const orphanSnapshots = await ctx.db.query("campaignSnapshots").first();
-    if (orphanSnapshots !== null) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        "Orphan campaignSnapshots exist but no campaign document found",
-      );
-    }
-
-    const orphanHistoryControl = await ctx.db.query("campaignHistoryControl").first();
-    if (orphanHistoryControl !== null) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        "Orphan campaignHistoryControl exist but no campaign document found",
-      );
-    }
-
-    const orphanCheckpoints = await ctx.db.query("campaignCheckpoints").first();
-    if (orphanCheckpoints !== null) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        "Orphan campaignCheckpoints exist but no campaign document found",
-      );
-    }
-
-    const state = initialCampaignState();
-    validateCampaignState(state);
 
     const campaignId = generateCampaignId();
+    const state = initialCampaignState();
+    const campaignRevision = 0;
 
-    const docId = await ctx.db.insert("campaigns", {
-      campaignKey: "default" as const,
-      campaignId: campaignId as string,
-      campaignRevision: 0,
+    await ctx.db.insert("campaigns", {
+      campaignKey: "default",
+      campaignId,
+      campaignRevision,
       state: serializeState(state),
-    } as any);
+    });
 
-    await ctx.db.insert("campaignSnapshots", snapshotRecord(campaignId as string, 0, state));
+    await ctx.db.insert("campaignSnapshots", snapshotRecord(campaignId, campaignRevision, state));
 
     await ctx.db.insert("campaignHistoryControl", {
-      campaignId: campaignId as string,
-      historyControlVersion: 1,
+      historyControlVersion: CURRENT_HISTORY_CONTROL_VERSION,
+      campaignId,
       undoStack: [0],
       redoStack: [],
     });
 
-    const doc = await ctx.db.get(docId);
-    if (doc === null) {
-      throw new DomainError("CAMPAIGN_STATE_CORRUPT", "Failed to read back newly created campaign");
-    }
-
-    return {
-      _id: doc._id,
-      _creationTime: doc._creationTime,
-      monthOrdinal: state.calendar.monthOrdinal as number,
-      revision: 0,
-    };
+    return { campaignId, campaignRevision };
   },
 });
 
@@ -250,114 +229,21 @@ export const getRecentEvents = query({
       .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
       .unique();
 
-    if (maybeCanonical !== null && isCanonical(maybeCanonical)) {
-      const events = await ctx.db
-        .query("campaignEvents")
-        .withIndex("by_campaign_revision_index", (q) =>
-          q.eq("campaignId", maybeCanonical.campaignId),
-        )
-        .order("desc")
-        .take(args.count);
-
-      return events.map((e) =>
-        mapEventToActivityEntry(e._id, e.campaignRevision, e.event as CampaignEvent),
-      );
+    if (maybeCanonical === null || !isCanonical(maybeCanonical)) {
+      return [];
     }
 
-    const legacyEvents = await ctx.db.query("events").order("desc").take(args.count);
-    return legacyEvents.map((e) => ({
-      id: e._id,
-      revision: e.revision,
-      type: "month_changed" as const,
-      previousMonth: e.previousMonth,
-      newMonth: e.newMonth,
-    }));
-  },
-});
+    const events = await ctx.db
+      .query("campaignEvents")
+      .withIndex("by_campaign_revision_index", (q) =>
+        q.eq("campaignId", maybeCanonical.campaignId),
+      )
+      .order("desc")
+      .take(args.count);
 
-export const moveMonth = mutation({
-  args: {
-    direction: monthDirectionValidator,
-    commandId: v.string(),
-  },
-  returns: v.object({
-    revision: v.number(),
-    monthOrdinal: v.number(),
-    month: monthDisplayNameValidator,
-  }),
-  handler: async (ctx, args) => {
-    const maybeCanonical = await ctx.db
-      .query("campaigns")
-      .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
-      .unique();
-
-    if (maybeCanonical !== null && isCanonical(maybeCanonical)) {
-      const commandId = parseLiveCommandId(args.commandId);
-      const currentState = validateCampaignState(maybeCanonical.state);
-      const direction = args.direction as MonthDirection;
-      const { nextState, events } = applyMoveMonth(currentState, direction);
-      const fingerprint = moveMonthFingerprint(direction);
-
-      const receipt = await canonicalCommit(ctx, {
-        campaignDocId: maybeCanonical._id,
-        campaignId: maybeCanonical.campaignId,
-        currentRevision: maybeCanonical.campaignRevision,
-        currentState,
-        commandId,
-        commandType: "move_month",
-        commandFingerprint: fingerprint,
-        nextState,
-        events,
-        historyControlUpdate: { kind: "logical_state_append" },
-      });
-
-      return {
-        revision: receipt.newRevision,
-        monthOrdinal: receipt.state.calendar.monthOrdinal as number,
-        month: displayNameFromOrdinal(receipt.state.calendar.monthOrdinal),
-      };
-    }
-
-    const legacy = await ctx.db.query("campaigns").first();
-
-    if (legacy === null) {
-      throw new DomainError(
-        "CAMPAIGN_STATE_CORRUPT",
-        "No campaign exists. Call ensureCampaign first.",
-      );
-    }
-
-    if (!("monthOrdinal" in legacy)) {
-      throw new Error("Campaign has been migrated to new format");
-    }
-
-    const previousMonthOrdinal = legacy.monthOrdinal;
-    const previousMonth = displayNameFromOrdinal(previousMonthOrdinal);
-
-    const newMonthOrdinal = advanceOrdinal(previousMonthOrdinal, args.direction);
-    const newMonth = displayNameFromOrdinal(newMonthOrdinal);
-    const newRevision = legacy.revision + 1;
-
-    await ctx.db.patch(legacy._id, {
-      monthOrdinal: newMonthOrdinal,
-      revision: newRevision,
-    });
-
-    await ctx.db.insert("events", {
-      type: "month_changed",
-      revision: newRevision,
-      direction: args.direction,
-      previousMonthOrdinal,
-      newMonthOrdinal,
-      previousMonth,
-      newMonth,
-    });
-
-    return {
-      revision: newRevision,
-      monthOrdinal: newMonthOrdinal as number,
-      month: newMonth,
-    };
+    return events.map((e) =>
+      mapEventToActivityEntry(e._id, e.campaignRevision, e.event as CampaignEvent),
+    );
   },
 });
 
@@ -430,8 +316,8 @@ async function loadRevisionCommandType(ctx: any, campaignId: string, revision: n
 
 const undoRedoReturnValidator = v.object({
   revision: v.number(),
-  monthOrdinal: v.number(),
-  month: monthDisplayNameValidator,
+  monthOrdinal: v.union(v.number(), v.null()),
+  month: v.union(monthDisplayNameValidator, v.null()),
   alreadyApplied: v.boolean(),
 });
 
@@ -469,10 +355,11 @@ export const undo = mutation({
         throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Snapshot missing for committed revision ${existingCommand.campaignRevision}`);
       }
       validateCampaignState(snap);
+      const mo = snap.calendar.monthOrdinal;
       return {
         revision: existingCommand.campaignRevision,
-        monthOrdinal: snap.calendar.monthOrdinal as number,
-        month: displayNameFromOrdinal(snap.calendar.monthOrdinal),
+        monthOrdinal: mo,
+        month: mo !== null ? displayNameFromOrdinal(mo) : null,
         alreadyApplied: true,
       };
     }
@@ -534,10 +421,11 @@ export const undo = mutation({
       },
     });
 
+    const undoMo = receipt.state.calendar.monthOrdinal;
     return {
       revision: receipt.newRevision,
-      monthOrdinal: receipt.state.calendar.monthOrdinal as number,
-      month: displayNameFromOrdinal(receipt.state.calendar.monthOrdinal),
+      monthOrdinal: undoMo,
+      month: undoMo !== null ? displayNameFromOrdinal(undoMo) : null,
       alreadyApplied: receipt.alreadyApplied,
     };
   },
@@ -576,10 +464,11 @@ export const redo = mutation({
         throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Snapshot missing for committed revision ${existingCommand.campaignRevision}`);
       }
       validateCampaignState(snap);
+      const redoIdempMo = snap.calendar.monthOrdinal;
       return {
         revision: existingCommand.campaignRevision,
-        monthOrdinal: snap.calendar.monthOrdinal as number,
-        month: displayNameFromOrdinal(snap.calendar.monthOrdinal),
+        monthOrdinal: redoIdempMo,
+        month: redoIdempMo !== null ? displayNameFromOrdinal(redoIdempMo) : null,
         alreadyApplied: true,
       };
     }
@@ -641,10 +530,11 @@ export const redo = mutation({
       },
     });
 
+    const redoMo = receipt.state.calendar.monthOrdinal;
     return {
       revision: receipt.newRevision,
-      monthOrdinal: receipt.state.calendar.monthOrdinal as number,
-      month: displayNameFromOrdinal(receipt.state.calendar.monthOrdinal),
+      monthOrdinal: redoMo,
+      month: redoMo !== null ? displayNameFromOrdinal(redoMo) : null,
       alreadyApplied: receipt.alreadyApplied,
     };
   },
@@ -786,6 +676,8 @@ export const createCheckpoint = mutation({
     alreadyApplied: v.boolean(),
   }),
   handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+
     const checkpointId = parseCheckpointId(args.checkpointId);
 
     const normalizedLabel = normalizeCheckpointLabel(args.label);
@@ -1035,8 +927,8 @@ export const restoreCheckpoint = mutation({
   },
   returns: v.object({
     revision: v.number(),
-    monthOrdinal: v.number(),
-    month: monthDisplayNameValidator,
+    monthOrdinal: v.union(v.number(), v.null()),
+    month: v.union(monthDisplayNameValidator, v.null()),
     alreadyApplied: v.boolean(),
   }),
   handler: async (ctx, args) => {
@@ -1072,10 +964,11 @@ export const restoreCheckpoint = mutation({
         throw new DomainError("CAMPAIGN_STATE_CORRUPT", `Snapshot missing for committed revision ${existingCommand.campaignRevision}`);
       }
       validateCampaignState(snap);
+      const cpIdempMo = snap.calendar.monthOrdinal;
       return {
         revision: existingCommand.campaignRevision,
-        monthOrdinal: snap.calendar.monthOrdinal as number,
-        month: displayNameFromOrdinal(snap.calendar.monthOrdinal),
+        monthOrdinal: cpIdempMo,
+        month: cpIdempMo !== null ? displayNameFromOrdinal(cpIdempMo) : null,
         alreadyApplied: true,
       };
     }
@@ -1171,10 +1064,11 @@ export const restoreCheckpoint = mutation({
       historyControlUpdate: { kind: "logical_state_append" },
     });
 
+    const cpMo = receipt.state.calendar.monthOrdinal;
     return {
       revision: receipt.newRevision,
-      monthOrdinal: receipt.state.calendar.monthOrdinal as number,
-      month: displayNameFromOrdinal(receipt.state.calendar.monthOrdinal),
+      monthOrdinal: cpMo,
+      month: cpMo !== null ? displayNameFromOrdinal(cpMo) : null,
       alreadyApplied: receipt.alreadyApplied,
     };
   },

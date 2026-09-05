@@ -11,9 +11,12 @@
 import type * as adminMigration from "../adminMigration.js";
 import type * as backup from "../backup.js";
 import type * as campaign from "../campaign.js";
+import type * as campaignDeletion from "../campaignDeletion.js";
 import type * as canonicalCommit from "../canonicalCommit.js";
+import type * as deletionBarrier from "../deletionBarrier.js";
 import type * as executeMigration from "../executeMigration.js";
 import type * as historyControlMigration from "../historyControlMigration.js";
+import type * as lifecycleQueries from "../lifecycleQueries.js";
 import type * as m3Commands from "../m3Commands.js";
 import type * as m3Queries from "../m3Queries.js";
 import type * as migration from "../migration.js";
@@ -31,9 +34,12 @@ declare const fullApi: ApiFromModules<{
   adminMigration: typeof adminMigration;
   backup: typeof backup;
   campaign: typeof campaign;
+  campaignDeletion: typeof campaignDeletion;
   canonicalCommit: typeof canonicalCommit;
+  deletionBarrier: typeof deletionBarrier;
   executeMigration: typeof executeMigration;
   historyControlMigration: typeof historyControlMigration;
+  lifecycleQueries: typeof lifecycleQueries;
   m3Commands: typeof m3Commands;
   m3Queries: typeof m3Queries;
   migration: typeof migration;

@@ -1,9 +1,8 @@
 # Campaign State Architecture
 
-**Status:** Accepted  
-**Architecture Version:** 1  
+**Status:** Accepted
+**Architecture Version:** 1
 **Applies Beginning With:** Milestone 2
-
 ## Purpose
 
 This document defines the architecture for persistent campaign state, gameplay
@@ -11,7 +10,6 @@ transactions, domain events, snapshots, recovery, versioning, and related
 domain-modeling conventions for the Seven-Part Pact application.
 
 The primary design goals are:
-
 - protect long-lived campaign state from corruption or irreversible loss;
 - make complex gameplay actions atomic and auditable;
 - support reliable Undo, Redo, checkpoint restore, and backup restore;
@@ -19,13 +17,11 @@ The primary design goals are:
   invalidating old campaigns;
 - keep game rules deterministic and testable;
 - prevent persistence technology from defining the domain model.
-
 This application does **not** use pure event sourcing. Current campaign state is
 authoritative. Events provide immutable audit history, and snapshots provide
 historical/recovery state.
 
 ---
-
 ## 1. Core Terminology
 
 The following version and sequence concepts are intentionally independent.
@@ -38,7 +34,6 @@ transactions within a campaign.
 A revision identifies a transaction, not an event and not a database write.
 
 Revision 0 represents the campaign's initial state.
-
 ### `stateSchemaVersion`
 
 The serialized schema version of the complete logical `CampaignState`.
@@ -54,7 +49,6 @@ A schema migration changes representation.
 A ruleset migration may change game meaning.
 
 These are fundamentally different operations.
-
 ### `event.type`
 
 The stable semantic identity of a domain event, such as:
@@ -69,12 +63,15 @@ The schema version of that specific event type.
 
 Event types evolve independently. There is no global event-schema version.
 
+Examples in this document may include historical persisted identifiers. At the
+M4 baseline, `month_changed` is retained only for historical readability and
+tooling and is not written by the active current runtime.
+
 For example, a campaign may contain:
 
 - `month_changed` version 1
 - `spell_cast` version 3
 - `resource_spent` version 2
-
 ### `backupFormatVersion`
 
 The version of the portable backup container itself.
@@ -89,7 +86,6 @@ Application version must never be treated as the authoritative definition of
 persistent-data schemas.
 
 ---
-
 ## 2. Logical Campaign State
 
 `CampaignState` means:
@@ -115,15 +111,25 @@ interface CampaignStateV1 {
 ```
 
 This will expand as game systems are implemented.
-
-**M3 Update (V2):** The campaign state has been extended to V2 with players,
+**M3 Update (V2):** The campaign state was extended to V2 with players,
 wizards, pact seats, and configuration. See
-[M3 State Model](m3-state-model.md) for the full V2 specification and migration
-details. V1 remains supported for historical snapshots; the current authoritative
-state must be V2 (enforced by explicit admin migration).
+[M3 State Model](m3-state-model.md) for the V2 specification and migration
+details.
+**M4 Update (V3):** CampaignState V3 introduces a discriminated Setup/Play
+lifecycle, Orrery state, monthly Time/Engagement state, and Wizardmoot
+attendance history. V1 and V2 are intentionally retired at the M4 boundary as
+a one-time pre-release compatibility break. V3 is the new minimum supported
+version for both current and historical state. See
+[M4 Shared Monthly Play Loop](../m4-shared-monthly-play-loop.md) for the full
+V3 specification and retirement rationale.
+> **Supersession (M4):** Section 28 ("Existing v0.1 Migration") of this
+> document states that existing production/development campaign data must not
+> be discarded or reset. That requirement applied to the M2 migration and
+> remains historically accurate for that context. It is explicitly superseded
+> for the M4 boundary: pre-M4 campaign data are disposable by approved
+> decision. Future evolution from V3 returns to the normal safety policy.
 
 Future state may contain concepts such as:
-
 ```ts
 interface CampaignStateVFuture {
   schemaVersion: number;
@@ -141,13 +147,14 @@ The logical `CampaignState` is independent of physical Convex storage layout.
 The application may eventually store portions of the logical campaign in
 multiple Convex documents or tables without changing the meaning of
 `CampaignState`.
-
 A live campaign must use a state schema supported by the current application.
 
-Historical snapshots may retain older state-schema versions.
+Historical snapshots may retain older state-schema versions only when those
+versions are explicitly supported. At the M4 baseline, V3 is the minimum
+supported version for both current and historical CampaignState; V1/V2 state
+fails closed.
 
 ---
-
 ## 3. Campaign Identity
 
 A campaign has a portable application-level identity.
@@ -169,12 +176,10 @@ deterministic singleton lookup.
 The application must not rely on querying an arbitrary first campaign document.
 
 Future multiple-campaign support should use `campaignId`.
-
 Convex `_id` values are storage identifiers only and must not serve as portable
 game-world identity.
 
 ---
-
 ## 4. Identifier Categories
 
 Three categories of identifiers are intentionally distinct.
@@ -190,7 +195,6 @@ Convex _id
 These identify where a record lives in a particular Convex deployment.
 
 They must not be used as portable campaign references.
-
 ### Instance identifiers
 
 These identify particular objects existing within a campaign.
@@ -207,7 +211,6 @@ cmd_<uuid>
 
 Opaque instance identifiers should use globally unique values and may use
 human-readable prefixes for debugging.
-
 ### Definition identifiers
 
 These identify permanent game concepts.
@@ -231,7 +234,6 @@ Where useful, TypeScript branded types should prevent accidental interchange of
 semantically different identifiers or numeric concepts.
 
 Examples include:
-
 ```ts
 CampaignId
 CommandId
@@ -242,7 +244,6 @@ MonthOrdinal
 ```
 
 ---
-
 ## 5. Calendar Domain Model
 
 `monthOrdinal` represents an unbounded position on the repeating campaign
@@ -287,7 +288,6 @@ if (monthOrdinal === 5) {
 ```
 
 Correct:
-
 ```ts
 if (monthIdFromOrdinal(monthOrdinal) === "september") {
   ...
@@ -301,8 +301,22 @@ Derived presentation values such as `"September"` should not be duplicated as
 authoritative persisted data when they can be safely derived from canonical
 state.
 
----
+### M4 lifecycle and month progression
 
+At the M4 baseline, `monthOrdinal` is the sole authoritative absolute campaign
+chronology. Month-of-year, display name, season, and Sun are derived from it.
+
+Setup is a lifecycle state, not a lunar phase. Play proceeds:
+
+```text
+New Moon -> Visions -> Planning -> Story -> Meeting -> Quiet -> next New Moon
+```
+
+There is no ordinary/free current-runtime month-movement command. Begin Play and
+Begin Next Month own the authoritative atomic month-boundary changes; stale
+distinct requests must not create an extra month advance.
+
+---
 ## 6. One Command Equals One Gameplay Revision
 
 One successfully accepted authoritative gameplay command creates exactly one new
@@ -328,7 +342,6 @@ one resulting CampaignState
         v
 one full snapshot
 ```
-
 A complex action may therefore produce multiple consequences without creating
 multiple revisions.
 
@@ -350,21 +363,21 @@ A gameplay revision must contain at least one domain event explaining what
 happened.
 
 ---
-
 ## 7. Commands and Domain Transitions
 
 Clients send intent, not authoritative final state.
 
-Example command intent:
+Example context-sensitive phase intent:
 
 ```ts
 {
-  direction: "forward"
+  expectedMonthOrdinal: 12,
+  expectedPhase: "Planning"
 }
 ```
 
-The client must not determine and submit the authoritative next month when the
-server can derive it.
+The client supplies intent plus the context it observed. The server validates
+that context and derives the authoritative resulting phase and state.
 
 Convex mutations:
 
@@ -374,17 +387,18 @@ Convex mutations:
 4. invoke pure domain logic;
 5. validate the resulting state and events;
 6. atomically persist the transaction.
-
 Game rules should primarily exist in pure deterministic functions.
 
 Conceptually:
 
-```ts
-executeMoveMonth(currentState, direction)
-  -> {
-       nextState,
-       events
-     }
+```text
+validate intent/context
+        |
+        v
+apply pure domain transition
+        |
+        v
+{ nextState, events }
 ```
 
 The domain layer must not depend on React or Convex where practical.
@@ -397,7 +411,6 @@ persistence.
 The pure domain layer determines game consequences.
 
 ---
-
 ## 8. Revision Records
 
 Each successful gameplay transaction has an immutable revision record.
@@ -420,7 +433,6 @@ timing.
 Revision records are never rewritten by normal application operations.
 
 ---
-
 ## 9. Domain Events
 
 Events are stored as separate immutable records associated with their transaction.
@@ -445,10 +457,8 @@ The logical event identity is:
 ```text
 (campaignId, campaignRevision, eventIndex)
 ```
-
 A separate application-level event UUID is not required unless a future use case
 demonstrates a need.
-
 ### Event payload structure
 
 Each event payload has its own explicit structure.
@@ -471,12 +481,15 @@ interface MonthChangedEventV1 {
 }
 ```
 
+`month_changed` is a historical pre-M4 example. It remains readable where
+needed to interpret immutable audit history and historical tooling, but it is
+retired from the active current-runtime/new-write contract.
+
 The following design must not be used:
 
 ```ts
 type EventType = ...;
 type EventData = ...;
-
 interface Event {
   type: EventType;
   data: EventData;
@@ -490,12 +503,10 @@ Instead:
 
 ```ts
 type CampaignEvent =
-  | MonthChangedEventV1
   | SpellCastEventV1
   | SpellCastEventV2
   | CheckpointRestoredEventV1;
 ```
-
 ### Event versioning
 
 Each event type versions independently.
@@ -523,7 +534,6 @@ The event version describes the serialized representation used to describe it.
 Historical events are not rewritten merely because newer event versions exist.
 
 Unknown event versions must fail closed rather than being guessed at.
-
 ### Canonical event facts
 
 Events store canonical facts and meaningful intent.
@@ -534,7 +544,6 @@ For example, a month-change event should persist ordinals and direction rather
 than both ordinals and redundant display names.
 
 ---
-
 ## 10. Events Are Not the Runtime Source of Truth
 
 The application does not reconstruct normal current state by replaying all
@@ -559,14 +568,12 @@ Undo and restore use snapshots rather than reversing or replaying historical
 event logic.
 
 ---
-
 ## 11. Central Transaction Commit Mechanism
 
 Persistent gameplay transactions should pass through one shared server-side
 commit mechanism.
 
 Conceptually:
-
 ```text
 validate command
       |
@@ -592,7 +599,6 @@ ATOMIC CONVEX TRANSACTION
 ```
 
 If any part fails:
-
 ```text
 no state update
 no campaign revision
@@ -604,7 +610,6 @@ Future gameplay mutations should use this mechanism rather than independently
 reimplementing revision/event/snapshot logic.
 
 ---
-
 ## 12. Idempotency
 
 Every authoritative gameplay command should carry a unique client-generated
@@ -616,7 +621,6 @@ instead of executing it again.
 
 Idempotency checking occurs before stale-revision checking so that a legitimate
 retry can still receive its original successful result.
-
 Reusing the same command ID for an incompatible operation must be rejected.
 
 Commands themselves are transient API intent and do not require persistent schema
@@ -625,7 +629,6 @@ versioning at this stage.
 Events are the durable historical contract.
 
 ---
-
 ## 13. Concurrency Semantics
 
 Concurrency behavior is selected per command.
@@ -637,14 +640,16 @@ Used when the command naturally means:
 > Apply this intent once against whatever authoritative state exists when the
 > transaction executes.
 
-Example:
+Latest-state semantics are not the default for lifecycle or month progression.
+At the M4 baseline there is no free `Advance one month` command. Ordinary phase
+progression is checked against the expected month ordinal and phase, while
+Begin Play and Begin Next Month are guarded lifecycle/month-boundary
+transitions. Distinct stale requests fail rather than producing an unintended
+second transition.
 
-```text
-Advance one month
-```
-
-Two legitimate simultaneous commands may produce two sequential revisions.
-
+Latest-state semantics remain appropriate only where an intent is explicitly
+defined to remain correct against the authoritative state that exists when the
+transaction executes.
 ### Compare-and-set semantics
 
 Used when a command depends upon a state the user previously observed.
@@ -666,7 +671,6 @@ Examples include:
 * other destructive/context-sensitive recovery operations
 
 ---
-
 ## 14. Snapshots
 
 Every campaign revision has exactly one full logical-state snapshot.
@@ -691,16 +695,20 @@ campaignId + campaignRevision
 
 Snapshots are immutable.
 
-Historical snapshots may use old state-schema versions.
+The general architecture permits historical snapshots in explicitly supported
+older schema versions, and such snapshots are not rewritten merely because
+current state evolves.
 
-They are not rewritten merely because current state evolves.
+At the M4 baseline, however, V3 is the minimum supported version for both
+current and historical CampaignState. V1/V2 snapshots fail closed. The M4
+boundary is an approved one-time pre-release compatibility break, not a silent
+migration.
 
-Restoring an old snapshot first migrates its state in memory through explicitly
-supported schema migrations, validates the resulting current state, and then
-creates a new campaign revision.
+If a future supported historical schema has an explicit migration path,
+restoring it may migrate state in memory, validate the resulting current state,
+and then create a new campaign revision.
 
 ---
-
 ## 15. Undo and Redo
 
 Undo and Redo operate on transaction-level snapshots.
@@ -721,7 +729,6 @@ state.
 Revision 41 remains permanently preserved.
 
 Undo and Redo therefore maintain two concepts:
-
 ### Audit history
 
 Always moves forward:
@@ -733,7 +740,6 @@ Always moves forward:
 43 undo
 44 redo
 ```
-
 ### Logical Undo/Redo position
 
 May move backward or forward through previously committed game states.
@@ -742,7 +748,6 @@ The exact persistence representation of the logical Undo/Redo cursor is deferred
 until Undo/Redo implementation.
 
 Required semantics are:
-
 * Undo operates on the most recent logical gameplay action.
 * Redo restores the most recently undone logical action.
 * Performing a new gameplay action after Undo invalidates the interactive Redo
@@ -754,9 +759,7 @@ Required semantics are:
 * Redo restores known historical state and does not rerun random outcomes.
 * Selective historical rewriting such as "remove revision 37 while preserving
   revisions 38-45" is not supported.
-
 ---
-
 ## 16. Checkpoints
 
 A checkpoint is human-readable metadata pointing to an existing campaign
@@ -777,14 +780,12 @@ Creating a checkpoint does not change gameplay state and therefore does not
 increment `campaignRevision`.
 
 Checkpoint records are initially immutable.
-
 Restoring a checkpoint changes authoritative game state and therefore creates a
 new gameplay revision, event(s), and snapshot.
 
 Checkpoint restore never deletes or rewrites later historical revisions.
 
 ---
-
 ## 17. Portable Backups
 
 Backups contain portable logical state, not raw Convex tables.
@@ -810,7 +811,6 @@ The source campaign identity is provenance and must not replace the destination
 campaign's identity during restore.
 
 Backup import follows:
-
 ```text
 parse
   |
@@ -818,7 +818,7 @@ validate backup format
   |
 validate state schema
   |
-migrate supported old state schemas in memory
+migrate explicitly supported old state schemas in memory, if defined
   |
 verify supported ruleset
   |
@@ -833,8 +833,11 @@ A rejected import performs zero persistent changes.
 
 The backup format, campaign-state schema, and ruleset versions remain independent.
 
----
+At the M4 baseline, V3 is the only supported CampaignState version for portable
+backup import. V1/V2 backups fail closed; there is no V1->V3 or V2->V3 backup
+migration path.
 
+---
 ## 18. Schema Migrations
 
 A schema migration changes how the same game meaning is represented.
@@ -853,14 +856,17 @@ Migrating the persistent representation of the current campaign does not itself
 constitute gameplay and therefore does not increment `campaignRevision`.
 
 Old immutable snapshots remain unchanged.
-
 When restoring an old snapshot or backup, schema migrations may operate on the
 loaded data in memory before the restored state is committed.
+
+That general rule applies only to schema versions for which an explicit
+supported migration exists. At the M4 boundary, V1/V2 CampaignState is retired
+and unsupported for current state, snapshots, checkpoints, Undo/Redo restore,
+and portable backup import; unsupported data fails closed.
 
 Never blindly cast old persisted JSON to a current TypeScript type.
 
 ---
-
 ## 19. Ruleset Migrations
 
 A ruleset migration changes the game semantics governing a campaign.
@@ -876,7 +882,6 @@ Campaigns are pinned to:
 ruleset.id
 ruleset.version
 ```
-
 If a ruleset upgrade changes authoritative campaign semantics or state, the
 upgrade must be explicit and auditable and should create a normal gameplay
 revision with an appropriate domain event.
@@ -886,7 +891,6 @@ defined. Unsupported old rulesets must fail explicitly rather than being silentl
 interpreted under newer rules.
 
 ---
-
 ## 20. Deterministic Domain Logic
 
 Pure domain functions must not directly call nondeterministic facilities such as:
@@ -908,7 +912,6 @@ resolveSpell(state, command, {
 ```
 
 Domain events record actual authoritative outcomes.
-
 A retry using the same `commandId` must never be capable of producing a second,
 different random outcome for an already committed command.
 
@@ -917,7 +920,6 @@ Game calendar time and real-world wall-clock time are separate concepts.
 Browser clocks and time zones must not determine authoritative game time.
 
 ---
-
 ## 21. Validation Layers
 
 Three distinct validation layers are required.
@@ -945,7 +947,6 @@ Examples:
 * legal action in current state.
 
 This should live primarily in pure domain logic.
-
 ### Whole-state invariant validation
 
 Checks whether the calculated resulting campaign state is internally coherent.
@@ -967,7 +968,6 @@ Future invariants may include:
 A failure at any validation stage causes zero persistent transaction writes.
 
 ---
-
 ## 22. Domain Errors
 
 Expected command rejection should use stable machine-readable error codes rather
@@ -992,7 +992,6 @@ UI code translates error codes into appropriate user-facing messages.
 Unexpected invariant/programming failures remain exceptional failures.
 
 ---
-
 ## 23. Read Models and UI Boundaries
 
 React should not depend directly on physical Convex document layouts.
@@ -1021,7 +1020,6 @@ For example:
 ```ts
 {
   campaignRevision: 42,
-
   calendar: {
     monthOrdinal: 8,
     monthId: "december",
@@ -1037,7 +1035,6 @@ than requiring React components to understand every historical event schema
 version directly.
 
 ---
-
 ## 24. Physical Storage Is an Adapter
 
 The logical domain model must not assume that campaign state always exists in one
@@ -1061,17 +1058,27 @@ Persistence access should become centralized through functions such as:
 loadCampaignState(...)
 persistCampaignState(...)
 ```
-
 rather than spreading storage-layout assumptions throughout game-rule code.
 
 Snapshots and backup semantics operate on logical campaign state regardless of
 physical database layout.
 
 ---
-
 ## 25. Deletion Policy
 
 Normal gameplay must not hard-delete meaningful historical data.
+
+M4 administrative whole-campaign deletion is an explicit infrastructure
+exception to that gameplay rule. It lives outside CampaignState and is
+eventless, revisionless, and non-Undo-able. A durable deletion barrier is
+committed before destructive cleanup, normal gameplay/recovery writes are
+blocked while it exists, cleanup proceeds in bounded idempotent batches, the
+canonical campaign is removed near the end, and the marker is removed last only
+after the campaign-owned graph has been verified absent.
+
+This administrative deletion mechanism must remain generic persistence
+infrastructure. It is not a game-domain meaning for death, destruction, or any
+other in-fiction event.
 
 Do not normally delete:
 
@@ -1083,11 +1090,9 @@ Do not normally delete:
 Game concepts such as death, destruction, graduation, expiration, etc. should
 normally be represented as state transitions rather than physical database
 deletion when history may reference them.
-
 Disposable UI/configuration metadata may use normal deletion where appropriate.
 
 ---
-
 ## 26. Exhaustive Domain Handling
 
 Finite domain unions should be handled exhaustively.
@@ -1103,7 +1108,6 @@ default behavior.
 Unknown historical structures fail closed.
 
 ---
-
 ## 27. Validation Technology
 
 Do not introduce an additional schema framework solely for this architecture at
@@ -1123,7 +1127,6 @@ A shared runtime schema library may be reconsidered later if maintaining runtime
 validation becomes sufficiently repetitive or error-prone.
 
 ---
-
 ## 28. Existing v0.1 Migration
 
 Migration from the Milestone 1 data model must be explicit and idempotent.
@@ -1135,7 +1138,6 @@ practical.
 
 Existing month-history events may be transformed into the new event structure
 while preserving their original Convex creation metadata if possible.
-
 Before historical reconstruction, the migration must validate the complete v0.1
 event chain, including:
 
@@ -1145,7 +1147,6 @@ event chain, including:
 * current campaign revision matching historical records;
 * current month matching the final historical result;
 * any legacy persisted display names agreeing with canonical month derivation.
-
 If and only if the chain validates completely, historical state may be
 deterministically reconstructed and snapshots backfilled for every historical
 revision, including Revision 0.
@@ -1161,7 +1162,6 @@ REPORT THE INCONSISTENCY
 The migration must never guess at missing or contradictory history.
 
 ---
-
 ## 29. Deferred Decisions
 
 The following are deliberately deferred until the feature that needs them:
@@ -1171,16 +1171,13 @@ The following are deliberately deferred until the feature that needs them:
 * final physical storage topology for large campaign states;
 * authoritative random-number-generation algorithm;
 * multiplayer permissions for Undo, Restore, and other sensitive operations.
-
 These are intentional deferred decisions, not permission to violate the
 architecture defined above.
 
 ---
-
 ## 30. Required Invariants
 
 The following are non-negotiable architectural invariants:
-
 1. Current campaign state is authoritative.
 2. One accepted gameplay command creates one campaign revision.
 3. One revision contains one or more ordered domain events.
@@ -1201,4 +1198,3 @@ The following are non-negotiable architectural invariants:
 15. Reads never silently mutate or migrate persistent campaign data.
 16. Unsupported persisted formats or rulesets fail explicitly rather than being
     guessed at.
-
