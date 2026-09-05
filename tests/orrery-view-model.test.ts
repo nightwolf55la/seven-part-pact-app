@@ -3,6 +3,9 @@ import {
   buildOrreryDisplayModel,
   centidegreesToSvgAngle,
   arcSvgAngles,
+  sunDisplayPosition,
+  sunDisplaySvgAngle,
+  bodiesConjunctWith,
 } from "../src/orrery-view-model";
 import {
   legalPositionsForPlanet,
@@ -10,10 +13,12 @@ import {
   sunPositionFromMonthOrdinal,
   sunHouse,
   HOUSE_NAMES,
+  HOUSE_WIDTH_CENTIDEGREES,
+  FULL_CIRCLE_CENTIDEGREES,
   PLANET_DEFINITIONS,
 } from "../shared/domain/orrery";
 import type { MonthOrdinal } from "../shared/domain/calendar";
-import type { MovablePlanetId, CentidegreePosition } from "../shared/domain/orrery";
+import type { MovablePlanetId, CentidegreePosition, CelestialBodyId } from "../shared/domain/orrery";
 
 function positionsFromIndices(indices: Record<MovablePlanetId, number>): Record<MovablePlanetId, CentidegreePosition> {
   const result = {} as Record<MovablePlanetId, CentidegreePosition>;
@@ -112,5 +117,67 @@ describe("SVG angle conversion", () => {
     expect(result.largeArc).toBe(false);
     const bigArc = arcSvgAngles(0 as CentidegreePosition, 20000);
     expect(bigArc.largeArc).toBe(true);
+  });
+});
+
+describe("Sun display position (presentation-only centering)", () => {
+  it("authoritative Sun start remains 0 for monthOrdinal 0 / Aries", () => {
+    expect(sunPositionFromMonthOrdinal(0 as MonthOrdinal)).toBe(0);
+  });
+
+  it("display position centers Sun at 1500 for monthOrdinal 0 / Aries", () => {
+    expect(sunDisplayPosition(0 as MonthOrdinal)).toBe(1500);
+  });
+
+  it("display position centers Sun at 34500 for monthOrdinal 11 / Pisces (last sector, no overflow)", () => {
+    expect(sunDisplayPosition(11 as MonthOrdinal)).toBe(34500);
+    expect(sunDisplayPosition(11 as MonthOrdinal)).toBeLessThan(FULL_CIRCLE_CENTIDEGREES);
+  });
+
+  it("display position wraps correctly for monthOrdinal 12 -> Aries center 1500", () => {
+    expect(sunDisplayPosition(12 as MonthOrdinal)).toBe(1500);
+  });
+
+  it("display SVG angle is 15 degrees for monthOrdinal 0", () => {
+    expect(sunDisplaySvgAngle(0 as MonthOrdinal)).toBe(15);
+  });
+
+  it("display SVG angle for monthOrdinal 11 is 345 degrees (Pisces center)", () => {
+    expect(sunDisplaySvgAngle(11 as MonthOrdinal)).toBe(345);
+  });
+
+  it("display position does not alter authoritative sunPositionFromMonthOrdinal", () => {
+    const before = sunPositionFromMonthOrdinal(5 as MonthOrdinal);
+    void sunDisplayPosition(5 as MonthOrdinal);
+    expect(sunPositionFromMonthOrdinal(5 as MonthOrdinal)).toBe(before);
+  });
+});
+
+describe("bodiesConjunctWith (hover highlighting helper)", () => {
+  it("returns body IDs in conjunction with the given body", () => {
+    const monthOrdinal = 0 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 10, venus: 5, mercury: 7 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+    const conjunctWithSaturn = bodiesConjunctWith(model.conjunctions, "saturn" as CelestialBodyId);
+    expect(conjunctWithSaturn).toContain("jupiter");
+  });
+
+  it("returns empty array for a body with no conjunctions", () => {
+    const monthOrdinal = 0 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 20, venus: 0, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+    const conjunctWithMars = bodiesConjunctWith(model.conjunctions, "mars" as CelestialBodyId);
+    expect(conjunctWithMars).toEqual([]);
+  });
+
+  it("is symmetric: if A is conjunct with B, B is conjunct with A", () => {
+    const monthOrdinal = 0 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 0, venus: 0, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+    const conjunctWithSaturn = bodiesConjunctWith(model.conjunctions, "saturn" as CelestialBodyId);
+    for (const other of conjunctWithSaturn) {
+      const conjunctWithOther = bodiesConjunctWith(model.conjunctions, other as CelestialBodyId);
+      expect(conjunctWithOther).toContain("saturn");
+    }
   });
 });
