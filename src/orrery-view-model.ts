@@ -189,6 +189,15 @@ const BODY_DISPLAY_NAMES: Record<CelestialBodyId, string> = {
   mercury: "Mercury",
 };
 
+export const BODY_DISPLAY_SYMBOLS: Record<CelestialBodyId, string> = {
+  sun: "☉",
+  saturn: "♄",
+  jupiter: "♃",
+  mars: "♂",
+  venus: "♀",
+  mercury: "☿",
+};
+
 export function buildBodyHoverSummary(
   model: OrreryDisplayModel,
   bodyId: CelestialBodyId,
@@ -263,4 +272,32 @@ export function buildBodyIndexedConjunctionReference(
   }
 
   return result;
+}
+
+export interface HouseHoverSummary {
+  readonly houseIndex: HouseIndex;
+  readonly houseName: string;
+  readonly bodyIds: readonly CelestialBodyId[];
+  readonly bodyNames: readonly string[];
+}
+
+export function buildHouseHoverSummary(
+  model: OrreryDisplayModel,
+  houseIndex: HouseIndex,
+): HouseHoverSummary {
+  const bodyIds: CelestialBodyId[] = [];
+
+  for (const bodyId of CELESTIAL_BODY_IDS) {
+    const occupied = occupiedHousesOfBody(model, bodyId);
+    if (occupied.includes(houseIndex)) {
+      bodyIds.push(bodyId);
+    }
+  }
+
+  return {
+    houseIndex,
+    houseName: HOUSE_NAMES[houseIndex],
+    bodyIds,
+    bodyNames: bodyIds.map((b) => BODY_DISPLAY_NAMES[b]),
+  };
 }

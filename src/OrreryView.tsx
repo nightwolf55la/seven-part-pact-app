@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
-import { buildOrreryDisplayModel, arcSvgAngles, centidegreesToSvgAngle, sunDisplaySvgAngle, bodiesConjunctWith, occupiedHousesOfBody, buildBodyHoverSummary, buildBodyIndexedConjunctionReference } from "./orrery-view-model";
-import type { OrreryDisplayModel, BodyHoverSummary, BodyIndexedConjunctionEntry } from "./orrery-view-model";
+import { buildOrreryDisplayModel, arcSvgAngles, centidegreesToSvgAngle, sunDisplaySvgAngle, bodiesConjunctWith, occupiedHousesOfBody, buildBodyHoverSummary, buildBodyIndexedConjunctionReference, buildHouseHoverSummary, BODY_DISPLAY_SYMBOLS } from "./orrery-view-model";
+import type { OrreryDisplayModel, BodyHoverSummary, BodyIndexedConjunctionEntry, HouseHoverSummary } from "./orrery-view-model";
 import { MOVABLE_PLANET_IDS, PLANET_DEFINITIONS, FULL_CIRCLE_CENTIDEGREES, HOUSE_WIDTH_CENTIDEGREES, HOUSE_NAMES, legalPositionsForPlanet, CELESTIAL_BODY_IDS } from "../shared/domain/orrery";
 import type { MovablePlanetId, CentidegreePosition, HouseIndex, CelestialBodyId } from "../shared/domain/orrery";
 import type { MonthOrdinal } from "../shared/domain/calendar";
@@ -29,16 +29,29 @@ const PLANET_SYMBOLS: Record<MovablePlanetId, string> = {
   mercury: "☿",
 };
 
-const SVG_VIEWBOX = 520;
+const TRACK_TINTS: Record<MovablePlanetId, string> = {
+  saturn: "#f5f0eb",
+  jupiter: "#faf6ed",
+  mars: "#fbf2f0",
+  venus: "#f0f7f8",
+  mercury: "#f6f6f6",
+};
+
+const SVG_VIEWBOX = 560;
 const SVG_CENTER = SVG_VIEWBOX / 2;
 const HOUSE_OUTER_R = 245;
 const HOUSE_INNER_R = 205;
 const LABEL_R = 225;
-const SUN_R = 238;
+const SUN_R = 268;
 const TRACK_BAND_WIDTH = 28;
 const TRACK_GAP = 4;
 const PLANET_TRACK_BASE_R = 192;
 const PLANET_TRACK_MIN_R = PLANET_TRACK_BASE_R - (MOVABLE_PLANET_IDS.length - 1) * (TRACK_BAND_WIDTH + TRACK_GAP);
+
+type HoverTarget =
+  | { type: "body"; bodyId: CelestialBodyId }
+  | { type: "house"; houseIndex: HouseIndex }
+  | null;
 
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = (angleDeg - 90) * (Math.PI / 180);
@@ -95,7 +108,10 @@ export default function OrreryView({
     [monthOrdinal, orreryPositions],
   );
 
-  const [hoveredBody, setHoveredBody] = useState<CelestialBodyId | null>(null);
+  const [hoverTarget, setHoverTarget] = useState<HoverTarget>(null);
+
+  const hoveredBody = hoverTarget?.type === "body" ? hoverTarget.bodyId : null;
+  const hoveredHouse = hoverTarget?.type === "house" ? hoverTarget.houseIndex : null;
 
   const conjunctWithHovered = useMemo(() => {
     if (hoveredBody === null) return new Set<CelestialBodyId>();
@@ -121,10 +137,21 @@ export default function OrreryView({
     return new Set(occupiedHousesOfBody(model, hoveredBody));
   }, [hoveredBody, model]);
 
+  const bodiesInHoveredHouse = useMemo(() => {
+    if (hoveredHouse === null) return new Set<CelestialBodyId>();
+    const summary = buildHouseHoverSummary(model, hoveredHouse);
+    return new Set(summary.bodyIds);
+  }, [hoveredHouse, model]);
+
   const hoverSummary = useMemo(() => {
     if (hoveredBody === null) return null;
     return buildBodyHoverSummary(model, hoveredBody);
   }, [hoveredBody, model]);
+
+  const houseHoverSummary = useMemo(() => {
+    if (hoveredHouse === null) return null;
+    return buildHouseHoverSummary(model, hoveredHouse);
+  }, [hoveredHouse, model]);
 
   const idleReference = useMemo(
     () => buildBodyIndexedConjunctionReference(model),
@@ -135,8 +162,10 @@ export default function OrreryView({
   const sunPoint = polarToCartesian(SVG_CENTER, SVG_CENTER, SUN_R, sunAngle);
 
   const isBodyEmphasized = (bodyId: CelestialBodyId): boolean => {
-    if (hoveredBody === null) return true;
-    return hoveredBody === bodyId || conjunctWithHovered.has(bodyId);
+    if (hoverTarget === null) return true;
+    if (hoveredBody !== null) return hoveredBody === bodyId || conjunctWithHovered.has(bodyId);
+    if (hoveredHouse !== null) return bodiesInHoveredHouse.has(bodyId);
+    return true;
   };
 
   const isHouseConjunction = (houseIndex: HouseIndex): boolean => {
@@ -149,8 +178,12 @@ export default function OrreryView({
     return occupiedHousesForHovered.has(houseIndex);
   };
 
+  const isHouseHovered = (houseIndex: HouseIndex): boolean => {
+    return hoveredHouse === houseIndex;
+  };
+
   const bodyOpacity = (bodyId: CelestialBodyId): number => {
-    if (hoveredBody === null) return 1;
+    if (hoverTarget === null) return 1;
     return isBodyEmphasized(bodyId) ? 1 : 0.25;
   };
 
@@ -173,16 +206,19 @@ export default function OrreryView({
             const isSunHouse = house.hasSun;
             const isConjunction = isHouseConjunction(house.index);
             const isOccupied = isHouseOccupied(house.index);
+            const isHoveredHouse = isHouseHovered(house.index);
             const midAngle = (startAngle + endAngle) / 2;
             const labelPos = polarToCartesian(SVG_CENTER, SVG_CENTER, LABEL_R, midAngle);
 
-            const fillColor = isOccupied
+            const fillColor = isHoveredHouse
               ? "#e0f2fe"
-              : isSunHouse && hoveredBody === null
-                ? "#fef3c7"
-                : house.index % 2 === 0
-                  ? "#f8fafc"
-                  : "#f1f5f9";
+              : isOccupied
+                ? "#e0f2fe"
+                : isSunHouse && hoverTarget === null
+                  ? "#fef3c7"
+                  : house.index % 2 === 0
+                    ? "#f8fafc"
+                    : "#f1f5f9";
 
             return (
               <g key={house.index}>
@@ -192,6 +228,14 @@ export default function OrreryView({
                   stroke="#cbd5e1"
                   strokeWidth={0.75}
                   className="dark:stroke-slate-600"
+                  onMouseEnter={() => setHoverTarget({ type: "house", houseIndex: house.index })}
+                  onMouseLeave={() => setHoverTarget(null)}
+                  onFocus={() => setHoverTarget({ type: "house", houseIndex: house.index })}
+                  onBlur={() => setHoverTarget(null)}
+                  tabIndex={0}
+                  role="img"
+                  aria-label={`${house.name} (${house.monthDisplayName})`}
+                  style={{ cursor: "pointer", outline: "none" }}
                 />
                 {isConjunction && (
                   <path
@@ -209,7 +253,7 @@ export default function OrreryView({
                   textAnchor="middle"
                   dominantBaseline="middle"
                   className="fill-slate-600 dark:fill-slate-300"
-                  style={{ fontSize: 11, fontWeight: 600 }}
+                  style={{ fontSize: 11, fontWeight: 600, pointerEvents: "none" }}
                 >
                   <tspan x={labelPos.x} dy="-0.35em">{house.name}</tspan>
                   <tspan
@@ -231,16 +275,16 @@ export default function OrreryView({
             const legalPositions = legalPositionsForPlanet(planetId);
             return (
               <g key={`band-${planetId}`}>
-                {/* Band background: broad stroke at midR */}
+                {/* Band background: broad stroke at midR with planet tint */}
                 <circle
                   cx={SVG_CENTER}
                   cy={SVG_CENTER}
                   r={midR}
                   fill="none"
-                  stroke={idx % 2 === 0 ? "#f1f5f9" : "#e8edf2"}
+                  stroke={TRACK_TINTS[planetId]}
                   strokeWidth={TRACK_BAND_WIDTH}
                   className="dark:stroke-slate-800"
-                  opacity={hoveredBody === null ? 1 : 0.5}
+                  opacity={hoverTarget === null ? 1 : 0.6}
                 />
                 {/* Inner boundary */}
                 <circle
@@ -251,7 +295,7 @@ export default function OrreryView({
                   stroke="#cbd5e1"
                   strokeWidth={0.6}
                   className="dark:stroke-slate-600"
-                  opacity={hoveredBody === null ? 0.7 : 0.4}
+                  opacity={hoverTarget === null ? 0.7 : 0.4}
                 />
                 {/* Outer boundary */}
                 <circle
@@ -262,7 +306,7 @@ export default function OrreryView({
                   stroke="#cbd5e1"
                   strokeWidth={0.6}
                   className="dark:stroke-slate-600"
-                  opacity={hoveredBody === null ? 0.7 : 0.4}
+                  opacity={hoverTarget === null ? 0.7 : 0.4}
                 />
                 {/* Subdivision ticks at legal positions */}
                 {legalPositions.map((pos, pi) => {
@@ -276,14 +320,35 @@ export default function OrreryView({
                       y1={tickStart.y}
                       x2={tickEnd.x}
                       y2={tickEnd.y}
-                      stroke="#cbd5e1"
-                      strokeWidth={0.4}
-                      className="dark:stroke-slate-600"
-                      opacity={hoveredBody === null ? 0.5 : 0.25}
+                      stroke="#94a3b8"
+                      strokeWidth={0.5}
+                      className="dark:stroke-slate-500"
+                      opacity={hoverTarget === null ? 0.45 : 0.25}
                     />
                   );
                 })}
               </g>
+            );
+          })}
+
+          {/* House boundary radial grid: stronger lines through all tracks */}
+          {model.houses.map((house) => {
+            const boundaryAngle = centidegreesToSvgAngle(house.index * HOUSE_WIDTH_CENTIDEGREES);
+            const innerEnd = polarToCartesian(SVG_CENTER, SVG_CENTER, PLANET_TRACK_MIN_R, boundaryAngle);
+            const outerEnd = polarToCartesian(SVG_CENTER, SVG_CENTER, HOUSE_INNER_R, boundaryAngle);
+            return (
+              <line
+                key={`house-grid-${house.index}`}
+                x1={innerEnd.x}
+                y1={innerEnd.y}
+                x2={outerEnd.x}
+                y2={outerEnd.y}
+                stroke="#94a3b8"
+                strokeWidth={1}
+                className="dark:stroke-slate-500"
+                opacity={hoverTarget === null ? 0.5 : 0.3}
+                pointerEvents="none"
+              />
             );
           })}
 
@@ -295,15 +360,14 @@ export default function OrreryView({
             const isEmphasized = isBodyEmphasized(planet.planetId);
             const midAngle = (startAngle + endAngle) / 2;
             const labelPos = polarToCartesian(SVG_CENTER, SVG_CENTER, midR, midAngle);
-            const arcStartPoint = polarToCartesian(SVG_CENTER, SVG_CENTER, midR, startAngle);
             return (
               <g
                 key={planet.planetId}
                 opacity={opacity}
-                onMouseEnter={() => setHoveredBody(planet.planetId)}
-                onMouseLeave={() => setHoveredBody(null)}
-                onFocus={() => setHoveredBody(planet.planetId)}
-                onBlur={() => setHoveredBody(null)}
+                onMouseEnter={() => setHoverTarget({ type: "body", bodyId: planet.planetId })}
+                onMouseLeave={() => setHoverTarget(null)}
+                onFocus={() => setHoverTarget({ type: "body", bodyId: planet.planetId })}
+                onBlur={() => setHoverTarget(null)}
                 tabIndex={0}
                 role="button"
                 aria-label={`${PLANET_LABELS[planet.planetId]} arc in ${planet.occupiedHouseNames.join(", ")}`}
@@ -322,15 +386,8 @@ export default function OrreryView({
                   d={describeArcPath(SVG_CENTER, SVG_CENTER, midR, startAngle, endAngle, largeArc)}
                   fill="none"
                   stroke={PLANET_COLORS[planet.planetId]}
-                  strokeWidth={isEmphasized && hoveredBody !== null ? 7 : 5.5}
+                  strokeWidth={isEmphasized && hoverTarget !== null ? 7 : 5.5}
                   strokeLinecap="round"
-                />
-                {/* Arc start dot */}
-                <circle
-                  cx={arcStartPoint.x}
-                  cy={arcStartPoint.y}
-                  r={3.5}
-                  fill={PLANET_COLORS[planet.planetId]}
                 />
                 {/* Planet symbol on track */}
                 <text
@@ -339,7 +396,7 @@ export default function OrreryView({
                   textAnchor="middle"
                   dominantBaseline="middle"
                   className="fill-slate-700 dark:fill-slate-200"
-                  style={{ fontSize: 11, fontWeight: 700, paintOrder: "stroke" }}
+                  style={{ fontSize: 11, fontWeight: 700, paintOrder: "stroke", pointerEvents: "none" }}
                   stroke="white"
                   strokeWidth={2.5}
                 >
@@ -349,12 +406,12 @@ export default function OrreryView({
             );
           })}
 
-          {/* Sun indicator */}
+          {/* Sun indicator — outside the House ring */}
           <g
-            onMouseEnter={() => setHoveredBody("sun")}
-            onMouseLeave={() => setHoveredBody(null)}
-            onFocus={() => setHoveredBody("sun")}
-            onBlur={() => setHoveredBody(null)}
+            onMouseEnter={() => setHoverTarget({ type: "body", bodyId: "sun" })}
+            onMouseLeave={() => setHoverTarget(null)}
+            onFocus={() => setHoverTarget({ type: "body", bodyId: "sun" })}
+            onBlur={() => setHoverTarget(null)}
             tabIndex={0}
             role="button"
             aria-label={`Sun in ${model.sun.houseName}`}
@@ -364,7 +421,7 @@ export default function OrreryView({
             <circle
               cx={sunPoint.x}
               cy={sunPoint.y}
-              r={isBodyEmphasized("sun") && hoveredBody !== null ? 11 : 9}
+              r={isBodyEmphasized("sun") && hoverTarget !== null ? 11 : 9}
               fill="#f59e0b"
               stroke="#b45309"
               strokeWidth={2}
@@ -372,7 +429,7 @@ export default function OrreryView({
             <circle
               cx={sunPoint.x}
               cy={sunPoint.y}
-              r={isBodyEmphasized("sun") && hoveredBody !== null ? 15 : 13}
+              r={isBodyEmphasized("sun") && hoverTarget !== null ? 15 : 13}
               fill="none"
               stroke="#f59e0b"
               strokeWidth={1}
@@ -384,7 +441,7 @@ export default function OrreryView({
               textAnchor="middle"
               dominantBaseline="middle"
               className="fill-amber-900"
-              style={{ fontSize: 9, fontWeight: 700 }}
+              style={{ fontSize: 9, fontWeight: 700, pointerEvents: "none" }}
             >
               ☉
             </text>
@@ -392,7 +449,7 @@ export default function OrreryView({
         </svg>
       </div>
 
-      {/* Planet legend */}
+      {/* Planet legend with symbols */}
       <div className="flex flex-wrap gap-3 justify-center">
         {model.planets.map((planet) => (
           <div key={planet.planetId} className="flex items-center gap-1.5">
@@ -401,7 +458,7 @@ export default function OrreryView({
               style={{ backgroundColor: PLANET_COLORS[planet.planetId] }}
             />
             <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
-              {PLANET_LABELS[planet.planetId]}
+              {PLANET_SYMBOLS[planet.planetId]} {PLANET_LABELS[planet.planetId]}
             </span>
             <span className="text-xs text-slate-400">
               ({planet.occupiedHouseNames.join(", ")})
@@ -413,6 +470,8 @@ export default function OrreryView({
       {/* Hover/focus summary or body-indexed idle reference */}
       {hoveredBody !== null && hoverSummary !== null ? (
         <HoverSummary summary={hoverSummary} />
+      ) : hoveredHouse !== null && houseHoverSummary !== null ? (
+        <HouseHoverSummaryDisplay summary={houseHoverSummary} />
       ) : (
         <IdleConjunctionReference entries={idleReference} />
       )}
@@ -424,7 +483,7 @@ function HoverSummary({ summary }: { summary: BodyHoverSummary }) {
   return (
     <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
       <p className="text-xs text-slate-600 dark:text-slate-300">
-        <span className="font-medium">{summary.bodyName}</span> occupies {summary.occupiedHouseNames.join(", ")}.
+        <span className="font-medium">{BODY_DISPLAY_SYMBOLS[summary.bodyId]} {summary.bodyName}</span> occupies {summary.occupiedHouseNames.join(", ")}.
       </p>
       {summary.conjunctions.length > 0 ? (
         <>
@@ -434,7 +493,7 @@ function HoverSummary({ summary }: { summary: BodyHoverSummary }) {
           <div className="flex flex-col gap-0.5">
             {summary.conjunctions.map((c, i) => (
               <p key={i} className="text-xs text-slate-600 dark:text-slate-400">
-                {c.otherBodyName} in {c.sharedHouseNames.join(", ")}
+                {BODY_DISPLAY_SYMBOLS[c.otherBodyId]} {c.otherBodyName} in {c.sharedHouseNames.join(", ")}
               </p>
             ))}
           </div>
@@ -442,6 +501,22 @@ function HoverSummary({ summary }: { summary: BodyHoverSummary }) {
       ) : (
         <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
           No current conjunctions.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function HouseHoverSummaryDisplay({ summary }: { summary: HouseHoverSummary }) {
+  return (
+    <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+      {summary.bodyIds.length > 0 ? (
+        <p className="text-xs text-slate-600 dark:text-slate-300">
+          <span className="font-medium">{summary.houseName}</span> — {summary.bodyIds.map((b) => `${BODY_DISPLAY_SYMBOLS[b]} ${BODY_DISPLAY_SYMBOLS[b] ? "" : ""}${summary.bodyNames[summary.bodyIds.indexOf(b)]}`).join(", ")}
+        </p>
+      ) : (
+        <p className="text-xs text-slate-600 dark:text-slate-300">
+          <span className="font-medium">{summary.houseName}</span> — no celestial bodies
         </p>
       )}
     </div>
@@ -461,12 +536,12 @@ function IdleConjunctionReference({
       <div className="flex flex-col gap-1">
         {entries.map((entry) => (
           <div key={entry.bodyId} className="flex items-baseline gap-1.5">
-            <span className="text-xs font-medium text-slate-600 dark:text-slate-300 min-w-[60px]">
-              {entry.bodyName}
+            <span className="text-xs font-medium text-slate-600 dark:text-slate-300 min-w-[70px]">
+              {BODY_DISPLAY_SYMBOLS[entry.bodyId]} {entry.bodyName}
             </span>
             {entry.partners.length > 0 ? (
               <span className="text-xs text-slate-500 dark:text-slate-400">
-                {entry.partners.map((p) => `${p.otherBodyName} (${p.sharedHouseNames.join(", ")})`).join("; ")}
+                {entry.partners.map((p) => `${BODY_DISPLAY_SYMBOLS[p.otherBodyId]} ${p.otherBodyName} (${p.sharedHouseNames.join(", ")})`).join("; ")}
               </span>
             ) : (
               <span className="text-xs text-slate-400 dark:text-slate-500">

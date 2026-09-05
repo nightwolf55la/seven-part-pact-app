@@ -9,6 +9,8 @@ import {
   occupiedHousesOfBody,
   buildBodyHoverSummary,
   buildBodyIndexedConjunctionReference,
+  buildHouseHoverSummary,
+  BODY_DISPLAY_SYMBOLS,
 } from "../src/orrery-view-model";
 import {
   legalPositionsForPlanet,
@@ -21,7 +23,7 @@ import {
   PLANET_DEFINITIONS,
 } from "../shared/domain/orrery";
 import type { MonthOrdinal } from "../shared/domain/calendar";
-import type { MovablePlanetId, CentidegreePosition, CelestialBodyId } from "../shared/domain/orrery";
+import type { MovablePlanetId, CentidegreePosition, CelestialBodyId, HouseIndex } from "../shared/domain/orrery";
 
 function positionsFromIndices(indices: Record<MovablePlanetId, number>): Record<MovablePlanetId, CentidegreePosition> {
   const result = {} as Record<MovablePlanetId, CentidegreePosition>;
@@ -352,5 +354,66 @@ describe("buildBodyIndexedConjunctionReference (idle body-indexed reference)", (
     const jupiterHasSaturn = jupiterEntry.partners.some((p) => p.otherBodyId === "saturn");
     expect(saturnHasJupiter).toBe(true);
     expect(jupiterHasSaturn).toBe(true);
+  });
+});
+
+describe("BODY_DISPLAY_SYMBOLS", () => {
+  it("provides symbols for all six bodies", () => {
+    expect(BODY_DISPLAY_SYMBOLS.sun).toBe("☉");
+    expect(BODY_DISPLAY_SYMBOLS.saturn).toBe("♄");
+    expect(BODY_DISPLAY_SYMBOLS.jupiter).toBe("♃");
+    expect(BODY_DISPLAY_SYMBOLS.mars).toBe("♂");
+    expect(BODY_DISPLAY_SYMBOLS.venus).toBe("♀");
+    expect(BODY_DISPLAY_SYMBOLS.mercury).toBe("☿");
+  });
+});
+
+describe("buildHouseHoverSummary (House->bodies query)", () => {
+  it("returns all bodies occupying a House in stable display order, including Sun", () => {
+    // monthOrdinal 0 -> Sun in Aries (House 0). All planets at index 0.
+    // Saturn at 500, arc 10deg -> Houses 0,1. Jupiter at 0, arc 22.5deg -> Houses 0,1.
+    // Mars at 0, arc 52.5deg -> Houses 0-5. Venus at 0, arc 75deg -> Houses 0-4.
+    // Mercury at 0, arc 105deg -> Houses 0-6.
+    // So House 0 (Aries) is occupied by Sun, Saturn, Jupiter, Mars, Venus, Mercury.
+    const monthOrdinal = 0 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 0, venus: 0, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const summary = buildHouseHoverSummary(model, 0 as HouseIndex);
+
+    expect(summary.houseName).toBe("Aries");
+    expect(summary.bodyIds).toEqual(["sun", "saturn", "jupiter", "mars", "venus", "mercury"]);
+    expect(summary.bodyNames).toEqual(["Sun", "Saturn", "Jupiter", "Mars", "Venus", "Mercury"]);
+  });
+
+  it("returns an empty body list for a House with no occupants", () => {
+    // monthOrdinal 3 -> Sun in Cancer (House 3). All planets at index 0.
+    // Venus at 0, arc 75deg -> Houses 0-4. Mercury at 0, arc 105deg -> Houses 0-6.
+    // Mars at 0, arc 52.5deg -> Houses 0-5. Jupiter at 0, arc 22.5deg -> Houses 0,1.
+    // Saturn at 500, arc 10deg -> Houses 0,1.
+    // House 10 (Aquarius) is not occupied by anyone.
+    const monthOrdinal = 3 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 0, venus: 0, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const summary = buildHouseHoverSummary(model, 10 as HouseIndex);
+
+    expect(summary.houseName).toBe("Aquarius");
+    expect(summary.bodyIds).toEqual([]);
+    expect(summary.bodyNames).toEqual([]);
+  });
+
+  it("returns a subset of bodies for a partially occupied House", () => {
+    // monthOrdinal 3 -> Sun in Cancer (House 3). Mars at index 23 starts at 17250,
+    // arc 52.5deg -> Houses 5,6,7 (Virgo, Libra, Scorpio). All other bodies at
+    // index 0 occupy Houses 0-3 at most. So only Mars occupies House 5 (Virgo).
+    const monthOrdinal = 3 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 23, venus: 0, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const summary = buildHouseHoverSummary(model, 5 as HouseIndex);
+
+    expect(summary.houseName).toBe("Virgo");
+    expect(summary.bodyIds).toEqual(["mars"]);
   });
 });
