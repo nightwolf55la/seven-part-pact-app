@@ -35,6 +35,7 @@ const SVG_CENTER = SVG_VIEWBOX / 2;
 const HOUSE_OUTER_R = 245;
 const HOUSE_INNER_R = 205;
 const LABEL_R = 225;
+const SUN_R = 238;
 const PLANET_TRACK_BASE_R = 190;
 const PLANET_TRACK_GAP = 30;
 const PLANET_TRACK_MIN_R = PLANET_TRACK_BASE_R - (MOVABLE_PLANET_IDS.length - 1) * PLANET_TRACK_GAP;
@@ -109,7 +110,7 @@ export default function OrreryView({
   }, [hoveredBody, model.conjunctions]);
 
   const sunAngle = sunDisplaySvgAngle(monthOrdinal as MonthOrdinal);
-  const sunPoint = polarToCartesian(SVG_CENTER, SVG_CENTER, (HOUSE_OUTER_R + HOUSE_INNER_R) / 2, sunAngle);
+  const sunPoint = polarToCartesian(SVG_CENTER, SVG_CENTER, SUN_R, sunAngle);
 
   const isBodyEmphasized = (bodyId: CelestialBodyId): boolean => {
     if (hoveredBody === null) return true;
