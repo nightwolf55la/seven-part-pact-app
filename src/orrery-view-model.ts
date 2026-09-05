@@ -5,6 +5,7 @@ import {
 } from "../shared/domain/calendar";
 import {
   HOUSE_NAMES,
+  HOUSE_WIDTH_CENTIDEGREES,
   sunPositionFromMonthOrdinal,
   sunHouse,
   computeAllOccupancies,
@@ -126,4 +127,29 @@ export function arcSvgAngles(
   const endAngle = centidegreesToSvgAngle(arcStart + arcLength);
   const largeArc = arcLength > FULL_CIRCLE_CENTIDEGREES / 2;
   return { startAngle, endAngle, largeArc };
+}
+
+export function sunDisplayPosition(monthOrdinal: MonthOrdinal): CentidegreePosition {
+  const authoritative = sunPositionFromMonthOrdinal(monthOrdinal);
+  const centered = authoritative + HOUSE_WIDTH_CENTIDEGREES / 2;
+  return (centered % FULL_CIRCLE_CENTIDEGREES) as CentidegreePosition;
+}
+
+export function sunDisplaySvgAngle(monthOrdinal: MonthOrdinal): number {
+  return centidegreesToSvgAngle(sunDisplayPosition(monthOrdinal));
+}
+
+export function bodiesConjunctWith(
+  conjunctions: readonly ConjunctionDisplayInfo[],
+  bodyId: CelestialBodyId,
+): readonly CelestialBodyId[] {
+  const result: CelestialBodyId[] = [];
+  for (const c of conjunctions) {
+    if (c.bodyA === bodyId) {
+      result.push(c.bodyB);
+    } else if (c.bodyB === bodyId) {
+      result.push(c.bodyA);
+    }
+  }
+  return result;
 }
