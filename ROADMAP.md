@@ -5,7 +5,6 @@
 Initial application scaffold. React + Vite + TypeScript frontend, Convex
 backend, Vercel hosting. Basic campaign state with month ordinal and legacy
 event log.
-
 ## Milestone 2 (Complete)
 
 Canonical commit architecture with full audit trail:
@@ -18,13 +17,11 @@ Canonical commit architecture with full audit trail:
 - Portable application backup/import (current CampaignState + integrity digest).
 - Full-fidelity disaster recovery via Convex operational export/restore.
 - Campaign health verifier.
-
 ## Milestone 3 — Campaign Identity & Pact Roles Foundation (Complete)
 
 V2 campaign state: entity model for campaign setup and wizard seat management.
 
 **Bounded scope:**
-
 - CampaignState V2: adds `configuration`, `players`, `wizards`, `pactSeats`.
 - 11 M3 commands (add/rename/remove player, create/rename wizard, set portrayal,
   set seat wizard/status/watcher, set age, set facilitator).
@@ -35,7 +32,6 @@ V2 campaign state: entity model for campaign setup and wizard seat management.
 - Campaign setup UI for players, wizards, and pact seats.
 - Retained wizard reassignment (unassigned wizards can be assigned to empty
   seats).
-
 **Not in M3 scope:**
 
 - Wizard hard-delete (future deletion semantics are unsettled).
@@ -45,7 +41,6 @@ V2 campaign state: entity model for campaign setup and wizard seat management.
 - Multi-campaign or campaign-fork operations.
 
 **Deployment status:**
-
 - EXPAND phase implemented and merged to main.
 - Disposable rehearsal completed successfully.
 - Production EXPAND deployed; production MIGRATE completed and verified
@@ -68,18 +63,16 @@ V2 campaign state: entity model for campaign setup and wizard seat management.
   snapshots/recovery/undo-redo/checkpoints/legacy backup import/verifier paths.
 - **M3 COMPLETE.**
 - See `docs/v1-to-v2-migration-procedure.md` for staged rollout.
+## Milestone 4 — Shared Monthly Play Loop (Complete)
 
-## Milestone 4 — Shared Monthly Play Loop (Approved Design)
-
-Normal shared monthly play becomes usable end-to-end as a thin complete
-vertical slice:
+Normal shared monthly play is implemented end-to-end as a thin complete vertical
+slice:
 
 ```
 New Moon -> Visions -> Planning -> Story -> Meeting -> Quiet -> next New Moon
 ```
 
-**Scope includes:**
-
+**Delivered:**
 - CampaignState V3: discriminated Setup/Play lifecycle, Orrery state, monthly
   Time/Engagement state, Wizardmoot attendance history.
 - Intentional retirement of V1 and V2 CampaignState (one-time pre-release
@@ -99,6 +92,30 @@ New Moon -> Visions -> Planning -> Story -> Meeting -> Quiet -> next New Moon
 - Surface-based UI shell for Play with phase-aware defaults.
 - Recovery UI moved under Campaign Tools with global/shared wording.
 
+**Closeout verification:**
+- Final deterministic repository check passed after the last M4 fixes.
+- Real Convex multi-batch campaign deletion was exercised beyond the 200-record
+  batch limit.
+- Real interrupted deletion/resumption and duplicate concurrent deletion
+  requests converged safely.
+- Actual Convex V3 partial-Setup serialization and multi-client realtime
+  propagation were exercised.
+- A normal browser monthly loop was exercised end-to-end.
+- Real browser portable-backup download/import was exercised.
+- Integration testing exposed a Quiet React hook-order defect; it was fixed with
+  an automated regression test.
+- The permanent campaign-health verifier (`verifyMigration:verifyMigration`)
+  reported valid after the final runtime/schema deployment.
+- Deterministic stale-context/concurrency semantics are covered by automated
+  tests; imprecise manual simultaneous-button races were intentionally not used.
+
+**Known deferred usability work:**
+- The core loop is usable, but the UI is not considered polished or fully
+  responsive.
+- Orrery presentation and general UI/layout polish remain future work. Their
+  roadmap placement is intentionally left to the Master/user rather than being
+  assigned a new milestone here.
+
 **Not in M4 scope:**
 
 - Domain engines, full Wizard character systems, Watcher system UI, magic,
@@ -107,7 +124,6 @@ New Moon -> Visions -> Planning -> Story -> Meeting -> Quiet -> next New Moon
 - Social/auth integration, multi-campaign, per-player Undo.
 
 **Design document:** [docs/m4-shared-monthly-play-loop.md](docs/m4-shared-monthly-play-loop.md)
-
 ## Milestone 5 — Wizard / Domain Systems (Provisional / TBD)
 
 TBD.
