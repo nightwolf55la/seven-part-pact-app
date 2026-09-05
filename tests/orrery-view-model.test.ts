@@ -8,6 +8,7 @@ import {
   bodiesConjunctWith,
   occupiedHousesOfBody,
   buildBodyHoverSummary,
+  buildBodyIndexedConjunctionReference,
 } from "../src/orrery-view-model";
 import {
   legalPositionsForPlanet,
@@ -270,5 +271,86 @@ describe("buildBodyHoverSummary (hover/focus text summary)", () => {
     const jupiterConj = summary.conjunctions.find((c) => c.otherBodyName === "Jupiter");
     expect(jupiterConj).toBeDefined();
     expect(jupiterConj!.sharedHouseNames).toContain("Cancer");
+  });
+});
+
+describe("buildBodyIndexedConjunctionReference (idle body-indexed reference)", () => {
+  it("returns one entry per body in stable order: Sun, Saturn, Jupiter, Mars, Venus, Mercury", () => {
+    const monthOrdinal = 0 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 0, venus: 0, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const reference = buildBodyIndexedConjunctionReference(model);
+
+    expect(reference).toHaveLength(6);
+    expect(reference[0].bodyName).toBe("Sun");
+    expect(reference[1].bodyName).toBe("Saturn");
+    expect(reference[2].bodyName).toBe("Jupiter");
+    expect(reference[3].bodyName).toBe("Mars");
+    expect(reference[4].bodyName).toBe("Venus");
+    expect(reference[5].bodyName).toBe("Mercury");
+  });
+
+  it("capitalizes Sun consistently, never shows raw 'sun'", () => {
+    const monthOrdinal = 0 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 0, venus: 0, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const reference = buildBodyIndexedConjunctionReference(model);
+
+    const sunEntry = reference.find((r) => r.bodyId === "sun")!;
+    expect(sunEntry.bodyName).toBe("Sun");
+    for (const entry of reference) {
+      expect(entry.bodyName).not.toBe("sun");
+      for (const partner of entry.partners) {
+        expect(partner.otherBodyName).not.toBe("sun");
+      }
+    }
+  });
+
+  it("a body with multiple partners lists all of them", () => {
+    // monthOrdinal 0 -> Sun in Aries. All planets at index 0.
+    // Saturn at 500, arc 10deg -> Houses 0,1. Jupiter at 0, arc 22.5deg -> Houses 0,1.
+    // Mars at 0, arc 52.5deg -> Houses 0,1,2,3,4,5. Venus at 0, arc 75deg -> Houses 0,1,2,3,4.
+    // Mercury at 0, arc 105deg -> Houses 0,1,2,3,4,5,6.
+    // Sun occupies House 0. Everyone shares House 0 with the Sun.
+    // Saturn has partners: Sun, Jupiter, Mars, Venus, Mercury (all share House 0 or 1).
+    const monthOrdinal = 0 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 0, venus: 0, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const reference = buildBodyIndexedConjunctionReference(model);
+    const saturnEntry = reference.find((r) => r.bodyId === "saturn")!;
+
+    expect(saturnEntry.partners.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("a body with no conjunctions still gets an entry with empty partners", () => {
+    // Mars at index 23 starts at 17250, arc 52.5deg -> Houses 5,6,7.
+    // All other bodies at index 0, occupying Houses 0-3 only. Mars is isolated.
+    const monthOrdinal = 3 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 23, venus: 0, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const reference = buildBodyIndexedConjunctionReference(model);
+    const marsEntry = reference.find((r) => r.bodyId === "mars")!;
+
+    expect(marsEntry.partners).toEqual([]);
+  });
+
+  it("pair information is available under both participating bodies", () => {
+    // Saturn and Jupiter both at index 0 -> they share Houses.
+    const monthOrdinal = 0 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 10, venus: 5, mercury: 7 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const reference = buildBodyIndexedConjunctionReference(model);
+    const saturnEntry = reference.find((r) => r.bodyId === "saturn")!;
+    const jupiterEntry = reference.find((r) => r.bodyId === "jupiter")!;
+
+    const saturnHasJupiter = saturnEntry.partners.some((p) => p.otherBodyId === "jupiter");
+    const jupiterHasSaturn = jupiterEntry.partners.some((p) => p.otherBodyId === "saturn");
+    expect(saturnHasJupiter).toBe(true);
+    expect(jupiterHasSaturn).toBe(true);
   });
 });

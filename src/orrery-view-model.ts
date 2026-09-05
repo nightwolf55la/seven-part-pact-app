@@ -12,6 +12,7 @@ import {
   computeConjunctions,
   PLANET_DEFINITIONS,
   MOVABLE_PLANET_IDS,
+  CELESTIAL_BODY_IDS,
   FULL_CIRCLE_CENTIDEGREES,
   housesOccupiedByBody,
 } from "../shared/domain/orrery";
@@ -218,4 +219,48 @@ export function buildBodyHoverSummary(
     occupiedHouseNames,
     conjunctions,
   };
+}
+
+export interface BodyConjunctionPartner {
+  readonly otherBodyId: CelestialBodyId;
+  readonly otherBodyName: string;
+  readonly sharedHouseNames: readonly string[];
+}
+
+export interface BodyIndexedConjunctionEntry {
+  readonly bodyId: CelestialBodyId;
+  readonly bodyName: string;
+  readonly partners: readonly BodyConjunctionPartner[];
+}
+
+export function buildBodyIndexedConjunctionReference(
+  model: OrreryDisplayModel,
+): readonly BodyIndexedConjunctionEntry[] {
+  const result: BodyIndexedConjunctionEntry[] = [];
+
+  for (const bodyId of CELESTIAL_BODY_IDS) {
+    const partners: BodyConjunctionPartner[] = [];
+    for (const c of model.conjunctions) {
+      if (c.bodyA === bodyId) {
+        partners.push({
+          otherBodyId: c.bodyB,
+          otherBodyName: BODY_DISPLAY_NAMES[c.bodyB],
+          sharedHouseNames: c.sharedHouseNames,
+        });
+      } else if (c.bodyB === bodyId) {
+        partners.push({
+          otherBodyId: c.bodyA,
+          otherBodyName: BODY_DISPLAY_NAMES[c.bodyA],
+          sharedHouseNames: c.sharedHouseNames,
+        });
+      }
+    }
+    result.push({
+      bodyId,
+      bodyName: BODY_DISPLAY_NAMES[bodyId],
+      partners,
+    });
+  }
+
+  return result;
 }
