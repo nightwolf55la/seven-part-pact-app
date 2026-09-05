@@ -3,6 +3,12 @@ import {
   buildOrreryDisplayModel,
   centidegreesToSvgAngle,
   arcSvgAngles,
+  sunDisplayPosition,
+  sunDisplaySvgAngle,
+  bodiesConjunctWith,
+  occupiedHousesOfBody,
+  buildBodyHoverSummary,
+  buildBodyIndexedConjunctionReference,
 } from "../src/orrery-view-model";
 import {
   legalPositionsForPlanet,
@@ -10,10 +16,12 @@ import {
   sunPositionFromMonthOrdinal,
   sunHouse,
   HOUSE_NAMES,
+  HOUSE_WIDTH_CENTIDEGREES,
+  FULL_CIRCLE_CENTIDEGREES,
   PLANET_DEFINITIONS,
 } from "../shared/domain/orrery";
 import type { MonthOrdinal } from "../shared/domain/calendar";
-import type { MovablePlanetId, CentidegreePosition } from "../shared/domain/orrery";
+import type { MovablePlanetId, CentidegreePosition, CelestialBodyId } from "../shared/domain/orrery";
 
 function positionsFromIndices(indices: Record<MovablePlanetId, number>): Record<MovablePlanetId, CentidegreePosition> {
   const result = {} as Record<MovablePlanetId, CentidegreePosition>;
@@ -112,5 +120,237 @@ describe("SVG angle conversion", () => {
     expect(result.largeArc).toBe(false);
     const bigArc = arcSvgAngles(0 as CentidegreePosition, 20000);
     expect(bigArc.largeArc).toBe(true);
+  });
+});
+
+describe("Sun display position (presentation-only centering)", () => {
+  it("authoritative Sun start remains 0 for monthOrdinal 0 / Aries", () => {
+    expect(sunPositionFromMonthOrdinal(0 as MonthOrdinal)).toBe(0);
+  });
+
+  it("display position centers Sun at 1500 for monthOrdinal 0 / Aries", () => {
+    expect(sunDisplayPosition(0 as MonthOrdinal)).toBe(1500);
+  });
+
+  it("display position centers Sun at 34500 for monthOrdinal 11 / Pisces (last sector, no overflow)", () => {
+    expect(sunDisplayPosition(11 as MonthOrdinal)).toBe(34500);
+    expect(sunDisplayPosition(11 as MonthOrdinal)).toBeLessThan(FULL_CIRCLE_CENTIDEGREES);
+  });
+
+  it("display position wraps correctly for monthOrdinal 12 -> Aries center 1500", () => {
+    expect(sunDisplayPosition(12 as MonthOrdinal)).toBe(1500);
+  });
+
+  it("display SVG angle is 15 degrees for monthOrdinal 0", () => {
+    expect(sunDisplaySvgAngle(0 as MonthOrdinal)).toBe(15);
+  });
+
+  it("display SVG angle for monthOrdinal 11 is 345 degrees (Pisces center)", () => {
+    expect(sunDisplaySvgAngle(11 as MonthOrdinal)).toBe(345);
+  });
+
+  it("display position does not alter authoritative sunPositionFromMonthOrdinal", () => {
+    const before = sunPositionFromMonthOrdinal(5 as MonthOrdinal);
+    void sunDisplayPosition(5 as MonthOrdinal);
+    expect(sunPositionFromMonthOrdinal(5 as MonthOrdinal)).toBe(before);
+  });
+});
+
+describe("bodiesConjunctWith (hover highlighting helper)", () => {
+  it("returns body IDs in conjunction with the given body", () => {
+    const monthOrdinal = 0 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 10, venus: 5, mercury: 7 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+    const conjunctWithSaturn = bodiesConjunctWith(model.conjunctions, "saturn" as CelestialBodyId);
+    expect(conjunctWithSaturn).toContain("jupiter");
+  });
+
+  it("returns empty array for a body with no conjunctions", () => {
+    const monthOrdinal = 0 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 20, venus: 0, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+    const conjunctWithMars = bodiesConjunctWith(model.conjunctions, "mars" as CelestialBodyId);
+    expect(conjunctWithMars).toEqual([]);
+  });
+
+  it("is symmetric: if A is conjunct with B, B is conjunct with A", () => {
+    const monthOrdinal = 0 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 0, venus: 0, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+    const conjunctWithSaturn = bodiesConjunctWith(model.conjunctions, "saturn" as CelestialBodyId);
+    for (const other of conjunctWithSaturn) {
+      const conjunctWithOther = bodiesConjunctWith(model.conjunctions, other as CelestialBodyId);
+      expect(conjunctWithOther).toContain("saturn");
+    }
+  });
+});
+
+describe("occupiedHousesOfBody (presentation occupancy query)", () => {
+  it("returns ALL occupied Houses for a planet, including a House with no conjunction", () => {
+    // monthOrdinal 3 -> Sun in Cancer (House 3). Venus at index 0 starts at 0
+    // centidegrees with a 75-degree arc, occupying Aries (0), Taurus (1), Gemini (2).
+    // No other body is placed in Aries, so Aries is NOT a conjunction House.
+    const monthOrdinal = 3 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 20, jupiter: 10, mars: 20, venus: 0, mercury: 10 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const venusHouses = occupiedHousesOfBody(model, "venus" as CelestialBodyId);
+    expect(venusHouses).toEqual([0, 1, 2]);
+
+    // Verify Aries (House 0) is not a conjunction House for Venus
+    const venusConjunctions = model.conjunctions.filter(
+      (c) => c.bodyA === "venus" || c.bodyB === "venus",
+    );
+    const venusConjunctionHouseNames = venusConjunctions.flatMap((c) => c.sharedHouseNames);
+    expect(venusConjunctionHouseNames).not.toContain("Aries");
+  });
+
+  it("returns the Sun's single House for 'sun'", () => {
+    const monthOrdinal = 0 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 0, venus: 0, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const sunHouses = occupiedHousesOfBody(model, "sun" as CelestialBodyId);
+    expect(sunHouses).toEqual([model.sun.houseIndex]);
+  });
+});
+
+describe("buildBodyHoverSummary (hover/focus text summary)", () => {
+  it("reports all occupied Houses and separately lists conjunction Houses/bodies", () => {
+    // monthOrdinal 3 -> Sun in Cancer (House 3). Venus at index 0 occupies
+    // Aries (0), Taurus (1), Gemini (2). Jupiter at index 10 starts at 7500
+    // (House 2, Gemini) with 22.5-degree arc spanning Houses 2,3 — so Venus
+    // and Jupiter share Gemini. Sun is in Cancer (House 3), which Jupiter
+    // also occupies, so Jupiter-Sun share Cancer. Venus does NOT share
+    // Aries with anyone.
+    const monthOrdinal = 3 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 20, jupiter: 10, mars: 20, venus: 0, mercury: 10 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const summary = buildBodyHoverSummary(model, "venus" as CelestialBodyId);
+
+    // Must include ALL occupied Houses, including Aries which is not a conjunction
+    expect(summary.occupiedHouseNames).toEqual(["Aries", "Taurus", "Gemini"]);
+
+    // Must separately report conjunctions
+    expect(summary.conjunctions.length).toBeGreaterThanOrEqual(1);
+    const jupiterConj = summary.conjunctions.find((c) => c.otherBodyName === "Jupiter");
+    expect(jupiterConj).toBeDefined();
+    expect(jupiterConj!.sharedHouseNames).toContain("Gemini");
+
+    // Aries must not appear in any conjunction entry
+    for (const c of summary.conjunctions) {
+      expect(c.sharedHouseNames).not.toContain("Aries");
+    }
+  });
+
+  it("reports no conjunctions for an isolated body while still listing occupied Houses", () => {
+    // Mars at index 23 starts at 17250, arc 52.5deg -> Houses 5,6,7 (Leo, Virgo, Libra).
+    // All other bodies are at index 0, occupying Houses 0-3 only. Mars is isolated.
+    const monthOrdinal = 3 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 23, venus: 0, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const summary = buildBodyHoverSummary(model, "mars" as CelestialBodyId);
+
+    expect(summary.occupiedHouseNames.length).toBeGreaterThanOrEqual(2);
+    expect(summary.conjunctions).toEqual([]);
+  });
+
+  it("reports Sun occupancy and conjunctions", () => {
+    // monthOrdinal 3 -> Sun in Cancer (House 3). Jupiter at index 10 occupies
+    // Houses 2,3 (Gemini, Cancer), so Sun-Jupiter share Cancer.
+    const monthOrdinal = 3 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 20, jupiter: 10, mars: 20, venus: 0, mercury: 10 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const summary = buildBodyHoverSummary(model, "sun" as CelestialBodyId);
+
+    expect(summary.bodyName).toBe("Sun");
+    expect(summary.occupiedHouseNames).toEqual(["Cancer"]);
+    const jupiterConj = summary.conjunctions.find((c) => c.otherBodyName === "Jupiter");
+    expect(jupiterConj).toBeDefined();
+    expect(jupiterConj!.sharedHouseNames).toContain("Cancer");
+  });
+});
+
+describe("buildBodyIndexedConjunctionReference (idle body-indexed reference)", () => {
+  it("returns one entry per body in stable order: Sun, Saturn, Jupiter, Mars, Venus, Mercury", () => {
+    const monthOrdinal = 0 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 0, venus: 0, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const reference = buildBodyIndexedConjunctionReference(model);
+
+    expect(reference).toHaveLength(6);
+    expect(reference[0].bodyName).toBe("Sun");
+    expect(reference[1].bodyName).toBe("Saturn");
+    expect(reference[2].bodyName).toBe("Jupiter");
+    expect(reference[3].bodyName).toBe("Mars");
+    expect(reference[4].bodyName).toBe("Venus");
+    expect(reference[5].bodyName).toBe("Mercury");
+  });
+
+  it("capitalizes Sun consistently, never shows raw 'sun'", () => {
+    const monthOrdinal = 0 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 0, venus: 0, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const reference = buildBodyIndexedConjunctionReference(model);
+
+    const sunEntry = reference.find((r) => r.bodyId === "sun")!;
+    expect(sunEntry.bodyName).toBe("Sun");
+    for (const entry of reference) {
+      expect(entry.bodyName).not.toBe("sun");
+      for (const partner of entry.partners) {
+        expect(partner.otherBodyName).not.toBe("sun");
+      }
+    }
+  });
+
+  it("a body with multiple partners lists all of them", () => {
+    // monthOrdinal 0 -> Sun in Aries. All planets at index 0.
+    // Saturn at 500, arc 10deg -> Houses 0,1. Jupiter at 0, arc 22.5deg -> Houses 0,1.
+    // Mars at 0, arc 52.5deg -> Houses 0,1,2,3,4,5. Venus at 0, arc 75deg -> Houses 0,1,2,3,4.
+    // Mercury at 0, arc 105deg -> Houses 0,1,2,3,4,5,6.
+    // Sun occupies House 0. Everyone shares House 0 with the Sun.
+    // Saturn has partners: Sun, Jupiter, Mars, Venus, Mercury (all share House 0 or 1).
+    const monthOrdinal = 0 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 0, venus: 0, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const reference = buildBodyIndexedConjunctionReference(model);
+    const saturnEntry = reference.find((r) => r.bodyId === "saturn")!;
+
+    expect(saturnEntry.partners.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("a body with no conjunctions still gets an entry with empty partners", () => {
+    // Mars at index 23 starts at 17250, arc 52.5deg -> Houses 5,6,7.
+    // All other bodies at index 0, occupying Houses 0-3 only. Mars is isolated.
+    const monthOrdinal = 3 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 23, venus: 0, mercury: 0 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const reference = buildBodyIndexedConjunctionReference(model);
+    const marsEntry = reference.find((r) => r.bodyId === "mars")!;
+
+    expect(marsEntry.partners).toEqual([]);
+  });
+
+  it("pair information is available under both participating bodies", () => {
+    // Saturn and Jupiter both at index 0 -> they share Houses.
+    const monthOrdinal = 0 as MonthOrdinal;
+    const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 10, venus: 5, mercury: 7 });
+    const model = buildOrreryDisplayModel(monthOrdinal, positions);
+
+    const reference = buildBodyIndexedConjunctionReference(model);
+    const saturnEntry = reference.find((r) => r.bodyId === "saturn")!;
+    const jupiterEntry = reference.find((r) => r.bodyId === "jupiter")!;
+
+    const saturnHasJupiter = saturnEntry.partners.some((p) => p.otherBodyId === "jupiter");
+    const jupiterHasSaturn = jupiterEntry.partners.some((p) => p.otherBodyId === "saturn");
+    expect(saturnHasJupiter).toBe(true);
+    expect(jupiterHasSaturn).toBe(true);
   });
 });
