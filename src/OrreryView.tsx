@@ -6,11 +6,11 @@ import type { MovablePlanetId, CentidegreePosition, HouseIndex, CelestialBodyId 
 import type { MonthOrdinal } from "../shared/domain/calendar";
 
 const PLANET_COLORS: Record<MovablePlanetId, string> = {
-  saturn: "#8b6f47",
-  jupiter: "#d4a843",
-  mars: "#c44536",
-  venus: "#5b9aa0",
-  mercury: "#a8a8a8",
+  saturn: "#1a1a1a",
+  jupiter: "#d97706",
+  mars: "#dc2626",
+  venus: "#16a34a",
+  mercury: "#7c3aed",
 };
 
 const PLANET_LABELS: Record<MovablePlanetId, string> = {
@@ -30,14 +30,30 @@ const PLANET_SYMBOLS: Record<MovablePlanetId, string> = {
 };
 
 const TRACK_TINTS: Record<MovablePlanetId, string> = {
-  saturn: "#f5f0eb",
-  jupiter: "#faf6ed",
-  mars: "#fbf2f0",
-  venus: "#f0f7f8",
-  mercury: "#f6f6f6",
+  saturn: "#2a2a2a",
+  jupiter: "#fef3c7",
+  mars: "#fee2e2",
+  venus: "#dcfce7",
+  mercury: "#ede9fe",
 };
 
-const SVG_VIEWBOX = 560;
+const TRACK_TICK_COLORS: Record<MovablePlanetId, string> = {
+  saturn: "#e2e8f0",
+  jupiter: "#b45309",
+  mars: "#991b1b",
+  venus: "#15803d",
+  mercury: "#6d28d9",
+};
+
+const TRACK_BOUNDARY_COLORS: Record<MovablePlanetId, string> = {
+  saturn: "#64748b",
+  jupiter: "#cbd5e1",
+  mars: "#cbd5e1",
+  venus: "#cbd5e1",
+  mercury: "#cbd5e1",
+};
+
+const SVG_VIEWBOX = 580;
 const SVG_CENTER = SVG_VIEWBOX / 2;
 const HOUSE_OUTER_R = 245;
 const HOUSE_INNER_R = 205;
@@ -195,7 +211,7 @@ export default function OrreryView({
       <div className="flex justify-center">
         <svg
           viewBox={`0 0 ${SVG_VIEWBOX} ${SVG_VIEWBOX}`}
-          className="w-full max-w-[560px] aspect-square"
+          className="w-full max-w-[800px] aspect-square"
           role="img"
           aria-label="Orrery showing the 12 Houses, Sun position, and planet Arcs"
         >
@@ -253,14 +269,14 @@ export default function OrreryView({
                   textAnchor="middle"
                   dominantBaseline="middle"
                   className="fill-slate-600 dark:fill-slate-300"
-                  style={{ fontSize: 11, fontWeight: 600, pointerEvents: "none" }}
+                  style={{ fontSize: 12.5, fontWeight: 600, pointerEvents: "none" }}
                 >
                   <tspan x={labelPos.x} dy="-0.35em">{house.name}</tspan>
                   <tspan
                     x={labelPos.x}
                     dy="1.2em"
                     className="fill-slate-400 dark:fill-slate-500"
-                    style={{ fontSize: 8, fontWeight: 500 }}
+                    style={{ fontSize: 9.5, fontWeight: 500 }}
                   >
                     {house.monthDisplayName}
                   </tspan>
@@ -283,7 +299,6 @@ export default function OrreryView({
                   fill="none"
                   stroke={TRACK_TINTS[planetId]}
                   strokeWidth={TRACK_BAND_WIDTH}
-                  className="dark:stroke-slate-800"
                   opacity={hoverTarget === null ? 1 : 0.6}
                 />
                 {/* Inner boundary */}
@@ -292,10 +307,10 @@ export default function OrreryView({
                   cy={SVG_CENTER}
                   r={innerR}
                   fill="none"
-                  stroke="#cbd5e1"
-                  strokeWidth={0.6}
+                  stroke={TRACK_BOUNDARY_COLORS[planetId]}
+                  strokeWidth={0.8}
                   className="dark:stroke-slate-600"
-                  opacity={hoverTarget === null ? 0.7 : 0.4}
+                  opacity={hoverTarget === null ? 0.8 : 0.5}
                 />
                 {/* Outer boundary */}
                 <circle
@@ -303,10 +318,10 @@ export default function OrreryView({
                   cy={SVG_CENTER}
                   r={outerR}
                   fill="none"
-                  stroke="#cbd5e1"
-                  strokeWidth={0.6}
+                  stroke={TRACK_BOUNDARY_COLORS[planetId]}
+                  strokeWidth={0.8}
                   className="dark:stroke-slate-600"
-                  opacity={hoverTarget === null ? 0.7 : 0.4}
+                  opacity={hoverTarget === null ? 0.8 : 0.5}
                 />
                 {/* Subdivision ticks at legal positions */}
                 {legalPositions.map((pos, pi) => {
@@ -320,10 +335,9 @@ export default function OrreryView({
                       y1={tickStart.y}
                       x2={tickEnd.x}
                       y2={tickEnd.y}
-                      stroke="#94a3b8"
-                      strokeWidth={0.5}
-                      className="dark:stroke-slate-500"
-                      opacity={hoverTarget === null ? 0.45 : 0.25}
+                      stroke={TRACK_TICK_COLORS[planetId]}
+                      strokeWidth={0.6}
+                      opacity={hoverTarget === null ? 0.55 : 0.3}
                     />
                   );
                 })}
@@ -343,10 +357,10 @@ export default function OrreryView({
                 y1={innerEnd.y}
                 x2={outerEnd.x}
                 y2={outerEnd.y}
-                stroke="#94a3b8"
-                strokeWidth={1}
-                className="dark:stroke-slate-500"
-                opacity={hoverTarget === null ? 0.5 : 0.3}
+                stroke="#64748b"
+                strokeWidth={1.2}
+                className="dark:stroke-slate-400"
+                opacity={hoverTarget === null ? 0.55 : 0.35}
                 pointerEvents="none"
               />
             );
@@ -378,7 +392,7 @@ export default function OrreryView({
                   d={describeArcPath(SVG_CENTER, SVG_CENTER, midR, startAngle, endAngle, largeArc)}
                   fill="none"
                   stroke="transparent"
-                  strokeWidth={14}
+                  strokeWidth={22}
                   pointerEvents="stroke"
                 />
                 {/* Visible arc */}
@@ -386,8 +400,8 @@ export default function OrreryView({
                   d={describeArcPath(SVG_CENTER, SVG_CENTER, midR, startAngle, endAngle, largeArc)}
                   fill="none"
                   stroke={PLANET_COLORS[planet.planetId]}
-                  strokeWidth={isEmphasized && hoverTarget !== null ? 7 : 5.5}
-                  strokeLinecap="round"
+                  strokeWidth={isEmphasized && hoverTarget !== null ? 15 : 12}
+                  strokeLinecap="butt"
                 />
                 {/* Planet symbol on track */}
                 <text
@@ -396,9 +410,9 @@ export default function OrreryView({
                   textAnchor="middle"
                   dominantBaseline="middle"
                   className="fill-slate-700 dark:fill-slate-200"
-                  style={{ fontSize: 11, fontWeight: 700, paintOrder: "stroke", pointerEvents: "none" }}
+                  style={{ fontSize: 12, fontWeight: 700, paintOrder: "stroke", pointerEvents: "none" }}
                   stroke="white"
-                  strokeWidth={2.5}
+                  strokeWidth={3}
                 >
                   {PLANET_SYMBOLS[planet.planetId]}
                 </text>
@@ -406,7 +420,7 @@ export default function OrreryView({
             );
           })}
 
-          {/* Sun indicator — outside the House ring */}
+          {/* Sun indicator — outside the House ring, pure SVG geometry */}
           <g
             onMouseEnter={() => setHoverTarget({ type: "body", bodyId: "sun" })}
             onMouseLeave={() => setHoverTarget(null)}
@@ -418,33 +432,32 @@ export default function OrreryView({
             style={{ cursor: "pointer" }}
             opacity={bodyOpacity("sun")}
           >
+            {/* Halo */}
             <circle
               cx={sunPoint.x}
               cy={sunPoint.y}
-              r={isBodyEmphasized("sun") && hoverTarget !== null ? 11 : 9}
+              r={isBodyEmphasized("sun") && hoverTarget !== null ? 19 : 17}
+              fill="none"
+              stroke="#f59e0b"
+              strokeWidth={1.5}
+              opacity={0.4}
+            />
+            {/* Main body */}
+            <circle
+              cx={sunPoint.x}
+              cy={sunPoint.y}
+              r={isBodyEmphasized("sun") && hoverTarget !== null ? 14 : 12}
               fill="#f59e0b"
               stroke="#b45309"
               strokeWidth={2}
             />
+            {/* Center dot */}
             <circle
               cx={sunPoint.x}
               cy={sunPoint.y}
-              r={isBodyEmphasized("sun") && hoverTarget !== null ? 15 : 13}
-              fill="none"
-              stroke="#f59e0b"
-              strokeWidth={1}
-              opacity={0.4}
+              r={2.5}
+              fill="#7c2d12"
             />
-            <text
-              x={sunPoint.x}
-              y={sunPoint.y}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              className="fill-amber-900"
-              style={{ fontSize: 9, fontWeight: 700, pointerEvents: "none" }}
-            >
-              ☉
-            </text>
           </g>
         </svg>
       </div>
@@ -457,10 +470,10 @@ export default function OrreryView({
               className="inline-block w-3 h-3 rounded-full"
               style={{ backgroundColor: PLANET_COLORS[planet.planetId] }}
             />
-            <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+            <span className="text-sm text-slate-600 dark:text-slate-400 font-medium">
               {PLANET_SYMBOLS[planet.planetId]} {PLANET_LABELS[planet.planetId]}
             </span>
-            <span className="text-xs text-slate-400">
+            <span className="text-sm text-slate-400">
               ({planet.occupiedHouseNames.join(", ")})
             </span>
           </div>
@@ -482,24 +495,24 @@ export default function OrreryView({
 function HoverSummary({ summary }: { summary: BodyHoverSummary }) {
   return (
     <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
-      <p className="text-xs text-slate-600 dark:text-slate-300">
+      <p className="text-sm text-slate-600 dark:text-slate-300">
         <span className="font-medium">{BODY_DISPLAY_SYMBOLS[summary.bodyId]} {summary.bodyName}</span> occupies {summary.occupiedHouseNames.join(", ")}.
       </p>
       {summary.conjunctions.length > 0 ? (
         <>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 mb-0.5">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 mb-0.5">
             Conjunct with:
           </p>
           <div className="flex flex-col gap-0.5">
             {summary.conjunctions.map((c, i) => (
-              <p key={i} className="text-xs text-slate-600 dark:text-slate-400">
+              <p key={i} className="text-sm text-slate-600 dark:text-slate-400">
                 {BODY_DISPLAY_SYMBOLS[c.otherBodyId]} {c.otherBodyName} in {c.sharedHouseNames.join(", ")}
               </p>
             ))}
           </div>
         </>
       ) : (
-        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+        <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">
           No current conjunctions.
         </p>
       )}
@@ -511,11 +524,11 @@ function HouseHoverSummaryDisplay({ summary }: { summary: HouseHoverSummary }) {
   return (
     <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
       {summary.bodyIds.length > 0 ? (
-        <p className="text-xs text-slate-600 dark:text-slate-300">
+        <p className="text-sm text-slate-600 dark:text-slate-300">
           <span className="font-medium">{summary.houseName}</span> — {summary.bodyIds.map((b, i) => `${BODY_DISPLAY_SYMBOLS[b]} ${summary.bodyNames[i]}`).join(", ")}
         </p>
       ) : (
-        <p className="text-xs text-slate-600 dark:text-slate-300">
+        <p className="text-sm text-slate-600 dark:text-slate-300">
           <span className="font-medium">{summary.houseName}</span> — no celestial bodies
         </p>
       )}
@@ -530,21 +543,21 @@ function IdleConjunctionReference({
 }) {
   return (
     <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
-      <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+      <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1.5">
         Conjunctions by body:
       </p>
       <div className="flex flex-col gap-1">
         {entries.map((entry) => (
           <div key={entry.bodyId} className="flex items-baseline gap-1.5">
-            <span className="text-xs font-medium text-slate-600 dark:text-slate-300 min-w-[70px]">
+            <span className="text-sm font-medium text-slate-600 dark:text-slate-300 min-w-[80px]">
               {BODY_DISPLAY_SYMBOLS[entry.bodyId]} {entry.bodyName}
             </span>
             {entry.partners.length > 0 ? (
-              <span className="text-xs text-slate-500 dark:text-slate-400">
+              <span className="text-sm text-slate-500 dark:text-slate-400">
                 {entry.partners.map((p) => `${BODY_DISPLAY_SYMBOLS[p.otherBodyId]} ${p.otherBodyName} (${p.sharedHouseNames.join(", ")})`).join("; ")}
               </span>
             ) : (
-              <span className="text-xs text-slate-400 dark:text-slate-500">
+              <span className="text-sm text-slate-400 dark:text-slate-500">
                 none
               </span>
             )}
