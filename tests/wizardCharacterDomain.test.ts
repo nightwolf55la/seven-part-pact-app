@@ -265,4 +265,56 @@ describe("normalizeWizardCharacterPatch edge cases", () => {
       }),
     ).toThrow(/safe integer/);
   });
+
+  it("{ ageYears: 50, elements: undefined } omits elements, preserving existing", () => {
+    let state = setupWithWizard();
+    state = applyUpdateWizardCharacter(state, W1, {
+      elements: { air: 3, fire: 2, earth: 2, water: 1 },
+    }).nextState;
+    const { nextState } = applyUpdateWizardCharacter(state, W1, {
+      ageYears: 50,
+      elements: undefined,
+    } as any);
+    const char = wizardCharacter(nextState, W1);
+    expect(char.ageYears).toBe(50);
+    expect(char.elements).toEqual({ air: 3, fire: 2, earth: 2, water: 1 });
+  });
+
+  it("explicit undefined for each scalar optional field is omitted", () => {
+    const state = setupWithWizard();
+    const { nextState } = applyUpdateWizardCharacter(state, W1, {
+      ageYears: 50,
+      pactFragmentPersonalForm: undefined,
+      familiarDescription: undefined,
+      importantNotes: undefined,
+    } as any);
+    const char = wizardCharacter(nextState, W1);
+    expect(char.ageYears).toBe(50);
+    expect(char.pactFragmentPersonalForm).toBeNull();
+    expect(char.familiarDescription).toBeNull();
+    expect(char.importantNotes).toBeNull();
+  });
+
+  it("publicChangesOfMagic: undefined is omitted rather than rejected", () => {
+    let state = setupWithWizard();
+    state = applyUpdateWizardCharacter(state, W1, {
+      publicChangesOfMagic: ["Eyes glow"],
+    }).nextState;
+    const { nextState } = applyUpdateWizardCharacter(state, W1, {
+      ageYears: 30,
+      publicChangesOfMagic: undefined,
+    } as any);
+    expect(wizardCharacter(nextState, W1).publicChangesOfMagic).toEqual(["Eyes glow"]);
+  });
+
+  it("a patch whose supplied properties are all undefined rejects as empty", () => {
+    const state = setupWithWizard();
+    expect(() =>
+      applyUpdateWizardCharacter(state, W1, {
+        elements: undefined,
+        ageYears: undefined,
+        pactFragmentPersonalForm: undefined,
+      } as any),
+    ).toThrow(/empty/);
+  });
 });
