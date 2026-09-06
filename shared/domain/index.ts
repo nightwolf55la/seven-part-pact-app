@@ -79,6 +79,7 @@ export type {
   WizardmootAttendanceAdjustedEventV1,
   MeetingCompletedEventV1,
   MonthBegunEventV1,
+  WizardCharacterUpdatedEventV1,
   InfrastructureEvent,
   PhaseAdvancedEvent,
   CampaignEvent,
@@ -115,6 +116,9 @@ export type {
 } from "./campaign-state";
 export { CURRENT_STATE_SCHEMA_VERSION, LUNAR_PHASES, BLANK_WIZARD_CHARACTER } from "./campaign-state";
 
+export type { WizardCharacterPatch } from "./wizard-character";
+export { normalizeWizardCharacterPatch, applyWizardCharacterPatch } from "./wizard-character";
+
 export type { PactSeatId } from "./pact-seats";
 export { PACT_SEAT_IDS, PACT_SEAT_COUNT, pactSeatDisplayName, isValidPactSeatId } from "./pact-seats";
 
@@ -145,6 +149,7 @@ export {
   applySetWatcher,
   applySetSetupMonth,
   applySetSetupOrreryPosition,
+  applyUpdateWizardCharacter,
 } from "./m3-transitions";
 
 export type {
