@@ -51,6 +51,48 @@ export function parseElementInput(value: string): number | null {
   return n;
 }
 
+export interface ElementValidationResult {
+  readonly valid: boolean;
+  readonly value: WizardElementScores | null;
+}
+
+export function validateElementInputs(
+  air: string,
+  fire: string,
+  earth: string,
+  water: string,
+): ElementValidationResult {
+  const raws = [air, fire, earth, water];
+  const blanks = raws.map((r) => r.trim() === "");
+
+  if (blanks.every((b) => b)) {
+    return { valid: true, value: null };
+  }
+
+  if (blanks.some((b) => b)) {
+    return { valid: false, value: null };
+  }
+
+  const parsed = raws.map((r) => {
+    const n = Number(r.trim());
+    return Number.isSafeInteger(n) ? n : null;
+  });
+
+  if (parsed.some((p) => p === null)) {
+    return { valid: false, value: null };
+  }
+
+  return {
+    valid: true,
+    value: {
+      air: parsed[0]!,
+      fire: parsed[1]!,
+      earth: parsed[2]!,
+      water: parsed[3]!,
+    },
+  };
+}
+
 export function parseAgeInput(value: string): number | null {
   const trimmed = value.trim();
   if (trimmed === "") return null;
@@ -141,28 +183,13 @@ export function buildCharacterPatch(
 ): WizardCharacterPatch | null {
   const patch: Record<string, unknown> = {};
 
-  const parsedAir = parseElementInput(form.elementsAir);
-  const parsedFire = parseElementInput(form.elementsFire);
-  const parsedEarth = parseElementInput(form.elementsEarth);
-  const parsedWater = parseElementInput(form.elementsWater);
-
-  const allBlank =
-    parsedAir === null &&
-    parsedFire === null &&
-    parsedEarth === null &&
-    parsedWater === null;
-
-  let newElements: WizardElementScores | null;
-  if (allBlank) {
-    newElements = null;
-  } else {
-    newElements = {
-      air: parsedAir ?? 0,
-      fire: parsedFire ?? 0,
-      earth: parsedEarth ?? 0,
-      water: parsedWater ?? 0,
-    };
-  }
+  const elemValidation = validateElementInputs(
+    form.elementsAir,
+    form.elementsFire,
+    form.elementsEarth,
+    form.elementsWater,
+  );
+  const newElements: WizardElementScores | null = elemValidation.value;
 
   if (!elementsEqual(newElements, baseline.elements)) {
     patch.elements = newElements;

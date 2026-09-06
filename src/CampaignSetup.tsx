@@ -281,23 +281,6 @@ export default function CampaignSetup() {
             })}
           </ul>
         )}
-        {unassignedWizards.length > 0 && (
-          <div className="flex flex-col gap-1 border-t border-slate-100 dark:border-slate-800 pt-3">
-            <p className="text-xs text-slate-400">Unassigned Wizards:</p>
-            {unassignedWizards.map((w) => (
-              <div key={w.wizardId} className="flex items-center justify-between">
-                <span className="text-xs text-slate-500">{w.name}</span>
-                <button
-                  disabled={pending}
-                  onClick={() => { setCharacterWizardId(w.wizardId); setCharacterError(null); }}
-                  className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
-                >
-                  Character
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
       </section>
 
       {/* Pact Seats */}

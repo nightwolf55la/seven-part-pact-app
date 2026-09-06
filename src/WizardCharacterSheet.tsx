@@ -1,11 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useLayoutEffect, useRef } from "react";
 import type { WizardCharacterData } from "../shared/domain/campaign-state";
 import {
   formFromCharacter,
   buildCharacterPatch,
-  parseElementInput,
   parseAgeInput,
-  isElementsComplete,
+  validateElementInputs,
   elementsTotal,
   type WizardCharacterSheetForm,
 } from "./wizard-character-sheet-view-model";
@@ -44,23 +43,17 @@ export default function WizardCharacterSheet({
   onClose,
 }: WizardCharacterSheetProps) {
   const [form, setForm] = useState<WizardCharacterSheetForm>(() => formFromCharacter(character));
-  const isDirtyRef = useRef(false);
   const [elementError, setElementError] = useState<string | null>(null);
 
-  const baselineRef = useRef(character);
-  baselineRef.current = character;
-
+  const syncedBaselineRef = useRef(character);
   const formRef = useRef(form);
   formRef.current = form;
 
-  useEffect(() => {
-    const currentBaseline = baselineRef.current;
-    const currentForm = formRef.current;
-    const patch = buildCharacterPatch(currentForm, currentBaseline);
-    isDirtyRef.current = patch !== null;
-
-    if (!isDirtyRef.current) {
+  useLayoutEffect(() => {
+    const dirty = buildCharacterPatch(formRef.current, syncedBaselineRef.current) !== null;
+    if (!dirty) {
       setForm(formFromCharacter(character));
+      syncedBaselineRef.current = character;
     }
   }, [character]);
 
@@ -71,45 +64,33 @@ export default function WizardCharacterSheet({
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  const parsedElements = ELEMENT_FIELDS.map((f) => parseElementInput(form[f.key]));
-  const elementsComplete = isElementsComplete(
-    parsedElements[0],
-    parsedElements[1],
-    parsedElements[2],
-    parsedElements[3],
+  const elemValidation = validateElementInputs(
+    form.elementsAir,
+    form.elementsFire,
+    form.elementsEarth,
+    form.elementsWater,
   );
-  const anyElementEntered = parsedElements.some((v) => v !== null);
-
   const parsedAge = parseAgeInput(form.ageYears);
   const ageValid = form.ageYears.trim() === "" || parsedAge !== null;
 
-  const elementsValid = !anyElementEntered || elementsComplete;
+  const elementsValid = elemValidation.valid;
   const canSave = !pending && elementsValid && ageValid;
 
   function handleSave() {
-    if (anyElementEntered && !elementsComplete) {
-      setElementError("If any Element is entered, all four must be provided before saving.");
+    if (!elemValidation.valid) {
+      setElementError("All four Elements must be valid safe integers, or all blank.");
       return;
     }
     if (!ageValid) {
       return;
     }
     setElementError(null);
-    const patch = buildCharacterPatch(form, baselineRef.current);
+    const patch = buildCharacterPatch(form, syncedBaselineRef.current);
     if (patch === null) return;
     onSave(patch as Record<string, unknown>);
   }
 
-  const total = elementsTotal(
-    anyElementEntered && elementsComplete
-      ? {
-          air: parsedElements[0] ?? 0,
-          fire: parsedElements[1] ?? 0,
-          earth: parsedElements[2] ?? 0,
-          water: parsedElements[3] ?? 0,
-        }
-      : null,
-  );
+  const total = elementsTotal(elemValidation.value);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">

@@ -6,6 +6,7 @@ import type { PlayerRef, WizardRef, SeatRef } from "./table-wizards-view-model";
 import { PACT_SEAT_IDS, pactSeatDisplayName } from "../shared/domain/pact-seats";
 import AddWizardDialog from "./AddWizardDialog";
 import WizardCharacterSheet from "./WizardCharacterSheet";
+import { eligiblePortrayingPlayersForNewWizard } from "./setup-view-model";
 import type { WizardCharacterData } from "../shared/domain/campaign-state";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -133,7 +134,7 @@ export default function TableWizards({
 
       {showAddWizard && (
         <AddWizardDialog
-          players={players}
+          players={eligiblePortrayingPlayersForNewWizard(players, pactSeats, wizards)}
           pactSeats={pactSeats}
           pending={pending}
           error={addWizardError}
