@@ -9,7 +9,7 @@
 - This exception is **not** precedent for future valuable campaign data. Once the first real V4 campaign is created, normal compatibility-preservation expectations resume.
 - Existing Convex deployments/environments are retained; do not recreate them.
 - V4-only validators must not be deployed while campaign-owned V3 records remain in a given environment.
-- An operational export of V3 data is not required (explicitly confirmed by human).
+- For this approved disposable pre-release V3-to-V4 cutover, the human explicitly waived an operational export; this does not change the normal future recovery policy for valuable campaigns.
 
 ## Wizard character shape
 
