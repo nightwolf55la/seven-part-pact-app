@@ -30,6 +30,7 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "adjust_wizardmoot_attendance",
   "complete_meeting",
   "begin_next_month",
+  "update_wizard_character",
 ] as const;
 
 // Historical command types that may appear in persisted revision records but
@@ -74,6 +75,7 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "adjust_wizardmoot_attendance":
     case "complete_meeting":
     case "begin_next_month":
+    case "update_wizard_character":
     case "move_month":
     case "legacy_month_change":
       return true;

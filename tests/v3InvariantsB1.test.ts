@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateCampaignState, DomainError } from "../shared/domain";
+import { validateCampaignState, DomainError, BLANK_WIZARD_CHARACTER } from "../shared/domain";
 import { initialCampaignState } from "../shared/domain/initial-state";
 
 const WIZ1 = "wiz_00000000-0000-0000-0000-000000000001";
@@ -17,8 +17,8 @@ function playState(overrides: Record<string, unknown> = {}): any {
     calendar: { monthOrdinal: 0 },
     players: [{ playerId: PLR1, name: "P1" }],
     wizards: [
-      { wizardId: WIZ1, name: "W1", portrayedByPlayerId: PLR1 },
-      { wizardId: WIZ2, name: "W2", portrayedByPlayerId: null },
+      { wizardId: WIZ1, name: "W1", portrayedByPlayerId: PLR1, character: { ...BLANK_WIZARD_CHARACTER } },
+      { wizardId: WIZ2, name: "W2", portrayedByPlayerId: null, character: { ...BLANK_WIZARD_CHARACTER } },
     ],
     lifecycle: {
       kind: "play",

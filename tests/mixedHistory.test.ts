@@ -181,7 +181,7 @@ describe("V3 Production Paths", () => {
         control.campaignId,
       );
 
-      expect(result.nextState.schemaVersion).toBe(3);
+      expect(result.nextState.schemaVersion).toBe(CURRENT_STATE_SCHEMA_VERSION);
       validateCampaignState(result.nextState);
       expect(result.nextState.calendar.monthOrdinal).toBe(0);
       expect(result.event.type).toBe("undo_applied");
@@ -214,7 +214,7 @@ describe("V3 Production Paths", () => {
         control.campaignId,
       );
 
-      expect(result.nextState.schemaVersion).toBe(3);
+      expect(result.nextState.schemaVersion).toBe(CURRENT_STATE_SCHEMA_VERSION);
       validateCampaignState(result.nextState);
       expect(result.nextState.calendar.monthOrdinal).toBe(3);
       expect(result.event.type).toBe("redo_applied");
@@ -224,7 +224,7 @@ describe("V3 Production Paths", () => {
   describe("checkpoint restore from V3 snapshot", () => {
     it("V3 checkpoint source is valid", () => {
       const restored = v2State(7);
-      expect(restored.schemaVersion).toBe(3);
+      expect(restored.schemaVersion).toBe(CURRENT_STATE_SCHEMA_VERSION);
       expect(restored.calendar.monthOrdinal).toBe(7);
       expect(restored.players).toEqual([]);
       expect(restored.wizards).toEqual([]);

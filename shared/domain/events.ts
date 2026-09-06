@@ -2,6 +2,7 @@ import type { MonthOrdinal } from "./calendar";
 import type { MonthDirection } from "./calendar";
 import type { MovablePlanetId, CentidegreePosition } from "./orrery";
 import type { LunarPhase } from "./campaign-state";
+import type { WizardCharacterData } from "./campaign-state";
 import type { TimeDestination } from "./time-model";
 import type { EngagementTarget } from "./engagement";
 
@@ -435,6 +436,20 @@ export interface MonthChangedEventV1 {
   readonly data: MonthChangedDataV1;
 }
 
+// --- Wizard Character ---
+
+export interface WizardCharacterUpdatedDataV1 {
+  readonly wizardId: string;
+  readonly previousCharacter: WizardCharacterData;
+  readonly newCharacter: WizardCharacterData;
+}
+
+export interface WizardCharacterUpdatedEventV1 {
+  readonly type: "wizard_character_updated";
+  readonly version: 1;
+  readonly data: WizardCharacterUpdatedDataV1;
+}
+
 export type SetupEvent =
   | PlayerAddedEventV1
   | PlayerRenamedEventV1
@@ -449,7 +464,8 @@ export type SetupEvent =
   | WatcherAssignmentChangedEventV1
   | SetupMonthChangedEventV1
   | SetupOrreryPositionChangedEventV1
-  | BeginPlayEventV1;
+  | BeginPlayEventV1
+  | WizardCharacterUpdatedEventV1;
 
 export type PlayEvent =
   | PhaseAdvancedEvent

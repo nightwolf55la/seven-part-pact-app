@@ -98,4 +98,38 @@ describe("describeActivityEntry", () => {
     });
     expect(describeActivityEntry(entry)).toBe("Revision 34 \u2014 Redo: revision 31 \u2192 32");
   });
+
+  it("maps wizard_character_updated v1 to campaign_configuration with specific description", () => {
+    const event: CampaignEvent = {
+      type: "wizard_character_updated",
+      version: 1,
+      data: {
+        wizardId: "wiz_test1",
+        previousCharacter: {
+          elements: null,
+          pactFragmentPersonalForm: null,
+          familiarDescription: null,
+          ageYears: null,
+          publicChangesOfMagic: [],
+          importantNotes: null,
+        },
+        newCharacter: {
+          elements: null,
+          pactFragmentPersonalForm: null,
+          familiarDescription: null,
+          ageYears: 50,
+          publicChangesOfMagic: [],
+          importantNotes: null,
+        },
+      },
+    };
+    const entry = mapEventToActivityEntry("evt_wc", 10, event);
+    expect(entry).toEqual({
+      id: "evt_wc",
+      revision: 10,
+      type: "campaign_configuration",
+      description: "Updated wizard character",
+    });
+    expect(describeActivityEntry(entry)).toBe("Revision 10 \u2014 Updated wizard character");
+  });
 });

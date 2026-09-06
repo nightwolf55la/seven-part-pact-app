@@ -38,6 +38,9 @@ import {
   generateAllocationId,
   generateEngagementId,
   beginPlayFingerprint,
+  normalizeWizardCharacterPatch,
+  applyUpdateWizardCharacter,
+  updateWizardCharacterFingerprint,
   collectEligibleWizardIds,
   advancePhaseFingerprint,
   scheduleTimeFingerprint,
@@ -1020,6 +1023,54 @@ export const completeMeeting = mutation({
 // ============================================================
 // M4 C5B: Begin Next Month (Quiet -> New Moon)
 // ============================================================
+
+// ============================================================
+// M5: Wizard Character
+// ============================================================
+
+export const updateWizardCharacter = mutation({
+  args: {
+    commandId: v.string(),
+    wizardId: v.string(),
+    patch: v.object({
+      elements: v.optional(
+        v.union(
+          v.object({
+            air: v.number(),
+            fire: v.number(),
+            earth: v.number(),
+            water: v.number(),
+          }),
+          v.null(),
+        ),
+      ),
+      pactFragmentPersonalForm: v.optional(v.union(v.string(), v.null())),
+      familiarDescription: v.optional(v.union(v.string(), v.null())),
+      ageYears: v.optional(v.union(v.number(), v.null())),
+      publicChangesOfMagic: v.optional(v.array(v.string())),
+      importantNotes: v.optional(v.union(v.string(), v.null())),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+
+    if (!isValidWizardId(args.wizardId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
+    }
+
+    const normalizedPatch = normalizeWizardCharacterPatch(args.patch);
+    const fingerprint = updateWizardCharacterFingerprint(args.wizardId, normalizedPatch as Record<string, unknown>);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "update_wizard_character", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+
+    const result = applyUpdateWizardCharacter(campaign.currentState, args.wizardId as WizardId, normalizedPatch);
+    const receipt = await commitM3Command(ctx, args.commandId, "update_wizard_character", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
 
 export const beginNextMonth = mutation({
   args: {

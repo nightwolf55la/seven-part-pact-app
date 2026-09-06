@@ -1,4 +1,5 @@
 import type { CurrentCampaignState, CampaignPlayer, CampaignWizard, PactSeatState, PactSeatStatus } from "./campaign-state";
+import { BLANK_WIZARD_CHARACTER } from "./campaign-state";
 import type { PlayerId, WizardId } from "./ids";
 import type { PactSeatId } from "./pact-seats";
 import type { AgeDefinitionId } from "./ages";
@@ -19,11 +20,14 @@ import type {
   WatcherAssignmentChangedEventV1,
   SetupMonthChangedEventV1,
   SetupOrreryPositionChangedEventV1,
+  WizardCharacterUpdatedEventV1,
 } from "./events";
 import { PACT_SEAT_IDS, isValidPactSeatId } from "./pact-seats";
 import { isValidAgeDefinitionId } from "./ages";
 import { MOVABLE_PLANET_IDS, legalPositionsForPlanet } from "./orrery";
 import { DomainError } from "./errors";
+import type { WizardCharacterPatch } from "./wizard-character";
+import { normalizeWizardCharacterPatch, applyWizardCharacterPatch } from "./wizard-character";
 
 export interface TransitionResult {
   readonly nextState: CurrentCampaignState;
@@ -255,7 +259,12 @@ export function applyCreateWizard(
   }
 
   const trimmedName = name.trim();
-  const newWizard: CampaignWizard = { wizardId, name: trimmedName, portrayedByPlayerId };
+  const newWizard: CampaignWizard = {
+    wizardId,
+    name: trimmedName,
+    portrayedByPlayerId,
+    character: { ...BLANK_WIZARD_CHARACTER, publicChangesOfMagic: [] },
+  };
   const nextState: CurrentCampaignState = {
     ...state,
     wizards: [...state.wizards, newWizard],
@@ -557,6 +566,38 @@ export function applySetSetupOrreryPosition(
     type: "setup_orrery_position_changed",
     version: 1,
     data: { planetId, previousPosition, newPosition },
+  };
+
+  return { nextState, events: [event] };
+}
+
+// --- Update Wizard Character ---
+
+export function applyUpdateWizardCharacter(
+  state: CurrentCampaignState,
+  wizardId: WizardId,
+  patch: WizardCharacterPatch,
+): TransitionResult {
+  const wizard = findWizard(state, wizardId);
+  if (!wizard) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Wizard not found: ${wizardId}`);
+  }
+
+  const normalizedPatch = normalizeWizardCharacterPatch(patch);
+  const previousCharacter = wizard.character;
+  const newCharacter = applyWizardCharacterPatch(previousCharacter, normalizedPatch);
+
+  const nextState: CurrentCampaignState = {
+    ...state,
+    wizards: state.wizards.map((w) =>
+      w.wizardId === wizardId ? { ...w, character: newCharacter } : w,
+    ),
+  };
+
+  const event: WizardCharacterUpdatedEventV1 = {
+    type: "wizard_character_updated",
+    version: 1,
+    data: { wizardId, previousCharacter, newCharacter },
   };
 
   return { nextState, events: [event] };

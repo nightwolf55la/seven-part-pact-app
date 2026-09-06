@@ -40,10 +40,10 @@ function stateWithWizard(): { state: CurrentCampaignState; playerId: PlayerId; w
 }
 
 describe("M3 State Validation", () => {
-  it("accepts canonical empty V3 state", () => {
+  it("accepts canonical empty V4 state", () => {
     const state = emptyState();
     expect(() => validateCampaignState(state)).not.toThrow();
-    expect(state.schemaVersion).toBe(3);
+    expect(state.schemaVersion).toBe(4);
   });
 
   it("rejects invalid Player ID at mutation boundary (pure transition accepts any string)", () => {

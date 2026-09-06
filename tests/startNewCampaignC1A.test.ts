@@ -20,9 +20,9 @@ import type { CurrentCampaignState, CampaignHistoryControlV1 } from "../shared/d
 describe("C1A: initialCampaignState produces exact V3 incomplete Setup", () => {
   const state = initialCampaignState();
 
-  it("is schema version 3", () => {
+  it("is schema version 4", () => {
     expect(state.schemaVersion).toBe(CURRENT_STATE_SCHEMA_VERSION);
-    expect(state.schemaVersion).toBe(3);
+    expect(state.schemaVersion).toBe(4);
   });
 
   it("uses correct ruleset", () => {

@@ -26,7 +26,7 @@ import { migrationCommandFingerprint, moveMonthFingerprint } from "../shared/dom
 
 function makeSerializableState(monthOrdinal: number): SerializableCampaignState {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     ruleset: { id: "seven_part_pact_draft4", version: 1 },
     calendar: { monthOrdinal },
     configuration: { ageId: null, facilitatorPlayerId: null },

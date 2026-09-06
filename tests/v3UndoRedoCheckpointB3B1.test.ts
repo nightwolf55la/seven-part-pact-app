@@ -22,7 +22,7 @@ import {
 } from "../shared/domain";
 import type {
   CurrentCampaignState,
-  CampaignStateV3,
+  CampaignStateV4,
   CampaignStateV1,
   MonthlyPlayState,
 } from "../shared/domain/campaign-state";
@@ -55,7 +55,7 @@ function emptyPactSeats() {
 
 function v3SetupState(): CurrentCampaignState {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
     calendar: { monthOrdinal: null },
     configuration: { ageId: null, facilitatorPlayerId: null },
@@ -100,12 +100,12 @@ function v3PlayState(): CurrentCampaignState {
   };
 
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
     calendar: { monthOrdinal: 5 as MonthOrdinal },
     configuration: { ageId: "awakening", facilitatorPlayerId: PLR },
     players: [{ playerId: PLR, name: "Alice" }],
-    wizards: [{ wizardId: WIZ, name: "Valdris", portrayedByPlayerId: PLR }],
+    wizards: [{ wizardId: WIZ, name: "Valdris", portrayedByPlayerId: PLR, character: { elements: null, pactFragmentPersonalForm: null, familiarDescription: null, ageYears: null, publicChangesOfMagic: [], importantNotes: null } }],
     pactSeats: {
       ...emptyPactSeats(),
       necromancer: { status: "present", wizardId: WIZ, watcherPlayerId: null },
@@ -561,7 +561,7 @@ describe("B3B1: Checkpoint restore preserves complete V3 state", () => {
     const json1 = canonicalJsonStringify(play);
     const json2 = canonicalJsonStringify(play);
     expect(json1).toBe(json2);
-    const parsed = JSON.parse(json1) as CampaignStateV3;
+    const parsed = JSON.parse(json1) as CampaignStateV4;
     expect(parsed.lifecycle).toBeDefined();
     expect(parsed.wizardmootHistory).toBeDefined();
     if (parsed.lifecycle.kind === "play") {

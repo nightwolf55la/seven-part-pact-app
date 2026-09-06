@@ -57,7 +57,7 @@ const ENG = "eng_00000000-0000-0000-0000-000000000001" as EngagementId;
 
 function v3SetupState(): CurrentCampaignState {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
     calendar: { monthOrdinal: null },
     configuration: { ageId: null, facilitatorPlayerId: null },
@@ -97,12 +97,12 @@ function v3PlayState(): CurrentCampaignState {
   };
 
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
     calendar: { monthOrdinal: 5 as MonthOrdinal },
     configuration: { ageId: "awakening", facilitatorPlayerId: PLR },
     players: [{ playerId: PLR, name: "Alice" }],
-    wizards: [{ wizardId: WIZ, name: "Valdris", portrayedByPlayerId: PLR }],
+    wizards: [{ wizardId: WIZ, name: "Valdris", portrayedByPlayerId: PLR, character: { elements: null, pactFragmentPersonalForm: null, familiarDescription: null, ageYears: null, publicChangesOfMagic: [], importantNotes: null } }],
     pactSeats: {
       ...emptyPactSeats(),
       necromancer: { status: "present", wizardId: WIZ, watcherPlayerId: null },
@@ -149,7 +149,7 @@ describe("B3B2: V3 Setup backup roundtrip", () => {
     const backup = await buildBackup(setup);
 
     expect(backup.state.calendar.monthOrdinal).toBeNull();
-    if (backup.state.schemaVersion === 3 && backup.state.lifecycle.kind === "setup") {
+    if (backup.state.schemaVersion === 4 && backup.state.lifecycle.kind === "setup") {
       expect(backup.state.lifecycle.orrery.saturn).toBe(500);
       expect(backup.state.lifecycle.orrery.jupiter).toBeNull();
       expect(backup.state.lifecycle.orrery.mars).toBeNull();

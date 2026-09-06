@@ -262,10 +262,27 @@ const playerValidator = v.object({
   name: v.string(),
 });
 
+const wizardElementScoresValidator = v.object({
+  air: v.number(),
+  fire: v.number(),
+  earth: v.number(),
+  water: v.number(),
+});
+
+const wizardCharacterDataValidator = v.object({
+  elements: v.union(wizardElementScoresValidator, v.null()),
+  pactFragmentPersonalForm: v.union(v.string(), v.null()),
+  familiarDescription: v.union(v.string(), v.null()),
+  ageYears: v.union(v.number(), v.null()),
+  publicChangesOfMagic: v.array(v.string()),
+  importantNotes: v.union(v.string(), v.null()),
+});
+
 const wizardValidator = v.object({
   wizardId: v.string(),
   name: v.string(),
   portrayedByPlayerId: v.union(v.string(), v.null()),
+  character: wizardCharacterDataValidator,
 });
 
 const pactSeatsValidator = v.object(
@@ -388,6 +405,30 @@ export const campaignStateV3Validator = v.object({
     facilitatorPlayerId: v.union(v.string(), v.null()),
   }),
   players: v.array(playerValidator),
+  wizards: v.array(v.object({
+    wizardId: v.string(),
+    name: v.string(),
+    portrayedByPlayerId: v.union(v.string(), v.null()),
+  })),
+  pactSeats: pactSeatsValidator,
+  lifecycle: lifecycleValidator,
+  wizardmootHistory: v.array(wizardmootHistoryEntryValidator),
+});
+
+export const campaignStateV4Validator = v.object({
+  schemaVersion: v.literal(4),
+  ruleset: v.object({
+    id: v.literal(SEVEN_PART_PACT_DRAFT4_ID),
+    version: v.literal(SEVEN_PART_PACT_DRAFT4_VERSION),
+  }),
+  calendar: v.object({
+    monthOrdinal: v.union(v.number(), v.null()),
+  }),
+  configuration: v.object({
+    ageId: v.union(v.string(), v.null()),
+    facilitatorPlayerId: v.union(v.string(), v.null()),
+  }),
+  players: v.array(playerValidator),
   wizards: v.array(wizardValidator),
   pactSeats: pactSeatsValidator,
   lifecycle: lifecycleValidator,
@@ -496,6 +537,16 @@ export const engagementRescheduledEventV1Validator = v.object({
   }),
 });
 
+export const wizardCharacterUpdatedEventV1Validator = v.object({
+  type: v.literal("wizard_character_updated"),
+  version: v.literal(1),
+  data: v.object({
+    wizardId: v.string(),
+    previousCharacter: wizardCharacterDataValidator,
+    newCharacter: wizardCharacterDataValidator,
+  }),
+});
+
 // Historical event validators for persisted data (M4 retirement). These event
 // shapes may exist in campaignEvents rows but are no longer created at runtime.
 const historicalMonthChangedEventV1Validator = v.object({
@@ -542,10 +593,11 @@ export const campaignEventValidator = v.union(
   wizardmootAttendanceAdjustedEventV1Validator,
   meetingCompletedEventV1Validator,
   monthBegunEventV1Validator,
+  wizardCharacterUpdatedEventV1Validator,
 );
 
-export const anyCampaignStateValidator = campaignStateV3Validator;
-export const currentCampaignStateValidator = campaignStateV3Validator;
+export const anyCampaignStateValidator = campaignStateV4Validator;
+export const currentCampaignStateValidator = campaignStateV4Validator;
 
 export const newCampaignRecordValidator = v.object({
   campaignKey: v.literal("default"),

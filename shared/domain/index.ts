@@ -79,6 +79,7 @@ export type {
   WizardmootAttendanceAdjustedEventV1,
   MeetingCompletedEventV1,
   MonthBegunEventV1,
+  WizardCharacterUpdatedEventV1,
   InfrastructureEvent,
   PhaseAdvancedEvent,
   CampaignEvent,
@@ -97,8 +98,12 @@ export type {
   CampaignStateV1,
   CampaignStateV2,
   CampaignStateV3,
+  CampaignStateV4,
   CampaignPlayer,
+  LegacyCampaignWizard,
   CampaignWizard,
+  WizardElementScores,
+  WizardCharacterData,
   PactSeatState,
   PactSeatStatus,
   LunarPhase,
@@ -109,7 +114,10 @@ export type {
   CurrentCampaignState,
   AnyCampaignState,
 } from "./campaign-state";
-export { CURRENT_STATE_SCHEMA_VERSION, LUNAR_PHASES } from "./campaign-state";
+export { CURRENT_STATE_SCHEMA_VERSION, LUNAR_PHASES, BLANK_WIZARD_CHARACTER } from "./campaign-state";
+
+export type { WizardCharacterPatch } from "./wizard-character";
+export { normalizeWizardCharacterPatch, applyWizardCharacterPatch } from "./wizard-character";
 
 export type { PactSeatId } from "./pact-seats";
 export { PACT_SEAT_IDS, PACT_SEAT_COUNT, pactSeatDisplayName, isValidPactSeatId } from "./pact-seats";
@@ -141,6 +149,7 @@ export {
   applySetWatcher,
   applySetSetupMonth,
   applySetSetupOrreryPosition,
+  applyUpdateWizardCharacter,
 } from "./m3-transitions";
 
 export type {
@@ -179,6 +188,7 @@ export {
   setWatcherFingerprint,
   setSetupMonthFingerprint,
   setSetupOrreryPositionFingerprint,
+  updateWizardCharacterFingerprint,
   beginPlayFingerprint,
   advancePhaseFingerprint,
   normalizeWarningKeys,

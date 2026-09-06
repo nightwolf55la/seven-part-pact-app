@@ -93,9 +93,9 @@ describe("M3 CONTRACT: domain-level current-state validation rejects V1", () => 
     expect(() => validateCampaignState(v1State)).toThrow("Unsupported schemaVersion");
   });
 
-  it("validateCampaignState accepts V2 state", () => {
+  it("validateCampaignState accepts current state", () => {
     const result = validateCampaignState(makeV2State());
-    expect(result.schemaVersion).toBe(3);
+    expect(result.schemaVersion).toBe(4);
   });
 });
 
@@ -104,9 +104,9 @@ describe("M3 CONTRACT: V1/V2 rejection and V3-only acceptance", () => {
     expect(() => validateAnyCampaignState(v1State)).toThrow();
   });
 
-  it("validateAnyCampaignState accepts V3", () => {
+  it("validateAnyCampaignState accepts V4", () => {
     const result = validateAnyCampaignState(makeV2State());
-    expect(result.schemaVersion).toBe(3);
+    expect(result.schemaVersion).toBe(4);
   });
 
   it("loadHistoricalState rejects V1", () => {
