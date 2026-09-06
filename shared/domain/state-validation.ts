@@ -764,27 +764,6 @@ function validateV4Shape(s: Record<string, unknown>): void {
   validateWizardmootHistory(s.wizardmootHistory as unknown[], wizardIds);
 }
 
-function validateV3Shape(s: Record<string, unknown>): void {
-  // Determine lifecycle kind first for calendar validation
-  let lifecycleKind = "setup";
-  if (s.lifecycle !== null && s.lifecycle !== undefined && typeof s.lifecycle === "object") {
-    lifecycleKind = (s.lifecycle as Record<string, unknown>).kind as string || "setup";
-  }
-
-  validateRuleset(s);
-  validateCalendarV3(s, lifecycleKind);
-
-  const { playerIds, wizardIds } = validatePlayersAndWizards(s);
-  validateConfiguration(s, playerIds);
-  validatePactSeats(s, playerIds, wizardIds, s.wizards as unknown[]);
-  validateLifecycle(s, wizardIds);
-
-  if (!Array.isArray(s.wizardmootHistory)) {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", "wizardmootHistory must be an array");
-  }
-  validateWizardmootHistory(s.wizardmootHistory as unknown[], wizardIds);
-}
-
 export function validateCampaignState(state: unknown): CurrentCampaignState {
   if (state === null || state === undefined || typeof state !== "object") {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "State must be a non-null object");
