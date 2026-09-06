@@ -16,6 +16,7 @@ import {
   toggleSecondary,
 } from "./play-surface-model";
 import type { PlaySurfaceState, SurfaceId, PaneLabel } from "./play-surface-model";
+import { playShellWidthMode } from "./play-shell-layout";
 import type { LunarPhase } from "../shared/domain";
 
 const PHASE_DISPLAY: Record<LunarPhase, string> = {
@@ -74,10 +75,12 @@ export default function PlayShell({
   }), []);
 
   const showSecondary = surfaceState.showSecondary && surfaceState.secondary !== null && !surfaceState.fullWidth;
+  const actualDualPaneVisible = !showTools && showSecondary;
+  const shellWidth = playShellWidthMode(showTools, showSecondary);
 
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center px-4 py-8">
-      <div className="w-full max-w-5xl flex flex-col gap-4">
+      <div className={`w-full flex flex-col gap-4 ${shellWidth === "wide" ? "max-w-[1440px]" : "max-w-5xl"}`}>
         {/* Chrome */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">

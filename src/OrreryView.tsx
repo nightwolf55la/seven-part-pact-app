@@ -395,6 +395,16 @@ export default function OrreryView({
                   strokeWidth={22}
                   pointerEvents="stroke"
                 />
+                {/* Saturn-only pale keyline behind the black Arc for contrast */}
+                {planet.planetId === "saturn" && (
+                  <path
+                    d={describeArcPath(SVG_CENTER, SVG_CENTER, midR, startAngle, endAngle, largeArc)}
+                    fill="none"
+                    stroke="#e2e8f0"
+                    strokeWidth={(isEmphasized && hoverTarget !== null ? 15 : 12) + 3}
+                    strokeLinecap="butt"
+                  />
+                )}
                 {/* Visible arc */}
                 <path
                   d={describeArcPath(SVG_CENTER, SVG_CENTER, midR, startAngle, endAngle, largeArc)}
