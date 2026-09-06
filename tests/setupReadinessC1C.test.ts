@@ -185,16 +185,27 @@ describe("C1C: evaluateSetupReadiness", () => {
     }
   });
 
-  it("returns SILENT_SEAT_MISSING_WIZARD when a silent seat has no wizard", () => {
+  it("does NOT produce SILENT_SEAT_MISSING_WIZARD for an unmodeled silent seat with a valid watcher", () => {
     const state = buildReadyState();
     const pactSeats = {
       ...state.pactSeats,
       necromancer: { ...state.pactSeats.necromancer, status: "silent" as const, wizardId: null },
     } as typeof state.pactSeats;
     const result = evaluateSetupReadiness({ ...state, pactSeats });
+    expect(result).toEqual({ ready: true });
+  });
+
+  it("still produces WATCHER_NOT_ASSIGNED for an unmodeled silent seat with no watcher", () => {
+    const state = buildReadyState();
+    const pactSeats = {
+      ...state.pactSeats,
+      necromancer: { ...state.pactSeats.necromancer, status: "silent" as const, wizardId: null, watcherPlayerId: null },
+    } as typeof state.pactSeats;
+    const result = evaluateSetupReadiness({ ...state, pactSeats });
     expect(result.ready).toBe(false);
     if (!result.ready) {
-      expect(result.issues.some((i) => i.code === "SILENT_SEAT_MISSING_WIZARD" && i.seatId === "necromancer")).toBe(true);
+      expect(result.issues.some((i) => i.code === "WATCHER_NOT_ASSIGNED" && i.seatId === "necromancer")).toBe(true);
+      expect(result.issues.every((i) => i.seatId !== "necromancer" || i.code !== "PRESENT_SEAT_MISSING_WIZARD")).toBe(true);
     }
   });
 

@@ -236,9 +236,6 @@ function validatePactSeats(
     if (seatObj.status === "present" && seatObj.wizardId === null) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `pactSeats.${seatId}: status "present" requires a current wizard`);
     }
-    if (seatObj.status === "silent" && seatObj.wizardId === null) {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `pactSeats.${seatId}: status "silent" requires a current wizard`);
-    }
   }
 }
 

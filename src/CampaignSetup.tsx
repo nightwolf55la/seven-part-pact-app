@@ -398,9 +398,9 @@ function PactSeatRow({
 
   const hasWizard = seat.wizardId !== null;
 
-  // Status: Present/Silent require a wizard; Absent/null are always available
+  // Status: Present requires a wizard; Silent/Absent/null are always available
   const statusOptions = STATUS_OPTIONS.filter((opt) => {
-    if (opt.value === "present" || opt.value === "silent") return hasWizard;
+    if (opt.value === "present") return hasWizard;
     return true;
   });
 

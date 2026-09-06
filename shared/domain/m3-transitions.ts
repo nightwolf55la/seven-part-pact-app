@@ -434,8 +434,8 @@ export function applySetPactSeatStatus(
 
   const seat = state.pactSeats[seatId];
 
-  if ((status === "present" || status === "silent") && seat.wizardId === null) {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", `Cannot set status "${status}" on seat ${seatId}: no wizard assigned`);
+  if (status === "present" && seat.wizardId === null) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Cannot set status "present" on seat ${seatId}: no wizard assigned`);
   }
 
   const previousStatus = seat.status;

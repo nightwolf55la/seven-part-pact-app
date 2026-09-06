@@ -159,4 +159,16 @@ describe("validateCampaignState", () => {
       expect((e as DomainError).code).toBe("INVALID_CAMPAIGN_STATE");
     }
   });
+
+  it("accepts a V3 state with a silent seat and null wizardId", () => {
+    const state = validState();
+    (state as any).pactSeats.necromancer = { status: "silent", wizardId: null, watcherPlayerId: null };
+    expect(() => validateCampaignState(state)).not.toThrow();
+  });
+
+  it("rejects a V3 state with a present seat and null wizardId", () => {
+    const state = validState();
+    (state as any).pactSeats.necromancer = { status: "present", wizardId: null, watcherPlayerId: null };
+    expect(() => validateCampaignState(state)).toThrow(/present.*requires a current wizard/);
+  });
 });

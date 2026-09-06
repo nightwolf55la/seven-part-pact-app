@@ -407,3 +407,78 @@ describe("begin_play command infrastructure", () => {
     }
   });
 });
+
+describe("applyBeginPlay with unmodeled Silent seat", () => {
+  function buildStateWithUnmodeledSilent(): CurrentCampaignState {
+    let state = initialCampaignState();
+    const players = [P1, P2, P3, P4, P5, P6, P7];
+    for (let i = 0; i < players.length; i++) {
+      state = applyAddPlayer(state, players[i], `Player ${i + 1}`).nextState;
+    }
+    state = applySetCampaignAge(state, "awakening").nextState;
+    state = applySetFacilitator(state, P1).nextState;
+    state = applySetSetupMonth(state, 11 as MonthOrdinal).nextState;
+
+    for (const planetId of MOVABLE_PLANET_IDS) {
+      state = applySetSetupOrreryPosition(state, planetId, AWAKENING_INDICES[planetId]).nextState;
+    }
+
+    const seats: PactSeatId[] = [...PACT_SEAT_IDS];
+    for (let i = 0; i < seats.length; i++) {
+      const seatId = seats[i];
+      if (i < 6) {
+        state = applyCreateWizard(state, wizId(i + 1), `Wizard ${i + 1}`, players[i], seatId).nextState;
+        state = applySetPactSeatWizard(state, seatId, wizId(i + 1)).nextState;
+        state = applySetPactSeatStatus(state, seatId, "present").nextState;
+      } else {
+        state = applySetPactSeatStatus(state, seatId, "silent").nextState;
+      }
+      state = applySetWatcher(state, seatId, P1).nextState;
+    }
+    return state;
+  }
+
+  it("succeeds with 6 Present wizards and 1 unmodeled Silent seat", () => {
+    const setup = buildStateWithUnmodeledSilent();
+    const inits = makeWizardInits(PRESENT_WIZARD_IDS);
+    const result = applyBeginPlay(setup, { wizardInits: inits });
+    expect(result.nextState.lifecycle.kind).toBe("play");
+  });
+
+  it("initializes Time only for Present wizards (6 participants, not 7)", () => {
+    const setup = buildStateWithUnmodeledSilent();
+    const inits = makeWizardInits(PRESENT_WIZARD_IDS);
+    const result = applyBeginPlay(setup, { wizardInits: inits });
+    if (result.nextState.lifecycle.kind !== "play") throw new Error("unreachable");
+    expect(result.nextState.lifecycle.currentMonth.timeParticipants.length).toBe(6);
+  });
+
+  it("initializes Engagement only for Present wizards (6 engagements, not 7)", () => {
+    const setup = buildStateWithUnmodeledSilent();
+    const inits = makeWizardInits(PRESENT_WIZARD_IDS);
+    const result = applyBeginPlay(setup, { wizardInits: inits });
+    if (result.nextState.lifecycle.kind !== "play") throw new Error("unreachable");
+    expect(result.nextState.lifecycle.currentMonth.engagements.length).toBe(6);
+  });
+
+  it("does not require a wizard init for the anonymous Silent seat", () => {
+    const setup = buildStateWithUnmodeledSilent();
+    const inits = makeWizardInits(PRESENT_WIZARD_IDS);
+    expect(() => applyBeginPlay(setup, { wizardInits: inits })).not.toThrow();
+  });
+
+  it("does not create Wizardmoot participation for the anonymous Silent seat", () => {
+    const setup = buildStateWithUnmodeledSilent();
+    const inits = makeWizardInits(PRESENT_WIZARD_IDS);
+    const result = applyBeginPlay(setup, { wizardInits: inits });
+    if (result.nextState.lifecycle.kind !== "play") throw new Error("unreachable");
+    expect(result.nextState.lifecycle.currentMonth.wizardmootAttendance).toBeNull();
+  });
+
+  it("resulting state passes validateCampaignState", () => {
+    const setup = buildStateWithUnmodeledSilent();
+    const inits = makeWizardInits(PRESENT_WIZARD_IDS);
+    const result = applyBeginPlay(setup, { wizardInits: inits });
+    expect(() => validateCampaignState(result.nextState)).not.toThrow();
+  });
+});
