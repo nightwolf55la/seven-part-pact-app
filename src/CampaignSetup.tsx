@@ -3,7 +3,12 @@ import { api } from "../convex/_generated/api.js";
 import { useState } from "react";
 import { AGE_DEFINITIONS } from "../shared/domain/ages";
 import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
-import { wizardCreationDefaults } from "./setup-view-model";
+import {
+  wizardCreationDefaults,
+  eligiblePortrayingPlayersForNewWizard,
+  eligiblePortrayingPlayersForWizard,
+  isUnseatedWizardAssignableToSeat,
+} from "./setup-view-model";
 
 function generateCommandId(): string {
   return `cmd_${crypto.randomUUID()}`;
@@ -80,6 +85,9 @@ export default function CampaignSetup() {
       .filter((id): id is string => id !== null && id !== undefined),
   );
   const unassignedWizards = wizards.filter((w) => !assignedWizardIds.has(w.wizardId));
+  const assignableUnassignedWizards = unassignedWizards.filter((w) =>
+    isUnseatedWizardAssignableToSeat(pactSeats, wizards, w.wizardId),
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -228,7 +236,9 @@ export default function CampaignSetup() {
                 seat={seat}
                 currentWizard={currentWizard ?? null}
                 players={players}
-                unassignedWizards={unassignedWizards}
+                newWizardPlayers={eligiblePortrayingPlayersForNewWizard(players, pactSeats, wizards)}
+                portrayalPlayers={currentWizard ? eligiblePortrayingPlayersForWizard(players, pactSeats, wizards, currentWizard.wizardId) : players}
+                unassignedWizards={assignableUnassignedWizards}
                 disabled={pending}
                 onCreateWizard={(name, portrayedBy) => {
                   const defaults = wizardCreationDefaults({
@@ -386,6 +396,8 @@ function PactSeatRow({
   seat,
   currentWizard,
   players,
+  newWizardPlayers,
+  portrayalPlayers,
   unassignedWizards,
   disabled,
   onCreateWizard,
@@ -400,6 +412,8 @@ function PactSeatRow({
   seat: { status: string | null; wizardId: string | null; watcherPlayerId: string | null };
   currentWizard: { wizardId: string; name: string; portrayedByPlayerId: string | null } | null;
   players: { playerId: string; name: string }[];
+  newWizardPlayers: { playerId: string; name: string }[];
+  portrayalPlayers: { playerId: string; name: string }[];
   unassignedWizards: { wizardId: string; name: string; portrayedByPlayerId: string | null }[];
   disabled: boolean;
   onCreateWizard: (name: string, portrayedBy: string | null) => void;
@@ -497,7 +511,7 @@ function PactSeatRow({
               className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs text-slate-600 dark:text-slate-300"
             >
               <option value="">None</option>
-              {players.map((p) => (
+              {portrayalPlayers.map((p) => (
                 <option key={p.playerId} value={p.playerId}>
                   {p.name}
                 </option>
@@ -520,7 +534,7 @@ function PactSeatRow({
             className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs"
           >
             <option value="">No player</option>
-            {players.map((p) => (
+            {newWizardPlayers.map((p) => (
               <option key={p.playerId} value={p.playerId}>
                 {p.name}
               </option>

@@ -9,6 +9,7 @@ import {
   legalPositionsForPlanet,
 } from "../shared/domain/orrery";
 import { getFixedAgePresetIndices } from "../shared/domain/age-setup";
+import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
 
 export type DominionSeasonId = "spring" | "summer" | "autumn" | "winter";
 
@@ -113,4 +114,83 @@ export function wizardCreationDefaults(
     applyWatcherDefault,
     defaultWatcherPlayerId: applyWatcherDefault ? input.portrayedByPlayerId : null,
   };
+}
+
+// --- Portrayal eligibility helpers ---
+
+export interface SetupPlayer {
+  readonly playerId: string;
+  readonly name: string;
+}
+
+export interface SetupWizard {
+  readonly wizardId: string;
+  readonly name: string;
+  readonly portrayedByPlayerId: string | null;
+}
+
+export interface SetupPactSeat {
+  readonly status: string | null;
+  readonly wizardId: string | null;
+  readonly watcherPlayerId: string | null;
+}
+
+export type SetupPactSeats = Record<string, SetupPactSeat>;
+
+export function playerIdsPortrayingSeatedWizards(
+  pactSeats: SetupPactSeats,
+  wizards: readonly SetupWizard[],
+): Set<string> {
+  const result = new Set<string>();
+  for (const seatId of PACT_SEAT_IDS) {
+    const seat = pactSeats[seatId];
+    if (seat && seat.wizardId !== null) {
+      const wizard = wizards.find((w) => w.wizardId === seat.wizardId);
+      if (wizard && wizard.portrayedByPlayerId !== null) {
+        result.add(wizard.portrayedByPlayerId);
+      }
+    }
+  }
+  return result;
+}
+
+export function eligiblePortrayingPlayersForNewWizard(
+  players: readonly SetupPlayer[],
+  pactSeats: SetupPactSeats,
+  wizards: readonly SetupWizard[],
+): SetupPlayer[] {
+  const used = playerIdsPortrayingSeatedWizards(pactSeats, wizards);
+  return players.filter((p) => !used.has(p.playerId));
+}
+
+export function eligiblePortrayingPlayersForWizard(
+  players: readonly SetupPlayer[],
+  pactSeats: SetupPactSeats,
+  wizards: readonly SetupWizard[],
+  wizardId: string,
+): SetupPlayer[] {
+  const used = playerIdsPortrayingSeatedWizards(pactSeats, wizards);
+  const ownWizard = wizards.find((w) => w.wizardId === wizardId);
+  const ownPortrayer = ownWizard?.portrayedByPlayerId ?? null;
+  return players.filter((p) => p.playerId === ownPortrayer || !used.has(p.playerId));
+}
+
+export function isUnseatedWizardAssignableToSeat(
+  pactSeats: SetupPactSeats,
+  wizards: readonly SetupWizard[],
+  wizardId: string,
+): boolean {
+  const wizard = wizards.find((w) => w.wizardId === wizardId);
+  if (!wizard) return false;
+  if (wizard.portrayedByPlayerId === null) return true;
+  for (const seatId of PACT_SEAT_IDS) {
+    const seat = pactSeats[seatId];
+    if (seat && seat.wizardId !== null && seat.wizardId !== wizardId) {
+      const seatedWizard = wizards.find((w) => w.wizardId === seat.wizardId);
+      if (seatedWizard && seatedWizard.portrayedByPlayerId === wizard.portrayedByPlayerId) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
