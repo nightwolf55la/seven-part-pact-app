@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   validateCampaignState,
   applyBeginPlay,
+  applyAdvancePhase,
   advanceAllPlanets,
   DomainError,
   beginPlayFingerprint,
@@ -24,6 +25,7 @@ import {
   isValidAllocationId,
   isValidEngagementId,
 } from "../shared/domain";
+import type { AdvancePhaseInput } from "../shared/domain";
 import type {
   CurrentCampaignState,
   WizardInitIds,
@@ -405,5 +407,106 @@ describe("begin_play command infrastructure", () => {
       expect(ids.has(eid)).toBe(false);
       ids.add(eid);
     }
+  });
+});
+
+describe("applyBeginPlay with unmodeled Silent seat", () => {
+  function buildStateWithUnmodeledSilent(): CurrentCampaignState {
+    let state = initialCampaignState();
+    const players = [P1, P2, P3, P4, P5, P6, P7];
+    for (let i = 0; i < players.length; i++) {
+      state = applyAddPlayer(state, players[i], `Player ${i + 1}`).nextState;
+    }
+    state = applySetCampaignAge(state, "awakening").nextState;
+    state = applySetFacilitator(state, P1).nextState;
+    state = applySetSetupMonth(state, 11 as MonthOrdinal).nextState;
+
+    for (const planetId of MOVABLE_PLANET_IDS) {
+      state = applySetSetupOrreryPosition(state, planetId, AWAKENING_INDICES[planetId]).nextState;
+    }
+
+    const seats: PactSeatId[] = [...PACT_SEAT_IDS];
+    for (let i = 0; i < seats.length; i++) {
+      const seatId = seats[i];
+      if (i < 6) {
+        state = applyCreateWizard(state, wizId(i + 1), `Wizard ${i + 1}`, players[i], seatId).nextState;
+        state = applySetPactSeatWizard(state, seatId, wizId(i + 1)).nextState;
+        state = applySetPactSeatStatus(state, seatId, "present").nextState;
+      } else {
+        state = applySetPactSeatStatus(state, seatId, "silent").nextState;
+      }
+      state = applySetWatcher(state, seatId, P1).nextState;
+    }
+    return state;
+  }
+
+  it("succeeds with 6 Present wizards and 1 unmodeled Silent seat", () => {
+    const setup = buildStateWithUnmodeledSilent();
+    const inits = makeWizardInits(PRESENT_WIZARD_IDS);
+    const result = applyBeginPlay(setup, { wizardInits: inits });
+    expect(result.nextState.lifecycle.kind).toBe("play");
+  });
+
+  it("initializes Time only for Present wizards (6 participants, not 7)", () => {
+    const setup = buildStateWithUnmodeledSilent();
+    const inits = makeWizardInits(PRESENT_WIZARD_IDS);
+    const result = applyBeginPlay(setup, { wizardInits: inits });
+    if (result.nextState.lifecycle.kind !== "play") throw new Error("unreachable");
+    expect(result.nextState.lifecycle.currentMonth.timeParticipants.length).toBe(6);
+  });
+
+  it("initializes Engagement only for Present wizards (6 engagements, not 7)", () => {
+    const setup = buildStateWithUnmodeledSilent();
+    const inits = makeWizardInits(PRESENT_WIZARD_IDS);
+    const result = applyBeginPlay(setup, { wizardInits: inits });
+    if (result.nextState.lifecycle.kind !== "play") throw new Error("unreachable");
+    expect(result.nextState.lifecycle.currentMonth.engagements.length).toBe(6);
+  });
+
+  it("does not require a wizard init for the anonymous Silent seat", () => {
+    const setup = buildStateWithUnmodeledSilent();
+    const inits = makeWizardInits(PRESENT_WIZARD_IDS);
+    expect(() => applyBeginPlay(setup, { wizardInits: inits })).not.toThrow();
+  });
+
+  function forceAdvancePhase(state: CurrentCampaignState, input: AdvancePhaseInput): CurrentCampaignState {
+    const r = applyAdvancePhase(state, input);
+    if (r.outcome === "applied") return r.nextState;
+    const ackKeys = r.warnings.map((w) => w.key);
+    const r2 = applyAdvancePhase(state, { ...input, acknowledgedWarningKeys: ackKeys });
+    if (r2.outcome === "applied") return r2.nextState;
+    throw new Error("Unexpected warnings after acknowledgement");
+  }
+
+  it("Story -> Meeting initializes Wizardmoot attendance with exactly the 6 Present wizards, not the anonymous Silent seat", () => {
+    const setup = buildStateWithUnmodeledSilent();
+    const inits = makeWizardInits(PRESENT_WIZARD_IDS);
+    const play = applyBeginPlay(setup, { wizardInits: inits }).nextState;
+    if (play.lifecycle.kind !== "play") throw new Error("unreachable");
+    const month = play.calendar.monthOrdinal as MonthOrdinal;
+
+    const visions = forceAdvancePhase(play, { expectedMonthOrdinal: month, expectedPhase: "new_moon" });
+    const planning = forceAdvancePhase(visions, { expectedMonthOrdinal: month, expectedPhase: "visions" });
+    const story = forceAdvancePhase(planning, { expectedMonthOrdinal: month, expectedPhase: "planning" });
+    const meeting = forceAdvancePhase(story, { expectedMonthOrdinal: month, expectedPhase: "story" });
+
+    if (meeting.lifecycle.kind !== "play") throw new Error("unreachable");
+    expect(meeting.lifecycle.phase).toBe("meeting");
+
+    const attendance = meeting.lifecycle.currentMonth.wizardmootAttendance;
+    expect(attendance).not.toBeNull();
+    if (attendance === null) throw new Error("unreachable");
+
+    expect(attendance.length).toBe(6);
+    const attendanceWizardIds = attendance.map((a: { wizardId: WizardId }) => a.wizardId);
+    expect(attendanceWizardIds).toEqual(PRESENT_WIZARD_IDS);
+    expect(attendanceWizardIds).not.toContain(SILENT_WIZARD_ID);
+  });
+
+  it("resulting state passes validateCampaignState", () => {
+    const setup = buildStateWithUnmodeledSilent();
+    const inits = makeWizardInits(PRESENT_WIZARD_IDS);
+    const result = applyBeginPlay(setup, { wizardInits: inits });
+    expect(() => validateCampaignState(result.nextState)).not.toThrow();
   });
 });

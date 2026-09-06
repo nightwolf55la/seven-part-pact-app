@@ -122,9 +122,17 @@ describe("M3 State Validation", () => {
     expect(() => applySetPactSeatStatus(state, "necromancer" as PactSeatId, "present")).toThrow(/no wizard assigned/);
   });
 
-  it("rejects silent status without wizard", () => {
+  it("allows silent status without wizard (unmodeled silent seat)", () => {
     const state = emptyState();
-    expect(() => applySetPactSeatStatus(state, "necromancer" as PactSeatId, "silent")).toThrow(/no wizard assigned/);
+    expect(() => applySetPactSeatStatus(state, "necromancer" as PactSeatId, "silent")).not.toThrow();
+  });
+
+  it("preserves existing wizardId when changing status to silent", () => {
+    const { state } = stateWithWizard();
+    const withPresent = applySetPactSeatStatus(state, "necromancer" as PactSeatId, "present").nextState;
+    const result = applySetPactSeatStatus(withPresent, "necromancer" as PactSeatId, "silent");
+    expect(result.nextState.pactSeats.necromancer.status).toBe("silent");
+    expect(result.nextState.pactSeats.necromancer.wizardId).toBe("wiz_00000000-0000-0000-0000-000000000001" as WizardId);
   });
 
   it("allows absent status without wizard", () => {

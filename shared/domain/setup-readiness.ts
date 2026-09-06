@@ -16,7 +16,6 @@ export type SetupReadinessIssueCode =
   | "ORRERY_POSITION_NOT_SET"
   | "SEAT_STATUS_NOT_CLASSIFIED"
   | "PRESENT_SEAT_MISSING_WIZARD"
-  | "SILENT_SEAT_MISSING_WIZARD"
   | "PRESENT_WIZARD_MISSING_PORTRAYAL"
   | "WATCHER_NOT_ASSIGNED"
   | "PLAYER_PORTRAYS_MULTIPLE_PRESENT_WIZARDS"
@@ -109,14 +108,12 @@ export function evaluateSetupReadiness(state: CurrentCampaignState): SetupReadin
       });
     }
 
-    if (seat.status === "present" || seat.status === "silent") {
-      if (seat.wizardId === null) {
-        issues.push({
-          code: seat.status === "present" ? "PRESENT_SEAT_MISSING_WIZARD" : "SILENT_SEAT_MISSING_WIZARD",
-          message: `Pact seat ${seatId} with status "${seat.status}" must have an assigned wizard`,
-          seatId,
-        });
-      }
+    if (seat.status === "present" && seat.wizardId === null) {
+      issues.push({
+        code: "PRESENT_SEAT_MISSING_WIZARD",
+        message: `Pact seat ${seatId} with status "present" must have an assigned wizard`,
+        seatId,
+      });
     }
 
     if (seat.status === "present" && seat.wizardId !== null) {

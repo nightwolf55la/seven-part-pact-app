@@ -1,16 +1,16 @@
-import { buildOrreryDisplayModel, arcSvgAngles, centidegreesToSvgAngle } from "./orrery-view-model";
-import type { OrreryDisplayModel, PlanetDisplayInfo } from "./orrery-view-model";
-import { MOVABLE_PLANET_IDS, PLANET_DEFINITIONS, FULL_CIRCLE_CENTIDEGREES } from "../shared/domain/orrery";
-import type { MovablePlanetId, CentidegreePosition, HouseIndex } from "../shared/domain/orrery";
+import { useState, useMemo } from "react";
+import { buildOrreryDisplayModel, arcSvgAngles, centidegreesToSvgAngle, sunDisplaySvgAngle, bodiesConjunctWith, occupiedHousesOfBody, buildBodyHoverSummary, buildBodyIndexedConjunctionReference, buildHouseHoverSummary, BODY_DISPLAY_SYMBOLS } from "./orrery-view-model";
+import type { OrreryDisplayModel, BodyHoverSummary, BodyIndexedConjunctionEntry, HouseHoverSummary } from "./orrery-view-model";
+import { MOVABLE_PLANET_IDS, PLANET_DEFINITIONS, FULL_CIRCLE_CENTIDEGREES, HOUSE_WIDTH_CENTIDEGREES, HOUSE_NAMES, legalPositionsForPlanet, CELESTIAL_BODY_IDS } from "../shared/domain/orrery";
+import type { MovablePlanetId, CentidegreePosition, HouseIndex, CelestialBodyId } from "../shared/domain/orrery";
 import type { MonthOrdinal } from "../shared/domain/calendar";
-import { HOUSE_NAMES } from "../shared/domain/orrery";
 
 const PLANET_COLORS: Record<MovablePlanetId, string> = {
-  saturn: "#8b6f47",
-  jupiter: "#d4a843",
-  mars: "#c44536",
-  venus: "#5b9aa0",
-  mercury: "#a8a8a8",
+  saturn: "#1a1a1a",
+  jupiter: "#d97706",
+  mars: "#dc2626",
+  venus: "#16a34a",
+  mercury: "#7c3aed",
 };
 
 const PLANET_LABELS: Record<MovablePlanetId, string> = {
@@ -21,12 +21,53 @@ const PLANET_LABELS: Record<MovablePlanetId, string> = {
   mercury: "Mercury",
 };
 
-const SVG_SIZE = 320;
-const SVG_CENTER = SVG_SIZE / 2;
-const HOUSE_OUTER_R = 150;
-const HOUSE_INNER_R = 130;
-const PLANET_TRACK_BASE_R = 120;
-const PLANET_TRACK_GAP = 18;
+const PLANET_SYMBOLS: Record<MovablePlanetId, string> = {
+  saturn: "♄",
+  jupiter: "♃",
+  mars: "♂",
+  venus: "♀",
+  mercury: "☿",
+};
+
+const TRACK_TINTS: Record<MovablePlanetId, string> = {
+  saturn: "#2a2a2a",
+  jupiter: "#fef3c7",
+  mars: "#fee2e2",
+  venus: "#dcfce7",
+  mercury: "#ede9fe",
+};
+
+const TRACK_TICK_COLORS: Record<MovablePlanetId, string> = {
+  saturn: "#e2e8f0",
+  jupiter: "#b45309",
+  mars: "#991b1b",
+  venus: "#15803d",
+  mercury: "#6d28d9",
+};
+
+const TRACK_BOUNDARY_COLORS: Record<MovablePlanetId, string> = {
+  saturn: "#64748b",
+  jupiter: "#cbd5e1",
+  mars: "#cbd5e1",
+  venus: "#cbd5e1",
+  mercury: "#cbd5e1",
+};
+
+const SVG_VIEWBOX = 580;
+const SVG_CENTER = SVG_VIEWBOX / 2;
+const HOUSE_OUTER_R = 245;
+const HOUSE_INNER_R = 205;
+const LABEL_R = 225;
+const SUN_R = 268;
+const TRACK_BAND_WIDTH = 28;
+const TRACK_GAP = 4;
+const PLANET_TRACK_BASE_R = 192;
+const PLANET_TRACK_INNERMOST_R = PLANET_TRACK_BASE_R - (MOVABLE_PLANET_IDS.length - 1) * (TRACK_BAND_WIDTH + TRACK_GAP) - TRACK_BAND_WIDTH;
+
+type HoverTarget =
+  | { type: "body"; bodyId: CelestialBodyId }
+  | { type: "house"; houseIndex: HouseIndex }
+  | null;
 
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = (angleDeg - 90) * (Math.PI / 180);
@@ -36,11 +77,34 @@ function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   };
 }
 
-function describeArc(cx: number, cy: number, r: number, startAngle: number, endAngle: number, largeArc: boolean) {
+function describeArcPath(cx: number, cy: number, r: number, startAngle: number, endAngle: number, largeArc: boolean) {
   const start = polarToCartesian(cx, cy, r, endAngle);
   const end = polarToCartesian(cx, cy, r, startAngle);
   const sweep = endAngle > startAngle;
   return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc ? 1 : 0} ${sweep ? 0 : 1} ${end.x} ${end.y}`;
+}
+
+function describeWedgePath(cx: number, cy: number, innerR: number, outerR: number, startAngle: number, endAngle: number) {
+  const outerStart = polarToCartesian(cx, cy, outerR, startAngle);
+  const outerEnd = polarToCartesian(cx, cy, outerR, endAngle);
+  const innerStart = polarToCartesian(cx, cy, innerR, startAngle);
+  const innerEnd = polarToCartesian(cx, cy, innerR, endAngle);
+  const largeArc = endAngle - startAngle > 180;
+  return [
+    `M ${innerStart.x} ${innerStart.y}`,
+    `L ${outerStart.x} ${outerStart.y}`,
+    `A ${outerR} ${outerR} 0 ${largeArc ? 1 : 0} 1 ${outerEnd.x} ${outerEnd.y}`,
+    `L ${innerEnd.x} ${innerEnd.y}`,
+    `A ${innerR} ${innerR} 0 ${largeArc ? 1 : 0} 0 ${innerStart.x} ${innerStart.y}`,
+    "Z",
+  ].join(" ");
+}
+
+function trackRadii(idx: number): { innerR: number; outerR: number; midR: number } {
+  const outerR = PLANET_TRACK_BASE_R - idx * (TRACK_BAND_WIDTH + TRACK_GAP);
+  const innerR = outerR - TRACK_BAND_WIDTH;
+  const midR = (innerR + outerR) / 2;
+  return { innerR, outerR, midR };
 }
 
 export default function OrreryView({
@@ -55,14 +119,89 @@ export default function OrreryView({
     positions[p] = orreryPositions[p] as CentidegreePosition;
   }
 
-  const model = buildOrreryDisplayModel(monthOrdinal as MonthOrdinal, positions);
-  const sunAngle = centidegreesToSvgAngle(model.sun.position);
-  const sunPoint = polarToCartesian(
-    SVG_CENTER,
-    SVG_CENTER,
-    (HOUSE_OUTER_R + HOUSE_INNER_R) / 2,
-    sunAngle,
+  const model = useMemo(
+    () => buildOrreryDisplayModel(monthOrdinal as MonthOrdinal, positions),
+    [monthOrdinal, orreryPositions],
   );
+
+  const [hoverTarget, setHoverTarget] = useState<HoverTarget>(null);
+
+  const hoveredBody = hoverTarget?.type === "body" ? hoverTarget.bodyId : null;
+  const hoveredHouse = hoverTarget?.type === "house" ? hoverTarget.houseIndex : null;
+
+  const conjunctWithHovered = useMemo(() => {
+    if (hoveredBody === null) return new Set<CelestialBodyId>();
+    return new Set(bodiesConjunctWith(model.conjunctions, hoveredBody));
+  }, [hoveredBody, model.conjunctions]);
+
+  const conjunctHousesForHovered = useMemo(() => {
+    if (hoveredBody === null) return new Set<HouseIndex>();
+    const houses = new Set<HouseIndex>();
+    for (const c of model.conjunctions) {
+      if (c.bodyA === hoveredBody || c.bodyB === hoveredBody) {
+        for (const name of c.sharedHouseNames) {
+          const idx = HOUSE_NAMES.indexOf(name);
+          if (idx >= 0) houses.add(idx as HouseIndex);
+        }
+      }
+    }
+    return houses;
+  }, [hoveredBody, model.conjunctions]);
+
+  const occupiedHousesForHovered = useMemo(() => {
+    if (hoveredBody === null) return new Set<HouseIndex>();
+    return new Set(occupiedHousesOfBody(model, hoveredBody));
+  }, [hoveredBody, model]);
+
+  const bodiesInHoveredHouse = useMemo(() => {
+    if (hoveredHouse === null) return new Set<CelestialBodyId>();
+    const summary = buildHouseHoverSummary(model, hoveredHouse);
+    return new Set(summary.bodyIds);
+  }, [hoveredHouse, model]);
+
+  const hoverSummary = useMemo(() => {
+    if (hoveredBody === null) return null;
+    return buildBodyHoverSummary(model, hoveredBody);
+  }, [hoveredBody, model]);
+
+  const houseHoverSummary = useMemo(() => {
+    if (hoveredHouse === null) return null;
+    return buildHouseHoverSummary(model, hoveredHouse);
+  }, [hoveredHouse, model]);
+
+  const idleReference = useMemo(
+    () => buildBodyIndexedConjunctionReference(model),
+    [model],
+  );
+
+  const sunAngle = sunDisplaySvgAngle(monthOrdinal as MonthOrdinal);
+  const sunPoint = polarToCartesian(SVG_CENTER, SVG_CENTER, SUN_R, sunAngle);
+
+  const isBodyEmphasized = (bodyId: CelestialBodyId): boolean => {
+    if (hoverTarget === null) return true;
+    if (hoveredBody !== null) return hoveredBody === bodyId || conjunctWithHovered.has(bodyId);
+    if (hoveredHouse !== null) return bodiesInHoveredHouse.has(bodyId);
+    return true;
+  };
+
+  const isHouseConjunction = (houseIndex: HouseIndex): boolean => {
+    if (hoveredBody === null) return false;
+    return conjunctHousesForHovered.has(houseIndex);
+  };
+
+  const isHouseOccupied = (houseIndex: HouseIndex): boolean => {
+    if (hoveredBody === null) return false;
+    return occupiedHousesForHovered.has(houseIndex);
+  };
+
+  const isHouseHovered = (houseIndex: HouseIndex): boolean => {
+    return hoveredHouse === houseIndex;
+  };
+
+  const bodyOpacity = (bodyId: CelestialBodyId): number => {
+    if (hoverTarget === null) return 1;
+    return isBodyEmphasized(bodyId) ? 1 : 0.25;
+  };
 
   return (
     <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 flex flex-col gap-4">
@@ -70,37 +209,74 @@ export default function OrreryView({
         Orrery
       </h3>
       <div className="flex justify-center">
-        <svg width={SVG_SIZE} height={SVG_SIZE} viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`} className="max-w-full">
-          {/* House sectors */}
+        <svg
+          viewBox={`0 0 ${SVG_VIEWBOX} ${SVG_VIEWBOX}`}
+          className="w-full max-w-[800px] aspect-square"
+          role="img"
+          aria-label="Orrery showing the 12 Houses, Sun position, and planet Arcs"
+        >
+          {/* House ring sectors */}
           {model.houses.map((house) => {
-            const startAngle = centidegreesToSvgAngle(house.index * 3000);
-            const endAngle = centidegreesToSvgAngle((house.index + 1) * 3000);
+            const startAngle = centidegreesToSvgAngle(house.index * HOUSE_WIDTH_CENTIDEGREES);
+            const endAngle = centidegreesToSvgAngle((house.index + 1) * HOUSE_WIDTH_CENTIDEGREES);
             const isSunHouse = house.hasSun;
+            const isConjunction = isHouseConjunction(house.index);
+            const isOccupied = isHouseOccupied(house.index);
+            const isHoveredHouse = isHouseHovered(house.index);
             const midAngle = (startAngle + endAngle) / 2;
-            const labelPos = polarToCartesian(SVG_CENTER, SVG_CENTER, HOUSE_OUTER_R + 12, midAngle);
+            const labelPos = polarToCartesian(SVG_CENTER, SVG_CENTER, LABEL_R, midAngle);
+
+            const fillColor = isHoveredHouse
+              ? "#e0f2fe"
+              : isOccupied
+                ? "#e0f2fe"
+                : isSunHouse && hoverTarget === null
+                  ? "#fef3c7"
+                  : house.index % 2 === 0
+                    ? "#f8fafc"
+                    : "#f1f5f9";
+
             return (
               <g key={house.index}>
                 <path
-                  d={describeArc(SVG_CENTER, SVG_CENTER, HOUSE_OUTER_R, startAngle, endAngle, false)}
-                  fill={isSunHouse ? "#fef3c7" : "#f8fafc"}
+                  d={describeWedgePath(SVG_CENTER, SVG_CENTER, HOUSE_INNER_R, HOUSE_OUTER_R, startAngle, endAngle)}
+                  fill={fillColor}
                   stroke="#cbd5e1"
-                  strokeWidth={0.5}
+                  strokeWidth={0.75}
+                  className="dark:stroke-slate-600"
+                  onMouseEnter={() => setHoverTarget({ type: "house", houseIndex: house.index })}
+                  onMouseLeave={() => setHoverTarget(null)}
+                  onFocus={() => setHoverTarget({ type: "house", houseIndex: house.index })}
+                  onBlur={() => setHoverTarget(null)}
+                  tabIndex={0}
+                  role="img"
+                  aria-label={`${house.name} (${house.monthDisplayName})`}
+                  style={{ cursor: "pointer", outline: "none" }}
                 />
-		<text
+                {isConjunction && (
+                  <path
+                    d={describeArcPath(SVG_CENTER, SVG_CENTER, HOUSE_INNER_R, startAngle, endAngle, false)}
+                    fill="none"
+                    stroke="#d97706"
+                    strokeWidth={3}
+                    strokeLinecap="butt"
+                    pointerEvents="none"
+                  />
+                )}
+                <text
                   x={labelPos.x}
                   y={labelPos.y}
                   textAnchor="middle"
                   dominantBaseline="middle"
-                  className="fill-slate-500 dark:fill-slate-400"
-                  style={{ fontSize: 8, fontWeight: 600 }}
+                  className="fill-slate-600 dark:fill-slate-300"
+                  style={{ fontSize: 12.5, fontWeight: 600, pointerEvents: "none" }}
                 >
-                  <tspan x={labelPos.x} dy="-0.3em">
-                    {house.name}
-                  </tspan>
+                  <tspan x={labelPos.x} dy="-0.35em">{house.name}</tspan>
                   <tspan
                     x={labelPos.x}
-                    dy="1.15em"
-                    style={{ fontSize: 6, fontWeight: 500 }}
+                    dy="1.2em"
+                    className="fill-slate-400 dark:fill-slate-500"
+                    style={{ fontSize: 9.5, fontWeight: 500 }}
                   >
                     {house.monthDisplayName}
                   </tspan>
@@ -109,54 +285,194 @@ export default function OrreryView({
             );
           })}
 
-          {/* Inner circle */}
-          <circle cx={SVG_CENTER} cy={SVG_CENTER} r={HOUSE_INNER_R} fill="none" stroke="#e2e8f0" strokeWidth={0.5} />
-
-          {/* Sun indicator */}
-	  <circle
-            cx={sunPoint.x}
-            cy={sunPoint.y}
-            r={5}
-            fill="#f59e0b"
-            stroke="#b45309"
-            strokeWidth={1}
-          />
-          <text
-            x={sunPoint.x}
-            y={sunPoint.y - 8}
-            textAnchor="middle"
-            className="fill-amber-700 dark:fill-amber-400"
-            style={{ fontSize: 7, fontWeight: 700 }}
-          >
-            Sun
-          </text>
-
-          {/* Planet arcs */}
-          {model.planets.map((planet, idx) => {
-            const trackR = PLANET_TRACK_BASE_R - idx * PLANET_TRACK_GAP;
-            const { startAngle, endAngle, largeArc } = arcSvgAngles(planet.arcStart, planet.arcLength);
+          {/* Planet track bands: drawn as concentric circles */}
+          {MOVABLE_PLANET_IDS.map((planetId, idx) => {
+            const { innerR, outerR, midR } = trackRadii(idx);
+            const legalPositions = legalPositionsForPlanet(planetId);
             return (
-              <g key={planet.planetId}>
-                <path
-                  d={describeArc(SVG_CENTER, SVG_CENTER, trackR, startAngle, endAngle, largeArc)}
-                  fill="none"
-                  stroke={PLANET_COLORS[planet.planetId]}
-                  strokeWidth={3}
-                  strokeLinecap="round"
-                />
+              <g key={`band-${planetId}`}>
+                {/* Band background: broad stroke at midR with planet tint */}
                 <circle
-                  cx={polarToCartesian(SVG_CENTER, SVG_CENTER, trackR, startAngle).x}
-                  cy={polarToCartesian(SVG_CENTER, SVG_CENTER, trackR, startAngle).y}
-                  r={2.5}
-                  fill={PLANET_COLORS[planet.planetId]}
+                  cx={SVG_CENTER}
+                  cy={SVG_CENTER}
+                  r={midR}
+                  fill="none"
+                  stroke={TRACK_TINTS[planetId]}
+                  strokeWidth={TRACK_BAND_WIDTH}
+                  opacity={hoverTarget === null ? 1 : 0.6}
                 />
+                {/* Inner boundary */}
+                <circle
+                  cx={SVG_CENTER}
+                  cy={SVG_CENTER}
+                  r={innerR}
+                  fill="none"
+                  stroke={TRACK_BOUNDARY_COLORS[planetId]}
+                  strokeWidth={0.8}
+                  className="dark:stroke-slate-600"
+                  opacity={hoverTarget === null ? 0.8 : 0.5}
+                />
+                {/* Outer boundary */}
+                <circle
+                  cx={SVG_CENTER}
+                  cy={SVG_CENTER}
+                  r={outerR}
+                  fill="none"
+                  stroke={TRACK_BOUNDARY_COLORS[planetId]}
+                  strokeWidth={0.8}
+                  className="dark:stroke-slate-600"
+                  opacity={hoverTarget === null ? 0.8 : 0.5}
+                />
+                {/* Subdivision ticks at legal positions */}
+                {legalPositions.map((pos, pi) => {
+                  const tickAngle = centidegreesToSvgAngle(pos);
+                  const tickStart = polarToCartesian(SVG_CENTER, SVG_CENTER, innerR, tickAngle);
+                  const tickEnd = polarToCartesian(SVG_CENTER, SVG_CENTER, outerR, tickAngle);
+                  return (
+                    <line
+                      key={`tick-${planetId}-${pi}`}
+                      x1={tickStart.x}
+                      y1={tickStart.y}
+                      x2={tickEnd.x}
+                      y2={tickEnd.y}
+                      stroke={TRACK_TICK_COLORS[planetId]}
+                      strokeWidth={0.6}
+                      opacity={hoverTarget === null ? 0.55 : 0.3}
+                    />
+                  );
+                })}
               </g>
             );
           })}
+
+          {/* House boundary radial grid: stronger lines through all tracks */}
+          {model.houses.map((house) => {
+            const boundaryAngle = centidegreesToSvgAngle(house.index * HOUSE_WIDTH_CENTIDEGREES);
+            const innerEnd = polarToCartesian(SVG_CENTER, SVG_CENTER, PLANET_TRACK_INNERMOST_R, boundaryAngle);
+            const outerEnd = polarToCartesian(SVG_CENTER, SVG_CENTER, HOUSE_INNER_R, boundaryAngle);
+            return (
+              <line
+                key={`house-grid-${house.index}`}
+                x1={innerEnd.x}
+                y1={innerEnd.y}
+                x2={outerEnd.x}
+                y2={outerEnd.y}
+                stroke="#64748b"
+                strokeWidth={1.2}
+                className="dark:stroke-slate-400"
+                opacity={hoverTarget === null ? 0.55 : 0.35}
+                pointerEvents="none"
+              />
+            );
+          })}
+
+          {/* Planet arcs with hover targets */}
+          {model.planets.map((planet, idx) => {
+            const { midR } = trackRadii(idx);
+            const { startAngle, endAngle, largeArc } = arcSvgAngles(planet.arcStart, planet.arcLength);
+            const opacity = bodyOpacity(planet.planetId);
+            const isEmphasized = isBodyEmphasized(planet.planetId);
+            const midAngle = (startAngle + endAngle) / 2;
+            const labelPos = polarToCartesian(SVG_CENTER, SVG_CENTER, midR, midAngle);
+            return (
+              <g
+                key={planet.planetId}
+                opacity={opacity}
+                onMouseEnter={() => setHoverTarget({ type: "body", bodyId: planet.planetId })}
+                onMouseLeave={() => setHoverTarget(null)}
+                onFocus={() => setHoverTarget({ type: "body", bodyId: planet.planetId })}
+                onBlur={() => setHoverTarget(null)}
+                tabIndex={0}
+                role="button"
+                aria-label={`${PLANET_LABELS[planet.planetId]} arc in ${planet.occupiedHouseNames.join(", ")}`}
+                style={{ cursor: "pointer" }}
+              >
+                {/* Invisible wider hit target */}
+                <path
+                  d={describeArcPath(SVG_CENTER, SVG_CENTER, midR, startAngle, endAngle, largeArc)}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth={22}
+                  pointerEvents="stroke"
+                />
+                {/* Saturn-only pale keyline behind the black Arc for contrast */}
+                {planet.planetId === "saturn" && (
+                  <path
+                    d={describeArcPath(SVG_CENTER, SVG_CENTER, midR, startAngle, endAngle, largeArc)}
+                    fill="none"
+                    stroke="#e2e8f0"
+                    strokeWidth={(isEmphasized && hoverTarget !== null ? 15 : 12) + 3}
+                    strokeLinecap="butt"
+                  />
+                )}
+                {/* Visible arc */}
+                <path
+                  d={describeArcPath(SVG_CENTER, SVG_CENTER, midR, startAngle, endAngle, largeArc)}
+                  fill="none"
+                  stroke={PLANET_COLORS[planet.planetId]}
+                  strokeWidth={isEmphasized && hoverTarget !== null ? 15 : 12}
+                  strokeLinecap="butt"
+                />
+                {/* Planet symbol on track */}
+                <text
+                  x={labelPos.x}
+                  y={labelPos.y}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  className="fill-slate-700 dark:fill-slate-200"
+                  style={{ fontSize: 12, fontWeight: 700, paintOrder: "stroke", pointerEvents: "none" }}
+                  stroke="white"
+                  strokeWidth={3}
+                >
+                  {PLANET_SYMBOLS[planet.planetId]}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Sun indicator — outside the House ring, pure SVG geometry */}
+          <g
+            onMouseEnter={() => setHoverTarget({ type: "body", bodyId: "sun" })}
+            onMouseLeave={() => setHoverTarget(null)}
+            onFocus={() => setHoverTarget({ type: "body", bodyId: "sun" })}
+            onBlur={() => setHoverTarget(null)}
+            tabIndex={0}
+            role="button"
+            aria-label={`Sun in ${model.sun.houseName}`}
+            style={{ cursor: "pointer" }}
+            opacity={bodyOpacity("sun")}
+          >
+            {/* Halo */}
+            <circle
+              cx={sunPoint.x}
+              cy={sunPoint.y}
+              r={isBodyEmphasized("sun") && hoverTarget !== null ? 19 : 17}
+              fill="none"
+              stroke="#f59e0b"
+              strokeWidth={1.5}
+              opacity={0.4}
+            />
+            {/* Main body */}
+            <circle
+              cx={sunPoint.x}
+              cy={sunPoint.y}
+              r={isBodyEmphasized("sun") && hoverTarget !== null ? 14 : 12}
+              fill="#f59e0b"
+              stroke="#b45309"
+              strokeWidth={2}
+            />
+            {/* Center dot */}
+            <circle
+              cx={sunPoint.x}
+              cy={sunPoint.y}
+              r={2.5}
+              fill="#7c2d12"
+            />
+          </g>
         </svg>
       </div>
 
-      {/* Planet legend */}
+      {/* Planet legend with symbols */}
       <div className="flex flex-wrap gap-3 justify-center">
         {model.planets.map((planet) => (
           <div key={planet.planetId} className="flex items-center gap-1.5">
@@ -164,35 +480,100 @@ export default function OrreryView({
               className="inline-block w-3 h-3 rounded-full"
               style={{ backgroundColor: PLANET_COLORS[planet.planetId] }}
             />
-            <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
-              {PLANET_LABELS[planet.planetId]}
+            <span className="text-sm text-slate-600 dark:text-slate-400 font-medium">
+              {PLANET_SYMBOLS[planet.planetId]} {PLANET_LABELS[planet.planetId]}
             </span>
-            <span className="text-xs text-slate-400">
+            <span className="text-sm text-slate-400">
               ({planet.occupiedHouseNames.join(", ")})
             </span>
           </div>
         ))}
       </div>
 
-      {/* Conjunction summary */}
-      <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
-        {model.conjunctions.length === 0 ? (
-          <p className="text-xs text-slate-400 dark:text-slate-500 text-center">
-            No current conjunctions
+      {/* Hover/focus summary or body-indexed idle reference */}
+      {hoveredBody !== null && hoverSummary !== null ? (
+        <HoverSummary summary={hoverSummary} />
+      ) : hoveredHouse !== null && houseHoverSummary !== null ? (
+        <HouseHoverSummaryDisplay summary={houseHoverSummary} />
+      ) : (
+        <IdleConjunctionReference entries={idleReference} />
+      )}
+    </section>
+  );
+}
+
+function HoverSummary({ summary }: { summary: BodyHoverSummary }) {
+  return (
+    <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+      <p className="text-sm text-slate-600 dark:text-slate-300">
+        <span className="font-medium">{BODY_DISPLAY_SYMBOLS[summary.bodyId]} {summary.bodyName}</span> occupies {summary.occupiedHouseNames.join(", ")}.
+      </p>
+      {summary.conjunctions.length > 0 ? (
+        <>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 mb-0.5">
+            Conjunct with:
           </p>
-        ) : (
-          <div className="flex flex-col gap-1">
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-              Conjunctions:
-            </p>
-            {model.conjunctions.map((c, i) => (
-              <p key={i} className="text-xs text-slate-500 dark:text-slate-400">
-                {PLANET_LABELS[c.bodyA as MovablePlanetId] ?? c.bodyA} — {PLANET_LABELS[c.bodyB as MovablePlanetId] ?? c.bodyB} in {c.sharedHouseNames.join(", ")}
+          <div className="flex flex-col gap-0.5">
+            {summary.conjunctions.map((c, i) => (
+              <p key={i} className="text-sm text-slate-600 dark:text-slate-400">
+                {BODY_DISPLAY_SYMBOLS[c.otherBodyId]} {c.otherBodyName} in {c.sharedHouseNames.join(", ")}
               </p>
             ))}
           </div>
-        )}
+        </>
+      ) : (
+        <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">
+          No current conjunctions.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function HouseHoverSummaryDisplay({ summary }: { summary: HouseHoverSummary }) {
+  return (
+    <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+      {summary.bodyIds.length > 0 ? (
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          <span className="font-medium">{summary.houseName}</span> — {summary.bodyIds.map((b, i) => `${BODY_DISPLAY_SYMBOLS[b]} ${summary.bodyNames[i]}`).join(", ")}
+        </p>
+      ) : (
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          <span className="font-medium">{summary.houseName}</span> — no celestial bodies
+        </p>
+      )}
+    </div>
+  );
+}
+
+function IdleConjunctionReference({
+  entries,
+}: {
+  entries: readonly BodyIndexedConjunctionEntry[];
+}) {
+  return (
+    <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+      <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+        Conjunctions by body:
+      </p>
+      <div className="flex flex-col gap-1">
+        {entries.map((entry) => (
+          <div key={entry.bodyId} className="flex items-baseline gap-1.5">
+            <span className="text-sm font-medium text-slate-600 dark:text-slate-300 min-w-[80px]">
+              {BODY_DISPLAY_SYMBOLS[entry.bodyId]} {entry.bodyName}
+            </span>
+            {entry.partners.length > 0 ? (
+              <span className="text-sm text-slate-500 dark:text-slate-400">
+                {entry.partners.map((p) => `${BODY_DISPLAY_SYMBOLS[p.otherBodyId]} ${p.otherBodyName} (${p.sharedHouseNames.join(", ")})`).join("; ")}
+              </span>
+            ) : (
+              <span className="text-sm text-slate-400 dark:text-slate-500">
+                none
+              </span>
+            )}
+          </div>
+        ))}
       </div>
-    </section>
+    </div>
   );
 }

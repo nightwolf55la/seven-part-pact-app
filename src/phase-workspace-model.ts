@@ -1,4 +1,5 @@
 import type { LunarPhase } from "../shared/domain/campaign-state";
+import { displayNameFromOrdinal } from "../shared/domain/calendar";
 
 export type WorkspaceKind =
   | "new_moon"
@@ -56,4 +57,8 @@ const MODELS: Record<LunarPhase, PhaseWorkspaceModel> = {
 
 export function getPhaseWorkspaceModel(phase: LunarPhase): PhaseWorkspaceModel {
   return MODELS[phase];
+}
+
+export function newMoonMonthDisplayName(monthOrdinal: number): string {
+  return displayNameFromOrdinal(monthOrdinal);
 }

@@ -3,6 +3,12 @@ import { api } from "../convex/_generated/api.js";
 import { useState } from "react";
 import { AGE_DEFINITIONS } from "../shared/domain/ages";
 import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
+import {
+  wizardCreationDefaults,
+  eligiblePortrayingPlayersForNewWizard,
+  eligiblePortrayingPlayersForWizard,
+  isUnseatedWizardAssignableToSeat,
+} from "./setup-view-model";
 
 function generateCommandId(): string {
   return `cmd_${crypto.randomUUID()}`;
@@ -79,6 +85,9 @@ export default function CampaignSetup() {
       .filter((id): id is string => id !== null && id !== undefined),
   );
   const unassignedWizards = wizards.filter((w) => !assignedWizardIds.has(w.wizardId));
+  const assignableUnassignedWizards = unassignedWizards.filter((w) =>
+    isUnseatedWizardAssignableToSeat(pactSeats, wizards, w.wizardId),
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -106,29 +115,6 @@ export default function CampaignSetup() {
           {AGE_DEFINITIONS.map((age) => (
             <option key={age.id} value={age.id}>
               {age.displayName}
-            </option>
-          ))}
-        </select>
-      </section>
-
-      {/* Facilitator */}
-      <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 flex flex-col gap-3">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Facilitator
-        </h3>
-        <select
-          value={configuration.facilitatorPlayerId ?? ""}
-          disabled={pending || players.length === 0}
-          onChange={(e) => {
-            const val = e.target.value || null;
-            act(() => setFacilitator({ commandId: generateCommandId(), playerId: val }));
-          }}
-          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-300"
-        >
-          <option value="">None</option>
-          {players.map((p) => (
-            <option key={p.playerId} value={p.playerId}>
-              {p.name}
             </option>
           ))}
         </select>
@@ -209,6 +195,29 @@ export default function CampaignSetup() {
         )}
       </section>
 
+      {/* Facilitator */}
+      <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 flex flex-col gap-3">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Facilitator
+        </h3>
+        <select
+          value={configuration.facilitatorPlayerId ?? ""}
+          disabled={pending || players.length === 0}
+          onChange={(e) => {
+            const val = e.target.value || null;
+            act(() => setFacilitator({ commandId: generateCommandId(), playerId: val }));
+          }}
+          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-300"
+        >
+          <option value="">Select facilitator...</option>
+          {players.map((p) => (
+            <option key={p.playerId} value={p.playerId}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </section>
+
       {/* Pact Seats */}
       <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 flex flex-col gap-4">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -227,19 +236,40 @@ export default function CampaignSetup() {
                 seat={seat}
                 currentWizard={currentWizard ?? null}
                 players={players}
-                unassignedWizards={unassignedWizards}
+                newWizardPlayers={eligiblePortrayingPlayersForNewWizard(players, pactSeats, wizards)}
+                portrayalPlayers={currentWizard ? eligiblePortrayingPlayersForWizard(players, pactSeats, wizards, currentWizard.wizardId) : players}
+                unassignedWizards={assignableUnassignedWizards}
                 disabled={pending}
-                onCreateWizard={(name, portrayedBy) =>
-                  act(() =>
-                    createWizard({
+                onCreateWizard={(name, portrayedBy) => {
+                  const defaults = wizardCreationDefaults({
+                    currentStatus: (seat.status || null) as "present" | "silent" | "absent" | null,
+                    currentWatcherPlayerId: seat.watcherPlayerId,
+                    portrayedByPlayerId: portrayedBy,
+                  });
+                  act(async () => {
+                    await createWizard({
                       commandId: generateCommandId(),
                       wizardId: generateWizardId(),
                       name,
                       portrayedByPlayerId: portrayedBy,
                       seatId,
-                    }),
-                  )
-                }
+                    });
+                    if (defaults.applyStatusDefault) {
+                      await setPactSeatStatus({
+                        commandId: generateCommandId(),
+                        seatId,
+                        status: defaults.defaultStatus,
+                      });
+                    }
+                    if (defaults.applyWatcherDefault) {
+                      await setWatcher({
+                        commandId: generateCommandId(),
+                        seatId,
+                        playerId: defaults.defaultWatcherPlayerId,
+                      });
+                    }
+                  });
+                }}
                 onRenameWizard={(wizardId, newName) =>
                   act(() =>
                     renameWizard({
@@ -366,6 +396,8 @@ function PactSeatRow({
   seat,
   currentWizard,
   players,
+  newWizardPlayers,
+  portrayalPlayers,
   unassignedWizards,
   disabled,
   onCreateWizard,
@@ -380,6 +412,8 @@ function PactSeatRow({
   seat: { status: string | null; wizardId: string | null; watcherPlayerId: string | null };
   currentWizard: { wizardId: string; name: string; portrayedByPlayerId: string | null } | null;
   players: { playerId: string; name: string }[];
+  newWizardPlayers: { playerId: string; name: string }[];
+  portrayalPlayers: { playerId: string; name: string }[];
   unassignedWizards: { wizardId: string; name: string; portrayedByPlayerId: string | null }[];
   disabled: boolean;
   onCreateWizard: (name: string, portrayedBy: string | null) => void;
@@ -398,9 +432,9 @@ function PactSeatRow({
 
   const hasWizard = seat.wizardId !== null;
 
-  // Status: Present/Silent require a wizard; Absent/null are always available
+  // Status: Present requires a wizard; Silent/Absent/null are always available
   const statusOptions = STATUS_OPTIONS.filter((opt) => {
-    if (opt.value === "present" || opt.value === "silent") return hasWizard;
+    if (opt.value === "present") return hasWizard;
     return true;
   });
 
@@ -477,7 +511,7 @@ function PactSeatRow({
               className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs text-slate-600 dark:text-slate-300"
             >
               <option value="">None</option>
-              {players.map((p) => (
+              {portrayalPlayers.map((p) => (
                 <option key={p.playerId} value={p.playerId}>
                   {p.name}
                 </option>
@@ -500,7 +534,7 @@ function PactSeatRow({
             className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs"
           >
             <option value="">No player</option>
-            {players.map((p) => (
+            {newWizardPlayers.map((p) => (
               <option key={p.playerId} value={p.playerId}>
                 {p.name}
               </option>
