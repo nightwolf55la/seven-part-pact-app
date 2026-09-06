@@ -46,7 +46,7 @@ const SUN_R = 268;
 const TRACK_BAND_WIDTH = 28;
 const TRACK_GAP = 4;
 const PLANET_TRACK_BASE_R = 192;
-const PLANET_TRACK_MIN_R = PLANET_TRACK_BASE_R - (MOVABLE_PLANET_IDS.length - 1) * (TRACK_BAND_WIDTH + TRACK_GAP);
+const PLANET_TRACK_INNERMOST_R = PLANET_TRACK_BASE_R - (MOVABLE_PLANET_IDS.length - 1) * (TRACK_BAND_WIDTH + TRACK_GAP) - TRACK_BAND_WIDTH;
 
 type HoverTarget =
   | { type: "body"; bodyId: CelestialBodyId }
@@ -334,7 +334,7 @@ export default function OrreryView({
           {/* House boundary radial grid: stronger lines through all tracks */}
           {model.houses.map((house) => {
             const boundaryAngle = centidegreesToSvgAngle(house.index * HOUSE_WIDTH_CENTIDEGREES);
-            const innerEnd = polarToCartesian(SVG_CENTER, SVG_CENTER, PLANET_TRACK_MIN_R, boundaryAngle);
+            const innerEnd = polarToCartesian(SVG_CENTER, SVG_CENTER, PLANET_TRACK_INNERMOST_R, boundaryAngle);
             const outerEnd = polarToCartesian(SVG_CENTER, SVG_CENTER, HOUSE_INNER_R, boundaryAngle);
             return (
               <line
@@ -512,7 +512,7 @@ function HouseHoverSummaryDisplay({ summary }: { summary: HouseHoverSummary }) {
     <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
       {summary.bodyIds.length > 0 ? (
         <p className="text-xs text-slate-600 dark:text-slate-300">
-          <span className="font-medium">{summary.houseName}</span> — {summary.bodyIds.map((b) => `${BODY_DISPLAY_SYMBOLS[b]} ${BODY_DISPLAY_SYMBOLS[b] ? "" : ""}${summary.bodyNames[summary.bodyIds.indexOf(b)]}`).join(", ")}
+          <span className="font-medium">{summary.houseName}</span> — {summary.bodyIds.map((b, i) => `${BODY_DISPLAY_SYMBOLS[b]} ${summary.bodyNames[i]}`).join(", ")}
         </p>
       ) : (
         <p className="text-xs text-slate-600 dark:text-slate-300">

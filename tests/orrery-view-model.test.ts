@@ -371,9 +371,11 @@ describe("BODY_DISPLAY_SYMBOLS", () => {
 describe("buildHouseHoverSummary (House->bodies query)", () => {
   it("returns all bodies occupying a House in stable display order, including Sun", () => {
     // monthOrdinal 0 -> Sun in Aries (House 0). All planets at index 0.
-    // Saturn at 500, arc 10deg -> Houses 0,1. Jupiter at 0, arc 22.5deg -> Houses 0,1.
-    // Mars at 0, arc 52.5deg -> Houses 0-5. Venus at 0, arc 75deg -> Houses 0-4.
-    // Mercury at 0, arc 105deg -> Houses 0-6.
+    // Saturn at 5deg, arc 10deg -> 5-15deg -> Aries only.
+    // Jupiter at 0deg, arc 22.5deg -> 0-22.5deg -> Aries only.
+    // Mars at 0deg, arc 52.5deg -> 0-52.5deg -> Aries, Taurus.
+    // Venus at 0deg, arc 75deg -> 0-75deg -> Aries, Taurus, Gemini.
+    // Mercury at 0deg, arc 105deg -> 0-105deg -> Aries, Taurus, Gemini, Cancer.
     // So House 0 (Aries) is occupied by Sun, Saturn, Jupiter, Mars, Venus, Mercury.
     const monthOrdinal = 0 as MonthOrdinal;
     const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 0, venus: 0, mercury: 0 });
@@ -388,9 +390,9 @@ describe("buildHouseHoverSummary (House->bodies query)", () => {
 
   it("returns an empty body list for a House with no occupants", () => {
     // monthOrdinal 3 -> Sun in Cancer (House 3). All planets at index 0.
-    // Venus at 0, arc 75deg -> Houses 0-4. Mercury at 0, arc 105deg -> Houses 0-6.
-    // Mars at 0, arc 52.5deg -> Houses 0-5. Jupiter at 0, arc 22.5deg -> Houses 0,1.
-    // Saturn at 500, arc 10deg -> Houses 0,1.
+    // Venus at 0deg, arc 75deg -> Aries, Taurus, Gemini. Mercury at 0deg, arc 105deg -> Aries, Taurus, Gemini, Cancer.
+    // Mars at 0deg, arc 52.5deg -> Aries, Taurus. Jupiter at 0deg, arc 22.5deg -> Aries only.
+    // Saturn at 5deg, arc 10deg -> Aries only.
     // House 10 (Aquarius) is not occupied by anyone.
     const monthOrdinal = 3 as MonthOrdinal;
     const positions = positionsFromIndices({ saturn: 0, jupiter: 0, mars: 0, venus: 0, mercury: 0 });
