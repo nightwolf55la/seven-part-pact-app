@@ -53,6 +53,15 @@ export const getCampaignSetup = query({
         wizardId: w.wizardId as string,
         name: w.name,
         portrayedByPlayerId: w.portrayedByPlayerId as string | null,
+        character: {
+          elements: w.character.elements,
+          pactFragmentPersonalForm: w.character.pactFragmentPersonalForm,
+          familiarDescription: w.character.familiarDescription,
+          ageYears: w.character.ageYears,
+          publicChangesOfMagic: w.character.publicChangesOfMagic,
+          importantNotes: w.character.importantNotes,
+          companionDescriptions: w.character.companionDescriptions,
+        },
       })),
       pactSeats: Object.fromEntries(
         Object.entries(current.pactSeats).map(([seatId, seat]) => [
@@ -447,6 +456,15 @@ export const getPlayReference = query({
         wizardId: w.wizardId as string,
         name: w.name,
         portrayedByPlayerId: w.portrayedByPlayerId as string | null,
+        character: {
+          elements: w.character.elements,
+          pactFragmentPersonalForm: w.character.pactFragmentPersonalForm,
+          familiarDescription: w.character.familiarDescription,
+          ageYears: w.character.ageYears,
+          publicChangesOfMagic: w.character.publicChangesOfMagic,
+          importantNotes: w.character.importantNotes,
+          companionDescriptions: w.character.companionDescriptions,
+        },
       })),
       pactSeats: Object.fromEntries(
         Object.entries(current.pactSeats).map(([seatId, seat]) => [

@@ -7,10 +7,26 @@ export interface PlayerRef {
   readonly name: string;
 }
 
+export interface WizardCharacterRef {
+  readonly elements: { readonly air: number; readonly fire: number; readonly earth: number; readonly water: number } | null;
+  readonly pactFragmentPersonalForm: string | null;
+  readonly familiarDescription: string | null;
+  readonly ageYears: number | null;
+  readonly publicChangesOfMagic: readonly string[];
+  readonly importantNotes: string | null;
+  readonly companionDescriptions: {
+    readonly air: string | null;
+    readonly fire: string | null;
+    readonly earth: string | null;
+    readonly water: string | null;
+  };
+}
+
 export interface WizardRef {
   readonly wizardId: string;
   readonly name: string;
   readonly portrayedByPlayerId: string | null;
+  readonly character: WizardCharacterRef;
 }
 
 export interface SeatRef {
@@ -23,6 +39,7 @@ export interface SeatDisplayRow {
   readonly seatId: PactSeatId;
   readonly seatName: string;
   readonly statusLabel: string;
+  readonly wizardId: string | null;
   readonly wizardName: string | null;
   readonly portrayedByPlayerName: string | null;
   readonly watcherPlayerName: string | null;
@@ -51,6 +68,7 @@ export function buildTableWizardsRows(
       seatId,
       seatName: pactSeatDisplayName(seatId),
       statusLabel: statusLabel(seat.status),
+      wizardId: seat.wizardId,
       wizardName: wizard?.name ?? null,
       portrayedByPlayerName: portrayedByPlayerName !== null ? playerMap.get(portrayedByPlayerName) ?? null : null,
       watcherPlayerName: seat.watcherPlayerId !== null ? playerMap.get(seat.watcherPlayerId) ?? null : null,
