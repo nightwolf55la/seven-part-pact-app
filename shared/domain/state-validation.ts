@@ -132,6 +132,8 @@ function validatePlayersAndWizards(
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate wizardId: ${wizard.wizardId}`);
     }
     wizardIds.add(wizard.wizardId);
+
+    validateWizardCharacter(wizard, i);
   }
 
   return { playerIds, wizardIds };
@@ -686,6 +688,82 @@ function validateLifecycle(
   }
 }
 
+const ELEMENT_KEYS = ["air", "fire", "earth", "water"] as const;
+
+function validateWizardCharacter(wizard: Record<string, unknown>, index: number): void {
+  const path = `wizards[${index}]`;
+  if (wizard.character === null || wizard.character === undefined || typeof wizard.character !== "object") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.character must be an object`);
+  }
+  const char = wizard.character as Record<string, unknown>;
+
+  if (char.elements !== null) {
+    if (typeof char.elements !== "object" || char.elements === undefined) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.character.elements must be an object or null`);
+    }
+    const elems = char.elements as Record<string, unknown>;
+    for (const key of ELEMENT_KEYS) {
+      if (typeof elems[key] !== "number" || !Number.isSafeInteger(elems[key] as number)) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `${path}.character.elements.${key} must be a safe integer: ${JSON.stringify(elems[key])}`,
+        );
+      }
+    }
+  }
+
+  if (char.ageYears !== null) {
+    if (typeof char.ageYears !== "number" || !Number.isSafeInteger(char.ageYears) || (char.ageYears as number) < 0) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path}.character.ageYears must be a non-negative safe integer or null: ${JSON.stringify(char.ageYears)}`,
+      );
+    }
+  }
+
+  for (const field of ["pactFragmentPersonalForm", "familiarDescription", "importantNotes"] as const) {
+    if (char[field] !== null && typeof char[field] !== "string") {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path}.character.${field} must be a string or null`,
+      );
+    }
+  }
+
+  if (!Array.isArray(char.publicChangesOfMagic)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.character.publicChangesOfMagic must be an array`);
+  }
+  for (let j = 0; j < (char.publicChangesOfMagic as unknown[]).length; j++) {
+    if (typeof (char.publicChangesOfMagic as unknown[])[j] !== "string") {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path}.character.publicChangesOfMagic[${j}] must be a string`,
+      );
+    }
+  }
+}
+
+function validateV4Shape(s: Record<string, unknown>): void {
+  // Determine lifecycle kind first for calendar validation
+  let lifecycleKind = "setup";
+  if (s.lifecycle !== null && s.lifecycle !== undefined && typeof s.lifecycle === "object") {
+    lifecycleKind = (s.lifecycle as Record<string, unknown>).kind as string || "setup";
+  }
+
+  validateRuleset(s);
+  validateCalendarV3(s, lifecycleKind);
+
+  const { playerIds, wizardIds } = validatePlayersAndWizards(s);
+  validateConfiguration(s, playerIds);
+  validatePactSeats(s, playerIds, wizardIds, s.wizards as unknown[]);
+  validateLifecycle(s, wizardIds);
+
+  if (!Array.isArray(s.wizardmootHistory)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "wizardmootHistory must be an array");
+  }
+  validateWizardmootHistory(s.wizardmootHistory as unknown[], wizardIds);
+}
+
 function validateV3Shape(s: Record<string, unknown>): void {
   // Determine lifecycle kind first for calendar validation
   let lifecycleKind = "setup";
@@ -717,11 +795,11 @@ export function validateCampaignState(state: unknown): CurrentCampaignState {
   if (s.schemaVersion !== CURRENT_STATE_SCHEMA_VERSION) {
     throw new DomainError(
       "INVALID_CAMPAIGN_STATE",
-      `Unsupported schemaVersion: ${JSON.stringify(s.schemaVersion)} (only V3 is supported)`,
+      `Unsupported schemaVersion: ${JSON.stringify(s.schemaVersion)} (only V4 is supported)`,
     );
   }
 
-  validateV3Shape(s);
+  validateV4Shape(s);
   return state as CurrentCampaignState;
 }
 
@@ -732,15 +810,15 @@ export function validateAnyCampaignState(state: unknown): AnyCampaignState {
 
   const s = state as Record<string, unknown>;
 
-  if (s.schemaVersion === 1 || s.schemaVersion === 2) {
+  if (s.schemaVersion === 1 || s.schemaVersion === 2 || s.schemaVersion === 3) {
     throw new DomainError(
       "INVALID_CAMPAIGN_STATE",
-      `Schema version ${s.schemaVersion} is no longer supported. Only V3 is accepted.`,
+      `Schema version ${s.schemaVersion} is no longer supported. Only V4 is accepted.`,
     );
   }
 
-  if (s.schemaVersion === 3) {
-    validateV3Shape(s);
+  if (s.schemaVersion === 4) {
+    validateV4Shape(s);
     return state as AnyCampaignState;
   }
 

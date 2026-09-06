@@ -97,8 +97,12 @@ export type {
   CampaignStateV1,
   CampaignStateV2,
   CampaignStateV3,
+  CampaignStateV4,
   CampaignPlayer,
+  LegacyCampaignWizard,
   CampaignWizard,
+  WizardElementScores,
+  WizardCharacterData,
   PactSeatState,
   PactSeatStatus,
   LunarPhase,
@@ -109,7 +113,7 @@ export type {
   CurrentCampaignState,
   AnyCampaignState,
 } from "./campaign-state";
-export { CURRENT_STATE_SCHEMA_VERSION, LUNAR_PHASES } from "./campaign-state";
+export { CURRENT_STATE_SCHEMA_VERSION, LUNAR_PHASES, BLANK_WIZARD_CHARACTER } from "./campaign-state";
 
 export type { PactSeatId } from "./pact-seats";
 export { PACT_SEAT_IDS, PACT_SEAT_COUNT, pactSeatDisplayName, isValidPactSeatId } from "./pact-seats";

@@ -1,4 +1,5 @@
 import type { CurrentCampaignState, CampaignPlayer, CampaignWizard, PactSeatState, PactSeatStatus } from "./campaign-state";
+import { BLANK_WIZARD_CHARACTER } from "./campaign-state";
 import type { PlayerId, WizardId } from "./ids";
 import type { PactSeatId } from "./pact-seats";
 import type { AgeDefinitionId } from "./ages";
@@ -255,7 +256,12 @@ export function applyCreateWizard(
   }
 
   const trimmedName = name.trim();
-  const newWizard: CampaignWizard = { wizardId, name: trimmedName, portrayedByPlayerId };
+  const newWizard: CampaignWizard = {
+    wizardId,
+    name: trimmedName,
+    portrayedByPlayerId,
+    character: { ...BLANK_WIZARD_CHARACTER, publicChangesOfMagic: [] },
+  };
   const nextState: CurrentCampaignState = {
     ...state,
     wizards: [...state.wizards, newWizard],

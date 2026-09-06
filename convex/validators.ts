@@ -262,10 +262,27 @@ const playerValidator = v.object({
   name: v.string(),
 });
 
+const wizardElementScoresValidator = v.object({
+  air: v.number(),
+  fire: v.number(),
+  earth: v.number(),
+  water: v.number(),
+});
+
+const wizardCharacterDataValidator = v.object({
+  elements: v.union(wizardElementScoresValidator, v.null()),
+  pactFragmentPersonalForm: v.union(v.string(), v.null()),
+  familiarDescription: v.union(v.string(), v.null()),
+  ageYears: v.union(v.number(), v.null()),
+  publicChangesOfMagic: v.array(v.string()),
+  importantNotes: v.union(v.string(), v.null()),
+});
+
 const wizardValidator = v.object({
   wizardId: v.string(),
   name: v.string(),
   portrayedByPlayerId: v.union(v.string(), v.null()),
+  character: wizardCharacterDataValidator,
 });
 
 const pactSeatsValidator = v.object(
@@ -376,6 +393,30 @@ const wizardmootHistoryEntryValidator = v.object({
 
 export const campaignStateV3Validator = v.object({
   schemaVersion: v.literal(3),
+  ruleset: v.object({
+    id: v.literal(SEVEN_PART_PACT_DRAFT4_ID),
+    version: v.literal(SEVEN_PART_PACT_DRAFT4_VERSION),
+  }),
+  calendar: v.object({
+    monthOrdinal: v.union(v.number(), v.null()),
+  }),
+  configuration: v.object({
+    ageId: v.union(v.string(), v.null()),
+    facilitatorPlayerId: v.union(v.string(), v.null()),
+  }),
+  players: v.array(playerValidator),
+  wizards: v.array(v.object({
+    wizardId: v.string(),
+    name: v.string(),
+    portrayedByPlayerId: v.union(v.string(), v.null()),
+  })),
+  pactSeats: pactSeatsValidator,
+  lifecycle: lifecycleValidator,
+  wizardmootHistory: v.array(wizardmootHistoryEntryValidator),
+});
+
+export const campaignStateV4Validator = v.object({
+  schemaVersion: v.literal(4),
   ruleset: v.object({
     id: v.literal(SEVEN_PART_PACT_DRAFT4_ID),
     version: v.literal(SEVEN_PART_PACT_DRAFT4_VERSION),
@@ -544,8 +585,8 @@ export const campaignEventValidator = v.union(
   monthBegunEventV1Validator,
 );
 
-export const anyCampaignStateValidator = campaignStateV3Validator;
-export const currentCampaignStateValidator = campaignStateV3Validator;
+export const anyCampaignStateValidator = campaignStateV4Validator;
+export const currentCampaignStateValidator = campaignStateV4Validator;
 
 export const newCampaignRecordValidator = v.object({
   campaignKey: v.literal("default"),

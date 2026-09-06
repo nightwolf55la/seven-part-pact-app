@@ -42,7 +42,7 @@ export interface CampaignPlayer {
   readonly name: string;
 }
 
-export interface CampaignWizard {
+export interface LegacyCampaignWizard {
   readonly wizardId: WizardId;
   readonly name: string;
   readonly portrayedByPlayerId: PlayerId | null;
@@ -59,7 +59,7 @@ export interface CampaignStateV2 {
     readonly facilitatorPlayerId: PlayerId | null;
   };
   readonly players: readonly CampaignPlayer[];
-  readonly wizards: readonly CampaignWizard[];
+  readonly wizards: readonly LegacyCampaignWizard[];
   readonly pactSeats: { readonly [K in PactSeatId]: PactSeatState };
 }
 
@@ -108,13 +108,64 @@ export interface CampaignStateV3 {
     readonly facilitatorPlayerId: PlayerId | null;
   };
   readonly players: readonly CampaignPlayer[];
+  readonly wizards: readonly LegacyCampaignWizard[];
+  readonly pactSeats: { readonly [K in PactSeatId]: PactSeatState };
+  readonly lifecycle: CampaignLifecycle;
+  readonly wizardmootHistory: readonly WizardmootHistoryEntry[];
+}
+
+// --- V4: Wizard character data ---
+
+export interface WizardElementScores {
+  readonly air: number;
+  readonly fire: number;
+  readonly earth: number;
+  readonly water: number;
+}
+
+export interface WizardCharacterData {
+  readonly elements: WizardElementScores | null;
+  readonly pactFragmentPersonalForm: string | null;
+  readonly familiarDescription: string | null;
+  readonly ageYears: number | null;
+  readonly publicChangesOfMagic: readonly string[];
+  readonly importantNotes: string | null;
+}
+
+export interface CampaignWizard {
+  readonly wizardId: WizardId;
+  readonly name: string;
+  readonly portrayedByPlayerId: PlayerId | null;
+  readonly character: WizardCharacterData;
+}
+
+export const BLANK_WIZARD_CHARACTER: WizardCharacterData = {
+  elements: null,
+  pactFragmentPersonalForm: null,
+  familiarDescription: null,
+  ageYears: null,
+  publicChangesOfMagic: [],
+  importantNotes: null,
+};
+
+export interface CampaignStateV4 {
+  readonly schemaVersion: 4;
+  readonly ruleset: CampaignRuleset;
+  readonly calendar: {
+    readonly monthOrdinal: MonthOrdinal | null;
+  };
+  readonly configuration: {
+    readonly ageId: AgeDefinitionId | null;
+    readonly facilitatorPlayerId: PlayerId | null;
+  };
+  readonly players: readonly CampaignPlayer[];
   readonly wizards: readonly CampaignWizard[];
   readonly pactSeats: { readonly [K in PactSeatId]: PactSeatState };
   readonly lifecycle: CampaignLifecycle;
   readonly wizardmootHistory: readonly WizardmootHistoryEntry[];
 }
 
-export type CurrentCampaignState = CampaignStateV3;
-export type AnyCampaignState = CampaignStateV3;
+export type CurrentCampaignState = CampaignStateV4;
+export type AnyCampaignState = CampaignStateV4;
 
-export const CURRENT_STATE_SCHEMA_VERSION: CurrentCampaignState["schemaVersion"] = 3;
+export const CURRENT_STATE_SCHEMA_VERSION: CurrentCampaignState["schemaVersion"] = 4;
