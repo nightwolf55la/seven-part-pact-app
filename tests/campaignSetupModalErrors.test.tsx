@@ -133,7 +133,7 @@ function findButton(container: HTMLElement, text: string): HTMLButtonElement | n
 function getSheetContainer(container: HTMLElement): HTMLElement | null {
   const h2s = container.querySelectorAll("h2");
   for (const h of h2s) {
-    if (h.textContent === "Merlin") return h.closest(".fixed") as HTMLElement;
+    if (h.textContent?.includes("Merlin")) return h.closest(".fixed") as HTMLElement;
   }
   return null;
 }
@@ -240,7 +240,7 @@ describe("CampaignSetup modal mutation error handling", () => {
       Promise.reject(new Error("Cannot save"));
     const { container, unmount } = renderSetup();
 
-    const charBtn = findButton(container, "Character")!;
+    const charBtn = findButton(container, "Character Sheet")!;
     charBtn.click();
     flushSync(() => {});
 
@@ -267,7 +267,7 @@ describe("CampaignSetup modal mutation error handling", () => {
     mutationResults["m3Commands.updateWizardCharacter"] = () => Promise.resolve();
     const { container, unmount } = renderSetup();
 
-    const charBtn = findButton(container, "Character")!;
+    const charBtn = findButton(container, "Character Sheet")!;
     charBtn.click();
     flushSync(() => {});
 

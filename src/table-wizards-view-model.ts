@@ -43,6 +43,7 @@ export interface SeatDisplayRow {
   readonly wizardName: string | null;
   readonly portrayedByPlayerName: string | null;
   readonly watcherPlayerName: string | null;
+  readonly elements: { readonly air: number; readonly fire: number; readonly earth: number; readonly water: number } | null;
 }
 
 function statusLabel(status: string | null): string {
@@ -58,7 +59,7 @@ export function buildTableWizardsRows(
   wizards: readonly WizardRef[],
 ): readonly SeatDisplayRow[] {
   const playerMap = new Map(players.map((p) => [p.playerId, p.name]));
-  const wizardMap = new Map(wizards.map((w) => [w.wizardId, { name: w.name, portrayedBy: w.portrayedByPlayerId }]));
+  const wizardMap = new Map(wizards.map((w) => [w.wizardId, { name: w.name, portrayedBy: w.portrayedByPlayerId, elements: w.character.elements }]));
 
   return PACT_SEAT_IDS.map((seatId) => {
     const seat = pactSeats[seatId] ?? { status: null, wizardId: null, watcherPlayerId: null };
@@ -72,6 +73,7 @@ export function buildTableWizardsRows(
       wizardName: wizard?.name ?? null,
       portrayedByPlayerName: portrayedByPlayerName !== null ? playerMap.get(portrayedByPlayerName) ?? null : null,
       watcherPlayerName: seat.watcherPlayerId !== null ? playerMap.get(seat.watcherPlayerId) ?? null : null,
+      elements: wizard?.elements ?? null,
     };
   });
 }
