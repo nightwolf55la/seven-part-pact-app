@@ -75,6 +75,7 @@ const EDITED_CHARACTER: WizardCharacterData = {
     "Leaves frost on glass",
   ],
   importantNotes: "Owes the Mariner a favor",
+  companionDescriptions: { air: null, fire: null, earth: null, water: null },
 };
 
 function blankWizardSetupState(): CurrentCampaignState {

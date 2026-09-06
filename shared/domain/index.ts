@@ -103,6 +103,7 @@ export type {
   LegacyCampaignWizard,
   CampaignWizard,
   WizardElementScores,
+  WizardCompanionDescriptions,
   WizardCharacterData,
   PactSeatState,
   PactSeatStatus,

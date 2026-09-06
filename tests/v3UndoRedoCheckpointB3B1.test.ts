@@ -105,7 +105,7 @@ function v3PlayState(): CurrentCampaignState {
     calendar: { monthOrdinal: 5 as MonthOrdinal },
     configuration: { ageId: "awakening", facilitatorPlayerId: PLR },
     players: [{ playerId: PLR, name: "Alice" }],
-    wizards: [{ wizardId: WIZ, name: "Valdris", portrayedByPlayerId: PLR, character: { elements: null, pactFragmentPersonalForm: null, familiarDescription: null, ageYears: null, publicChangesOfMagic: [], importantNotes: null } }],
+    wizards: [{ wizardId: WIZ, name: "Valdris", portrayedByPlayerId: PLR, character: { elements: null, pactFragmentPersonalForm: null, familiarDescription: null, ageYears: null, publicChangesOfMagic: [], importantNotes: null, companionDescriptions: { air: null, fire: null, earth: null, water: null } } }],
     pactSeats: {
       ...emptyPactSeats(),
       necromancer: { status: "present", wizardId: WIZ, watcherPlayerId: null },

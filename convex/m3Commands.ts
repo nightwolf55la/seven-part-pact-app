@@ -1049,6 +1049,14 @@ export const updateWizardCharacter = mutation({
       ageYears: v.optional(v.union(v.number(), v.null())),
       publicChangesOfMagic: v.optional(v.array(v.string())),
       importantNotes: v.optional(v.union(v.string(), v.null())),
+      companionDescriptions: v.optional(
+        v.object({
+          air: v.union(v.string(), v.null()),
+          fire: v.union(v.string(), v.null()),
+          earth: v.union(v.string(), v.null()),
+          water: v.union(v.string(), v.null()),
+        }),
+      ),
     }),
   },
   handler: async (ctx, args) => {

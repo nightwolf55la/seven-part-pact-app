@@ -91,7 +91,7 @@ function richPlayState(): CampaignStateV4 {
     calendar: { monthOrdinal: 5 as MonthOrdinal },
     configuration: { ageId: "awakening", facilitatorPlayerId: playerId },
     players: [{ playerId, name: "Alice" }],
-    wizards: [{ wizardId, name: "Valdris", portrayedByPlayerId: playerId, character: { elements: null, pactFragmentPersonalForm: null, familiarDescription: null, ageYears: null, publicChangesOfMagic: [], importantNotes: null } }],
+    wizards: [{ wizardId, name: "Valdris", portrayedByPlayerId: playerId, character: { elements: null, pactFragmentPersonalForm: null, familiarDescription: null, ageYears: null, publicChangesOfMagic: [], importantNotes: null, companionDescriptions: { air: null, fire: null, earth: null, water: null } } }],
     pactSeats: {
       ...emptyPactSeats(),
       necromancer: { status: "present", wizardId, watcherPlayerId: null },
