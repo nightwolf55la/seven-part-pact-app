@@ -92,7 +92,7 @@ export default function TableWizards({
                       onClick={() => { setCharacterWizardId(row.wizardId!); setCharacterError(null); }}
                       className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
                     >
-                      Character
+                      Character Sheet
                     </button>
                   )}
                 </div>
@@ -108,6 +108,16 @@ export default function TableWizards({
                 <p>Watcher: <span className="font-medium text-slate-600 dark:text-slate-300">{row.watcherPlayerName}</span></p>
               ) : (
                 <p className="text-slate-400 dark:text-slate-500">Watcher: —</p>
+              )}
+              {row.elements !== null ? (
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-0.5">
+                  <span>Air <span className="font-medium text-slate-600 dark:text-slate-300">{row.elements.air}</span></span>
+                  <span>Fire <span className="font-medium text-slate-600 dark:text-slate-300">{row.elements.fire}</span></span>
+                  <span>Earth <span className="font-medium text-slate-600 dark:text-slate-300">{row.elements.earth}</span></span>
+                  <span>Water <span className="font-medium text-slate-600 dark:text-slate-300">{row.elements.water}</span></span>
+                </div>
+              ) : (
+                <p className="text-slate-400 dark:text-slate-500">Elements —</p>
               )}
             </div>
           </div>
@@ -125,7 +135,7 @@ export default function TableWizards({
                 onClick={() => { setCharacterWizardId(w.wizardId); setCharacterError(null); }}
                 className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
               >
-                Character
+                Character Sheet
               </button>
             </div>
           ))}

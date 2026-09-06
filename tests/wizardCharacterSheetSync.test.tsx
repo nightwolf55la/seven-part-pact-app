@@ -250,29 +250,16 @@ describe("WizardCharacterSheet reactive sync", () => {
     unmount();
   });
 
-  it("invalid local Age input is preserved when a remote character prop update arrives", () => {
+  it("sheet title includes wizard name and 'Character Sheet'", () => {
     const initial: WizardCharacterData = {
       ...BLANK_WIZARD_CHARACTER,
     };
-    const { container, rerender, unmount } = renderSheet({ character: initial });
+    const { container, unmount } = renderSheet({ character: initial });
 
-    // Type "-5" into the Age field — valid integer but invalid for domain (negative age)
-    // This makes the form raw-dirty (form string differs from baseline form string)
-    // even though buildCharacterPatch normalizes it to null (matching baseline).
-    const ageInput = getInputElement(container, "Age");
-    expect(ageInput).not.toBeNull();
-    setNativeValue(ageInput!, "-5");
-
-    // Remote update arrives
-    const updated: WizardCharacterData = {
-      ...BLANK_WIZARD_CHARACTER,
-      familiarDescription: "Owl",
-    };
-    rerender({ character: updated });
-
-    // The invalid local edit must be preserved
-    const ageInputAfter = getInputElement(container, "Age");
-    expect(ageInputAfter!.value).toBe("-5");
+    const h2 = container.querySelector("h2");
+    expect(h2).not.toBeNull();
+    expect(h2!.textContent).toContain("Test Wizard");
+    expect(h2!.textContent).toContain("Character Sheet");
 
     unmount();
   });

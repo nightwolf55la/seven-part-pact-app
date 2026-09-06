@@ -274,7 +274,7 @@ export default function CampaignSetup() {
                     onClick={() => { setCharacterWizardId(w.wizardId); setCharacterError(null); }}
                     className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
                   >
-                    Character
+                    Character Sheet
                   </button>
                 </li>
               );
@@ -607,7 +607,7 @@ function PactSeatRow({
               onClick={() => onOpenCharacter(currentWizard.wizardId)}
               className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
             >
-              Character
+              Character Sheet
             </button>
             <button
               disabled={disabled}

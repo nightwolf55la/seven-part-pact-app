@@ -165,9 +165,9 @@ describe("CampaignSetup Wizard presentation", () => {
     expect(html).toContain("Wizards");
   });
 
-  it("renders a Character action for modeled wizards", () => {
+  it("renders a Character Sheet action for modeled wizards", () => {
     const html = renderSetup(populatedSetup);
-    expect(html).toContain("Character");
+    expect(html).toContain("Character Sheet");
   });
 
   it("does not render inline + Create Wizard inside empty Pact-seat rows", () => {

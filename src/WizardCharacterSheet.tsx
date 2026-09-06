@@ -98,7 +98,7 @@ export default function WizardCharacterSheet({
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
-            {wizardName}
+            {wizardName} — Character Sheet
           </h2>
           <button
             onClick={onClose}
