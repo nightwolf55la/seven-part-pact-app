@@ -118,6 +118,13 @@ function validateEventCoherence(
   }
 }
 
+export function validateEventCoherenceForTest(
+  input: CanonicalCommitInput,
+  newRevision: number,
+): void {
+  validateEventCoherence(input, newRevision);
+}
+
 const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: string[] }> = {
   add_player: { required: ["player_added"] },
   rename_player: { required: ["player_renamed"] },

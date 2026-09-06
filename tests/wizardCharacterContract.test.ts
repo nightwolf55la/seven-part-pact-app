@@ -3,8 +3,19 @@ import {
   updateWizardCharacterFingerprint,
   CAMPAIGN_COMMAND_TYPES,
   isLogicalStateCommandType,
+  BLANK_WIZARD_CHARACTER,
+  CURRENT_STATE_SCHEMA_VERSION,
+  SEVEN_PART_PACT_DRAFT4_ID,
+  SEVEN_PART_PACT_DRAFT4_VERSION,
+  DomainError,
+  type WizardCharacterData,
+  type CurrentCampaignState,
+  type CampaignEvent,
 } from "../shared/domain";
-import type { WizardCharacterPatch } from "../shared/domain";
+import {
+  validateEventCoherenceForTest,
+  type CanonicalCommitInput,
+} from "../convex/canonicalCommit";
 
 // ============================================================
 // 1. Command registration
@@ -81,16 +92,37 @@ describe("updateWizardCharacterFingerprint", () => {
 });
 
 // ============================================================
-// 3. Canonical coherence (M3_COMMAND_EVENT_MAP validation)
+// 3. Canonical coherence (real validateEventCoherence)
 // ============================================================
-// These tests exercise the M3 coherence logic through the types.
-// The actual canonicalCommit runs in Convex so we validate the
-// contract shape here: the command/event map entries, event
-// structure requirements, and payload validation.
 
-import { BLANK_WIZARD_CHARACTER, type WizardCharacterData } from "../shared/domain";
+const WIZARD_ID = "wiz_00000000-0000-0000-0000-000000000001";
 
-const BLANK_CHAR: WizardCharacterData = BLANK_WIZARD_CHARACTER;
+function makeState(): CurrentCampaignState {
+  return {
+    schemaVersion: CURRENT_STATE_SCHEMA_VERSION,
+    ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
+    calendar: { monthOrdinal: 0 as any },
+    configuration: { ageId: null, facilitatorPlayerId: null },
+    players: [],
+    wizards: [],
+    pactSeats: {
+      necromancer: { status: null, wizardId: null, watcherPlayerId: null },
+      hierophant: { status: null, wizardId: null, watcherPlayerId: null },
+      warlock: { status: null, wizardId: null, watcherPlayerId: null },
+      mariner: { status: null, wizardId: null, watcherPlayerId: null },
+      faustian: { status: null, wizardId: null, watcherPlayerId: null },
+      sage: { status: null, wizardId: null, watcherPlayerId: null },
+      sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
+    },
+    lifecycle: {
+      kind: "play" as const,
+      phase: "new_moon" as const,
+      orrery: { saturn: 0 as any, jupiter: 9000 as any, mars: 18000 as any, venus: 27000 as any, mercury: 4500 as any },
+      currentMonth: { timeParticipants: [], engagements: [], wizardmootAttendance: null },
+    },
+    wizardmootHistory: [],
+  };
+}
 
 function makeWizardCharacterUpdatedEvent(overrides?: Partial<{
   wizardId: string;
@@ -98,65 +130,88 @@ function makeWizardCharacterUpdatedEvent(overrides?: Partial<{
   type: string;
   previousCharacter: WizardCharacterData;
   newCharacter: WizardCharacterData;
-}>) {
-  return {
+}>): CampaignEvent {
+  const evt = {
     type: overrides?.type ?? "wizard_character_updated",
     version: overrides?.version ?? 1,
     data: {
-      wizardId: overrides?.wizardId ?? "wiz_abc123",
-      previousCharacter: overrides?.previousCharacter ?? BLANK_CHAR,
-      newCharacter: overrides?.newCharacter ?? { ...BLANK_CHAR, ageYears: 50 },
+      wizardId: overrides?.wizardId ?? WIZARD_ID,
+      previousCharacter: overrides?.previousCharacter ?? BLANK_WIZARD_CHARACTER,
+      newCharacter: overrides?.newCharacter ?? { ...BLANK_WIZARD_CHARACTER, ageYears: 50 },
     },
+  };
+  return evt as unknown as CampaignEvent;
+}
+
+function makeInput(events: readonly CampaignEvent[], overrides?: Partial<CanonicalCommitInput>): CanonicalCommitInput {
+  return {
+    campaignDocId: "camp-doc-1" as any,
+    campaignId: "camp-1",
+    currentRevision: 10,
+    currentState: makeState(),
+    commandId: "cmd-1",
+    commandType: "update_wizard_character",
+    commandFingerprint: updateWizardCharacterFingerprint(WIZARD_ID, { ageYears: 50 }),
+    nextState: makeState(),
+    events,
+    historyControlUpdate: { kind: "logical_state_append" },
+    ...overrides,
   };
 }
 
-describe("wizard_character_updated coherence contract shape", () => {
-  it("valid event has correct shape for M3 coherence", () => {
+function assertDomainError(fn: () => unknown, code: string): void {
+  try {
+    fn();
+    throw new Error(`Expected DomainError(${code}) but no error was thrown`);
+  } catch (e) {
+    if (!(e instanceof DomainError)) {
+      throw new Error(`Expected DomainError(${code}) but got: ${e}`);
+    }
+    expect(e.code).toBe(code);
+  }
+}
+
+describe("validateEventCoherence — update_wizard_character", () => {
+  it("valid: update_wizard_character + exactly one wizard_character_updated v1 + logical_state_append does not throw", () => {
     const evt = makeWizardCharacterUpdatedEvent();
-    expect(evt.type).toBe("wizard_character_updated");
-    expect(evt.version).toBe(1);
-    expect(evt.data.wizardId).toBe("wiz_abc123");
-    expect(evt.data.previousCharacter).toEqual(BLANK_CHAR);
-    expect(evt.data.newCharacter.ageYears).toBe(50);
+    const input = makeInput([evt]);
+    expect(() => validateEventCoherenceForTest(input, 11)).not.toThrow();
   });
 
-  it("M3 map requires exactly one wizard_character_updated for update_wizard_character", () => {
-    // This is a structural assertion: the command maps to exactly one required event type.
-    // The actual enforcement is in canonicalCommit.ts M3_COMMAND_EVENT_MAP.
-    const evt = makeWizardCharacterUpdatedEvent();
-    expect(evt.type).toBe("wizard_character_updated");
-    // No optional events for this command
+  it("missing event throws DomainError INVALID_CAMPAIGN_STATE", () => {
+    const input = makeInput([]);
+    assertDomainError(() => validateEventCoherenceForTest(input, 11), "INVALID_CAMPAIGN_STATE");
   });
 
-  it("wrong event type would be rejected", () => {
+  it("extra event throws DomainError INVALID_CAMPAIGN_STATE", () => {
+    const evt = makeWizardCharacterUpdatedEvent();
+    const input = makeInput([evt, evt]);
+    assertDomainError(() => validateEventCoherenceForTest(input, 11), "INVALID_CAMPAIGN_STATE");
+  });
+
+  it("wrong event type throws DomainError INVALID_CAMPAIGN_STATE", () => {
     const evt = makeWizardCharacterUpdatedEvent({ type: "player_added" });
-    expect(evt.type).not.toBe("wizard_character_updated");
+    const input = makeInput([evt]);
+    assertDomainError(() => validateEventCoherenceForTest(input, 11), "INVALID_CAMPAIGN_STATE");
   });
 
-  it("missing event would violate required count", () => {
-    const events: unknown[] = [];
-    expect(events.length).toBe(0);
-    // M3 coherence requires exactly 1 event
-  });
-
-  it("extra event would violate count", () => {
-    const events = [
-      makeWizardCharacterUpdatedEvent(),
-      makeWizardCharacterUpdatedEvent(),
-    ];
-    expect(events.length).toBe(2);
-    // M3 coherence requires exactly 1 event
-  });
-
-  it("invalid wizardId would be rejected by payload validation", () => {
-    const evt = makeWizardCharacterUpdatedEvent({ wizardId: "" });
-    expect(evt.data.wizardId).toBe("");
-    // isValidWizardId("") returns false -> payload validation rejects
-  });
-
-  it("wrong event version would be rejected", () => {
+  it("wizard_character_updated version 2 throws DomainError INVALID_CAMPAIGN_STATE", () => {
     const evt = makeWizardCharacterUpdatedEvent({ version: 2 });
-    expect(evt.version).toBe(2);
-    // M3 coherence rejects version !== 1 for non-phase_advanced events
+    const input = makeInput([evt]);
+    assertDomainError(() => validateEventCoherenceForTest(input, 11), "INVALID_CAMPAIGN_STATE");
+  });
+
+  it("invalid wizardId throws DomainError INVALID_CAMPAIGN_STATE", () => {
+    const evt = makeWizardCharacterUpdatedEvent({ wizardId: "not-a-valid-wiz-id" });
+    const input = makeInput([evt]);
+    assertDomainError(() => validateEventCoherenceForTest(input, 11), "INVALID_CAMPAIGN_STATE");
+  });
+
+  it("historyControlUpdate other than logical_state_append rejects", () => {
+    const evt = makeWizardCharacterUpdatedEvent();
+    const input = makeInput([evt], {
+      historyControlUpdate: { kind: "history_navigation", nextUndoStack: [], nextRedoStack: [] },
+    });
+    assertDomainError(() => validateEventCoherenceForTest(input, 11), "INVALID_CAMPAIGN_STATE");
   });
 });
