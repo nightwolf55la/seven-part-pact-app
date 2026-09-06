@@ -3,6 +3,7 @@ import { api } from "../convex/_generated/api.js";
 import { useState } from "react";
 import { AGE_DEFINITIONS } from "../shared/domain/ages";
 import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
+import { wizardCreationDefaults } from "./setup-view-model";
 
 function generateCommandId(): string {
   return `cmd_${crypto.randomUUID()}`;
@@ -111,29 +112,6 @@ export default function CampaignSetup() {
         </select>
       </section>
 
-      {/* Facilitator */}
-      <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 flex flex-col gap-3">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Facilitator
-        </h3>
-        <select
-          value={configuration.facilitatorPlayerId ?? ""}
-          disabled={pending || players.length === 0}
-          onChange={(e) => {
-            const val = e.target.value || null;
-            act(() => setFacilitator({ commandId: generateCommandId(), playerId: val }));
-          }}
-          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-300"
-        >
-          <option value="">None</option>
-          {players.map((p) => (
-            <option key={p.playerId} value={p.playerId}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-      </section>
-
       {/* Players */}
       <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 flex flex-col gap-3">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -209,6 +187,29 @@ export default function CampaignSetup() {
         )}
       </section>
 
+      {/* Facilitator */}
+      <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 flex flex-col gap-3">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Facilitator
+        </h3>
+        <select
+          value={configuration.facilitatorPlayerId ?? ""}
+          disabled={pending || players.length === 0}
+          onChange={(e) => {
+            const val = e.target.value || null;
+            act(() => setFacilitator({ commandId: generateCommandId(), playerId: val }));
+          }}
+          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-300"
+        >
+          <option value="">Select facilitator...</option>
+          {players.map((p) => (
+            <option key={p.playerId} value={p.playerId}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </section>
+
       {/* Pact Seats */}
       <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 flex flex-col gap-4">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -229,17 +230,36 @@ export default function CampaignSetup() {
                 players={players}
                 unassignedWizards={unassignedWizards}
                 disabled={pending}
-                onCreateWizard={(name, portrayedBy) =>
-                  act(() =>
-                    createWizard({
+                onCreateWizard={(name, portrayedBy) => {
+                  const defaults = wizardCreationDefaults({
+                    currentStatus: (seat.status || null) as "present" | "silent" | "absent" | null,
+                    currentWatcherPlayerId: seat.watcherPlayerId,
+                    portrayedByPlayerId: portrayedBy,
+                  });
+                  act(async () => {
+                    await createWizard({
                       commandId: generateCommandId(),
                       wizardId: generateWizardId(),
                       name,
                       portrayedByPlayerId: portrayedBy,
                       seatId,
-                    }),
-                  )
-                }
+                    });
+                    if (defaults.applyStatusDefault) {
+                      await setPactSeatStatus({
+                        commandId: generateCommandId(),
+                        seatId,
+                        status: defaults.defaultStatus,
+                      });
+                    }
+                    if (defaults.applyWatcherDefault) {
+                      await setWatcher({
+                        commandId: generateCommandId(),
+                        seatId,
+                        playerId: defaults.defaultWatcherPlayerId,
+                      });
+                    }
+                  });
+                }}
                 onRenameWizard={(wizardId, newName) =>
                   act(() =>
                     renameWizard({

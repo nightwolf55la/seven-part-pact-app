@@ -84,3 +84,33 @@ export function buildPlanetPositionSelector(
   }
   return { planetId, legalPositions, currentIndex: idx, offGrid: false };
 }
+
+export type PactSeatStatus = "present" | "silent" | "absent" | null;
+
+export interface WizardCreationDefaultsInput {
+  readonly currentStatus: PactSeatStatus;
+  readonly currentWatcherPlayerId: string | null;
+  readonly portrayedByPlayerId: string | null;
+}
+
+export interface WizardCreationDefaults {
+  readonly applyStatusDefault: boolean;
+  readonly defaultStatus: "present" | null;
+  readonly applyWatcherDefault: boolean;
+  readonly defaultWatcherPlayerId: string | null;
+}
+
+export function wizardCreationDefaults(
+  input: WizardCreationDefaultsInput,
+): WizardCreationDefaults {
+  const hasPlayer = input.portrayedByPlayerId !== null;
+  const applyStatusDefault = hasPlayer && input.currentStatus === null;
+  const applyWatcherDefault = hasPlayer && input.currentWatcherPlayerId === null;
+
+  return {
+    applyStatusDefault,
+    defaultStatus: applyStatusDefault ? "present" : null,
+    applyWatcherDefault,
+    defaultWatcherPlayerId: applyWatcherDefault ? input.portrayedByPlayerId : null,
+  };
+}
