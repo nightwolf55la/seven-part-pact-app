@@ -379,7 +379,9 @@ export default function CampaignSetup() {
               currentWatcherPlayerId: seat.watcherPlayerId,
               portrayedByPlayerId: portrayedBy,
             });
-            act(async () => {
+            setPending(true);
+            setAddWizardError(null);
+            (async () => {
               await createWizard({
                 commandId: generateCommandId(),
                 wizardId: generateWizardId(),
@@ -401,11 +403,13 @@ export default function CampaignSetup() {
                   playerId: defaults.defaultWatcherPlayerId,
                 });
               }
-            }).then(() => {
+            })().then(() => {
               setShowAddWizard(false);
               setAddWizardError(null);
             }).catch((e: any) => {
               setAddWizardError(e?.message ?? "Failed to create wizard");
+            }).finally(() => {
+              setPending(false);
             });
           }}
           onClose={() => { setShowAddWizard(false); setAddWizardError(null); }}
@@ -421,18 +425,19 @@ export default function CampaignSetup() {
           pending={pending}
           error={characterError}
           onSave={(patch) => {
+            setPending(true);
             setCharacterError(null);
-            act(async () => {
-              await updateWizardCharacter({
-                commandId: generateCommandId(),
-                wizardId: characterWizard.wizardId,
-                patch,
-              });
+            updateWizardCharacter({
+              commandId: generateCommandId(),
+              wizardId: characterWizard.wizardId,
+              patch,
             }).then(() => {
               setCharacterWizardId(null);
               setCharacterError(null);
             }).catch((e: any) => {
               setCharacterError(e?.message ?? "Failed to save character");
+            }).finally(() => {
+              setPending(false);
             });
           }}
           onClose={() => { setCharacterWizardId(null); setCharacterError(null); }}

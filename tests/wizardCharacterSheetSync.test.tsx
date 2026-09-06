@@ -224,4 +224,56 @@ describe("WizardCharacterSheet reactive sync", () => {
 
     unmount();
   });
+
+  it("invalid local Element input (1.5) is preserved when a remote character prop update arrives", () => {
+    const initial: WizardCharacterData = {
+      ...BLANK_WIZARD_CHARACTER,
+    };
+    const { container, rerender, unmount } = renderSheet({ character: initial });
+
+    // Type invalid "1.5" into the Air element field
+    const airInput = getInputElement(container, "Air");
+    expect(airInput).not.toBeNull();
+    setNativeValue(airInput!, "1.5");
+
+    // Remote update arrives
+    const updated: WizardCharacterData = {
+      ...BLANK_WIZARD_CHARACTER,
+      familiarDescription: "Owl",
+    };
+    rerender({ character: updated });
+
+    // The invalid local edit must be preserved
+    const airInputAfter = getInputElement(container, "Air");
+    expect(airInputAfter!.value).toBe("1.5");
+
+    unmount();
+  });
+
+  it("invalid local Age input is preserved when a remote character prop update arrives", () => {
+    const initial: WizardCharacterData = {
+      ...BLANK_WIZARD_CHARACTER,
+    };
+    const { container, rerender, unmount } = renderSheet({ character: initial });
+
+    // Type "-5" into the Age field — valid integer but invalid for domain (negative age)
+    // This makes the form raw-dirty (form string differs from baseline form string)
+    // even though buildCharacterPatch normalizes it to null (matching baseline).
+    const ageInput = getInputElement(container, "Age");
+    expect(ageInput).not.toBeNull();
+    setNativeValue(ageInput!, "-5");
+
+    // Remote update arrives
+    const updated: WizardCharacterData = {
+      ...BLANK_WIZARD_CHARACTER,
+      familiarDescription: "Owl",
+    };
+    rerender({ character: updated });
+
+    // The invalid local edit must be preserved
+    const ageInputAfter = getInputElement(container, "Age");
+    expect(ageInputAfter!.value).toBe("-5");
+
+    unmount();
+  });
 });

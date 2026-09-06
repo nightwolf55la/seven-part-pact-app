@@ -177,6 +177,18 @@ function stringArraysEqual(
   return true;
 }
 
+export function isCharacterFormDirty(
+  form: WizardCharacterSheetForm,
+  baseline: WizardCharacterData,
+): boolean {
+  const baselineForm = formFromCharacter(baseline);
+  const keys = Object.keys(form) as (keyof WizardCharacterSheetForm)[];
+  for (const key of keys) {
+    if (form[key] !== baselineForm[key]) return true;
+  }
+  return false;
+}
+
 export function buildCharacterPatch(
   form: WizardCharacterSheetForm,
   baseline: WizardCharacterData,

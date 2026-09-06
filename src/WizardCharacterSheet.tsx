@@ -3,6 +3,7 @@ import type { WizardCharacterData } from "../shared/domain/campaign-state";
 import {
   formFromCharacter,
   buildCharacterPatch,
+  isCharacterFormDirty,
   parseAgeInput,
   validateElementInputs,
   elementsTotal,
@@ -50,7 +51,7 @@ export default function WizardCharacterSheet({
   formRef.current = form;
 
   useLayoutEffect(() => {
-    const dirty = buildCharacterPatch(formRef.current, syncedBaselineRef.current) !== null;
+    const dirty = isCharacterFormDirty(formRef.current, syncedBaselineRef.current);
     if (!dirty) {
       setForm(formFromCharacter(character));
       syncedBaselineRef.current = character;
