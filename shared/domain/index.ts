@@ -188,6 +188,7 @@ export {
   setWatcherFingerprint,
   setSetupMonthFingerprint,
   setSetupOrreryPositionFingerprint,
+  updateWizardCharacterFingerprint,
   beginPlayFingerprint,
   advancePhaseFingerprint,
   normalizeWarningKeys,

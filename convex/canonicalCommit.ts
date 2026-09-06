@@ -146,6 +146,7 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   adjust_wizardmoot_attendance: { required: ["wizardmoot_attendance_adjusted"] },
   complete_meeting: { required: ["meeting_completed"] },
   begin_next_month: { required: ["month_begun"] },
+  update_wizard_character: { required: ["wizard_character_updated"] },
 };
 
 function validateM3EventCoherence(input: CanonicalCommitInput): void {
@@ -246,6 +247,11 @@ function validateM3EventPayload(evt: CampaignEvent): void {
       }
       if (evt.data.newPlayerId !== null && !isValidPlayerId(evt.data.newPlayerId)) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `watcher_assignment_changed has invalid newPlayerId`);
+      }
+      break;
+    case "wizard_character_updated":
+      if (typeof evt.data.wizardId !== "string" || !isValidWizardId(evt.data.wizardId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "wizard_character_updated has invalid wizardId");
       }
       break;
     default:

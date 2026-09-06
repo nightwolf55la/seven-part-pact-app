@@ -109,6 +109,8 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Completed Meeting";
     case "month_begun":
       return "Began Next Month";
+    case "wizard_character_updated":
+      return "Updated wizard character";
     default:
       return "Campaign configuration changed";
   }

@@ -537,6 +537,16 @@ export const engagementRescheduledEventV1Validator = v.object({
   }),
 });
 
+export const wizardCharacterUpdatedEventV1Validator = v.object({
+  type: v.literal("wizard_character_updated"),
+  version: v.literal(1),
+  data: v.object({
+    wizardId: v.string(),
+    previousCharacter: wizardCharacterDataValidator,
+    newCharacter: wizardCharacterDataValidator,
+  }),
+});
+
 // Historical event validators for persisted data (M4 retirement). These event
 // shapes may exist in campaignEvents rows but are no longer created at runtime.
 const historicalMonthChangedEventV1Validator = v.object({
@@ -583,6 +593,7 @@ export const campaignEventValidator = v.union(
   wizardmootAttendanceAdjustedEventV1Validator,
   meetingCompletedEventV1Validator,
   monthBegunEventV1Validator,
+  wizardCharacterUpdatedEventV1Validator,
 );
 
 export const anyCampaignStateValidator = campaignStateV4Validator;

@@ -248,6 +248,13 @@ export function beginNextMonthFingerprint(expectedMonthOrdinal: number, acknowle
   return `begin_next_month:v2:month=${expectedMonthOrdinal}:ack=${normalized.join(",")}`;
 }
 
+// --- Wizard Character fingerprint ---
+
+export function updateWizardCharacterFingerprint(wizardId: string, normalizedPatch: Record<string, unknown>): string {
+  const patchCanonical = canonicalJsonStringify(normalizedPatch);
+  return `update_wizard_character:v1:wizard=${wizardId}:patch=${patchCanonical}`;
+}
+
 export function rescheduleEngagementFingerprint(expectedMonthOrdinal: number, engagementId: string, target: unknown): string {
   if (!Number.isSafeInteger(expectedMonthOrdinal) || expectedMonthOrdinal < 0) {
     throw new Error(`rescheduleEngagementFingerprint requires a non-negative integer expectedMonthOrdinal, got ${expectedMonthOrdinal}`);
