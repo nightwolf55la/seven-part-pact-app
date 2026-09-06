@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getPhaseWorkspaceModel } from "../src/phase-workspace-model";
+import { getPhaseWorkspaceModel, newMoonMonthDisplayName } from "../src/phase-workspace-model";
 
 describe("getPhaseWorkspaceModel", () => {
   it("maps new_moon with display name, workspace kind, next phase, and action label", () => {
@@ -28,5 +28,17 @@ describe("getPhaseWorkspaceModel", () => {
     const m = getPhaseWorkspaceModel("quiet");
     expect(m.nextPhase).toBeNull();
     expect(m.actionLabel).toBeNull();
+  });
+});
+
+describe("newMoonMonthDisplayName", () => {
+  it("returns 'April' for ordinal 12", () => {
+    expect(newMoonMonthDisplayName(12)).toBe("April");
+  });
+
+  it("does not expose the raw ordinal as a month label", () => {
+    const name = newMoonMonthDisplayName(12);
+    expect(name).not.toContain("12");
+    expect(name).not.toContain("#");
   });
 });
