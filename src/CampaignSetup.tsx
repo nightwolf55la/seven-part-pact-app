@@ -9,6 +9,9 @@ import {
   eligiblePortrayingPlayersForWizard,
   isUnseatedWizardAssignableToSeat,
 } from "./setup-view-model";
+import AddWizardDialog from "./AddWizardDialog";
+import WizardCharacterSheet from "./WizardCharacterSheet";
+import type { WizardCharacterData } from "../shared/domain/campaign-state";
 
 function generateCommandId(): string {
   return `cmd_${crypto.randomUUID()}`;
@@ -39,6 +42,13 @@ const STATUS_OPTIONS = [
   { value: "absent", label: "Absent" },
 ];
 
+interface SetupWizard {
+  readonly wizardId: string;
+  readonly name: string;
+  readonly portrayedByPlayerId: string | null;
+  readonly character: WizardCharacterData;
+}
+
 export default function CampaignSetup() {
   const setup = useQuery(api.m3Queries.getCampaignSetup, {});
   const addPlayer = useMutation(api.m3Commands.addPlayer);
@@ -52,10 +62,15 @@ export default function CampaignSetup() {
   const setPactSeatWizard = useMutation(api.m3Commands.setPactSeatWizard);
   const setPactSeatStatus = useMutation(api.m3Commands.setPactSeatStatus);
   const setWatcher = useMutation(api.m3Commands.setWatcher);
+  const updateWizardCharacter = useMutation(api.m3Commands.updateWizardCharacter);
 
   const [newPlayerName, setNewPlayerName] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAddWizard, setShowAddWizard] = useState(false);
+  const [addWizardError, setAddWizardError] = useState<string | null>(null);
+  const [characterWizardId, setCharacterWizardId] = useState<string | null>(null);
+  const [characterError, setCharacterError] = useState<string | null>(null);
 
   if (setup === undefined) {
     return <div className="p-4 text-sm text-slate-400">Loading setup...</div>;
@@ -76,9 +91,13 @@ export default function CampaignSetup() {
     }
   }
 
-  const { configuration, players, wizards, pactSeats } = setup;
+  const { configuration, players, wizards, pactSeats } = setup as {
+    configuration: { ageId: string | null; facilitatorPlayerId: string | null };
+    players: { playerId: string; name: string }[];
+    wizards: SetupWizard[];
+    pactSeats: Record<string, { status: string | null; wizardId: string | null; watcherPlayerId: string | null }>;
+  };
 
-  // Compute which wizards are not currently assigned to any seat
   const assignedWizardIds = new Set(
     PACT_SEAT_IDS
       .map((sid) => pactSeats[sid]?.wizardId)
@@ -88,6 +107,10 @@ export default function CampaignSetup() {
   const assignableUnassignedWizards = unassignedWizards.filter((w) =>
     isUnseatedWizardAssignableToSeat(pactSeats, wizards, w.wizardId),
   );
+
+  const characterWizard = characterWizardId
+    ? wizards.find((w) => w.wizardId === characterWizardId) ?? null
+    : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -218,6 +241,48 @@ export default function CampaignSetup() {
         </select>
       </section>
 
+      {/* Wizards */}
+      <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Wizards
+          </h3>
+          <button
+            disabled={pending}
+            onClick={() => { setShowAddWizard(true); setAddWizardError(null); }}
+            className="text-xs font-medium bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900 rounded-lg px-3 py-1.5 hover:bg-slate-700 dark:hover:bg-slate-200 transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            Add Wizard
+          </button>
+        </div>
+        {wizards.length === 0 ? (
+          <p className="text-xs text-slate-400">No wizards yet.</p>
+        ) : (
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+            {wizards.map((w) => {
+              const assignedSeat = PACT_SEAT_IDS.find((sid) => pactSeats[sid]?.wizardId === w.wizardId) ?? null;
+              return (
+                <li key={w.wizardId} className="py-2 flex items-center justify-between gap-2">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{w.name}</span>
+                    <span className="text-xs text-slate-400">
+                      {assignedSeat ? SEAT_DISPLAY_NAMES[assignedSeat] ?? assignedSeat : "Unassigned"}
+                    </span>
+                  </div>
+                  <button
+                    disabled={pending}
+                    onClick={() => { setCharacterWizardId(w.wizardId); setCharacterError(null); }}
+                    className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
+                  >
+                    Character
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
       {/* Pact Seats */}
       <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 flex flex-col gap-4">
         <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -236,40 +301,10 @@ export default function CampaignSetup() {
                 seat={seat}
                 currentWizard={currentWizard ?? null}
                 players={players}
-                newWizardPlayers={eligiblePortrayingPlayersForNewWizard(players, pactSeats, wizards)}
                 portrayalPlayers={currentWizard ? eligiblePortrayingPlayersForWizard(players, pactSeats, wizards, currentWizard.wizardId) : players}
                 unassignedWizards={assignableUnassignedWizards}
                 disabled={pending}
-                onCreateWizard={(name, portrayedBy) => {
-                  const defaults = wizardCreationDefaults({
-                    currentStatus: (seat.status || null) as "present" | "silent" | "absent" | null,
-                    currentWatcherPlayerId: seat.watcherPlayerId,
-                    portrayedByPlayerId: portrayedBy,
-                  });
-                  act(async () => {
-                    await createWizard({
-                      commandId: generateCommandId(),
-                      wizardId: generateWizardId(),
-                      name,
-                      portrayedByPlayerId: portrayedBy,
-                      seatId,
-                    });
-                    if (defaults.applyStatusDefault) {
-                      await setPactSeatStatus({
-                        commandId: generateCommandId(),
-                        seatId,
-                        status: defaults.defaultStatus,
-                      });
-                    }
-                    if (defaults.applyWatcherDefault) {
-                      await setWatcher({
-                        commandId: generateCommandId(),
-                        seatId,
-                        playerId: defaults.defaultWatcherPlayerId,
-                      });
-                    }
-                  });
-                }}
+                onOpenCharacter={(wizardId) => { setCharacterWizardId(wizardId); setCharacterError(null); }}
                 onRenameWizard={(wizardId, newName) =>
                   act(() =>
                     renameWizard({
@@ -329,6 +364,85 @@ export default function CampaignSetup() {
           })}
         </div>
       </section>
+
+      {/* Add Wizard Dialog */}
+      {showAddWizard && (
+        <AddWizardDialog
+          players={eligiblePortrayingPlayersForNewWizard(players, pactSeats, wizards)}
+          pactSeats={pactSeats}
+          pending={pending}
+          error={addWizardError}
+          onCreate={(name, portrayedBy, selectedSeatId) => {
+            const seat = pactSeats[selectedSeatId] ?? { status: null, wizardId: null, watcherPlayerId: null };
+            const defaults = wizardCreationDefaults({
+              currentStatus: (seat.status || null) as "present" | "silent" | "absent" | null,
+              currentWatcherPlayerId: seat.watcherPlayerId,
+              portrayedByPlayerId: portrayedBy,
+            });
+            setPending(true);
+            setAddWizardError(null);
+            (async () => {
+              await createWizard({
+                commandId: generateCommandId(),
+                wizardId: generateWizardId(),
+                name,
+                portrayedByPlayerId: portrayedBy,
+                seatId: selectedSeatId,
+              });
+              if (defaults.applyStatusDefault) {
+                await setPactSeatStatus({
+                  commandId: generateCommandId(),
+                  seatId: selectedSeatId,
+                  status: defaults.defaultStatus,
+                });
+              }
+              if (defaults.applyWatcherDefault) {
+                await setWatcher({
+                  commandId: generateCommandId(),
+                  seatId: selectedSeatId,
+                  playerId: defaults.defaultWatcherPlayerId,
+                });
+              }
+            })().then(() => {
+              setShowAddWizard(false);
+              setAddWizardError(null);
+            }).catch((e: any) => {
+              setAddWizardError(e?.message ?? "Failed to create wizard");
+            }).finally(() => {
+              setPending(false);
+            });
+          }}
+          onClose={() => { setShowAddWizard(false); setAddWizardError(null); }}
+        />
+      )}
+
+      {/* Wizard Character Sheet */}
+      {characterWizard && (
+        <WizardCharacterSheet
+          wizardId={characterWizard.wizardId}
+          wizardName={characterWizard.name}
+          character={characterWizard.character}
+          pending={pending}
+          error={characterError}
+          onSave={(patch) => {
+            setPending(true);
+            setCharacterError(null);
+            updateWizardCharacter({
+              commandId: generateCommandId(),
+              wizardId: characterWizard.wizardId,
+              patch,
+            }).then(() => {
+              setCharacterWizardId(null);
+              setCharacterError(null);
+            }).catch((e: any) => {
+              setCharacterError(e?.message ?? "Failed to save character");
+            }).finally(() => {
+              setPending(false);
+            });
+          }}
+          onClose={() => { setCharacterWizardId(null); setCharacterError(null); }}
+        />
+      )}
     </div>
   );
 }
@@ -396,11 +510,10 @@ function PactSeatRow({
   seat,
   currentWizard,
   players,
-  newWizardPlayers,
   portrayalPlayers,
   unassignedWizards,
   disabled,
-  onCreateWizard,
+  onOpenCharacter,
   onRenameWizard,
   onSetPortrayal,
   onUnassignWizard,
@@ -412,11 +525,10 @@ function PactSeatRow({
   seat: { status: string | null; wizardId: string | null; watcherPlayerId: string | null };
   currentWizard: { wizardId: string; name: string; portrayedByPlayerId: string | null } | null;
   players: { playerId: string; name: string }[];
-  newWizardPlayers: { playerId: string; name: string }[];
   portrayalPlayers: { playerId: string; name: string }[];
   unassignedWizards: { wizardId: string; name: string; portrayedByPlayerId: string | null }[];
   disabled: boolean;
-  onCreateWizard: (name: string, portrayedBy: string | null) => void;
+  onOpenCharacter: (wizardId: string) => void;
   onRenameWizard: (wizardId: string, name: string) => void;
   onSetPortrayal: (wizardId: string, playerId: string | null) => void;
   onUnassignWizard: () => void;
@@ -424,15 +536,11 @@ function PactSeatRow({
   onSetStatus: (status: string | null) => void;
   onSetWatcher: (playerId: string | null) => void;
 }) {
-  const [creating, setCreating] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [editWizName, setEditWizName] = useState("");
-  const [newWizName, setNewWizName] = useState("");
-  const [newWizPlayer, setNewWizPlayer] = useState<string | null>(null);
 
   const hasWizard = seat.wizardId !== null;
 
-  // Status: Present requires a wizard; Silent/Absent/null are always available
   const statusOptions = STATUS_OPTIONS.filter((opt) => {
     if (opt.value === "present") return hasWizard;
     return true;
@@ -496,6 +604,13 @@ function PactSeatRow({
             )}
             <button
               disabled={disabled}
+              onClick={() => onOpenCharacter(currentWizard.wizardId)}
+              className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
+            >
+              Character
+            </button>
+            <button
+              disabled={disabled}
               onClick={onUnassignWizard}
               className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer"
             >
@@ -519,48 +634,6 @@ function PactSeatRow({
             </select>
           </div>
         </div>
-      ) : creating ? (
-        <div className="flex flex-col gap-2 pl-2 border-l-2 border-blue-200 dark:border-blue-700">
-          <input
-            type="text"
-            value={newWizName}
-            onChange={(e) => setNewWizName(e.target.value)}
-            placeholder="Wizard name"
-            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-sm"
-          />
-          <select
-            value={newWizPlayer ?? ""}
-            onChange={(e) => setNewWizPlayer(e.target.value || null)}
-            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs"
-          >
-            <option value="">No player</option>
-            {newWizardPlayers.map((p) => (
-              <option key={p.playerId} value={p.playerId}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-          <div className="flex gap-2">
-            <button
-              disabled={disabled || !newWizName.trim()}
-              onClick={() => {
-                onCreateWizard(newWizName.trim(), newWizPlayer);
-                setCreating(false);
-                setNewWizName("");
-                setNewWizPlayer(null);
-              }}
-              className="text-xs bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900 rounded px-2 py-1 disabled:opacity-50 cursor-pointer"
-            >
-              Create
-            </button>
-            <button
-              onClick={() => { setCreating(false); setNewWizName(""); setNewWizPlayer(null); }}
-              className="text-xs text-slate-500 hover:text-slate-700 cursor-pointer"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
       ) : (
         <div className="flex flex-col gap-1 pl-2 border-l-2 border-slate-100 dark:border-slate-800">
           {unassignedWizards.length > 0 && (
@@ -581,13 +654,6 @@ function PactSeatRow({
               </select>
             </div>
           )}
-          <button
-            disabled={disabled}
-            onClick={() => setCreating(true)}
-            className="self-start text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
-          >
-            + Create Wizard
-          </button>
         </div>
       )}
 

@@ -8,9 +8,19 @@ const PLAYERS = [
   { playerId: "plr_3", name: "Carol" },
 ];
 
+const BLANK_CHARACTER = {
+  elements: null,
+  pactFragmentPersonalForm: null,
+  familiarDescription: null,
+  ageYears: null,
+  publicChangesOfMagic: [],
+  importantNotes: null,
+  companionDescriptions: { air: null, fire: null, earth: null, water: null },
+};
+
 const WIZARDS = [
-  { wizardId: "wiz_1", name: "Zoltan", portrayedByPlayerId: "plr_1" },
-  { wizardId: "wiz_2", name: "Morgaine", portrayedByPlayerId: "plr_2" },
+  { wizardId: "wiz_1", name: "Zoltan", portrayedByPlayerId: "plr_1", character: BLANK_CHARACTER },
+  { wizardId: "wiz_2", name: "Morgaine", portrayedByPlayerId: "plr_2", character: BLANK_CHARACTER },
 ];
 
 describe("buildTableWizardsRows", () => {
