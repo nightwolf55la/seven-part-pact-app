@@ -129,12 +129,24 @@ describe("companionDescriptions: V4 state validation", () => {
 // ============================================================
 
 describe("companionDescriptions: patch semantics", () => {
-  it("omitted/undefined companionDescriptions preserves existing", () => {
+  it("omitted companionDescriptions preserves existing", () => {
     let state = setupWithWizard();
     state = applyUpdateWizardCharacter(state, W1, {
       companionDescriptions: FILLED_COMPANIONS,
     }).nextState;
     const { nextState } = applyUpdateWizardCharacter(state, W1, { ageYears: 100 });
+    expect(wizardCharacter(nextState, W1).companionDescriptions).toEqual(FILLED_COMPANIONS);
+  });
+
+  it("explicit companionDescriptions: undefined preserves existing", () => {
+    let state = setupWithWizard();
+    state = applyUpdateWizardCharacter(state, W1, {
+      companionDescriptions: FILLED_COMPANIONS,
+    }).nextState;
+    const { nextState } = applyUpdateWizardCharacter(state, W1, {
+      ageYears: 100,
+      companionDescriptions: undefined,
+    } as any);
     expect(wizardCharacter(nextState, W1).companionDescriptions).toEqual(FILLED_COMPANIONS);
   });
 
