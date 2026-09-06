@@ -82,6 +82,7 @@ describe("V4 Foundation: createWizard blank character", () => {
       ageYears: null,
       publicChangesOfMagic: [],
       importantNotes: null,
+      companionDescriptions: { air: null, fire: null, earth: null, water: null },
     });
   });
 

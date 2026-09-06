@@ -112,6 +112,7 @@ describe("describeActivityEntry", () => {
           ageYears: null,
           publicChangesOfMagic: [],
           importantNotes: null,
+          companionDescriptions: { air: null, fire: null, earth: null, water: null },
         },
         newCharacter: {
           elements: null,
@@ -120,6 +121,7 @@ describe("describeActivityEntry", () => {
           ageYears: 50,
           publicChangesOfMagic: [],
           importantNotes: null,
+          companionDescriptions: { air: null, fire: null, earth: null, water: null },
         },
       },
     };

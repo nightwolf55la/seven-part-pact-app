@@ -741,6 +741,19 @@ function validateWizardCharacter(wizard: Record<string, unknown>, index: number)
       );
     }
   }
+
+  if (char.companionDescriptions === null || char.companionDescriptions === undefined || typeof char.companionDescriptions !== "object") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.character.companionDescriptions must be an object`);
+  }
+  const cd = char.companionDescriptions as Record<string, unknown>;
+  for (const key of ELEMENT_KEYS) {
+    if (cd[key] !== null && typeof cd[key] !== "string") {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path}.character.companionDescriptions.${key} must be a string or null`,
+      );
+    }
+  }
 }
 
 function validateV4Shape(s: Record<string, unknown>): void {

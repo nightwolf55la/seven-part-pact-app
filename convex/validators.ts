@@ -269,6 +269,13 @@ const wizardElementScoresValidator = v.object({
   water: v.number(),
 });
 
+const wizardCompanionDescriptionsValidator = v.object({
+  air: v.union(v.string(), v.null()),
+  fire: v.union(v.string(), v.null()),
+  earth: v.union(v.string(), v.null()),
+  water: v.union(v.string(), v.null()),
+});
+
 const wizardCharacterDataValidator = v.object({
   elements: v.union(wizardElementScoresValidator, v.null()),
   pactFragmentPersonalForm: v.union(v.string(), v.null()),
@@ -276,6 +283,7 @@ const wizardCharacterDataValidator = v.object({
   ageYears: v.union(v.number(), v.null()),
   publicChangesOfMagic: v.array(v.string()),
   importantNotes: v.union(v.string(), v.null()),
+  companionDescriptions: wizardCompanionDescriptionsValidator,
 });
 
 const wizardValidator = v.object({

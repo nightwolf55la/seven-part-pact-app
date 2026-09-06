@@ -23,13 +23,14 @@ Every modeled V4 Wizard carries a required `character` field with the following 
 | `ageYears` | `number \| null` | Whole-year age, manually editable. M5.1 adds no automatic aging or month coupling. |
 | `publicChangesOfMagic` | `string[]` | Shared/public only. Does not claim to model secret Changes of Magic. |
 | `importantNotes` | `string \| null` | The printed Wizard-sheet "Important Notes" concept (shared/public), not generic Notes or Lore. |
+| `companionDescriptions` | `{ air, fire, earth, water }` (each `string \| null`) | Interim Wizard-sheet Companion descriptions keyed by Element. These are **not** the complete future Denizen/Companion entity model; they record only what appears on the character sheet today. A later schema evolution may replace or link these descriptions to modeled Denizens. |
 
 Design decisions:
 
 - Character answers may be incomplete (`null`). New Wizards receive the blank character object (`BLANK_WIZARD_CHARACTER`).
 - Do not invent `0/0/0/0` Elements for unset characters; use `null`.
 - Pronouns are static/derived and not persisted.
-- Companions/Denizens are deliberately deferred rather than represented as embedded strings.
+- `companionDescriptions` uses whole-object replacement, not per-element partial patching.
 
 ## Persistence
 

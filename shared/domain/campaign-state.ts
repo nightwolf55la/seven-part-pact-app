@@ -123,6 +123,13 @@ export interface WizardElementScores {
   readonly water: number;
 }
 
+export interface WizardCompanionDescriptions {
+  readonly air: string | null;
+  readonly fire: string | null;
+  readonly earth: string | null;
+  readonly water: string | null;
+}
+
 export interface WizardCharacterData {
   readonly elements: WizardElementScores | null;
   readonly pactFragmentPersonalForm: string | null;
@@ -130,6 +137,7 @@ export interface WizardCharacterData {
   readonly ageYears: number | null;
   readonly publicChangesOfMagic: readonly string[];
   readonly importantNotes: string | null;
+  readonly companionDescriptions: WizardCompanionDescriptions;
 }
 
 export interface CampaignWizard {
@@ -146,6 +154,7 @@ export const BLANK_WIZARD_CHARACTER: WizardCharacterData = {
   ageYears: null,
   publicChangesOfMagic: [],
   importantNotes: null,
+  companionDescriptions: { air: null, fire: null, earth: null, water: null },
 };
 
 export interface CampaignStateV4 {
