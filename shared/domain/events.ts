@@ -1,10 +1,9 @@
 import type { MonthOrdinal } from "./calendar";
 import type { MonthDirection } from "./calendar";
 import type { MovablePlanetId, CentidegreePosition } from "./orrery";
-import type { LunarPhase } from "./campaign-state";
-import type { WizardCharacterData } from "./campaign-state";
+import type { LunarPhase, WizardCharacterDataV4, WizardCharacterDataV5 } from "./campaign-state";
 import type { TimeDestination } from "./time-model";
-import type { EngagementTarget } from "./engagement";
+import type { EngagementTargetV4, EngagementTargetV5 } from "./engagement";
 
 export interface UndoAppliedDataV1 {
   readonly fromRevision: number;
@@ -257,8 +256,8 @@ export interface EngagementTargetChangedDataV1 {
   readonly monthOrdinal: MonthOrdinal;
   readonly engagementId: string;
   readonly actingWizardId: string;
-  readonly previousTarget: EngagementTarget | null;
-  readonly newTarget: EngagementTarget | null;
+  readonly previousTarget: EngagementTargetV4 | null;
+  readonly newTarget: EngagementTargetV4 | null;
 }
 
 export interface EngagementTargetChangedEventV1 {
@@ -351,8 +350,8 @@ export interface EngagementResolvedEventV1 {
 export interface EngagementRescheduledDataV1 {
   readonly monthOrdinal: MonthOrdinal;
   readonly engagementId: string;
-  readonly previousTarget: EngagementTarget | null;
-  readonly newTarget: EngagementTarget;
+  readonly previousTarget: EngagementTargetV4 | null;
+  readonly newTarget: EngagementTargetV4;
 }
 
 export interface EngagementRescheduledEventV1 {
@@ -440,8 +439,8 @@ export interface MonthChangedEventV1 {
 
 export interface WizardCharacterUpdatedDataV1 {
   readonly wizardId: string;
-  readonly previousCharacter: WizardCharacterData;
-  readonly newCharacter: WizardCharacterData;
+  readonly previousCharacter: WizardCharacterDataV4;
+  readonly newCharacter: WizardCharacterDataV4;
 }
 
 export interface WizardCharacterUpdatedEventV1 {
@@ -488,3 +487,44 @@ export type CampaignEvent =
   | PlayEvent;
 
 export type PhaseAdvancedEvent = PhaseAdvancedEventV1 | PhaseAdvancedEventV2;
+
+// --- Candidate V2 event types (NOT added to active unions) ---
+
+export interface WizardCharacterUpdatedDataV2 {
+  readonly wizardId: string;
+  readonly previousCharacter: WizardCharacterDataV5;
+  readonly newCharacter: WizardCharacterDataV5;
+}
+
+export interface WizardCharacterUpdatedEventV2 {
+  readonly type: "wizard_character_updated";
+  readonly version: 2;
+  readonly data: WizardCharacterUpdatedDataV2;
+}
+
+export interface EngagementTargetChangedDataV2 {
+  readonly monthOrdinal: MonthOrdinal;
+  readonly engagementId: string;
+  readonly actingWizardId: string;
+  readonly previousTarget: EngagementTargetV5 | null;
+  readonly newTarget: EngagementTargetV5 | null;
+}
+
+export interface EngagementTargetChangedEventV2 {
+  readonly type: "engagement_target_changed";
+  readonly version: 2;
+  readonly data: EngagementTargetChangedDataV2;
+}
+
+export interface EngagementRescheduledDataV2 {
+  readonly monthOrdinal: MonthOrdinal;
+  readonly engagementId: string;
+  readonly previousTarget: EngagementTargetV5 | null;
+  readonly newTarget: EngagementTargetV5;
+}
+
+export interface EngagementRescheduledEventV2 {
+  readonly type: "engagement_rescheduled";
+  readonly version: 2;
+  readonly data: EngagementRescheduledDataV2;
+}

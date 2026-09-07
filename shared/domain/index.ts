@@ -1,6 +1,6 @@
 export type { Brand } from "./brand";
 
-export type { CampaignId, CommandId, CheckpointId, PlayerId, WizardId, AllocationId, EngagementId } from "./ids";
+export type { CampaignId, CommandId, CheckpointId, PlayerId, WizardId, AllocationId, EngagementId, DenizenId, IsleId, PlaceId, CompanionRelationshipId } from "./ids";
 export {
   isValidCampaignId,
   parseCampaignId,
@@ -18,6 +18,14 @@ export {
   isValidEngagementId,
   parseEngagementId,
   generateEngagementId,
+  isValidDenizenId,
+  parseDenizenId,
+  isValidIsleId,
+  parseIsleId,
+  isValidPlaceId,
+  parsePlaceId,
+  isValidCompanionRelationshipId,
+  parseCompanionRelationshipId,
 } from "./ids";
 
 export type {
@@ -80,6 +88,10 @@ export type {
   MeetingCompletedEventV1,
   MonthBegunEventV1,
   WizardCharacterUpdatedEventV1,
+  WizardCharacterUpdatedEventV2,
+  EngagementTargetChangedEventV2,
+  EngagementRescheduledEventV1,
+  EngagementRescheduledEventV2,
   InfrastructureEvent,
   PhaseAdvancedEvent,
   CampaignEvent,
@@ -99,18 +111,29 @@ export type {
   CampaignStateV2,
   CampaignStateV3,
   CampaignStateV4,
+  CampaignStateV5,
   CampaignPlayer,
   LegacyCampaignWizard,
+  CampaignWizardV4,
   CampaignWizard,
+  CampaignWizardV5,
   WizardElementScores,
   WizardCompanionDescriptions,
+  WizardCharacterDataV4,
   WizardCharacterData,
+  WizardCharacterDataV5,
   PactSeatState,
   PactSeatStatus,
   LunarPhase,
+  MonthlyPlayStateV4,
   MonthlyPlayState,
+  MonthlyPlayStateV5,
+  PlayLifecycleV4,
+  PlayLifecycleV5,
   SetupLifecycle,
   PlayLifecycle,
+  CampaignLifecycleV4,
+  CampaignLifecycleV5,
   CampaignLifecycle,
   CurrentCampaignState,
   AnyCampaignState,
@@ -406,9 +429,14 @@ export type {
   SelfTarget,
   FamiliarTarget,
   NamedCharacterTarget,
+  DenizenTarget,
+  EngagementTargetV4,
   EngagementTarget,
+  EngagementTargetV5,
   EngagementTargetKind,
+  EngagementRecordV4,
   EngagementRecord,
+  EngagementRecordV5,
 } from "./engagement";
 export { ENGAGEMENT_RESOLUTIONS, ENGAGEMENT_TARGET_KINDS } from "./engagement";
 
@@ -463,3 +491,24 @@ export {
   applyBeginNextMonth,
   computePhaseTransitionWarnings,
 } from "./play-transitions";
+
+// --- Shared World (V5 candidate) ---
+
+export type {
+  ElementId,
+  Denizen,
+  Isle,
+  UnspecifiedPlacement,
+  OnIslePlacement,
+  MobilePlacement,
+  WorldPlacePlacement,
+  WorldPlace,
+  CompanionRelationshipStatus,
+  CompanionRelationship,
+  SharedWorldState,
+} from "./shared-world";
+export { ELEMENT_IDS } from "./shared-world";
+
+// --- V5 Reference Validation (candidate, not active) ---
+
+export { validateV5WorldReferenceIntegrity } from "./v5-reference-validation";

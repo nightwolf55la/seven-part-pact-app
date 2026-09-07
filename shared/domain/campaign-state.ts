@@ -1,11 +1,12 @@
 import type { Brand } from "./brand";
 import type { MonthOrdinal } from "./calendar";
-import type { PlayerId, WizardId } from "./ids";
+import type { PlayerId, WizardId, IsleId, PlaceId } from "./ids";
 import type { PactSeatId } from "./pact-seats";
 import type { AgeDefinitionId } from "./ages";
 import type { SetupOrreryState, OrreryState } from "./orrery";
 import type { TimeParticipant } from "./time-model";
-import type { EngagementRecord } from "./engagement";
+import type { EngagementRecordV4, EngagementRecordV5 } from "./engagement";
+import type { SharedWorldState } from "./shared-world";
 import type { WizardmootAttendance, WizardmootHistoryEntry } from "./wizardmoot";
 import {
   SEVEN_PART_PACT_DRAFT4_ID,
@@ -77,25 +78,30 @@ export const LUNAR_PHASES: readonly LunarPhase[] = [
   "new_moon", "visions", "planning", "story", "meeting", "quiet",
 ] as const;
 
-export interface MonthlyPlayState {
+export interface MonthlyPlayStateV4 {
   readonly timeParticipants: readonly TimeParticipant[];
-  readonly engagements: readonly EngagementRecord[];
+  readonly engagements: readonly EngagementRecordV4[];
   readonly wizardmootAttendance: readonly WizardmootAttendance[] | null;
 }
+
+export type MonthlyPlayState = MonthlyPlayStateV4;
 
 export interface SetupLifecycle {
   readonly kind: "setup";
   readonly orrery: SetupOrreryState;
 }
 
-export interface PlayLifecycle {
+export interface PlayLifecycleV4 {
   readonly kind: "play";
   readonly phase: LunarPhase;
   readonly orrery: OrreryState;
-  readonly currentMonth: MonthlyPlayState;
+  readonly currentMonth: MonthlyPlayStateV4;
 }
 
-export type CampaignLifecycle = SetupLifecycle | PlayLifecycle;
+export type PlayLifecycle = PlayLifecycleV4;
+
+export type CampaignLifecycleV4 = SetupLifecycle | PlayLifecycleV4;
+export type CampaignLifecycle = CampaignLifecycleV4;
 
 export interface CampaignStateV3 {
   readonly schemaVersion: 3;
@@ -130,7 +136,7 @@ export interface WizardCompanionDescriptions {
   readonly water: string | null;
 }
 
-export interface WizardCharacterData {
+export interface WizardCharacterDataV4 {
   readonly elements: WizardElementScores | null;
   readonly pactFragmentPersonalForm: string | null;
   readonly familiarDescription: string | null;
@@ -140,14 +146,18 @@ export interface WizardCharacterData {
   readonly companionDescriptions: WizardCompanionDescriptions;
 }
 
-export interface CampaignWizard {
+export type WizardCharacterData = WizardCharacterDataV4;
+
+export interface CampaignWizardV4 {
   readonly wizardId: WizardId;
   readonly name: string;
   readonly portrayedByPlayerId: PlayerId | null;
-  readonly character: WizardCharacterData;
+  readonly character: WizardCharacterDataV4;
 }
 
-export const BLANK_WIZARD_CHARACTER: WizardCharacterData = {
+export type CampaignWizard = CampaignWizardV4;
+
+export const BLANK_WIZARD_CHARACTER: WizardCharacterDataV4 = {
   elements: null,
   pactFragmentPersonalForm: null,
   familiarDescription: null,
@@ -168,9 +178,9 @@ export interface CampaignStateV4 {
     readonly facilitatorPlayerId: PlayerId | null;
   };
   readonly players: readonly CampaignPlayer[];
-  readonly wizards: readonly CampaignWizard[];
+  readonly wizards: readonly CampaignWizardV4[];
   readonly pactSeats: { readonly [K in PactSeatId]: PactSeatState };
-  readonly lifecycle: CampaignLifecycle;
+  readonly lifecycle: CampaignLifecycleV4;
   readonly wizardmootHistory: readonly WizardmootHistoryEntry[];
 }
 
@@ -178,3 +188,56 @@ export type CurrentCampaignState = CampaignStateV4;
 export type AnyCampaignState = CampaignStateV4;
 
 export const CURRENT_STATE_SCHEMA_VERSION: CurrentCampaignState["schemaVersion"] = 4;
+
+// --- V5: Candidate types (NOT active in runtime) ---
+
+export interface WizardCharacterDataV5 {
+  readonly elements: WizardElementScores | null;
+  readonly pactFragmentPersonalForm: string | null;
+  readonly familiarDescription: string | null;
+  readonly ageYears: number | null;
+  readonly publicChangesOfMagic: readonly string[];
+  readonly importantNotes: string | null;
+}
+
+export interface CampaignWizardV5 {
+  readonly wizardId: WizardId;
+  readonly name: string;
+  readonly portrayedByPlayerId: PlayerId | null;
+  readonly character: WizardCharacterDataV5;
+  readonly homeIsleId: IsleId | null;
+  readonly sanctumPlaceId: PlaceId | null;
+}
+
+export interface MonthlyPlayStateV5 {
+  readonly timeParticipants: readonly TimeParticipant[];
+  readonly engagements: readonly EngagementRecordV5[];
+  readonly wizardmootAttendance: readonly WizardmootAttendance[] | null;
+}
+
+export interface PlayLifecycleV5 {
+  readonly kind: "play";
+  readonly phase: LunarPhase;
+  readonly orrery: OrreryState;
+  readonly currentMonth: MonthlyPlayStateV5;
+}
+
+export type CampaignLifecycleV5 = SetupLifecycle | PlayLifecycleV5;
+
+export interface CampaignStateV5 {
+  readonly schemaVersion: 5;
+  readonly ruleset: CampaignRuleset;
+  readonly calendar: {
+    readonly monthOrdinal: MonthOrdinal | null;
+  };
+  readonly configuration: {
+    readonly ageId: AgeDefinitionId | null;
+    readonly facilitatorPlayerId: PlayerId | null;
+  };
+  readonly players: readonly CampaignPlayer[];
+  readonly wizards: readonly CampaignWizardV5[];
+  readonly pactSeats: { readonly [K in PactSeatId]: PactSeatState };
+  readonly lifecycle: CampaignLifecycleV5;
+  readonly wizardmootHistory: readonly WizardmootHistoryEntry[];
+  readonly world: SharedWorldState;
+}
