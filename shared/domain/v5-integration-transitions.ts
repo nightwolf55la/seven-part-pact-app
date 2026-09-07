@@ -124,9 +124,14 @@ function applyWizardCharacterPatchV5(
   };
 }
 
+function elementsEqual(a: WizardElementScores | null, b: WizardElementScores | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.air === b.air && a.fire === b.fire && a.earth === b.earth && a.water === b.water;
+}
+
 function charactersEqual(a: WizardCharacterDataV5, b: WizardCharacterDataV5): boolean {
   return (
-    a.elements === b.elements &&
+    elementsEqual(a.elements, b.elements) &&
     a.pactFragmentPersonalForm === b.pactFragmentPersonalForm &&
     a.familiarDescription === b.familiarDescription &&
     a.ageYears === b.ageYears &&

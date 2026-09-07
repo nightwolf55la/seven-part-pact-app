@@ -430,3 +430,30 @@ describe("V5 candidate operations enforce M4 restrictions", () => {
     });
   }
 });
+
+// =========================================================================
+// 9. Element no-op detection — same values in a new object instance
+// =========================================================================
+
+describe("V5 Element no-op detection", () => {
+  it("rejects a patch supplying a new Element object with identical scores", () => {
+    const elements = { air: 1, fire: 2, earth: 3, water: 4 };
+    const state = baseV5Setup([
+      blankV5Wizard({ character: { ...BLANK_WIZARD_CHARACTER_V5, elements } }),
+    ]);
+
+    try {
+      applyUpdateWizardCharacterV5Candidate(state, WIZ_A, {
+        elements: { air: 1, fire: 2, earth: 3, water: 4 },
+      });
+      expect.unreachable("should have thrown");
+    } catch (e: any) {
+      expect(e).toBeInstanceOf(DomainError);
+      expect(e.code).toBe("INVALID_CAMPAIGN_STATE");
+    }
+
+    // Input state must be unchanged
+    const wiz = state.wizards.find((w) => w.wizardId === WIZ_A)!;
+    expect(wiz.character.elements).toBe(elements);
+  });
+});
