@@ -540,3 +540,22 @@ export {
   applyCreatePlaceV5Candidate,
   applyUpdatePlaceV5Candidate,
 } from "./world-subject-transitions";
+
+// --- V5 World Relationship Transitions (candidate, not active) ---
+
+export type {
+  RelationshipTransitionResult,
+  CandidateRelationshipEvent,
+  WizardHomeIsleChangedEventV1,
+  WizardSanctumChangedEventV1,
+  WizardCompanionChangedEventV1,
+  CompanionDescriptionChangedEventV1,
+  SetWizardCompanionInput,
+  UpdateCompanionDescriptionInput,
+} from "./world-relationship-transitions";
+export {
+  applySetWizardHomeIsleV5Candidate,
+  applySetWizardSanctumV5Candidate,
+  applySetWizardCompanionV5Candidate,
+  applyUpdateCompanionDescriptionV5Candidate,
+} from "./world-relationship-transitions";
