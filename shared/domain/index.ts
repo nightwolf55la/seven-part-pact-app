@@ -138,7 +138,7 @@ export type {
   CurrentCampaignState,
   AnyCampaignState,
 } from "./campaign-state";
-export { CURRENT_STATE_SCHEMA_VERSION, LUNAR_PHASES, BLANK_WIZARD_CHARACTER } from "./campaign-state";
+export { CURRENT_STATE_SCHEMA_VERSION, LUNAR_PHASES, BLANK_WIZARD_CHARACTER, BLANK_WIZARD_CHARACTER_V5 } from "./campaign-state";
 
 export type { WizardCharacterPatch } from "./wizard-character";
 export { normalizeWizardCharacterPatch, applyWizardCharacterPatch } from "./wizard-character";
@@ -154,7 +154,7 @@ export { migrateToCurrentVersion, loadHistoricalState, isHistoricalStateLogicall
 export type { DomainErrorCode } from "./errors";
 export { DomainError } from "./errors";
 
-export { validateCampaignState, validateAnyCampaignState } from "./state-validation";
+export { validateCampaignState, validateAnyCampaignState, validateCampaignStateV5Candidate } from "./state-validation";
 
 export { initialCampaignState } from "./initial-state";
 
@@ -507,7 +507,7 @@ export type {
   CompanionRelationship,
   SharedWorldState,
 } from "./shared-world";
-export { ELEMENT_IDS } from "./shared-world";
+export { ELEMENT_IDS, EMPTY_SHARED_WORLD_STATE } from "./shared-world";
 
 // --- V5 Reference Validation (candidate, not active) ---
 

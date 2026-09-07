@@ -1,6 +1,7 @@
 import type {
   CurrentCampaignState,
   AnyCampaignState,
+  CampaignStateV5,
   PactSeatStatus,
   LunarPhase,
 } from "./campaign-state";
@@ -14,6 +15,10 @@ import {
   isValidWizardId,
   isValidAllocationId,
   isValidEngagementId,
+  isValidIsleId,
+  isValidPlaceId,
+  isValidDenizenId,
+  isValidCompanionRelationshipId,
 } from "./ids";
 import { PACT_SEAT_IDS } from "./pact-seats";
 import type { PactSeatId } from "./pact-seats";
@@ -25,10 +30,12 @@ import {
 import type { MovablePlanetId } from "./orrery";
 import { ALLOCATION_RESOLUTIONS } from "./time-model";
 import type { AllocationResolution } from "./time-model";
-import { ENGAGEMENT_RESOLUTIONS, ENGAGEMENT_TARGET_KINDS } from "./engagement";
+import { ENGAGEMENT_RESOLUTIONS, ENGAGEMENT_TARGET_KINDS, ENGAGEMENT_TARGET_KINDS_V5 } from "./engagement";
 import type { EngagementResolution, EngagementTargetKind } from "./engagement";
 import { TIME_DESTINATION_KINDS } from "./time-model";
+import { ELEMENT_IDS } from "./shared-world";
 import { DomainError } from "./errors";
+import { validateV5WorldReferenceIntegrity } from "./v5-reference-validation";
 
 const VALID_PACT_SEAT_STATUSES: readonly (PactSeatStatus | null)[] = [
   "present",
@@ -77,6 +84,7 @@ function validateCalendarV3(s: Record<string, unknown>, lifecycleKind: string): 
 
 function validatePlayersAndWizards(
   s: Record<string, unknown>,
+  version: 4 | 5 = 4,
 ): { playerIds: Set<string>; wizardIds: Set<string> } {
   if (!Array.isArray(s.players)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "players must be an array");
@@ -133,7 +141,20 @@ function validatePlayersAndWizards(
     }
     wizardIds.add(wizard.wizardId);
 
-    validateWizardCharacter(wizard, i);
+    validateWizardCharacter(wizard, i, version);
+
+    if (version >= 5) {
+      if (wizard.homeIsleId !== null) {
+        if (typeof wizard.homeIsleId !== "string" || !isValidIsleId(wizard.homeIsleId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `wizards[${i}].homeIsleId is invalid: ${JSON.stringify(wizard.homeIsleId)}`);
+        }
+      }
+      if (wizard.sanctumPlaceId !== null) {
+        if (typeof wizard.sanctumPlaceId !== "string" || !isValidPlaceId(wizard.sanctumPlaceId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `wizards[${i}].sanctumPlaceId is invalid: ${JSON.stringify(wizard.sanctumPlaceId)}`);
+        }
+      }
+    }
   }
 
   return { playerIds, wizardIds };
@@ -401,6 +422,7 @@ function validateEngagements(
   allocationOwner: Map<string, string>,
   allocationDestination: Map<string, Record<string, unknown>>,
   path: string,
+  version: 4 | 5 = 4,
 ): void {
   const engagementIds = new Set<string>();
   const linkedAllocations = new Set<string>();
@@ -433,7 +455,8 @@ function validateEngagements(
         throw new DomainError("INVALID_CAMPAIGN_STATE", `${engPath}.target must be object or null`);
       }
       const target = engObj.target as Record<string, unknown>;
-      if (!(ENGAGEMENT_TARGET_KINDS as readonly string[]).includes(target.kind as string)) {
+      const allowedKinds = version >= 5 ? ENGAGEMENT_TARGET_KINDS_V5 : ENGAGEMENT_TARGET_KINDS;
+      if (!(allowedKinds as readonly string[]).includes(target.kind as string)) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `${engPath}.target.kind is invalid: ${JSON.stringify(target.kind)}`);
       }
       if (target.kind === "wizard") {
@@ -447,6 +470,11 @@ function validateEngagements(
       if (target.kind === "named_character") {
         if (typeof target.name !== "string" || target.name.trim().length === 0) {
           throw new DomainError("INVALID_CAMPAIGN_STATE", `${engPath}.target.name must be non-empty for named_character`);
+        }
+      }
+      if (target.kind === "denizen") {
+        if (typeof target.denizenId !== "string" || !isValidDenizenId(target.denizenId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `${engPath}.target.denizenId is invalid: ${JSON.stringify(target.denizenId)}`);
         }
       }
     }
@@ -624,6 +652,7 @@ function validateWizardmootHistory(
 function validateLifecycle(
   s: Record<string, unknown>,
   wizardIds: Set<string>,
+  version: 4 | 5 = 4,
 ): void {
   if (s.lifecycle === null || s.lifecycle === undefined || typeof s.lifecycle !== "object") {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Missing or invalid lifecycle");
@@ -673,6 +702,7 @@ function validateLifecycle(
       allocationOwner,
       allocationDestination,
       "currentMonth.engagements",
+      version,
     );
 
     if (currentMonth.wizardmootAttendance !== null && !Array.isArray(currentMonth.wizardmootAttendance)) {
@@ -690,7 +720,7 @@ function validateLifecycle(
 
 const ELEMENT_KEYS = ["air", "fire", "earth", "water"] as const;
 
-function validateWizardCharacter(wizard: Record<string, unknown>, index: number): void {
+function validateWizardCharacter(wizard: Record<string, unknown>, index: number, version: 4 | 5 = 4): void {
   const path = `wizards[${index}]`;
   if (wizard.character === null || wizard.character === undefined || typeof wizard.character !== "object") {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.character must be an object`);
@@ -742,22 +772,23 @@ function validateWizardCharacter(wizard: Record<string, unknown>, index: number)
     }
   }
 
-  if (char.companionDescriptions === null || char.companionDescriptions === undefined || typeof char.companionDescriptions !== "object") {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.character.companionDescriptions must be an object`);
-  }
-  const cd = char.companionDescriptions as Record<string, unknown>;
-  for (const key of ELEMENT_KEYS) {
-    if (cd[key] !== null && typeof cd[key] !== "string") {
-      throw new DomainError(
-        "INVALID_CAMPAIGN_STATE",
-        `${path}.character.companionDescriptions.${key} must be a string or null`,
-      );
+  if (version <= 4) {
+    if (char.companionDescriptions === null || char.companionDescriptions === undefined || typeof char.companionDescriptions !== "object") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.character.companionDescriptions must be an object`);
+    }
+    const cd = char.companionDescriptions as Record<string, unknown>;
+    for (const key of ELEMENT_KEYS) {
+      if (cd[key] !== null && typeof cd[key] !== "string") {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `${path}.character.companionDescriptions.${key} must be a string or null`,
+        );
+      }
     }
   }
 }
 
-function validateV4Shape(s: Record<string, unknown>): void {
-  // Determine lifecycle kind first for calendar validation
+function validateCommonShape(s: Record<string, unknown>, version: 4 | 5 = 4): { wizardIds: Set<string> } {
   let lifecycleKind = "setup";
   if (s.lifecycle !== null && s.lifecycle !== undefined && typeof s.lifecycle === "object") {
     lifecycleKind = (s.lifecycle as Record<string, unknown>).kind as string || "setup";
@@ -766,15 +797,21 @@ function validateV4Shape(s: Record<string, unknown>): void {
   validateRuleset(s);
   validateCalendarV3(s, lifecycleKind);
 
-  const { playerIds, wizardIds } = validatePlayersAndWizards(s);
+  const { playerIds, wizardIds } = validatePlayersAndWizards(s, version);
   validateConfiguration(s, playerIds);
   validatePactSeats(s, playerIds, wizardIds, s.wizards as unknown[]);
-  validateLifecycle(s, wizardIds);
+  validateLifecycle(s, wizardIds, version);
 
   if (!Array.isArray(s.wizardmootHistory)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "wizardmootHistory must be an array");
   }
   validateWizardmootHistory(s.wizardmootHistory as unknown[], wizardIds);
+
+  return { wizardIds };
+}
+
+function validateV4Shape(s: Record<string, unknown>): void {
+  validateCommonShape(s, 4);
 }
 
 export function validateCampaignState(state: unknown): CurrentCampaignState {
@@ -818,4 +855,155 @@ export function validateAnyCampaignState(state: unknown): AnyCampaignState {
     "INVALID_CAMPAIGN_STATE",
     `Unsupported schemaVersion: ${JSON.stringify(s.schemaVersion)}`,
   );
+}
+
+// --- V5 Candidate structural validation (NOT called by active runtime) ---
+
+const VALID_PLACEMENT_KINDS = new Set(["unspecified", "on_isle", "mobile"]);
+const VALID_REPRESENTATIONS = new Set(["individual", "collective"]);
+const VALID_COMPANION_STATUSES = new Set(["current", "ended"]);
+const ELEMENT_ID_SET = new Set<string>(ELEMENT_IDS);
+
+function validateWorldStructure(s: Record<string, unknown>): void {
+  if (s.world === null || s.world === undefined || typeof s.world !== "object") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Missing or invalid world");
+  }
+  const world = s.world as Record<string, unknown>;
+
+  if (!Array.isArray(world.denizens)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "world.denizens must be an array");
+  }
+  if (!Array.isArray(world.isles)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "world.isles must be an array");
+  }
+  if (!Array.isArray(world.places)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "world.places must be an array");
+  }
+  if (!Array.isArray(world.companionRelationships)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "world.companionRelationships must be an array");
+  }
+
+  for (let i = 0; i < (world.denizens as unknown[]).length; i++) {
+    const d = (world.denizens as unknown[])[i];
+    const path = `world.denizens[${i}]`;
+    if (d === null || d === undefined || typeof d !== "object") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} is not a valid object`);
+    }
+    const dObj = d as Record<string, unknown>;
+    if (typeof dObj.denizenId !== "string" || !isValidDenizenId(dObj.denizenId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId is invalid: ${JSON.stringify(dObj.denizenId)}`);
+    }
+    if (typeof dObj.name !== "string" || dObj.name.length === 0) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.name must be a non-empty string`);
+    }
+    if (!VALID_REPRESENTATIONS.has(dObj.representation as string)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.representation is invalid: ${JSON.stringify(dObj.representation)}`);
+    }
+    if (dObj.description !== null && typeof dObj.description !== "string") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.description must be a string or null`);
+    }
+  }
+
+  for (let i = 0; i < (world.isles as unknown[]).length; i++) {
+    const isle = (world.isles as unknown[])[i];
+    const path = `world.isles[${i}]`;
+    if (isle === null || isle === undefined || typeof isle !== "object") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} is not a valid object`);
+    }
+    const isleObj = isle as Record<string, unknown>;
+    if (typeof isleObj.isleId !== "string" || !isValidIsleId(isleObj.isleId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.isleId is invalid: ${JSON.stringify(isleObj.isleId)}`);
+    }
+    if (typeof isleObj.name !== "string" || isleObj.name.length === 0) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.name must be a non-empty string`);
+    }
+    if (isleObj.description !== null && typeof isleObj.description !== "string") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.description must be a string or null`);
+    }
+  }
+
+  for (let i = 0; i < (world.places as unknown[]).length; i++) {
+    const place = (world.places as unknown[])[i];
+    const path = `world.places[${i}]`;
+    if (place === null || place === undefined || typeof place !== "object") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} is not a valid object`);
+    }
+    const placeObj = place as Record<string, unknown>;
+    if (typeof placeObj.placeId !== "string" || !isValidPlaceId(placeObj.placeId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.placeId is invalid: ${JSON.stringify(placeObj.placeId)}`);
+    }
+    if (typeof placeObj.name !== "string" || placeObj.name.length === 0) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.name must be a non-empty string`);
+    }
+    if (placeObj.description !== null && typeof placeObj.description !== "string") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.description must be a string or null`);
+    }
+    if (placeObj.placement === null || placeObj.placement === undefined || typeof placeObj.placement !== "object") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.placement must be an object`);
+    }
+    const placement = placeObj.placement as Record<string, unknown>;
+    if (!VALID_PLACEMENT_KINDS.has(placement.kind as string)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.placement.kind is invalid: ${JSON.stringify(placement.kind)}`);
+    }
+    if (placement.kind === "on_isle") {
+      if (typeof placement.isleId !== "string" || !isValidIsleId(placement.isleId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.placement.isleId is invalid: ${JSON.stringify(placement.isleId)}`);
+      }
+    }
+    if (placement.kind === "mobile") {
+      if (placement.associatedIsleId !== null) {
+        if (typeof placement.associatedIsleId !== "string" || !isValidIsleId(placement.associatedIsleId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.placement.associatedIsleId is invalid: ${JSON.stringify(placement.associatedIsleId)}`);
+        }
+      }
+    }
+  }
+
+  for (let i = 0; i < (world.companionRelationships as unknown[]).length; i++) {
+    const cr = (world.companionRelationships as unknown[])[i];
+    const path = `world.companionRelationships[${i}]`;
+    if (cr === null || cr === undefined || typeof cr !== "object") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} is not a valid object`);
+    }
+    const crObj = cr as Record<string, unknown>;
+    if (typeof crObj.companionRelationshipId !== "string" || !isValidCompanionRelationshipId(crObj.companionRelationshipId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.companionRelationshipId is invalid: ${JSON.stringify(crObj.companionRelationshipId)}`);
+    }
+    if (typeof crObj.wizardId !== "string" || !isValidWizardId(crObj.wizardId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.wizardId is invalid: ${JSON.stringify(crObj.wizardId)}`);
+    }
+    if (!ELEMENT_ID_SET.has(crObj.element as string)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.element is invalid: ${JSON.stringify(crObj.element)}`);
+    }
+    if (typeof crObj.denizenId !== "string" || !isValidDenizenId(crObj.denizenId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId is invalid: ${JSON.stringify(crObj.denizenId)}`);
+    }
+    if (crObj.description !== null && typeof crObj.description !== "string") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.description must be a string or null`);
+    }
+    if (!VALID_COMPANION_STATUSES.has(crObj.status as string)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.status is invalid: ${JSON.stringify(crObj.status)}`);
+    }
+  }
+}
+
+export function validateCampaignStateV5Candidate(state: unknown): CampaignStateV5 {
+  if (state === null || state === undefined || typeof state !== "object") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "State must be a non-null object");
+  }
+
+  const s = state as Record<string, unknown>;
+
+  if (s.schemaVersion !== 5) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `validateCampaignStateV5Candidate requires schemaVersion 5, got ${JSON.stringify(s.schemaVersion)}`,
+    );
+  }
+
+  validateCommonShape(s, 5);
+  validateWorldStructure(s);
+  validateV5WorldReferenceIntegrity(state as CampaignStateV5);
+
+  return state as CampaignStateV5;
 }

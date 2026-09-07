@@ -167,6 +167,15 @@ export const BLANK_WIZARD_CHARACTER: WizardCharacterDataV4 = {
   companionDescriptions: { air: null, fire: null, earth: null, water: null },
 };
 
+export const BLANK_WIZARD_CHARACTER_V5: WizardCharacterDataV5 = {
+  elements: null,
+  pactFragmentPersonalForm: null,
+  familiarDescription: null,
+  ageYears: null,
+  publicChangesOfMagic: [],
+  importantNotes: null,
+};
+
 export interface CampaignStateV4 {
   readonly schemaVersion: 4;
   readonly ruleset: CampaignRuleset;

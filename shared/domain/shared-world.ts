@@ -60,3 +60,10 @@ export interface SharedWorldState {
   readonly places: readonly WorldPlace[];
   readonly companionRelationships: readonly CompanionRelationship[];
 }
+
+export const EMPTY_SHARED_WORLD_STATE: SharedWorldState = {
+  denizens: [],
+  isles: [],
+  places: [],
+  companionRelationships: [],
+};
