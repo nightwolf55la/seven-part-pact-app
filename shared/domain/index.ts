@@ -512,3 +512,31 @@ export { ELEMENT_IDS, EMPTY_SHARED_WORLD_STATE } from "./shared-world";
 // --- V5 Reference Validation (candidate, not active) ---
 
 export { validateV5WorldReferenceIntegrity } from "./v5-reference-validation";
+
+// --- V5 World Subject Transitions (candidate, not active) ---
+
+export type {
+  ExpectedFieldChange,
+  WorldSubjectTransitionResult,
+  CandidateWorldSubjectEvent,
+  DenizenCreatedEventV1,
+  DenizenUpdatedEventV1,
+  IsleCreatedEventV1,
+  IsleUpdatedEventV1,
+  PlaceCreatedEventV1,
+  PlaceUpdatedEventV1,
+  CreateDenizenInput,
+  UpdateDenizenFields,
+  CreateIsleInput,
+  UpdateIsleFields,
+  CreatePlaceInput,
+  UpdatePlaceFields,
+} from "./world-subject-transitions";
+export {
+  applyCreateDenizenV5Candidate,
+  applyUpdateDenizenV5Candidate,
+  applyCreateIsleV5Candidate,
+  applyUpdateIsleV5Candidate,
+  applyCreatePlaceV5Candidate,
+  applyUpdatePlaceV5Candidate,
+} from "./world-subject-transitions";
