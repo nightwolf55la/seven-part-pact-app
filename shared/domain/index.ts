@@ -559,3 +559,19 @@ export {
   applySetWizardCompanionV5Candidate,
   applyUpdateCompanionDescriptionV5Candidate,
 } from "./world-relationship-transitions";
+
+// --- V5 Integration Transitions (candidate, not active) ---
+
+export type {
+  WizardCharacterPatchV5,
+  V5IntegrationTransitionResult,
+  SetEngagementTargetV5Input,
+  RescheduleEngagementV5Input,
+} from "./v5-integration-transitions";
+export {
+  normalizeWizardCharacterPatchV5,
+  validateEngagementTargetV5,
+  applyUpdateWizardCharacterV5Candidate,
+  applySetEngagementTargetV5Candidate,
+  applyRescheduleEngagementV5Candidate,
+} from "./v5-integration-transitions";
