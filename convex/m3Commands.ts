@@ -2,7 +2,6 @@ import { v } from "convex/values";
 import { mutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import {
-  validateCampaignState,
   DomainError,
   parseLiveCommandId,
   addPlayerFingerprint,
@@ -102,57 +101,20 @@ import { isValidPactSeatId } from "../shared/domain/pact-seats";
 import type { AgeDefinitionId } from "../shared/domain/ages";
 import { isValidAgeDefinitionId } from "../shared/domain/ages";
 import { loadHistoricalState } from "../shared/domain/state-migration";
-import { matchCommandIdempotency } from "../shared/domain/command-ids";
-import { isValidCampaignId } from "../shared/domain";
+import { resolveAcceptedCommandReplay } from "../shared/domain/command-ids";
 import { canonicalCommit } from "./canonicalCommit";
 import type { CanonicalCommitInput, CanonicalCommitReceipt } from "./canonicalCommit";
-import type { Id } from "./_generated/dataModel";
-import { loadCanonicalRecord } from "./persistence";
 import { assertCampaignNotDeleting } from "./deletionBarrier";
 import { MOVABLE_PLANET_IDS } from "../shared/domain";
+import {
+  assertM5ExpectedCampaignIdMatches,
+  executeConvexOrdinaryLogicalCommand,
+  loadCanonicalV2ForMutation,
+  validateM5ExpectedCampaignId,
+  type CanonicalCampaign,
+} from "./ordinaryLogicalCommand";
 
-interface CanonicalCampaign {
-  docId: Id<"campaigns">;
-  campaignId: string;
-  currentRevision: number;
-  currentState: CurrentCampaignState;
-}
-
-function validateM5ExpectedCampaignId(expectedCampaignId: string): void {
-  if (!isValidCampaignId(expectedCampaignId)) {
-    throw new DomainError(
-      "INVALID_CAMPAIGN_STATE",
-      `Invalid expectedCampaignId: ${expectedCampaignId}`,
-    );
-  }
-}
-
-export function assertM5ExpectedCampaignIdMatches(
-  expectedCampaignId: string,
-  actualCampaignId: string,
-): void {
-  if (expectedCampaignId !== actualCampaignId) {
-    throw new DomainError(
-      "STALE_COMMAND_PRECONDITION",
-      `Expected campaign "${expectedCampaignId}" but current campaign is "${actualCampaignId}"`,
-    );
-  }
-}
-
-async function loadCanonicalV2ForMutation(ctx: MutationCtx): Promise<CanonicalCampaign> {
-  const record = await loadCanonicalRecord(ctx);
-  if (record === null) {
-    throw new DomainError("CAMPAIGN_STATE_CORRUPT", "No canonical campaign found");
-  }
-
-  const currentState = validateCampaignState(record.rawState);
-  return {
-    docId: record.docId,
-    campaignId: record.campaignId,
-    currentRevision: record.campaignRevision,
-    currentState,
-  };
-}
+export { assertM5ExpectedCampaignIdMatches };
 
 /**
  * Pre-transition idempotency check. If commandId was already committed,
@@ -174,42 +136,38 @@ async function checkIdempotency(
     )
     .unique();
 
-  if (existingCommand === null) return null;
-
-  const match = matchCommandIdempotency(
-    {
-      commandType: existingCommand.commandType,
-      commandFingerprint: existingCommand.commandFingerprint,
-      campaignRevision: existingCommand.campaignRevision,
-    },
+  const replay = resolveAcceptedCommandReplay(
+    commandId,
+    existingCommand === null
+      ? null
+      : {
+          commandType: existingCommand.commandType,
+          commandFingerprint: existingCommand.commandFingerprint,
+          campaignRevision: existingCommand.campaignRevision,
+        },
     { commandType, commandFingerprint },
   );
 
-  if (match.kind === "conflict") {
-    throw new DomainError(
-      "COMMAND_ID_REUSED",
-      `CommandId "${commandId}" already committed with type="${match.committedType}" fingerprint="${match.committedFingerprint}", cannot reuse for type="${commandType}" fingerprint="${commandFingerprint}"`,
-    );
-  }
+  if (replay.kind === "not_applied") return null;
 
   const existingSnapshot = await ctx.db
     .query("campaignSnapshots")
     .withIndex("by_campaign_revision", (q) =>
-      q.eq("campaignId", campaignId).eq("campaignRevision", existingCommand.campaignRevision),
+      q.eq("campaignId", campaignId).eq("campaignRevision", replay.revision),
     )
     .unique();
 
   if (existingSnapshot === null) {
     throw new DomainError(
       "CAMPAIGN_STATE_CORRUPT",
-      `Snapshot missing for committed revision ${existingCommand.campaignRevision}`,
+      `Snapshot missing for committed revision ${replay.revision}`,
     );
   }
 
   const validated = loadHistoricalState(existingSnapshot.state);
 
   return {
-    newRevision: existingCommand.campaignRevision,
+    newRevision: replay.revision,
     state: validated,
     alreadyApplied: true,
   };
@@ -1183,25 +1141,32 @@ export const createDenizen = mutation({
     description: v.union(v.string(), v.null()),
   },
   handler: async (ctx, args) => {
-    await assertCampaignNotDeleting(ctx);
-    parseLiveCommandId(args.commandId);
-    validateM5ExpectedCampaignId(args.expectedCampaignId);
-    if (!isValidDenizenId(args.denizenId)) {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
-    }
-    const fingerprint = createDenizenFingerprint(args.expectedCampaignId, args.denizenId, args.name, args.representation, args.description);
-    const campaign = await loadCanonicalV2ForMutation(ctx);
-    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
-    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "create_denizen", fingerprint);
-    if (replay) return { revision: replay.newRevision };
-    const result = applyCreateDenizenV5Candidate(campaign.currentState, {
-      denizenId: args.denizenId as DenizenId,
-      name: args.name,
-      representation: args.representation,
-      description: args.description,
-    });
-    const receipt = await commitM3Command(ctx, args.commandId, "create_denizen", fingerprint, campaign, result);
-    return { revision: receipt.newRevision };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidDenizenId(args.denizenId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
+        }
+        return {
+          commandType: "create_denizen",
+          commandFingerprint: createDenizenFingerprint(
+            args.expectedCampaignId,
+            args.denizenId,
+            args.name,
+            args.representation,
+            args.description,
+          ),
+          apply: (state) =>
+            applyCreateDenizenV5Candidate(state, {
+              denizenId: args.denizenId as DenizenId,
+              name: args.name,
+              representation: args.representation,
+              description: args.description,
+            }),
+        };
+      },
+    );
   },
 });
 
@@ -1223,20 +1188,20 @@ export const updateDenizen = mutation({
     }),
   },
   handler: async (ctx, args) => {
-    await assertCampaignNotDeleting(ctx);
-    parseLiveCommandId(args.commandId);
-    validateM5ExpectedCampaignId(args.expectedCampaignId);
-    if (!isValidDenizenId(args.denizenId)) {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
-    }
-    const fingerprint = updateDenizenFingerprint(args.expectedCampaignId, args.denizenId, args.fields);
-    const campaign = await loadCanonicalV2ForMutation(ctx);
-    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
-    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "update_denizen", fingerprint);
-    if (replay) return { revision: replay.newRevision };
-    const result = applyUpdateDenizenV5Candidate(campaign.currentState, args.denizenId as DenizenId, args.fields);
-    const receipt = await commitM3Command(ctx, args.commandId, "update_denizen", fingerprint, campaign, result);
-    return { revision: receipt.newRevision };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidDenizenId(args.denizenId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
+        }
+        return {
+          commandType: "update_denizen",
+          commandFingerprint: updateDenizenFingerprint(args.expectedCampaignId, args.denizenId, args.fields),
+          apply: (state) => applyUpdateDenizenV5Candidate(state, args.denizenId as DenizenId, args.fields),
+        };
+      },
+    );
   },
 });
 
@@ -1472,37 +1437,38 @@ export const setWizardCompanion = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    await assertCampaignNotDeleting(ctx);
-    parseLiveCommandId(args.commandId);
-    validateM5ExpectedCampaignId(args.expectedCampaignId);
-    if (!isValidWizardId(args.wizardId)) {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
-    }
-    const fingerprint = setWizardCompanionFingerprint({
-      expectedCampaignId: args.expectedCampaignId,
-      wizardId: args.wizardId,
-      element: args.element,
-      expectedCurrentRelationshipId: args.expectedCurrentRelationshipId,
-      newRelationship: args.newRelationship,
-    });
-    const campaign = await loadCanonicalV2ForMutation(ctx);
-    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
-    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "set_wizard_companion", fingerprint);
-    if (replay) return { revision: replay.newRevision };
-    const result = applySetWizardCompanionV5Candidate(campaign.currentState, {
-      wizardId: args.wizardId as WizardId,
-      element: args.element,
-      expectedCurrentRelationshipId: args.expectedCurrentRelationshipId as CompanionRelationshipId | null,
-      newRelationship: args.newRelationship === null
-        ? null
-        : {
-            companionRelationshipId: args.newRelationship.companionRelationshipId as CompanionRelationshipId,
-            denizenId: args.newRelationship.denizenId as DenizenId,
-            description: args.newRelationship.description,
-          },
-    });
-    const receipt = await commitM3Command(ctx, args.commandId, "set_wizard_companion", fingerprint, campaign, result);
-    return { revision: receipt.newRevision };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidWizardId(args.wizardId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
+        }
+        return {
+          commandType: "set_wizard_companion",
+          commandFingerprint: setWizardCompanionFingerprint({
+            expectedCampaignId: args.expectedCampaignId,
+            wizardId: args.wizardId,
+            element: args.element,
+            expectedCurrentRelationshipId: args.expectedCurrentRelationshipId,
+            newRelationship: args.newRelationship,
+          }),
+          apply: (state) =>
+            applySetWizardCompanionV5Candidate(state, {
+              wizardId: args.wizardId as WizardId,
+              element: args.element,
+              expectedCurrentRelationshipId: args.expectedCurrentRelationshipId as CompanionRelationshipId | null,
+              newRelationship: args.newRelationship === null
+                ? null
+                : {
+                    companionRelationshipId: args.newRelationship.companionRelationshipId as CompanionRelationshipId,
+                    denizenId: args.newRelationship.denizenId as DenizenId,
+                    description: args.newRelationship.description,
+                  },
+            }),
+        };
+      },
+    );
   },
 });
 

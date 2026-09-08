@@ -123,51 +123,64 @@ describe("M5 campaign identity guard — fingerprint includes expectedCampaignId
 // C. Ten-handler structural guardrail
 // ---------------------------------------------------------------------------
 
-describe("M5 campaign identity guard — structural ordering of all ten handlers", () => {
+describe("M5 campaign identity guard — structural ordering of World handlers", () => {
   const source = readFileSync(
     join(__dirname, "..", "convex", "m3Commands.ts"),
     "utf8",
   );
 
-  const inScopeMutations = [
+  const convertedToExecutor = [
     "createDenizen",
     "updateDenizen",
+    "setWizardCompanion",
+  ] as const;
+
+  const remainingInlineMutations = [
     "createIsle",
     "updateIsle",
     "createPlace",
     "updatePlace",
     "setWizardHomeIsle",
     "setWizardSanctum",
-    "setWizardCompanion",
     "updateCompanionDescription",
   ] as const;
 
   function extractHandlerBlock(name: string): string {
     const exportIdx = source.indexOf(`export const ${name} = mutation({`);
     expect(exportIdx, `${name} mutation not found`).toBeGreaterThan(-1);
-    // Find the matching closing "});" for the mutation call.
-    // We search from exportIdx for the handler block.
     const handlerIdx = source.indexOf("handler: async (ctx, args) => {", exportIdx);
     expect(handlerIdx).toBeGreaterThan(-1);
-    // Find the end of the handler — the first "  },\n});" after handlerIdx.
     const endPattern = "\n  },\n});";
     const endIdx = source.indexOf(endPattern, handlerIdx);
     expect(endIdx, `${name} handler end not found`).toBeGreaterThan(-1);
     return source.slice(handlerIdx, endIdx);
   }
 
-  for (const mutationName of inScopeMutations) {
+  for (const mutationName of [...convertedToExecutor, ...remainingInlineMutations]) {
+    it(`${mutationName} args include expectedCampaignId: v.string()`, () => {
+      const exportIdx = source.indexOf(`export const ${mutationName} = mutation({`);
+      const argsStart = source.indexOf("args: {", exportIdx);
+      const argsEnd = source.indexOf("\n  },", argsStart);
+      const argsBlock = source.slice(argsStart, argsEnd);
+      expect(argsBlock).toContain("expectedCampaignId: v.string()");
+    });
+  }
+
+  for (const mutationName of convertedToExecutor) {
+    describe(`${mutationName} (executor-backed)`, () => {
+      it("delegates the persistence protocol to executeConvexOrdinaryLogicalCommand", () => {
+        const block = extractHandlerBlock(mutationName);
+        expect(block).toContain("executeConvexOrdinaryLogicalCommand");
+        expect(block).not.toContain("checkIdempotency");
+        expect(block).not.toContain("commitM3Command");
+        expect(block).not.toContain("loadCanonicalV2ForMutation");
+      });
+    });
+  }
+
+  for (const mutationName of remainingInlineMutations) {
     describe(`${mutationName}`, () => {
       let block: string;
-
-      it("args include expectedCampaignId: v.string()", () => {
-        // Extract the args block between "args: {" and the closing "},"
-        const exportIdx = source.indexOf(`export const ${mutationName} = mutation({`);
-        const argsStart = source.indexOf("args: {", exportIdx);
-        const argsEnd = source.indexOf("\n  },", argsStart);
-        const argsBlock = source.slice(argsStart, argsEnd);
-        expect(argsBlock).toContain("expectedCampaignId: v.string()");
-      });
 
       it("contains expectedCampaignId format validation before canonical load", () => {
         block = extractHandlerBlock(mutationName);
