@@ -273,6 +273,16 @@ export function updateDenizenFingerprint(denizenId: string, fields: Record<strin
   return `update_denizen:v1:denizen=${denizenId}:fields=${fieldsCanonical}`;
 }
 
+export function createIsleFingerprint(isleId: string, name: string, description: string | null): string {
+  const payload = canonicalJsonStringify({ isleId, name, description });
+  return `create_isle:v1:${payload}`;
+}
+
+export function updateIsleFingerprint(isleId: string, fields: Record<string, unknown>): string {
+  const fieldsCanonical = canonicalJsonStringify(fields);
+  return `update_isle:v1:isle=${isleId}:fields=${fieldsCanonical}`;
+}
+
 /**
  * Pure deterministic idempotency match for command replay.
  * Given a previously committed command record and an incoming attempt,

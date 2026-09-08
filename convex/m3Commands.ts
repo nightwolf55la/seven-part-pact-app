@@ -71,10 +71,15 @@ import {
   isValidDenizenId,
   createDenizenFingerprint,
   updateDenizenFingerprint,
+  isValidIsleId,
+  createIsleFingerprint,
+  updateIsleFingerprint,
   applyCreateDenizenV5Candidate,
   applyUpdateDenizenV5Candidate,
+  applyCreateIsleV5Candidate,
+  applyUpdateIsleV5Candidate,
 } from "../shared/domain";
-import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId } from "../shared/domain";
+import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
 import type { WizardInitIds } from "../shared/domain/begin-play";
 import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
@@ -1189,6 +1194,65 @@ export const updateDenizen = mutation({
     if (replay) return { revision: replay.newRevision };
     const result = applyUpdateDenizenV5Candidate(campaign.currentState, args.denizenId as DenizenId, args.fields);
     const receipt = await commitM3Command(ctx, args.commandId, "update_denizen", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+// ============================================================
+// M5: Shared World — Isle commands
+// ============================================================
+
+export const createIsle = mutation({
+  args: {
+    commandId: v.string(),
+    isleId: v.string(),
+    name: v.string(),
+    description: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    if (!isValidIsleId(args.isleId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid isleId: ${args.isleId}`);
+    }
+    const fingerprint = createIsleFingerprint(args.isleId, args.name, args.description);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "create_isle", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applyCreateIsleV5Candidate(campaign.currentState, {
+      isleId: args.isleId as IsleId,
+      name: args.name,
+      description: args.description,
+    });
+    const receipt = await commitM3Command(ctx, args.commandId, "create_isle", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+export const updateIsle = mutation({
+  args: {
+    commandId: v.string(),
+    isleId: v.string(),
+    fields: v.object({
+      name: v.optional(v.object({ expected: v.string(), value: v.string() })),
+      description: v.optional(v.object({
+        expected: v.union(v.string(), v.null()),
+        value: v.union(v.string(), v.null()),
+      })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    if (!isValidIsleId(args.isleId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid isleId: ${args.isleId}`);
+    }
+    const fingerprint = updateIsleFingerprint(args.isleId, args.fields);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "update_isle", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applyUpdateIsleV5Candidate(campaign.currentState, args.isleId as IsleId, args.fields);
+    const receipt = await commitM3Command(ctx, args.commandId, "update_isle", fingerprint, campaign, result);
     return { revision: receipt.newRevision };
   },
 });

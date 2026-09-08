@@ -647,6 +647,24 @@ const isleValidator = v.object({
   description: v.union(v.string(), v.null()),
 });
 
+const isleCreatedEventV1Validator = v.object({
+  type: v.literal("isle_created"),
+  version: v.literal(1),
+  data: v.object({
+    isle: isleValidator,
+  }),
+});
+
+const isleUpdatedEventV1Validator = v.object({
+  type: v.literal("isle_updated"),
+  version: v.literal(1),
+  data: v.object({
+    isleId: v.string(),
+    previous: isleValidator,
+    updated: isleValidator,
+  }),
+});
+
 const placePlacementValidator = v.union(
   v.object({ kind: v.literal("unspecified") }),
   v.object({ kind: v.literal("on_isle"), isleId: v.string() }),
@@ -772,6 +790,8 @@ export const campaignEventValidator = v.union(
   wizardCharacterUpdatedEventV2Validator,
   denizenCreatedEventV1Validator,
   denizenUpdatedEventV1Validator,
+  isleCreatedEventV1Validator,
+  isleUpdatedEventV1Validator,
 );
 
 export const anyCampaignStateValidator = campaignStateV5Validator;

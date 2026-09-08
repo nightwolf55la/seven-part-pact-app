@@ -9,7 +9,7 @@ import type {
 import type { DenizenId, IsleId, PlaceId } from "./ids";
 import { isValidDenizenId, isValidIsleId, isValidPlaceId } from "./ids";
 import { DomainError } from "./errors";
-import type { DenizenCreatedEventV1, DenizenUpdatedEventV1 } from "./events";
+import type { DenizenCreatedEventV1, DenizenUpdatedEventV1, IsleCreatedEventV1, IsleUpdatedEventV1 } from "./events";
 
 // ---------------------------------------------------------------------------
 // ExpectedFieldChange — field-level optimistic concurrency
@@ -24,27 +24,16 @@ export interface ExpectedFieldChange<T> {
 // Denizen events — durable contracts now in events.ts
 // ---------------------------------------------------------------------------
 
-export type { DenizenCreatedDataV1, DenizenCreatedEventV1, DenizenUpdatedDataV1, DenizenUpdatedEventV1 } from "./events";
-
-export interface IsleCreatedDataV1 {
-  readonly isle: Isle;
-}
-export interface IsleCreatedEventV1 {
-  readonly type: "isle_created";
-  readonly version: 1;
-  readonly data: IsleCreatedDataV1;
-}
-
-export interface IsleUpdatedDataV1 {
-  readonly isleId: IsleId;
-  readonly previous: Isle;
-  readonly updated: Isle;
-}
-export interface IsleUpdatedEventV1 {
-  readonly type: "isle_updated";
-  readonly version: 1;
-  readonly data: IsleUpdatedDataV1;
-}
+export type {
+  DenizenCreatedDataV1,
+  DenizenCreatedEventV1,
+  DenizenUpdatedDataV1,
+  DenizenUpdatedEventV1,
+  IsleCreatedDataV1,
+  IsleCreatedEventV1,
+  IsleUpdatedDataV1,
+  IsleUpdatedEventV1,
+} from "./events";
 
 export interface PlaceCreatedDataV1 {
   readonly place: WorldPlace;
@@ -81,6 +70,11 @@ export type CandidateWorldSubjectEvent =
 export interface DenizenTransitionResult {
   readonly nextState: CampaignStateV5;
   readonly events: readonly (DenizenCreatedEventV1 | DenizenUpdatedEventV1)[];
+}
+
+export interface IsleTransitionResult {
+  readonly nextState: CampaignStateV5;
+  readonly events: readonly (IsleCreatedEventV1 | IsleUpdatedEventV1)[];
 }
 
 export interface WorldSubjectTransitionResult {
@@ -292,7 +286,7 @@ export interface CreateIsleInput {
 export function applyCreateIsleV5Candidate(
   state: CampaignStateV5,
   input: CreateIsleInput,
-): WorldSubjectTransitionResult {
+): IsleTransitionResult {
   if (!isValidIsleId(input.isleId)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid isleId: ${input.isleId}`);
   }
@@ -333,7 +327,7 @@ export function applyUpdateIsleV5Candidate(
   state: CampaignStateV5,
   isleId: IsleId,
   fields: UpdateIsleFields,
-): WorldSubjectTransitionResult {
+): IsleTransitionResult {
   if (fields.name === undefined && fields.description === undefined) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Update must specify at least one field");
   }

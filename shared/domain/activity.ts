@@ -115,6 +115,10 @@ function describeConfigEvent(event: CampaignEvent): string {
       return `Created denizen "${event.data.denizen.name}"`;
     case "denizen_updated":
       return `Updated denizen "${event.data.updated.name}"`;
+    case "isle_created":
+      return `Created isle "${event.data.isle.name}"`;
+    case "isle_updated":
+      return `Updated isle "${event.data.updated.name}"`;
     default:
       return "Campaign configuration changed";
   }
@@ -234,7 +238,9 @@ export function mapEventToActivityEntry(
     case "month_begun":
     case "wizard_character_updated":
     case "denizen_created":
-    case "denizen_updated": {
+    case "denizen_updated":
+    case "isle_created":
+    case "isle_updated": {
       return {
         id,
         revision,

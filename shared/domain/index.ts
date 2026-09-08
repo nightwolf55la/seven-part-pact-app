@@ -99,6 +99,10 @@ export type {
   DenizenCreatedEventV1,
   DenizenUpdatedDataV1,
   DenizenUpdatedEventV1,
+  IsleCreatedDataV1,
+  IsleCreatedEventV1,
+  IsleUpdatedDataV1,
+  IsleUpdatedEventV1,
   CampaignEvent,
 } from "./events";
 
@@ -235,6 +239,8 @@ export {
   beginNextMonthFingerprint,
   createDenizenFingerprint,
   updateDenizenFingerprint,
+  createIsleFingerprint,
+  updateIsleFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
@@ -527,10 +533,9 @@ export { validateV5WorldReferenceIntegrity } from "./v5-reference-validation";
 export type {
   ExpectedFieldChange,
   DenizenTransitionResult,
+  IsleTransitionResult,
   WorldSubjectTransitionResult,
   CandidateWorldSubjectEvent,
-  IsleCreatedEventV1,
-  IsleUpdatedEventV1,
   PlaceCreatedEventV1,
   PlaceUpdatedEventV1,
   CreateDenizenInput,

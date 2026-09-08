@@ -156,6 +156,8 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   update_wizard_character: { required: ["wizard_character_updated"] },
   create_denizen: { required: ["denizen_created"] },
   update_denizen: { required: ["denizen_updated"] },
+  create_isle: { required: ["isle_created"] },
+  update_isle: { required: ["isle_updated"] },
 };
 
 function validateM3EventCoherence(input: CanonicalCommitInput): void {
