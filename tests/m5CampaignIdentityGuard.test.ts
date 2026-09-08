@@ -129,19 +129,16 @@ describe("M5 campaign identity guard — structural ordering of World handlers",
     "utf8",
   );
 
-  const convertedToExecutor = [
+  const worldMutations = [
     "createDenizen",
     "updateDenizen",
-    "setWizardCompanion",
-  ] as const;
-
-  const remainingInlineMutations = [
     "createIsle",
     "updateIsle",
     "createPlace",
     "updatePlace",
     "setWizardHomeIsle",
     "setWizardSanctum",
+    "setWizardCompanion",
     "updateCompanionDescription",
   ] as const;
 
@@ -156,7 +153,7 @@ describe("M5 campaign identity guard — structural ordering of World handlers",
     return source.slice(handlerIdx, endIdx);
   }
 
-  for (const mutationName of [...convertedToExecutor, ...remainingInlineMutations]) {
+  for (const mutationName of worldMutations) {
     it(`${mutationName} args include expectedCampaignId: v.string()`, () => {
       const exportIdx = source.indexOf(`export const ${mutationName} = mutation({`);
       const argsStart = source.indexOf("args: {", exportIdx);
@@ -166,7 +163,7 @@ describe("M5 campaign identity guard — structural ordering of World handlers",
     });
   }
 
-  for (const mutationName of convertedToExecutor) {
+  for (const mutationName of worldMutations) {
     describe(`${mutationName} (executor-backed)`, () => {
       it("delegates the persistence protocol to executeConvexOrdinaryLogicalCommand", () => {
         const block = extractHandlerBlock(mutationName);
@@ -174,38 +171,6 @@ describe("M5 campaign identity guard — structural ordering of World handlers",
         expect(block).not.toContain("checkIdempotency");
         expect(block).not.toContain("commitM3Command");
         expect(block).not.toContain("loadCanonicalV2ForMutation");
-      });
-    });
-  }
-
-  for (const mutationName of remainingInlineMutations) {
-    describe(`${mutationName}`, () => {
-      let block: string;
-
-      it("contains expectedCampaignId format validation before canonical load", () => {
-        block = extractHandlerBlock(mutationName);
-        const validateIdx = block.indexOf("validateM5ExpectedCampaignId");
-        const loadIdx = block.indexOf("loadCanonicalV2ForMutation");
-        expect(validateIdx, "validateM5ExpectedCampaignId call missing").toBeGreaterThan(-1);
-        expect(loadIdx, "loadCanonicalV2ForMutation call missing").toBeGreaterThan(-1);
-        expect(validateIdx, "validation must come before canonical load").toBeLessThan(loadIdx);
-      });
-
-      it("ordering: loadCanonicalV2ForMutation < assertM5ExpectedCampaignIdMatches < checkIdempotency < transition < commitM3Command", () => {
-        block = extractHandlerBlock(mutationName);
-        const loadIdx = block.indexOf("loadCanonicalV2ForMutation");
-        const assertIdx = block.indexOf("assertM5ExpectedCampaignIdMatches");
-        const idemIdx = block.indexOf("checkIdempotency");
-        const commitIdx = block.indexOf("commitM3Command");
-
-        expect(loadIdx).toBeGreaterThan(-1);
-        expect(assertIdx, "assertM5ExpectedCampaignIdMatches missing").toBeGreaterThan(-1);
-        expect(idemIdx).toBeGreaterThan(-1);
-        expect(commitIdx).toBeGreaterThan(-1);
-
-        expect(loadIdx).toBeLessThan(assertIdx);
-        expect(assertIdx).toBeLessThan(idemIdx);
-        expect(idemIdx).toBeLessThan(commitIdx);
       });
     });
   }
