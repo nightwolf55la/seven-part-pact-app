@@ -22,6 +22,7 @@ import {
   validateCampaignStateV5Candidate,
   BLANK_WIZARD_CHARACTER_V5,
   EMPTY_SHARED_WORLD_STATE,
+  EMPTY_HIEROPHANT_STATE,
 } from "../shared/domain";
 
 // ---------------------------------------------------------------------------
@@ -72,6 +73,7 @@ function minimalV5Setup(): CampaignStateV5 {
     },
     wizardmootHistory: [],
     world: { ...EMPTY_SHARED_WORLD_STATE },
+    hierophant: { ...EMPTY_HIEROPHANT_STATE },
   };
 }
 

@@ -337,6 +337,24 @@ export function updateCompanionDescriptionFingerprint(input: {
   return `update_companion_description:v2:${payload}`;
 }
 
+export function initializeHierophantFingerprint(
+  expectedCampaignId: string,
+  selectedFlameLawIds: readonly string[],
+  templePlaces: unknown,
+): string {
+  const payload = canonicalJsonStringify({ expectedCampaignId, selectedFlameLawIds, templePlaces });
+  return `initialize_hierophant:v1:${payload}`;
+}
+
+export function adjustTempleResourcesFingerprint(
+  expectedCampaignId: string,
+  templeId: string,
+  fields: Record<string, unknown>,
+): string {
+  const fieldsCanonical = canonicalJsonStringify(fields);
+  return `adjust_temple_resources:v1:campaign=${expectedCampaignId}:temple=${templeId}:fields=${fieldsCanonical}`;
+}
+
 /**
  * Pure deterministic idempotency match for command replay.
  * Given a previously committed command record and an incoming attempt,

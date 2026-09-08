@@ -36,6 +36,7 @@ import { TIME_DESTINATION_KINDS } from "./time-model";
 import { ELEMENT_IDS } from "./shared-world";
 import { DomainError } from "./errors";
 import { validateV5WorldReferenceIntegrity } from "./v5-reference-validation";
+import { validateHierophantReferenceIntegrity } from "./hierophant-validation";
 
 const VALID_PACT_SEAT_STATUSES: readonly (PactSeatStatus | null)[] = [
   "present",
@@ -999,6 +1000,7 @@ export function validateCampaignStateV5Candidate(state: unknown): CampaignStateV
   validateCommonShape(s, 5);
   validateWorldStructure(s);
   validateV5WorldReferenceIntegrity(state as CampaignStateV5);
+  validateHierophantReferenceIntegrity(state as CampaignStateV5);
 
   return state as CampaignStateV5;
 }

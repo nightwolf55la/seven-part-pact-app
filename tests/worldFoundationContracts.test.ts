@@ -156,6 +156,16 @@ function minimalV5State(): CampaignStateV5 {
       ],
       companionRelationships: [],
     },
+    hierophant: {
+      selectedFlameLawIds: [],
+      campaignClasses: [],
+      campaignDoctrines: [],
+      temples: [],
+      supplicants: [],
+      prophets: [],
+      cults: [],
+      holidayTempleIds: [],
+    },
   };
 }
 

@@ -115,6 +115,11 @@ export type {
   WizardCompanionChangedEventV1,
   CompanionDescriptionChangedDataV1,
   CompanionDescriptionChangedEventV1,
+  HierophantInitializedDataV1,
+  HierophantInitializedEventV1,
+  TempleResourcesAdjustedDataV1,
+  TempleResourcesAdjustedEventV1,
+  HierophantEvent,
   CampaignEvent,
 } from "./events";
 
@@ -259,6 +264,8 @@ export {
   setWizardSanctumFingerprint,
   setWizardCompanionFingerprint,
   updateCompanionDescriptionFingerprint,
+  initializeHierophantFingerprint,
+  adjustTempleResourcesFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
@@ -587,6 +594,60 @@ export {
   applySetWizardCompanionV5Candidate,
   applyUpdateCompanionDescriptionV5Candidate,
 } from "./world-relationship-transitions";
+
+export type {
+  HierophantFlameLawId,
+  HierophantStartingTempleId,
+  HierophantTempleId,
+  HierophantTempleKind,
+  HierophantStartingTempleDefinition,
+} from "./hierophant-catalogs";
+export {
+  HIEROPHANT_FLAME_LAW_IDS,
+  HIEROPHANT_FLAME_LAW_DEFINITIONS,
+  hierophantFlameLawDisplayName,
+  isValidHierophantFlameLawId,
+  HIEROPHANT_STARTING_TEMPLE_IDS,
+  HIEROPHANT_STARTING_TEMPLE_DEFINITIONS,
+  hierophantStartingTempleDisplayName,
+  isValidHierophantStartingTempleId,
+  isValidHierophantTempleId,
+  hierophantStartingTempleDefinition,
+} from "./hierophant-catalogs";
+
+export type {
+  HierophantClassId,
+  HierophantDoctrineId,
+  HierophantBlasphemyId,
+  HierophantSupplicantId,
+  HierophantProphetId,
+  HierophantCultId,
+  HierophantTempleStatus,
+  OrdinaryTempleDoctrineState,
+  OrdinaryHierophantTemple,
+  HestarHierophantTemple,
+  HierophantTemple,
+  HierophantCampaignClass,
+  HierophantCampaignDoctrine,
+  HierophantSupplicant,
+  HierophantProphet,
+  HierophantCult,
+  HierophantState,
+} from "./hierophant-state";
+export { EMPTY_HIEROPHANT_STATE } from "./hierophant-state";
+
+export { validateHierophantStructure, validateHierophantReferenceIntegrity } from "./hierophant-validation";
+
+export type {
+  HierophantTransitionResult,
+  TemplePlaceBinding,
+  InitializeHierophantInput,
+  AdjustTempleResourcesFields,
+} from "./hierophant-transitions";
+export {
+  applyInitializeHierophant,
+  applyAdjustTempleResources,
+} from "./hierophant-transitions";
 
 // --- V5 Integration Transitions (candidate, not active) ---
 

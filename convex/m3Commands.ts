@@ -81,6 +81,8 @@ import {
   setWizardSanctumFingerprint,
   setWizardCompanionFingerprint,
   updateCompanionDescriptionFingerprint,
+  initializeHierophantFingerprint,
+  adjustTempleResourcesFingerprint,
   applyCreateDenizenV5Candidate,
   applyUpdateDenizenV5Candidate,
   applyCreateIsleV5Candidate,
@@ -91,8 +93,12 @@ import {
   applySetWizardSanctumV5Candidate,
   applySetWizardCompanionV5Candidate,
   applyUpdateCompanionDescriptionV5Candidate,
+  applyInitializeHierophant,
+  applyAdjustTempleResources,
+  isValidHierophantFlameLawId,
+  isValidHierophantStartingTempleId,
 } from "../shared/domain";
-import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange, CompanionRelationshipId } from "../shared/domain";
+import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange, CompanionRelationshipId, HierophantFlameLawId, HierophantStartingTempleId } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
 import type { WizardInitIds } from "../shared/domain/begin-play";
 import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
@@ -1508,6 +1514,92 @@ export const updateCompanionDescription = mutation({
               expectedStatus: args.expectedStatus,
               description: args.description,
             }),
+        };
+      },
+    );
+  },
+});
+
+export const initializeHierophant = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    selectedFlameLawIds: v.array(v.string()),
+    templePlaces: v.array(v.object({
+      templeId: v.string(),
+      placeId: v.string(),
+    })),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        for (const lawId of args.selectedFlameLawIds) {
+          if (!isValidHierophantFlameLawId(lawId)) {
+            throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown Flame Law id: ${lawId}`);
+          }
+        }
+        for (const binding of args.templePlaces) {
+          if (!isValidHierophantStartingTempleId(binding.templeId)) {
+            throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown starting Temple id: ${binding.templeId}`);
+          }
+          if (!isValidPlaceId(binding.placeId)) {
+            throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid Temple placeId: ${binding.placeId}`);
+          }
+        }
+        return {
+          commandType: "initialize_hierophant",
+          commandFingerprint: initializeHierophantFingerprint(
+            args.expectedCampaignId,
+            args.selectedFlameLawIds,
+            args.templePlaces,
+          ),
+          apply: (state) =>
+            applyInitializeHierophant(state, {
+              selectedFlameLawIds: args.selectedFlameLawIds as HierophantFlameLawId[],
+              templePlaces: args.templePlaces.map((b) => ({
+                templeId: b.templeId as HierophantStartingTempleId,
+                placeId: b.placeId as PlaceId,
+              })),
+            }),
+        };
+      },
+    );
+  },
+});
+
+export const adjustTempleResources = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    templeId: v.string(),
+    fields: v.object({
+      abundance: v.optional(v.object({ expected: v.number(), value: v.number() })),
+      conviction: v.optional(v.object({ expected: v.number(), value: v.number() })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidHierophantStartingTempleId(args.templeId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown Temple id: ${args.templeId}`);
+        }
+        return {
+          commandType: "adjust_temple_resources",
+          commandFingerprint: adjustTempleResourcesFingerprint(
+            args.expectedCampaignId,
+            args.templeId,
+            args.fields,
+          ),
+          apply: (state) =>
+            applyAdjustTempleResources(
+              state,
+              args.templeId as HierophantStartingTempleId,
+              args.fields,
+            ),
         };
       },
     );

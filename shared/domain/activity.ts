@@ -131,6 +131,10 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Changed wizard Companion";
     case "companion_description_changed":
       return "Updated Companion description";
+    case "hierophant_initialized":
+      return "Initialized Hierophant Temples";
+    case "temple_resources_adjusted":
+      return "Adjusted Temple resources";
     default:
       return "Campaign configuration changed";
   }
@@ -258,7 +262,9 @@ export function mapEventToActivityEntry(
     case "wizard_home_isle_changed":
     case "wizard_sanctum_changed":
     case "wizard_companion_changed":
-    case "companion_description_changed": {
+    case "companion_description_changed":
+    case "hierophant_initialized":
+    case "temple_resources_adjusted": {
       return {
         id,
         revision,

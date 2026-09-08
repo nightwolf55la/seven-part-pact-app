@@ -70,6 +70,7 @@ function v3SetupState(): CurrentCampaignState {
     },
     wizardmootHistory: [],
     world: { denizens: [], isles: [], places: [], companionRelationships: [] },
+    hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] },
   } as CurrentCampaignState;
 }
 
@@ -125,6 +126,7 @@ function v3PlayState(): CurrentCampaignState {
       { monthOrdinal: 4 as MonthOrdinal, attendance: [{ wizardId: WIZ, attended: false }] },
     ],
     world: { denizens: [], isles: [], places: [], companionRelationships: [] },
+    hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] },
   } as CurrentCampaignState;
 }
 

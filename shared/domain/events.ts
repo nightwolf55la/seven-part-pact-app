@@ -6,6 +6,8 @@ import type { TimeDestination } from "./time-model";
 import type { EngagementTargetV4, EngagementTargetV5 } from "./engagement";
 import type { Denizen, Isle, WorldPlace, CompanionRelationship, ElementId } from "./shared-world";
 import type { DenizenId, IsleId, PlaceId, WizardId, CompanionRelationshipId } from "./ids";
+import type { HierophantFlameLawId, HierophantTempleId } from "./hierophant-catalogs";
+import type { HierophantTemple } from "./hierophant-state";
 
 export interface UndoAppliedDataV1 {
   readonly fromRevision: number;
@@ -593,6 +595,29 @@ export interface CompanionDescriptionChangedEventV1 {
   readonly data: CompanionDescriptionChangedDataV1;
 }
 
+export interface HierophantInitializedDataV1 {
+  readonly selectedFlameLawIds: readonly HierophantFlameLawId[];
+  readonly temples: readonly HierophantTemple[];
+}
+export interface HierophantInitializedEventV1 {
+  readonly type: "hierophant_initialized";
+  readonly version: 1;
+  readonly data: HierophantInitializedDataV1;
+}
+
+export interface TempleResourcesAdjustedDataV1 {
+  readonly templeId: HierophantTempleId;
+  readonly previousAbundance: number;
+  readonly newAbundance: number;
+  readonly previousConviction: number;
+  readonly newConviction: number;
+}
+export interface TempleResourcesAdjustedEventV1 {
+  readonly type: "temple_resources_adjusted";
+  readonly version: 1;
+  readonly data: TempleResourcesAdjustedDataV1;
+}
+
 export type WorldEvent =
   | DenizenCreatedEventV1
   | DenizenUpdatedEventV1
@@ -605,11 +630,16 @@ export type WorldEvent =
   | WizardCompanionChangedEventV1
   | CompanionDescriptionChangedEventV1;
 
+export type HierophantEvent =
+  | HierophantInitializedEventV1
+  | TempleResourcesAdjustedEventV1;
+
 export type CampaignEvent =
   | InfrastructureEvent
   | SetupEvent
   | PlayEvent
-  | WorldEvent;
+  | WorldEvent
+  | HierophantEvent;
 
 export type PhaseAdvancedEvent = PhaseAdvancedEventV1 | PhaseAdvancedEventV2;
 

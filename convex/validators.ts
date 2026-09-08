@@ -766,6 +766,72 @@ const sharedWorldStateValidator = v.object({
   companionRelationships: v.array(companionRelationshipValidator),
 });
 
+const ordinaryTempleDoctrineValidator = v.union(
+  v.object({ kind: v.literal("unset") }),
+  v.object({ kind: v.literal("doctrine"), doctrineId: v.string() }),
+  v.object({ kind: v.literal("blasphemy"), blasphemyId: v.string() }),
+);
+
+const ordinaryTempleValidator = v.object({
+  templeId: v.string(),
+  kind: v.literal("ordinary"),
+  placeId: v.string(),
+  hostSeatId: v.string(),
+  status: v.union(v.literal("active"), v.literal("collapsed")),
+  abundance: v.number(),
+  conviction: v.number(),
+  doctrine: ordinaryTempleDoctrineValidator,
+});
+
+const hestarTempleValidator = v.object({
+  templeId: v.string(),
+  kind: v.literal("hestar"),
+  placeId: v.string(),
+  hostSeatId: v.string(),
+  status: v.union(v.literal("active"), v.literal("collapsed")),
+  abundance: v.number(),
+  conviction: v.number(),
+});
+
+const hierophantInitializedEventV1Validator = v.object({
+  type: v.literal("hierophant_initialized"),
+  version: v.literal(1),
+  data: v.object({
+    selectedFlameLawIds: v.array(v.string()),
+    temples: v.array(v.union(ordinaryTempleValidator, hestarTempleValidator)),
+  }),
+});
+
+const templeResourcesAdjustedEventV1Validator = v.object({
+  type: v.literal("temple_resources_adjusted"),
+  version: v.literal(1),
+  data: v.object({
+    templeId: v.string(),
+    previousAbundance: v.number(),
+    newAbundance: v.number(),
+    previousConviction: v.number(),
+    newConviction: v.number(),
+  }),
+});
+
+const hierophantStateValidator = v.object({
+  selectedFlameLawIds: v.array(v.string()),
+  campaignClasses: v.array(v.object({
+    classId: v.string(),
+    name: v.string(),
+  })),
+  campaignDoctrines: v.array(v.object({
+    doctrineId: v.string(),
+    name: v.string(),
+    supportedClassIds: v.array(v.string()),
+  })),
+  temples: v.array(v.union(ordinaryTempleValidator, hestarTempleValidator)),
+  supplicants: v.array(v.object({ supplicantId: v.string() })),
+  prophets: v.array(v.object({ prophetId: v.string() })),
+  cults: v.array(v.object({ cultId: v.string() })),
+  holidayTempleIds: v.array(v.string()),
+});
+
 export const campaignStateV5Validator = v.object({
   schemaVersion: v.literal(5),
   ruleset: v.object({
@@ -785,6 +851,7 @@ export const campaignStateV5Validator = v.object({
   lifecycle: lifecycleV5Validator,
   wizardmootHistory: v.array(wizardmootHistoryEntryValidator),
   world: sharedWorldStateValidator,
+  hierophant: hierophantStateValidator,
 });
 
 export const wizardCharacterUpdatedEventV2Validator = v.object({
@@ -868,6 +935,8 @@ export const campaignEventValidator = v.union(
   wizardSanctumChangedEventV1Validator,
   wizardCompanionChangedEventV1Validator,
   companionDescriptionChangedEventV1Validator,
+  hierophantInitializedEventV1Validator,
+  templeResourcesAdjustedEventV1Validator,
 );
 
 export const anyCampaignStateValidator = campaignStateV5Validator;

@@ -41,6 +41,8 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "set_wizard_sanctum",
   "set_wizard_companion",
   "update_companion_description",
+  "initialize_hierophant",
+  "adjust_temple_resources",
 ] as const;
 
 // Historical command types that may appear in persisted revision records but
@@ -96,6 +98,8 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "set_wizard_sanctum":
     case "set_wizard_companion":
     case "update_companion_description":
+    case "initialize_hierophant":
+    case "adjust_temple_resources":
     case "move_month":
     case "legacy_month_change":
       return true;

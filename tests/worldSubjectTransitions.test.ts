@@ -19,6 +19,7 @@ import {
   DomainError,
   BLANK_WIZARD_CHARACTER_V5,
   EMPTY_SHARED_WORLD_STATE,
+  EMPTY_HIEROPHANT_STATE,
 } from "../shared/domain";
 import {
   applyCreateDenizenV5Candidate,
@@ -89,6 +90,7 @@ function baseV5(): CampaignStateV5 {
     },
     wizardmootHistory: [],
     world: { ...EMPTY_SHARED_WORLD_STATE },
+    hierophant: { ...EMPTY_HIEROPHANT_STATE },
   };
 }
 
