@@ -4,7 +4,6 @@ import {
   parseAgeInput,
   normalizeScalarText,
   parseChangesOfMagic,
-  normalizeCompanionDescriptions,
   buildCharacterPatch,
   elementsTotal,
   isElementsComplete,
@@ -135,28 +134,6 @@ describe("parseChangesOfMagic", () => {
   });
 });
 
-describe("normalizeCompanionDescriptions", () => {
-  it("all blank => all null", () => {
-    expect(normalizeCompanionDescriptions("", "", "", "")).toEqual({
-      air: null,
-      fire: null,
-      earth: null,
-      water: null,
-    });
-  });
-
-  it("trims non-blank, nulls blank", () => {
-    expect(
-      normalizeCompanionDescriptions("  Sprite  ", "", "  Golem  ", "   "),
-    ).toEqual({
-      air: "Sprite",
-      fire: null,
-      earth: "Golem",
-      water: null,
-    });
-  });
-});
-
 describe("buildCharacterPatch", () => {
   it("no changes => empty patch", () => {
     const form = {
@@ -169,10 +146,6 @@ describe("buildCharacterPatch", () => {
       ageYears: "",
       publicChangesOfMagic: "",
       importantNotes: "",
-      companionAir: "",
-      companionFire: "",
-      companionEarth: "",
-      companionWater: "",
     };
     expect(buildCharacterPatch(form, BASELINE)).toBeNull();
   });
@@ -188,10 +161,6 @@ describe("buildCharacterPatch", () => {
       ageYears: "",
       publicChangesOfMagic: "",
       importantNotes: "",
-      companionAir: "",
-      companionFire: "",
-      companionEarth: "",
-      companionWater: "",
     };
     const patch = buildCharacterPatch(form, BASELINE);
     expect(patch).not.toBeNull();
@@ -214,10 +183,6 @@ describe("buildCharacterPatch", () => {
       ageYears: "",
       publicChangesOfMagic: "",
       importantNotes: "",
-      companionAir: "",
-      companionFire: "",
-      companionEarth: "",
-      companionWater: "",
     };
     const patch = buildCharacterPatch(form, baselineWithElements);
     expect(patch).not.toBeNull();
@@ -235,10 +200,6 @@ describe("buildCharacterPatch", () => {
       ageYears: "",
       publicChangesOfMagic: "",
       importantNotes: "",
-      companionAir: "",
-      companionFire: "",
-      companionEarth: "",
-      companionWater: "",
     };
     const patch = buildCharacterPatch(form, BASELINE);
     expect(patch!.pactFragmentPersonalForm).toBe("wolf");
@@ -259,10 +220,6 @@ describe("buildCharacterPatch", () => {
       ageYears: "",
       publicChangesOfMagic: "",
       importantNotes: "   ",
-      companionAir: "",
-      companionFire: "",
-      companionEarth: "",
-      companionWater: "",
     };
     const patch = buildCharacterPatch(form, baselineWithNotes);
     expect(patch!.importantNotes).toBeNull();
@@ -279,10 +236,6 @@ describe("buildCharacterPatch", () => {
       ageYears: "42",
       publicChangesOfMagic: "",
       importantNotes: "",
-      companionAir: "",
-      companionFire: "",
-      companionEarth: "",
-      companionWater: "",
     };
     const patch = buildCharacterPatch(form, BASELINE);
     expect(patch!.ageYears).toBe(42);
@@ -299,61 +252,9 @@ describe("buildCharacterPatch", () => {
       ageYears: "",
       publicChangesOfMagic: "Fireball\n\nIce Storm",
       importantNotes: "",
-      companionAir: "",
-      companionFire: "",
-      companionEarth: "",
-      companionWater: "",
     };
     const patch = buildCharacterPatch(form, BASELINE);
     expect(patch!.publicChangesOfMagic).toEqual(["Fireball", "Ice Storm"]);
   });
 
-  it("companion description change => full companionDescriptions object", () => {
-    const form = {
-      elementsAir: "",
-      elementsFire: "",
-      elementsEarth: "",
-      elementsWater: "",
-      pactFragmentPersonalForm: "",
-      familiarDescription: "",
-      ageYears: "",
-      publicChangesOfMagic: "",
-      importantNotes: "",
-      companionAir: "Sprite",
-      companionFire: "",
-      companionEarth: "Golem",
-      companionWater: "",
-    };
-    const patch = buildCharacterPatch(form, BASELINE);
-    expect(patch!.companionDescriptions).toEqual({
-      air: "Sprite",
-      fire: null,
-      earth: "Golem",
-      water: null,
-    });
-  });
-
-  it("unchanged companion descriptions => no companionDescriptions in patch", () => {
-    const baselineWithCompanions: WizardCharacterData = {
-      ...BASELINE,
-      companionDescriptions: { air: "Sprite", fire: null, earth: null, water: null },
-    };
-    const form = {
-      elementsAir: "",
-      elementsFire: "",
-      elementsEarth: "",
-      elementsWater: "",
-      pactFragmentPersonalForm: "",
-      familiarDescription: "",
-      ageYears: "",
-      publicChangesOfMagic: "",
-      importantNotes: "",
-      companionAir: "Sprite",
-      companionFire: "",
-      companionEarth: "",
-      companionWater: "",
-    };
-    const patch = buildCharacterPatch(form, baselineWithCompanions);
-    expect(patch).toBeNull();
-  });
 });

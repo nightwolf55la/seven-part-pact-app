@@ -33,7 +33,7 @@ export type EngagementTargetV4 =
   | FamiliarTarget
   | NamedCharacterTarget;
 
-export type EngagementTarget = EngagementTargetV4;
+export type EngagementTarget = EngagementTargetV5;
 
 export const ENGAGEMENT_TARGET_KINDS = [
   "wizard", "self", "familiar", "named_character",
@@ -49,7 +49,7 @@ export interface EngagementRecordV4 {
   readonly linkedTimeAllocationId: AllocationId | null;
 }
 
-export type EngagementRecord = EngagementRecordV4;
+export type EngagementRecord = EngagementRecordV5;
 
 // --- V5 candidate engagement types (NOT active in runtime) ---
 

@@ -9,17 +9,17 @@ export function loadHistoricalState(raw: unknown): CurrentCampaignState {
 }
 
 export function migrateToCurrentVersion(state: AnyCampaignState): CurrentCampaignState {
-  if (state.schemaVersion === 4) {
+  if (state.schemaVersion === 5) {
     return state;
   }
   const version = (state as { schemaVersion: unknown }).schemaVersion;
   throw new DomainError(
     "INVALID_CAMPAIGN_STATE",
-    `Unsupported state schema version: ${JSON.stringify(version)}. Only V4 is supported.`,
+    `Unsupported state schema version: ${JSON.stringify(version)}. Only V5 is supported.`,
   );
 }
 
-export const SUPPORTED_STATE_SCHEMA_VERSIONS = [4] as const;
+export const SUPPORTED_STATE_SCHEMA_VERSIONS = [5] as const;
 
 export function isSupportedSchemaVersion(version: unknown): boolean {
   return (

@@ -144,6 +144,9 @@ function validatePlayersAndWizards(
     validateWizardCharacter(wizard, i, version);
 
     if (version >= 5) {
+      if ("companionDescriptions" in wizard.character) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `wizards[${i}].character must not contain retired companionDescriptions field`);
+      }
       if (wizard.homeIsleId !== null) {
         if (typeof wizard.homeIsleId !== "string" || !isValidIsleId(wizard.homeIsleId)) {
           throw new DomainError("INVALID_CAMPAIGN_STATE", `wizards[${i}].homeIsleId is invalid: ${JSON.stringify(wizard.homeIsleId)}`);
@@ -824,12 +827,11 @@ export function validateCampaignState(state: unknown): CurrentCampaignState {
   if (s.schemaVersion !== CURRENT_STATE_SCHEMA_VERSION) {
     throw new DomainError(
       "INVALID_CAMPAIGN_STATE",
-      `Unsupported schemaVersion: ${JSON.stringify(s.schemaVersion)} (only V4 is supported)`,
+      `Unsupported schemaVersion: ${JSON.stringify(s.schemaVersion)} (only V5 is supported)`,
     );
   }
 
-  validateV4Shape(s);
-  return state as CurrentCampaignState;
+  return validateCampaignStateV5Candidate(state);
 }
 
 export function validateAnyCampaignState(state: unknown): AnyCampaignState {
@@ -839,21 +841,13 @@ export function validateAnyCampaignState(state: unknown): AnyCampaignState {
 
   const s = state as Record<string, unknown>;
 
-  if (s.schemaVersion === 1 || s.schemaVersion === 2 || s.schemaVersion === 3) {
-    throw new DomainError(
-      "INVALID_CAMPAIGN_STATE",
-      `Schema version ${s.schemaVersion} is no longer supported. Only V4 is accepted.`,
-    );
-  }
-
-  if (s.schemaVersion === 4) {
-    validateV4Shape(s);
-    return state as AnyCampaignState;
+  if (s.schemaVersion === 5) {
+    return validateCampaignStateV5Candidate(state);
   }
 
   throw new DomainError(
     "INVALID_CAMPAIGN_STATE",
-    `Unsupported schemaVersion: ${JSON.stringify(s.schemaVersion)}`,
+    `Unsupported schemaVersion: ${JSON.stringify(s.schemaVersion)}. Only V5 is accepted.`,
   );
 }
 

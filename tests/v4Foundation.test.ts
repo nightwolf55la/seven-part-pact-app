@@ -44,20 +44,20 @@ function makeStateWithWizard(overrides?: Partial<{
   } as unknown as CurrentCampaignState;
 }
 
-describe("V4 Foundation: schema version constants", () => {
-  it("CURRENT_STATE_SCHEMA_VERSION === 4", () => {
-    expect(CURRENT_STATE_SCHEMA_VERSION).toBe(4);
+describe("V5 Foundation: schema version constants", () => {
+  it("CURRENT_STATE_SCHEMA_VERSION === 5", () => {
+    expect(CURRENT_STATE_SCHEMA_VERSION).toBe(5);
   });
 
-  it("SUPPORTED_STATE_SCHEMA_VERSIONS is [4]", () => {
-    expect(SUPPORTED_STATE_SCHEMA_VERSIONS).toEqual([4]);
+  it("SUPPORTED_STATE_SCHEMA_VERSIONS is [5]", () => {
+    expect(SUPPORTED_STATE_SCHEMA_VERSIONS).toEqual([5]);
   });
 });
 
-describe("V4 Foundation: initial state", () => {
-  it("fresh state has schemaVersion 4", () => {
+describe("V5 Foundation: initial state", () => {
+  it("fresh state has schemaVersion 5", () => {
     const state = initialCampaignState();
-    expect(state.schemaVersion).toBe(4);
+    expect(state.schemaVersion).toBe(5);
   });
 
   it("fresh state still has no wizards", () => {
@@ -71,7 +71,7 @@ describe("V4 Foundation: initial state", () => {
   });
 });
 
-describe("V4 Foundation: createWizard blank character", () => {
+describe("V5 Foundation: createWizard blank character", () => {
   it("creates exact blank character object", () => {
     const state = makeStateWithWizard();
     const wizard = state.wizards[0];
@@ -82,7 +82,6 @@ describe("V4 Foundation: createWizard blank character", () => {
       ageYears: null,
       publicChangesOfMagic: [],
       importantNotes: null,
-      companionDescriptions: { air: null, fire: null, earth: null, water: null },
     });
   });
 
@@ -100,7 +99,7 @@ describe("V4 Foundation: createWizard blank character", () => {
   });
 });
 
-describe("V4 Foundation: element validation", () => {
+describe("V5 Foundation: element validation", () => {
   it("null elements are valid", () => {
     const state = makeStateWithWizard({ elements: null });
     expect(() => validateCampaignState(state)).not.toThrow();
@@ -140,7 +139,7 @@ describe("V4 Foundation: element validation", () => {
   });
 });
 
-describe("V4 Foundation: age validation", () => {
+describe("V5 Foundation: age validation", () => {
   it("null ageYears is valid", () => {
     const state = makeStateWithWizard({ ageYears: null });
     expect(() => validateCampaignState(state)).not.toThrow();
@@ -172,7 +171,7 @@ describe("V4 Foundation: age validation", () => {
   });
 });
 
-describe("V4 Foundation: text and array field validation", () => {
+describe("V5 Foundation: text and array field validation", () => {
   it("null text fields validate", () => {
     const state = makeStateWithWizard({
       pactFragmentPersonalForm: null,
@@ -209,7 +208,7 @@ describe("V4 Foundation: text and array field validation", () => {
   });
 });
 
-describe("V4 Foundation: character field is required", () => {
+describe("V5 Foundation: character field is required", () => {
   it("wizard without character field rejects", () => {
     const base = initialCampaignState();
     const { nextState: withPlayer } = applyAddPlayer(base, TEST_PLAYER_ID, "Bob");
@@ -225,7 +224,7 @@ describe("V4 Foundation: character field is required", () => {
   });
 });
 
-describe("V4 Foundation: V3 runtime rejection", () => {
+describe("V5 Foundation: legacy version runtime rejection", () => {
   it("V3 artifact rejects in validateCampaignState", () => {
     const v3 = { schemaVersion: 3 };
     expect(() => validateCampaignState(v3)).toThrow(/schemaVersion/i);
@@ -244,22 +243,32 @@ describe("V4 Foundation: V3 runtime rejection", () => {
     expect(() => validateAnyCampaignState({ schemaVersion: 2 })).toThrow();
   });
 
-  it("V4 is the sole supported runtime version", () => {
+  it("V4 artifact rejects in validateCampaignState", () => {
+    const v4 = { schemaVersion: 4 };
+    expect(() => validateCampaignState(v4)).toThrow(/schemaVersion/i);
+  });
+
+  it("V4 artifact rejects in validateAnyCampaignState", () => {
+    const v4 = { schemaVersion: 4 };
+    expect(() => validateAnyCampaignState(v4)).toThrow();
+  });
+
+  it("V5 is the sole supported runtime version", () => {
     expect(SUPPORTED_STATE_SCHEMA_VERSIONS).toHaveLength(1);
-    expect(SUPPORTED_STATE_SCHEMA_VERSIONS[0]).toBe(4);
+    expect(SUPPORTED_STATE_SCHEMA_VERSIONS[0]).toBe(5);
   });
 });
 
-describe("V4 Foundation: loadHistoricalState / migrateToCurrentVersion", () => {
+describe("V5 Foundation: loadHistoricalState / migrateToCurrentVersion", () => {
   it("V3 rejects in migrateToCurrentVersion", async () => {
     const { migrateToCurrentVersion } = await import("../shared/domain/state-migration");
     expect(() => migrateToCurrentVersion({ schemaVersion: 3 } as any)).toThrow();
   });
 
-  it("V4 passes through migrateToCurrentVersion", async () => {
+  it("V5 passes through migrateToCurrentVersion", async () => {
     const { migrateToCurrentVersion } = await import("../shared/domain/state-migration");
     const state = initialCampaignState();
     const result = migrateToCurrentVersion(state);
-    expect(result.schemaVersion).toBe(4);
+    expect(result.schemaVersion).toBe(5);
   });
 });

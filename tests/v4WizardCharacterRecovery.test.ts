@@ -75,12 +75,11 @@ const EDITED_CHARACTER: WizardCharacterData = {
     "Leaves frost on glass",
   ],
   importantNotes: "Owes the Mariner a favor",
-  companionDescriptions: { air: "Zephyr, a wind sprite", fire: null, earth: "Granite, a stone golem", water: null },
 };
 
 function blankWizardSetupState(): CurrentCampaignState {
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
     calendar: { monthOrdinal: null },
     configuration: { ageId: null, facilitatorPlayerId: PLR },
@@ -90,6 +89,8 @@ function blankWizardSetupState(): CurrentCampaignState {
       name: "Valdris",
       portrayedByPlayerId: PLR,
       character: { ...BLANK_WIZARD_CHARACTER },
+      homeIsleId: null,
+      sanctumPlaceId: null,
     }],
     pactSeats: {
       ...emptyPactSeats(),
@@ -100,6 +101,7 @@ function blankWizardSetupState(): CurrentCampaignState {
       orrery: { saturn: asCentidegreePosition(500), jupiter: null, mars: null, venus: null, mercury: null },
     },
     wizardmootHistory: [],
+    world: { denizens: [], isles: [], places: [], companionRelationships: [] },
   } as CurrentCampaignState;
 }
 
@@ -112,7 +114,6 @@ function editedWizardSetupState(): CurrentCampaignState {
     ageYears: EDITED_CHARACTER.ageYears,
     publicChangesOfMagic: [...EDITED_CHARACTER.publicChangesOfMagic],
     importantNotes: EDITED_CHARACTER.importantNotes,
-    companionDescriptions: EDITED_CHARACTER.companionDescriptions,
   };
   const result = applyUpdateWizardCharacter(prior, WIZ, patch);
   return result.nextState;
@@ -129,7 +130,6 @@ function assertCharacterFields(actual: WizardCharacterData) {
     "Leaves frost on glass",
   ]);
   expect(actual.importantNotes).toBe("Owes the Mariner a favor");
-  expect(actual.companionDescriptions).toEqual({ air: "Zephyr, a wind sprite", fire: null, earth: "Granite, a stone golem", water: null });
 }
 
 // ============================================================

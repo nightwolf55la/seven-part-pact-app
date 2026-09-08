@@ -464,12 +464,14 @@ export type SetupEvent =
   | SetupMonthChangedEventV1
   | SetupOrreryPositionChangedEventV1
   | BeginPlayEventV1
-  | WizardCharacterUpdatedEventV1;
+  | WizardCharacterUpdatedEventV1
+  | WizardCharacterUpdatedEventV2;
 
 export type PlayEvent =
   | PhaseAdvancedEvent
   | TimeAllocationScheduledEventV1
   | EngagementTargetChangedEventV1
+  | EngagementTargetChangedEventV2
   | TimeRescheduledEventV1
   | TimeSpentEventV1
   | TimeWastedEventV1
@@ -477,6 +479,7 @@ export type PlayEvent =
   | EngagementTimeCommittedEventV1
   | EngagementResolvedEventV1
   | EngagementRescheduledEventV1
+  | EngagementRescheduledEventV2
   | WizardmootAttendanceAdjustedEventV1
   | MeetingCompletedEventV1
   | MonthBegunEventV1;

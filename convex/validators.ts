@@ -567,6 +567,153 @@ const historicalMonthChangedEventV1Validator = v.object({
   }),
 });
 
+const wizardCharacterDataV5Validator = v.object({
+  elements: v.union(wizardElementScoresValidator, v.null()),
+  pactFragmentPersonalForm: v.union(v.string(), v.null()),
+  familiarDescription: v.union(v.string(), v.null()),
+  ageYears: v.union(v.number(), v.null()),
+  publicChangesOfMagic: v.array(v.string()),
+  importantNotes: v.union(v.string(), v.null()),
+});
+
+const wizardV5Validator = v.object({
+  wizardId: v.string(),
+  name: v.string(),
+  portrayedByPlayerId: v.union(v.string(), v.null()),
+  character: wizardCharacterDataV5Validator,
+  homeIsleId: v.union(v.string(), v.null()),
+  sanctumPlaceId: v.union(v.string(), v.null()),
+});
+
+const engagementTargetV5Validator = v.union(
+  v.object({ kind: v.literal("wizard"), wizardId: v.string() }),
+  v.object({ kind: v.literal("self") }),
+  v.object({ kind: v.literal("familiar") }),
+  v.object({ kind: v.literal("named_character"), name: v.string() }),
+  v.object({ kind: v.literal("denizen"), denizenId: v.string() }),
+);
+
+const engagementRecordV5Validator = v.object({
+  engagementId: v.string(),
+  actingWizardId: v.string(),
+  target: v.union(engagementTargetV5Validator, v.null()),
+  resolution: v.union(v.literal("pending"), v.literal("resolved")),
+  linkedTimeAllocationId: v.union(v.string(), v.null()),
+});
+
+const monthlyPlayStateV5Validator = v.object({
+  timeParticipants: v.array(timeParticipantValidator),
+  engagements: v.array(engagementRecordV5Validator),
+  wizardmootAttendance: v.union(v.array(wizardmootAttendanceValidator), v.null()),
+});
+
+const playLifecycleV5Validator = v.object({
+  kind: v.literal("play"),
+  phase: lunarPhaseValidator,
+  orrery: completeOrreryValidator,
+  currentMonth: monthlyPlayStateV5Validator,
+});
+
+const lifecycleV5Validator = v.union(setupLifecycleValidator, playLifecycleV5Validator);
+
+const denizenValidator = v.object({
+  denizenId: v.string(),
+  name: v.string(),
+  representation: v.union(v.literal("individual"), v.literal("collective")),
+  description: v.union(v.string(), v.null()),
+});
+
+const isleValidator = v.object({
+  isleId: v.string(),
+  name: v.string(),
+  description: v.union(v.string(), v.null()),
+});
+
+const placePlacementValidator = v.union(
+  v.object({ kind: v.literal("unspecified") }),
+  v.object({ kind: v.literal("on_isle"), isleId: v.string() }),
+  v.object({ kind: v.literal("mobile"), associatedIsleId: v.union(v.string(), v.null()) }),
+);
+
+const placeValidator = v.object({
+  placeId: v.string(),
+  name: v.string(),
+  description: v.union(v.string(), v.null()),
+  placement: placePlacementValidator,
+});
+
+const companionRelationshipValidator = v.object({
+  companionRelationshipId: v.string(),
+  wizardId: v.string(),
+  element: v.union(
+    v.literal("air"), v.literal("fire"), v.literal("earth"), v.literal("water"),
+  ),
+  denizenId: v.string(),
+  description: v.union(v.string(), v.null()),
+  status: v.union(v.literal("current"), v.literal("ended")),
+});
+
+const sharedWorldStateValidator = v.object({
+  denizens: v.array(denizenValidator),
+  isles: v.array(isleValidator),
+  places: v.array(placeValidator),
+  companionRelationships: v.array(companionRelationshipValidator),
+});
+
+export const campaignStateV5Validator = v.object({
+  schemaVersion: v.literal(5),
+  ruleset: v.object({
+    id: v.literal(SEVEN_PART_PACT_DRAFT4_ID),
+    version: v.literal(SEVEN_PART_PACT_DRAFT4_VERSION),
+  }),
+  calendar: v.object({
+    monthOrdinal: v.union(v.number(), v.null()),
+  }),
+  configuration: v.object({
+    ageId: v.union(v.string(), v.null()),
+    facilitatorPlayerId: v.union(v.string(), v.null()),
+  }),
+  players: v.array(playerValidator),
+  wizards: v.array(wizardV5Validator),
+  pactSeats: pactSeatsValidator,
+  lifecycle: lifecycleV5Validator,
+  wizardmootHistory: v.array(wizardmootHistoryEntryValidator),
+  world: sharedWorldStateValidator,
+});
+
+export const wizardCharacterUpdatedEventV2Validator = v.object({
+  type: v.literal("wizard_character_updated"),
+  version: v.literal(2),
+  data: v.object({
+    wizardId: v.string(),
+    previousCharacter: wizardCharacterDataV5Validator,
+    newCharacter: wizardCharacterDataV5Validator,
+  }),
+});
+
+export const engagementTargetChangedEventV2Validator = v.object({
+  type: v.literal("engagement_target_changed"),
+  version: v.literal(2),
+  data: v.object({
+    monthOrdinal: v.number(),
+    engagementId: v.string(),
+    actingWizardId: v.string(),
+    previousTarget: v.union(engagementTargetV5Validator, v.null()),
+    newTarget: v.union(engagementTargetV5Validator, v.null()),
+  }),
+});
+
+export const engagementRescheduledEventV2Validator = v.object({
+  type: v.literal("engagement_rescheduled"),
+  version: v.literal(2),
+  data: v.object({
+    monthOrdinal: v.number(),
+    engagementId: v.string(),
+    previousTarget: v.union(engagementTargetV5Validator, v.null()),
+    newTarget: engagementTargetV5Validator,
+  }),
+});
+
 export const campaignEventValidator = v.union(
   historicalMonthChangedEventV1Validator,
   undoAppliedEventV1Validator,
@@ -591,6 +738,7 @@ export const campaignEventValidator = v.union(
   phaseAdvancedEventV2Validator,
   timeAllocationScheduledEventV1Validator,
   engagementTargetChangedEventV1Validator,
+  engagementTargetChangedEventV2Validator,
   timeRescheduledEventV1Validator,
   timeSpentEventV1Validator,
   timeWastedEventV1Validator,
@@ -598,14 +746,16 @@ export const campaignEventValidator = v.union(
   engagementTimeCommittedEventV1Validator,
   engagementResolvedEventV1Validator,
   engagementRescheduledEventV1Validator,
+  engagementRescheduledEventV2Validator,
   wizardmootAttendanceAdjustedEventV1Validator,
   meetingCompletedEventV1Validator,
   monthBegunEventV1Validator,
   wizardCharacterUpdatedEventV1Validator,
+  wizardCharacterUpdatedEventV2Validator,
 );
 
-export const anyCampaignStateValidator = campaignStateV4Validator;
-export const currentCampaignStateValidator = campaignStateV4Validator;
+export const anyCampaignStateValidator = campaignStateV5Validator;
+export const currentCampaignStateValidator = campaignStateV5Validator;
 
 export const newCampaignRecordValidator = v.object({
   campaignKey: v.literal("default"),

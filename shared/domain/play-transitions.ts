@@ -1,21 +1,21 @@
 import type { CurrentCampaignState, LunarPhase, PlayLifecycle, MonthlyPlayState } from "./campaign-state";
 import type { MonthOrdinal } from "./calendar";
-import type { AllocationId, WizardId, EngagementId } from "./ids";
-import { isValidAllocationId, isValidEngagementId, isValidWizardId } from "./ids";
+import type { AllocationId, WizardId, EngagementId, DenizenId } from "./ids";
+import { isValidAllocationId, isValidEngagementId, isValidWizardId, isValidDenizenId } from "./ids";
 import type { TimeDestination, TimeAllocation, TimeParticipant } from "./time-model";
 import type { EngagementRecord, EngagementTarget } from "./engagement";
 import type {
   CampaignEvent,
   PhaseAdvancedEventV2,
   TimeAllocationScheduledEventV1,
-  EngagementTargetChangedEventV1,
+  EngagementTargetChangedEventV2,
   TimeRescheduledEventV1,
   TimeSpentEventV1,
   TimeWastedEventV1,
   OrreryTimeSpentEventV1,
   EngagementTimeCommittedEventV1,
   EngagementResolvedEventV1,
-  EngagementRescheduledEventV1,
+  EngagementRescheduledEventV2,
   WizardmootAttendanceAdjustedEventV1,
   MeetingCompletedEventV1,
   MonthBegunEventV1,
@@ -501,9 +501,9 @@ export function applySetEngagementTarget(
     lifecycle,
   };
 
-  const event: EngagementTargetChangedEventV1 = {
+  const event: EngagementTargetChangedEventV2 = {
     type: "engagement_target_changed",
-    version: 1,
+    version: 2,
     data: {
       monthOrdinal: currentMonth,
       engagementId: input.engagementId,
@@ -541,6 +541,14 @@ function validateEngagementTarget(
     case "named_character":
       if (target.name.trim().length === 0) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", "named_character target requires non-empty name");
+      }
+      break;
+    case "denizen":
+      if (!isValidDenizenId(target.denizenId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId in target: ${target.denizenId}`);
+      }
+      if (!state.world.denizens.some((d) => d.denizenId === target.denizenId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Denizen ${target.denizenId} does not exist`);
       }
       break;
   }
@@ -1504,9 +1512,9 @@ export function applyRescheduleEngagement(
     lifecycle,
   };
 
-  const event: EngagementRescheduledEventV1 = {
+  const event: EngagementRescheduledEventV2 = {
     type: "engagement_rescheduled",
-    version: 1,
+    version: 2,
     data: {
       monthOrdinal: currentMonth,
       engagementId: input.engagementId,

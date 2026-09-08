@@ -138,7 +138,7 @@ export type {
   CurrentCampaignState,
   AnyCampaignState,
 } from "./campaign-state";
-export { CURRENT_STATE_SCHEMA_VERSION, LUNAR_PHASES, BLANK_WIZARD_CHARACTER, BLANK_WIZARD_CHARACTER_V5 } from "./campaign-state";
+export { CURRENT_STATE_SCHEMA_VERSION, LUNAR_PHASES, BLANK_WIZARD_CHARACTER, BLANK_WIZARD_CHARACTER_V4, BLANK_WIZARD_CHARACTER_V5 } from "./campaign-state";
 
 export type { WizardCharacterPatch } from "./wizard-character";
 export { normalizeWizardCharacterPatch, applyWizardCharacterPatch } from "./wizard-character";

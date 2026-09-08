@@ -1,4 +1,4 @@
-import type { WizardElementScores, WizardCharacterData, WizardCompanionDescriptions } from "./campaign-state";
+import type { WizardElementScores, WizardCharacterData } from "./campaign-state";
 import { DomainError } from "./errors";
 
 export interface WizardCharacterPatch {
@@ -8,7 +8,6 @@ export interface WizardCharacterPatch {
   readonly ageYears?: number | null;
   readonly publicChangesOfMagic?: readonly string[];
   readonly importantNotes?: string | null;
-  readonly companionDescriptions?: WizardCompanionDescriptions;
 }
 
 const ELEMENT_KEYS: readonly (keyof WizardElementScores)[] = ["air", "fire", "earth", "water"];
@@ -87,30 +86,6 @@ export function normalizeWizardCharacterPatch(
         trimmed.push(t);
       }
       result.publicChangesOfMagic = trimmed;
-    } else if (key === "companionDescriptions") {
-      const cd = patch.companionDescriptions;
-      if (cd === null || cd === undefined || typeof cd !== "object") {
-        throw new DomainError(
-          "INVALID_CAMPAIGN_STATE",
-          "companionDescriptions must be an object with air, fire, earth, water",
-        );
-      }
-      const normalized: Record<string, string | null> = {};
-      for (const ek of ELEMENT_KEYS) {
-        const v = cd[ek];
-        if (v === null) {
-          normalized[ek] = null;
-        } else if (typeof v === "string") {
-          const trimmed = v.trim();
-          normalized[ek] = trimmed.length === 0 ? null : trimmed;
-        } else {
-          throw new DomainError(
-            "INVALID_CAMPAIGN_STATE",
-            `companionDescriptions.${ek} must be a string or null: ${JSON.stringify(v)}`,
-          );
-        }
-      }
-      result.companionDescriptions = normalized as unknown as WizardCompanionDescriptions;
     } else {
       result[key] = normalizeScalarText(patch[key] as string | null);
     }
@@ -138,8 +113,5 @@ export function applyWizardCharacterPatch(
     importantNotes: "importantNotes" in normalizedPatch
       ? normalizedPatch.importantNotes!
       : current.importantNotes,
-    companionDescriptions: "companionDescriptions" in normalizedPatch
-      ? normalizedPatch.companionDescriptions!
-      : current.companionDescriptions,
   };
 }

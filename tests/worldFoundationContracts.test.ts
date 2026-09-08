@@ -226,36 +226,36 @@ describe("Historical contract isolation", () => {
     expectTypeOf<HasDenizen>().toEqualTypeOf<DenizenTarget>();
   });
 
-  it("V4 runtime aliases resolve to frozen V4 types", () => {
-    expectTypeOf<WizardCharacterData>().toEqualTypeOf<WizardCharacterDataV4>();
-    expectTypeOf<CampaignWizard>().toEqualTypeOf<CampaignWizardV4>();
-    expectTypeOf<EngagementTarget>().toEqualTypeOf<EngagementTargetV4>();
-    expectTypeOf<EngagementRecord>().toEqualTypeOf<EngagementRecordV4>();
-    expectTypeOf<MonthlyPlayState>().toEqualTypeOf<MonthlyPlayStateV4>();
+  it("V5 runtime aliases resolve to V5 types", () => {
+    expectTypeOf<WizardCharacterData>().toEqualTypeOf<WizardCharacterDataV5>();
+    expectTypeOf<CampaignWizard>().toEqualTypeOf<CampaignWizardV5>();
+    expectTypeOf<EngagementTarget>().toEqualTypeOf<EngagementTargetV5>();
+    expectTypeOf<EngagementRecord>().toEqualTypeOf<EngagementRecordV5>();
+    expectTypeOf<MonthlyPlayState>().toEqualTypeOf<MonthlyPlayStateV5>();
   });
 });
 
 // =========================================================================
-// B. Runtime non-activation
+// B. Runtime activation
 // =========================================================================
 
-describe("Runtime non-activation", () => {
-  it("CURRENT_STATE_SCHEMA_VERSION remains 4", () => {
-    expect(CURRENT_STATE_SCHEMA_VERSION).toBe(4);
+describe("Runtime activation", () => {
+  it("CURRENT_STATE_SCHEMA_VERSION is 5", () => {
+    expect(CURRENT_STATE_SCHEMA_VERSION).toBe(5);
   });
 
-  it("validateCampaignState still accepts a valid V4 state", () => {
-    const state = validV4State();
+  it("validateCampaignState accepts a valid V5 state", () => {
+    const state = minimalV5State();
     expect(() => validateCampaignState(state)).not.toThrow();
   });
 
-  it("validateCampaignState rejects a schemaVersion 5 candidate", () => {
-    const state = { ...validV4State(), schemaVersion: 5 };
+  it("validateCampaignState rejects a schemaVersion 4 state", () => {
+    const state = validV4State();
     expect(() => validateCampaignState(state)).toThrow(DomainError);
   });
 
-  it("validateAnyCampaignState rejects a schemaVersion 5 candidate", () => {
-    const state = { ...validV4State(), schemaVersion: 5 };
+  it("validateAnyCampaignState rejects a schemaVersion 4 state", () => {
+    const state = validV4State();
     expect(() => validateAnyCampaignState(state)).toThrow(DomainError);
   });
 });

@@ -160,7 +160,7 @@ describe("applyBeginPlay", () => {
       expect(next.wizards).toEqual(setup.wizards);
       expect(next.pactSeats).toEqual(setup.pactSeats);
       expect(next.wizardmootHistory).toEqual(setup.wizardmootHistory);
-      expect(next.schemaVersion).toBe(4);
+      expect(next.schemaVersion).toBe(5);
       expect(next.ruleset).toEqual(setup.ruleset);
     });
 

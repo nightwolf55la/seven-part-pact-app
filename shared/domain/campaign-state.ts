@@ -84,7 +84,7 @@ export interface MonthlyPlayStateV4 {
   readonly wizardmootAttendance: readonly WizardmootAttendance[] | null;
 }
 
-export type MonthlyPlayState = MonthlyPlayStateV4;
+export type MonthlyPlayState = MonthlyPlayStateV5;
 
 export interface SetupLifecycle {
   readonly kind: "setup";
@@ -98,10 +98,10 @@ export interface PlayLifecycleV4 {
   readonly currentMonth: MonthlyPlayStateV4;
 }
 
-export type PlayLifecycle = PlayLifecycleV4;
+export type PlayLifecycle = PlayLifecycleV5;
 
 export type CampaignLifecycleV4 = SetupLifecycle | PlayLifecycleV4;
-export type CampaignLifecycle = CampaignLifecycleV4;
+export type CampaignLifecycle = CampaignLifecycleV5;
 
 export interface CampaignStateV3 {
   readonly schemaVersion: 3;
@@ -146,7 +146,7 @@ export interface WizardCharacterDataV4 {
   readonly companionDescriptions: WizardCompanionDescriptions;
 }
 
-export type WizardCharacterData = WizardCharacterDataV4;
+export type WizardCharacterData = WizardCharacterDataV5;
 
 export interface CampaignWizardV4 {
   readonly wizardId: WizardId;
@@ -155,9 +155,9 @@ export interface CampaignWizardV4 {
   readonly character: WizardCharacterDataV4;
 }
 
-export type CampaignWizard = CampaignWizardV4;
+export type CampaignWizard = CampaignWizardV5;
 
-export const BLANK_WIZARD_CHARACTER: WizardCharacterDataV4 = {
+export const BLANK_WIZARD_CHARACTER_V4: WizardCharacterDataV4 = {
   elements: null,
   pactFragmentPersonalForm: null,
   familiarDescription: null,
@@ -176,6 +176,8 @@ export const BLANK_WIZARD_CHARACTER_V5: WizardCharacterDataV5 = {
   importantNotes: null,
 };
 
+export const BLANK_WIZARD_CHARACTER: WizardCharacterDataV5 = BLANK_WIZARD_CHARACTER_V5;
+
 export interface CampaignStateV4 {
   readonly schemaVersion: 4;
   readonly ruleset: CampaignRuleset;
@@ -193,10 +195,10 @@ export interface CampaignStateV4 {
   readonly wizardmootHistory: readonly WizardmootHistoryEntry[];
 }
 
-export type CurrentCampaignState = CampaignStateV4;
-export type AnyCampaignState = CampaignStateV4;
+export type CurrentCampaignState = CampaignStateV5;
+export type AnyCampaignState = CampaignStateV5;
 
-export const CURRENT_STATE_SCHEMA_VERSION: CurrentCampaignState["schemaVersion"] = 4;
+export const CURRENT_STATE_SCHEMA_VERSION: CurrentCampaignState["schemaVersion"] = 5;
 
 // --- V5: Candidate types (NOT active in runtime) ---
 

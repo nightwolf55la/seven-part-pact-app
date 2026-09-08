@@ -51,184 +51,73 @@ function wizardCharacter(state: CurrentCampaignState, wizardId: WizardId): Wizar
   return w.character;
 }
 
-const BLANK_COMPANIONS = { air: null, fire: null, earth: null, water: null };
-
-const FILLED_COMPANIONS = {
-  air: "Zephyr, a wind sprite",
-  fire: "Ember, a salamander",
-  earth: "Granite, a stone golem",
-  water: "Coral, a water nymph",
-};
-
 // ============================================================
-// 1. Blank/new Wizard has all four Companion descriptions as null
+// 1. V5 Blank Wizard no longer has companionDescriptions
 // ============================================================
 
-describe("companionDescriptions: blank wizard", () => {
-  it("blank wizard character has companionDescriptions with all four null", () => {
-    expect(BLANK_WIZARD_CHARACTER.companionDescriptions).toEqual(BLANK_COMPANIONS);
+describe("companionDescriptions: retired in V5", () => {
+  it("BLANK_WIZARD_CHARACTER does not have companionDescriptions", () => {
+    expect(BLANK_WIZARD_CHARACTER).not.toHaveProperty("companionDescriptions");
   });
 
-  it("newly created wizard has companionDescriptions with all four null", () => {
+  it("newly created wizard does not have companionDescriptions", () => {
     const state = setupWithWizard();
     const char = wizardCharacter(state, W1);
-    expect(char.companionDescriptions).toEqual(BLANK_COMPANIONS);
+    expect(char).not.toHaveProperty("companionDescriptions");
   });
 });
 
 // ============================================================
-// 2. V4 state validation
+// 2. V5 state validation rejects companionDescriptions
 // ============================================================
 
-describe("companionDescriptions: V4 state validation", () => {
-  it("accepts valid companionDescriptions (all null)", () => {
+describe("companionDescriptions: V5 state validation rejects companionDescriptions", () => {
+  it("accepts V5 wizard without companionDescriptions", () => {
     const state = setupWithWizard();
     expect(() => validateCampaignState(state)).not.toThrow();
   });
 
-  it("accepts valid companionDescriptions (all strings)", () => {
-    const state = setupWithWizard();
-    const { nextState } = applyUpdateWizardCharacter(state, W1, {
-      companionDescriptions: FILLED_COMPANIONS,
-    });
-    expect(() => validateCampaignState(nextState)).not.toThrow();
-  });
-
-  it("accepts mixed string/null companionDescriptions", () => {
-    const state = setupWithWizard();
-    const { nextState } = applyUpdateWizardCharacter(state, W1, {
-      companionDescriptions: { air: "Zephyr", fire: null, earth: "Granite", water: null },
-    });
-    expect(() => validateCampaignState(nextState)).not.toThrow();
-  });
-
-  it("rejects missing companionDescriptions on wizard character", () => {
+  it("rejects wizard character that has companionDescriptions (V4 artifact)", () => {
     const state = setupWithWizard();
     const corrupted = JSON.parse(JSON.stringify(state));
-    delete corrupted.wizards[0].character.companionDescriptions;
-    expect(() => validateCampaignState(corrupted)).toThrow();
-  });
-
-  it("rejects companionDescriptions missing a key", () => {
-    const state = setupWithWizard();
-    const corrupted = JSON.parse(JSON.stringify(state));
-    corrupted.wizards[0].character.companionDescriptions = { air: null, fire: null, earth: null };
-    expect(() => validateCampaignState(corrupted)).toThrow();
-  });
-
-  it("rejects companionDescriptions with non-string/non-null value", () => {
-    const state = setupWithWizard();
-    const corrupted = JSON.parse(JSON.stringify(state));
-    corrupted.wizards[0].character.companionDescriptions = { air: 42, fire: null, earth: null, water: null };
+    corrupted.wizards[0].character.companionDescriptions = { air: null, fire: null, earth: null, water: null };
     expect(() => validateCampaignState(corrupted)).toThrow();
   });
 });
 
 // ============================================================
-// 3. Patch semantics
+// 3. Patch semantics: companionDescriptions no longer part of character patches
 // ============================================================
 
-describe("companionDescriptions: patch semantics", () => {
-  it("omitted companionDescriptions preserves existing", () => {
-    let state = setupWithWizard();
-    state = applyUpdateWizardCharacter(state, W1, {
-      companionDescriptions: FILLED_COMPANIONS,
-    }).nextState;
-    const { nextState } = applyUpdateWizardCharacter(state, W1, { ageYears: 100 });
-    expect(wizardCharacter(nextState, W1).companionDescriptions).toEqual(FILLED_COMPANIONS);
-  });
-
-  it("explicit companionDescriptions: undefined preserves existing", () => {
-    let state = setupWithWizard();
-    state = applyUpdateWizardCharacter(state, W1, {
-      companionDescriptions: FILLED_COMPANIONS,
-    }).nextState;
-    const { nextState } = applyUpdateWizardCharacter(state, W1, {
-      ageYears: 100,
-      companionDescriptions: undefined,
-    } as any);
-    expect(wizardCharacter(nextState, W1).companionDescriptions).toEqual(FILLED_COMPANIONS);
-  });
-
-  it("supplied object replaces all four atomically", () => {
-    let state = setupWithWizard();
-    state = applyUpdateWizardCharacter(state, W1, {
-      companionDescriptions: FILLED_COMPANIONS,
-    }).nextState;
-    const replacement = { air: "New air", fire: null, earth: null, water: "New water" };
-    const { nextState } = applyUpdateWizardCharacter(state, W1, {
-      companionDescriptions: replacement,
-    });
-    expect(wizardCharacter(nextState, W1).companionDescriptions).toEqual(replacement);
-  });
-
-  it("strings are trimmed", () => {
-    const state = setupWithWizard();
-    const { nextState } = applyUpdateWizardCharacter(state, W1, {
-      companionDescriptions: {
-        air: "  Zephyr  ",
-        fire: "  Ember  ",
-        earth: "  Granite  ",
-        water: "  Coral  ",
-      },
-    });
-    const cd = wizardCharacter(nextState, W1).companionDescriptions;
-    expect(cd.air).toBe("Zephyr");
-    expect(cd.fire).toBe("Ember");
-    expect(cd.earth).toBe("Granite");
-    expect(cd.water).toBe("Coral");
-  });
-
-  it("whitespace-only strings become null", () => {
-    const state = setupWithWizard();
-    const { nextState } = applyUpdateWizardCharacter(state, W1, {
-      companionDescriptions: { air: "   ", fire: "\t", earth: "\n", water: "  \t\n  " },
-    });
-    expect(wizardCharacter(nextState, W1).companionDescriptions).toEqual(BLANK_COMPANIONS);
-  });
-
-  it("null remains null", () => {
-    const state = setupWithWizard();
-    const { nextState } = applyUpdateWizardCharacter(state, W1, {
-      companionDescriptions: { air: null, fire: null, earth: null, water: null },
-    });
-    expect(wizardCharacter(nextState, W1).companionDescriptions).toEqual(BLANK_COMPANIONS);
-  });
-
-  it("companionDescriptions-only patch is valid (not rejected as empty)", () => {
+describe("companionDescriptions: patch semantics in V5", () => {
+  it("omitting companionDescriptions in patch is normal (no error)", () => {
     const state = setupWithWizard();
     expect(() =>
-      applyUpdateWizardCharacter(state, W1, {
-        companionDescriptions: FILLED_COMPANIONS,
-      }),
+      applyUpdateWizardCharacter(state, W1, { ageYears: 100 }),
     ).not.toThrow();
   });
+
+  it("character patch with only non-companion fields succeeds", () => {
+    const state = setupWithWizard();
+    const { nextState } = applyUpdateWizardCharacter(state, W1, {
+      ageYears: 100,
+      pactFragmentPersonalForm: "A silver stag",
+    });
+    const char = wizardCharacter(nextState, W1);
+    expect(char.ageYears).toBe(100);
+    expect(char.pactFragmentPersonalForm).toBe("A silver stag");
+    expect(char).not.toHaveProperty("companionDescriptions");
+  });
 });
 
 // ============================================================
-// 4. Fingerprint normalization
+// 4. Fingerprint normalization (companionDescriptions no longer relevant)
 // ============================================================
 
-describe("companionDescriptions: fingerprint", () => {
-  it("semantically equivalent whitespace inputs produce identical fingerprints", () => {
-    const patchA = normalizeWizardCharacterPatch({
-      companionDescriptions: { air: "  Zephyr  ", fire: null, earth: null, water: null },
-    });
-    const patchB = normalizeWizardCharacterPatch({
-      companionDescriptions: { air: "Zephyr", fire: null, earth: null, water: null },
-    });
-    const fpA = updateWizardCharacterFingerprint("wiz_abc", patchA as Record<string, unknown>);
-    const fpB = updateWizardCharacterFingerprint("wiz_abc", patchB as Record<string, unknown>);
-    expect(fpA).toBe(fpB);
-  });
-
-  it("whitespace-only values normalize to null and match explicit null fingerprint", () => {
-    const patchA = normalizeWizardCharacterPatch({
-      companionDescriptions: { air: "   ", fire: null, earth: null, water: null },
-    });
-    const patchB = normalizeWizardCharacterPatch({
-      companionDescriptions: { air: null, fire: null, earth: null, water: null },
-    });
+describe("companionDescriptions: fingerprint in V5", () => {
+  it("patches without companionDescriptions produce stable fingerprints", () => {
+    const patchA = normalizeWizardCharacterPatch({ ageYears: 100 });
+    const patchB = normalizeWizardCharacterPatch({ ageYears: 100 });
     const fpA = updateWizardCharacterFingerprint("wiz_abc", patchA as Record<string, unknown>);
     const fpB = updateWizardCharacterFingerprint("wiz_abc", patchB as Record<string, unknown>);
     expect(fpA).toBe(fpB);
@@ -236,7 +125,7 @@ describe("companionDescriptions: fingerprint", () => {
 });
 
 // ============================================================
-// 5. Recovery: undo/redo roundtrip preserves companionDescriptions
+// 5. Recovery: undo/redo roundtrip preserves V5 character shape
 // ============================================================
 
 const CMP_ID = "cmp_00000000-0000-0000-0000-000000000001";
@@ -251,7 +140,7 @@ function emptyPactSeats() {
 
 function blankWizardSetupState(): CurrentCampaignState {
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
     calendar: { monthOrdinal: null },
     configuration: { ageId: null, facilitatorPlayerId: P1 },
@@ -261,6 +150,8 @@ function blankWizardSetupState(): CurrentCampaignState {
       name: "Valdris",
       portrayedByPlayerId: P1,
       character: { ...BLANK_WIZARD_CHARACTER },
+      homeIsleId: null,
+      sanctumPlaceId: null,
     }],
     pactSeats: {
       ...emptyPactSeats(),
@@ -271,26 +162,26 @@ function blankWizardSetupState(): CurrentCampaignState {
       orrery: { saturn: asCentidegreePosition(500), jupiter: null, mars: null, venus: null, mercury: null },
     },
     wizardmootHistory: [],
+    world: { denizens: [], isles: [], places: [], companionRelationships: [] },
   } as CurrentCampaignState;
 }
 
-function editedCompanionSetupState(): CurrentCampaignState {
+function editedSetupState(): CurrentCampaignState {
   const prior = blankWizardSetupState();
   const result = applyUpdateWizardCharacter(prior, W1, {
-    companionDescriptions: FILLED_COMPANIONS,
     ageYears: 67,
   });
   return result.nextState;
 }
 
-describe("companionDescriptions: recovery roundtrip", () => {
+describe("companionDescriptions: recovery roundtrip in V5", () => {
   function makeControl(undoStack: number[], redoStack: number[]): CampaignHistoryControlV1 {
     return { historyControlVersion: 1, campaignId: CMP_ID, undoStack, redoStack };
   }
 
-  it("undo from companion-edited restores blank descriptions", () => {
+  it("undo from edited restores blank character", () => {
     const priorState = blankWizardSetupState();
-    const editedState = editedCompanionSetupState();
+    const editedState = editedSetupState();
 
     const result = deriveUndoTransition(
       {
@@ -304,14 +195,15 @@ describe("companionDescriptions: recovery roundtrip", () => {
       CMP_ID,
     );
 
-    const cd = result.nextState.wizards[0].character.companionDescriptions;
-    expect(cd).toEqual(BLANK_COMPANIONS);
+    const char = result.nextState.wizards[0].character;
+    expect(char).not.toHaveProperty("companionDescriptions");
+    expect(char.ageYears).toBeNull();
     expect(statesDeepEqual(result.nextState, priorState)).toBe(true);
   });
 
-  it("redo restores companion descriptions", () => {
+  it("redo restores edited character", () => {
     const priorState = blankWizardSetupState();
-    const editedState = editedCompanionSetupState();
+    const editedState = editedSetupState();
 
     const result = deriveRedoTransition(
       {
@@ -325,12 +217,13 @@ describe("companionDescriptions: recovery roundtrip", () => {
       CMP_ID,
     );
 
-    expect(result.nextState.wizards[0].character.companionDescriptions).toEqual(FILLED_COMPANIONS);
+    expect(result.nextState.wizards[0].character.ageYears).toBe(67);
+    expect(result.nextState.wizards[0].character).not.toHaveProperty("companionDescriptions");
     expect(statesDeepEqual(result.nextState, editedState)).toBe(true);
   });
 
-  it("backup roundtrip preserves companion descriptions", async () => {
-    const editedState = editedCompanionSetupState();
+  it("backup roundtrip preserves V5 character without companionDescriptions", async () => {
+    const editedState = editedSetupState();
     const source = {
       sourceCampaignId: CMP_ID,
       sourceCampaignRevision: 1,
@@ -344,14 +237,14 @@ describe("companionDescriptions: recovery roundtrip", () => {
     expect("backup" in validated).toBe(true);
     if (!("backup" in validated)) return;
 
-    expect(validated.backup.state.wizards[0].character.companionDescriptions).toEqual(FILLED_COMPANIONS);
+    expect(validated.backup.state.wizards[0].character).not.toHaveProperty("companionDescriptions");
     expect(statesDeepEqual(validated.backup.state, editedState)).toBe(true);
   });
 
-  it("statesDeepEqual detects differing companionDescriptions", () => {
-    const a = editedCompanionSetupState();
+  it("statesDeepEqual detects differing ageYears", () => {
+    const a = editedSetupState();
     const b = JSON.parse(JSON.stringify(a)) as CurrentCampaignState;
-    (b.wizards[0] as any).character.companionDescriptions.air = "Different";
+    (b.wizards[0] as any).character.ageYears = 999;
     expect(statesDeepEqual(a, b)).toBe(false);
   });
 });

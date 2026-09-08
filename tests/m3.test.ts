@@ -43,7 +43,7 @@ describe("M3 State Validation", () => {
   it("accepts canonical empty V4 state", () => {
     const state = emptyState();
     expect(() => validateCampaignState(state)).not.toThrow();
-    expect(state.schemaVersion).toBe(4);
+    expect(state.schemaVersion).toBe(5);
   });
 
   it("rejects invalid Player ID at mutation boundary (pure transition accepts any string)", () => {

@@ -34,13 +34,13 @@ const V2_STATE = {
   },
 };
 
-describe("V1/V2 Legacy Retirement — Fail-Closed", () => {
-  it("SUPPORTED_STATE_SCHEMA_VERSIONS contains only V4", () => {
-    expect(SUPPORTED_STATE_SCHEMA_VERSIONS).toEqual([4]);
+describe("V1/V2/V3/V4 Legacy Retirement — Fail-Closed", () => {
+  it("SUPPORTED_STATE_SCHEMA_VERSIONS contains only V5", () => {
+    expect(SUPPORTED_STATE_SCHEMA_VERSIONS).toEqual([5]);
   });
 
-  it("CURRENT_STATE_SCHEMA_VERSION is 4", () => {
-    expect(CURRENT_STATE_SCHEMA_VERSION).toBe(4);
+  it("CURRENT_STATE_SCHEMA_VERSION is 5", () => {
+    expect(CURRENT_STATE_SCHEMA_VERSION).toBe(5);
   });
 
   it("isSupportedSchemaVersion rejects V1", () => {
@@ -55,8 +55,12 @@ describe("V1/V2 Legacy Retirement — Fail-Closed", () => {
     expect(isSupportedSchemaVersion(3)).toBe(false);
   });
 
-  it("isSupportedSchemaVersion accepts V4", () => {
-    expect(isSupportedSchemaVersion(4)).toBe(true);
+  it("isSupportedSchemaVersion rejects V4", () => {
+    expect(isSupportedSchemaVersion(4)).toBe(false);
+  });
+
+  it("isSupportedSchemaVersion accepts V5", () => {
+    expect(isSupportedSchemaVersion(5)).toBe(true);
   });
 
   describe("validateAnyCampaignState rejects V1/V2", () => {

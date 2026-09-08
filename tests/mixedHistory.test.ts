@@ -67,6 +67,7 @@ function v2State(monthOrdinal: number = 0): CurrentCampaignState {
       currentMonth: { timeParticipants: [], engagements: [], wizardmootAttendance: null },
     },
     wizardmootHistory: [],
+    world: { denizens: [], isles: [], places: [], companionRelationships: [] },
   };
 }
 

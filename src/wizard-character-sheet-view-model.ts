@@ -1,7 +1,6 @@
 import type {
   WizardCharacterData,
   WizardElementScores,
-  WizardCompanionDescriptions,
 } from "../shared/domain/campaign-state";
 import type { WizardCharacterPatch } from "../shared/domain/wizard-character";
 
@@ -18,10 +17,6 @@ export interface WizardCharacterSheetForm {
   readonly ageYears: string;
   readonly publicChangesOfMagic: string;
   readonly importantNotes: string;
-  readonly companionAir: string;
-  readonly companionFire: string;
-  readonly companionEarth: string;
-  readonly companionWater: string;
 }
 
 export function formFromCharacter(character: WizardCharacterData): WizardCharacterSheetForm {
@@ -36,10 +31,6 @@ export function formFromCharacter(character: WizardCharacterData): WizardCharact
     ageYears: character.ageYears !== null ? String(character.ageYears) : "",
     publicChangesOfMagic: character.publicChangesOfMagic.join("\n"),
     importantNotes: character.importantNotes ?? "",
-    companionAir: character.companionDescriptions.air ?? "",
-    companionFire: character.companionDescriptions.fire ?? "",
-    companionEarth: character.companionDescriptions.earth ?? "",
-    companionWater: character.companionDescriptions.water ?? "",
   };
 }
 
@@ -131,20 +122,6 @@ export function parseChangesOfMagic(text: string): string[] {
     .filter((line) => line.length > 0);
 }
 
-export function normalizeCompanionDescriptions(
-  air: string,
-  fire: string,
-  earth: string,
-  water: string,
-): WizardCompanionDescriptions {
-  return {
-    air: normalizeScalarText(air),
-    fire: normalizeScalarText(fire),
-    earth: normalizeScalarText(earth),
-    water: normalizeScalarText(water),
-  };
-}
-
 function elementsEqual(
   a: WizardElementScores | null,
   b: WizardElementScores | null,
@@ -152,18 +129,6 @@ function elementsEqual(
   if (a === null && b === null) return true;
   if (a === null || b === null) return false;
   return a.air === b.air && a.fire === b.fire && a.earth === b.earth && a.water === b.water;
-}
-
-function companionDescriptionsEqual(
-  a: WizardCompanionDescriptions,
-  b: WizardCompanionDescriptions,
-): boolean {
-  return (
-    a.air === b.air &&
-    a.fire === b.fire &&
-    a.earth === b.earth &&
-    a.water === b.water
-  );
 }
 
 function stringArraysEqual(
@@ -230,16 +195,6 @@ export function buildCharacterPatch(
   const notes = normalizeScalarText(form.importantNotes);
   if (notes !== baseline.importantNotes) {
     patch.importantNotes = notes;
-  }
-
-  const companions = normalizeCompanionDescriptions(
-    form.companionAir,
-    form.companionFire,
-    form.companionEarth,
-    form.companionWater,
-  );
-  if (!companionDescriptionsEqual(companions, baseline.companionDescriptions)) {
-    patch.companionDescriptions = companions;
   }
 
   if (Object.keys(patch).length === 0) return null;

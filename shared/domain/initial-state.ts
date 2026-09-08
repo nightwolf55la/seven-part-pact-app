@@ -7,6 +7,7 @@ import {
 import { PACT_SEAT_IDS } from "./pact-seats";
 import type { PactSeatId } from "./pact-seats";
 import { emptySetupOrrery } from "./orrery";
+import { EMPTY_SHARED_WORLD_STATE } from "./shared-world";
 
 function emptyPactSeats(): { readonly [K in PactSeatId]: PactSeatState } {
   const seats = {} as Record<PactSeatId, PactSeatState>;
@@ -38,5 +39,6 @@ export function initialCampaignState(): CurrentCampaignState {
       orrery: emptySetupOrrery(),
     },
     wizardmootHistory: [],
+    world: EMPTY_SHARED_WORLD_STATE,
   };
 }

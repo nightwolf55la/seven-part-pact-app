@@ -17,8 +17,8 @@ function playState(overrides: Record<string, unknown> = {}): any {
     calendar: { monthOrdinal: 0 },
     players: [{ playerId: PLR1, name: "P1" }],
     wizards: [
-      { wizardId: WIZ1, name: "W1", portrayedByPlayerId: PLR1, character: { ...BLANK_WIZARD_CHARACTER } },
-      { wizardId: WIZ2, name: "W2", portrayedByPlayerId: null, character: { ...BLANK_WIZARD_CHARACTER } },
+      { wizardId: WIZ1, name: "W1", portrayedByPlayerId: PLR1, character: { ...BLANK_WIZARD_CHARACTER }, homeIsleId: null, sanctumPlaceId: null },
+      { wizardId: WIZ2, name: "W2", portrayedByPlayerId: null, character: { ...BLANK_WIZARD_CHARACTER }, homeIsleId: null, sanctumPlaceId: null },
     ],
     lifecycle: {
       kind: "play",

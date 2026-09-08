@@ -154,16 +154,16 @@ describe("validateCampaignStateV5Candidate", () => {
   // 4. V4 active validation rejects denizen target and schema V5
   // =========================================================================
 
-  it("V4 validateCampaignState rejects schemaVersion 5", () => {
-    expect(() => validateCampaignState(minimalV5Setup())).toThrow(DomainError);
+  it("V5 validateCampaignState accepts schemaVersion 5", () => {
+    expect(() => validateCampaignState(minimalV5Setup())).not.toThrow();
   });
 
-  it("V4 validateAnyCampaignState rejects schemaVersion 5", () => {
-    expect(() => validateAnyCampaignState(minimalV5Setup())).toThrow(DomainError);
+  it("V5 validateAnyCampaignState accepts schemaVersion 5", () => {
+    expect(() => validateAnyCampaignState(minimalV5Setup())).not.toThrow();
   });
 
-  it("CURRENT_STATE_SCHEMA_VERSION remains 4", () => {
-    expect(CURRENT_STATE_SCHEMA_VERSION).toBe(4);
+  it("CURRENT_STATE_SCHEMA_VERSION is 5", () => {
+    expect(CURRENT_STATE_SCHEMA_VERSION).toBe(5);
   });
 
   // =========================================================================
