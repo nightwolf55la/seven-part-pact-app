@@ -195,8 +195,6 @@ export default function TableWizards({
                 wizardId: characterWizard.wizardId,
                 change,
               });
-            } catch (e: any) {
-              setCharacterError(e?.message ?? "Failed to save Home Isle");
             } finally {
               setPending(false);
             }
@@ -210,8 +208,6 @@ export default function TableWizards({
                 wizardId: characterWizard.wizardId,
                 change,
               });
-            } catch (e: any) {
-              setCharacterError(e?.message ?? "Failed to save Sanctum");
             } finally {
               setPending(false);
             }

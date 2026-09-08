@@ -30,8 +30,8 @@ export interface WizardCharacterSheetProps {
   readonly homeIsleId?: string | null;
   readonly sanctumPlaceId?: string | null;
   readonly worldRef?: WorldReference | null | undefined;
-  readonly onSetHomeIsle?: (change: { expected: string | null; value: string | null }) => void;
-  readonly onSetSanctum?: (change: { expected: string | null; value: string | null }) => void;
+  readonly onSetHomeIsle?: (change: { expected: string | null; value: string | null }) => Promise<void>;
+  readonly onSetSanctum?: (change: { expected: string | null; value: string | null }) => Promise<void>;
 }
 
 export default function WizardCharacterSheet({
@@ -106,20 +106,30 @@ export default function WizardCharacterSheet({
 
   const total = elementsTotal(elemValidation.value);
 
-  function handleSaveHomeIsle() {
+  async function handleSaveHomeIsle() {
     if (!onSetHomeIsle) return;
     setAssocError(null);
     const change = buildNullableAssociationChange(homeIsleBaselineRef.current, homeIsleDraft === "" ? null : homeIsleDraft);
     if (change === null) return;
-    onSetHomeIsle(change);
+    try {
+      await onSetHomeIsle(change);
+      homeIsleBaselineRef.current = change.value;
+    } catch (e: any) {
+      setAssocError(e?.message ?? "Failed to save Home Isle");
+    }
   }
 
-  function handleSaveSanctum() {
+  async function handleSaveSanctum() {
     if (!onSetSanctum) return;
     setAssocError(null);
     const change = buildNullableAssociationChange(sanctumBaselineRef.current, sanctumDraft === "" ? null : sanctumDraft);
     if (change === null) return;
-    onSetSanctum(change);
+    try {
+      await onSetSanctum(change);
+      sanctumBaselineRef.current = change.value;
+    } catch (e: any) {
+      setAssocError(e?.message ?? "Failed to save Sanctum");
+    }
   }
 
   return (
