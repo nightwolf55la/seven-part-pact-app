@@ -5,7 +5,7 @@ import type { LunarPhase, WizardCharacterDataV4, WizardCharacterDataV5 } from ".
 import type { TimeDestination } from "./time-model";
 import type { EngagementTargetV4, EngagementTargetV5 } from "./engagement";
 import type { Denizen, Isle, WorldPlace } from "./shared-world";
-import type { DenizenId, IsleId, PlaceId } from "./ids";
+import type { DenizenId, IsleId, PlaceId, WizardId } from "./ids";
 
 export interface UndoAppliedDataV1 {
   readonly fromRevision: number;
@@ -548,13 +548,37 @@ export interface PlaceUpdatedEventV1 {
   readonly data: PlaceUpdatedDataV1;
 }
 
+export interface WizardHomeIsleChangedDataV1 {
+  readonly wizardId: WizardId;
+  readonly previousHomeIsleId: IsleId | null;
+  readonly newHomeIsleId: IsleId | null;
+}
+export interface WizardHomeIsleChangedEventV1 {
+  readonly type: "wizard_home_isle_changed";
+  readonly version: 1;
+  readonly data: WizardHomeIsleChangedDataV1;
+}
+
+export interface WizardSanctumChangedDataV1 {
+  readonly wizardId: WizardId;
+  readonly previousSanctumPlaceId: PlaceId | null;
+  readonly newSanctumPlaceId: PlaceId | null;
+}
+export interface WizardSanctumChangedEventV1 {
+  readonly type: "wizard_sanctum_changed";
+  readonly version: 1;
+  readonly data: WizardSanctumChangedDataV1;
+}
+
 export type WorldEvent =
   | DenizenCreatedEventV1
   | DenizenUpdatedEventV1
   | IsleCreatedEventV1
   | IsleUpdatedEventV1
   | PlaceCreatedEventV1
-  | PlaceUpdatedEventV1;
+  | PlaceUpdatedEventV1
+  | WizardHomeIsleChangedEventV1
+  | WizardSanctumChangedEventV1;
 
 export type CampaignEvent =
   | InfrastructureEvent

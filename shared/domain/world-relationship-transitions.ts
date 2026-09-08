@@ -10,6 +10,14 @@ import type { WizardId, IsleId, PlaceId, DenizenId, CompanionRelationshipId } fr
 import { isValidCompanionRelationshipId } from "./ids";
 import { DomainError } from "./errors";
 import type { ExpectedFieldChange } from "./world-subject-transitions";
+import type { WizardHomeIsleChangedEventV1, WizardSanctumChangedEventV1 } from "./events";
+
+export type {
+  WizardHomeIsleChangedDataV1,
+  WizardHomeIsleChangedEventV1,
+  WizardSanctumChangedDataV1,
+  WizardSanctumChangedEventV1,
+} from "./events";
 
 // ---------------------------------------------------------------------------
 // Description normalization (same rules as shared-world subjects)
@@ -31,27 +39,24 @@ function normalizeDescription(raw: string | null): string | null {
 // Candidate events (NOT added to active CampaignEvent union)
 // ---------------------------------------------------------------------------
 
-export interface WizardHomeIsleChangedDataV1 {
-  readonly wizardId: WizardId;
-  readonly previousHomeIsleId: IsleId | null;
-  readonly newHomeIsleId: IsleId | null;
-}
-export interface WizardHomeIsleChangedEventV1 {
-  readonly type: "wizard_home_isle_changed";
-  readonly version: 1;
-  readonly data: WizardHomeIsleChangedDataV1;
+export type CandidateRelationshipEvent =
+  | WizardHomeIsleChangedEventV1
+  | WizardSanctumChangedEventV1
+  | WizardCompanionChangedEventV1
+  | CompanionDescriptionChangedEventV1;
+
+// ---------------------------------------------------------------------------
+// Association result type (narrow)
+// ---------------------------------------------------------------------------
+
+export interface WizardAssociationTransitionResult {
+  readonly nextState: CampaignStateV5;
+  readonly events: readonly (WizardHomeIsleChangedEventV1 | WizardSanctumChangedEventV1)[];
 }
 
-export interface WizardSanctumChangedDataV1 {
-  readonly wizardId: WizardId;
-  readonly previousSanctumPlaceId: PlaceId | null;
-  readonly newSanctumPlaceId: PlaceId | null;
-}
-export interface WizardSanctumChangedEventV1 {
-  readonly type: "wizard_sanctum_changed";
-  readonly version: 1;
-  readonly data: WizardSanctumChangedDataV1;
-}
+// ---------------------------------------------------------------------------
+// Candidate events (NOT added to active CampaignEvent union)
+// ---------------------------------------------------------------------------
 
 export interface WizardCompanionChangedDataV1 {
   readonly wizardId: WizardId;
@@ -75,16 +80,6 @@ export interface CompanionDescriptionChangedEventV1 {
   readonly version: 1;
   readonly data: CompanionDescriptionChangedDataV1;
 }
-
-export type CandidateRelationshipEvent =
-  | WizardHomeIsleChangedEventV1
-  | WizardSanctumChangedEventV1
-  | WizardCompanionChangedEventV1
-  | CompanionDescriptionChangedEventV1;
-
-// ---------------------------------------------------------------------------
-// Result type
-// ---------------------------------------------------------------------------
 
 export interface RelationshipTransitionResult {
   readonly nextState: CampaignStateV5;
@@ -133,7 +128,7 @@ export function applySetWizardHomeIsleV5Candidate(
   state: CampaignStateV5,
   wizardId: WizardId,
   change: ExpectedFieldChange<IsleId | null>,
-): RelationshipTransitionResult {
+): WizardAssociationTransitionResult {
   const { wizard, index } = findWizard(state, wizardId);
 
   if (wizard.homeIsleId !== change.expected) {
@@ -177,7 +172,7 @@ export function applySetWizardSanctumV5Candidate(
   state: CampaignStateV5,
   wizardId: WizardId,
   change: ExpectedFieldChange<PlaceId | null>,
-): RelationshipTransitionResult {
+): WizardAssociationTransitionResult {
   const { wizard, index } = findWizard(state, wizardId);
 
   if (wizard.sanctumPlaceId !== change.expected) {

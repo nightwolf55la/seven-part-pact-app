@@ -293,6 +293,22 @@ export function updatePlaceFingerprint(placeId: string, fields: Record<string, u
   return `update_place:v1:place=${placeId}:fields=${fieldsCanonical}`;
 }
 
+export function setWizardHomeIsleFingerprint(
+  wizardId: string,
+  change: { expected: string | null; value: string | null },
+): string {
+  const payload = canonicalJsonStringify({ wizardId, change });
+  return `set_wizard_home_isle:v1:${payload}`;
+}
+
+export function setWizardSanctumFingerprint(
+  wizardId: string,
+  change: { expected: string | null; value: string | null },
+): string {
+  const payload = canonicalJsonStringify({ wizardId, change });
+  return `set_wizard_sanctum:v1:${payload}`;
+}
+
 /**
  * Pure deterministic idempotency match for command replay.
  * Given a previously committed command record and an incoming attempt,

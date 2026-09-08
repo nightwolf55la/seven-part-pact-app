@@ -123,6 +123,10 @@ function describeConfigEvent(event: CampaignEvent): string {
       return `Created place "${event.data.place.name}"`;
     case "place_updated":
       return `Updated place "${event.data.updated.name}"`;
+    case "wizard_home_isle_changed":
+      return `Changed wizard home Isle`;
+    case "wizard_sanctum_changed":
+      return `Changed wizard Sanctum`;
     default:
       return "Campaign configuration changed";
   }
@@ -246,7 +250,9 @@ export function mapEventToActivityEntry(
     case "isle_created":
     case "isle_updated":
     case "place_created":
-    case "place_updated": {
+    case "place_updated":
+    case "wizard_home_isle_changed":
+    case "wizard_sanctum_changed": {
       return {
         id,
         revision,

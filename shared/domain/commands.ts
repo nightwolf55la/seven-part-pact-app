@@ -37,6 +37,8 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "update_isle",
   "create_place",
   "update_place",
+  "set_wizard_home_isle",
+  "set_wizard_sanctum",
 ] as const;
 
 // Historical command types that may appear in persisted revision records but
@@ -88,6 +90,8 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "update_isle":
     case "create_place":
     case "update_place":
+    case "set_wizard_home_isle":
+    case "set_wizard_sanctum":
     case "move_month":
     case "legacy_month_change":
       return true;

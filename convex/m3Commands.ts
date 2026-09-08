@@ -77,14 +77,18 @@ import {
   isValidPlaceId,
   createPlaceFingerprint,
   updatePlaceFingerprint,
+  setWizardHomeIsleFingerprint,
+  setWizardSanctumFingerprint,
   applyCreateDenizenV5Candidate,
   applyUpdateDenizenV5Candidate,
   applyCreateIsleV5Candidate,
   applyUpdateIsleV5Candidate,
   applyCreatePlaceV5Candidate,
   applyUpdatePlaceV5Candidate,
+  applySetWizardHomeIsleV5Candidate,
+  applySetWizardSanctumV5Candidate,
 } from "../shared/domain";
-import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields } from "../shared/domain";
+import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
 import type { WizardInitIds } from "../shared/domain/begin-play";
 import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
@@ -1329,6 +1333,68 @@ export const updatePlace = mutation({
     if (replay) return { revision: replay.newRevision };
     const result = applyUpdatePlaceV5Candidate(campaign.currentState, args.placeId as PlaceId, args.fields as UpdatePlaceFields);
     const receipt = await commitM3Command(ctx, args.commandId, "update_place", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+// ============================================================
+// M5: Wizard World Association commands
+// ============================================================
+
+export const setWizardHomeIsle = mutation({
+  args: {
+    commandId: v.string(),
+    wizardId: v.string(),
+    change: v.object({
+      expected: v.union(v.string(), v.null()),
+      value: v.union(v.string(), v.null()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    if (!isValidWizardId(args.wizardId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
+    }
+    const fingerprint = setWizardHomeIsleFingerprint(args.wizardId, args.change);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "set_wizard_home_isle", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applySetWizardHomeIsleV5Candidate(
+      campaign.currentState,
+      args.wizardId as WizardId,
+      args.change as ExpectedFieldChange<IsleId | null>,
+    );
+    const receipt = await commitM3Command(ctx, args.commandId, "set_wizard_home_isle", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+export const setWizardSanctum = mutation({
+  args: {
+    commandId: v.string(),
+    wizardId: v.string(),
+    change: v.object({
+      expected: v.union(v.string(), v.null()),
+      value: v.union(v.string(), v.null()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    if (!isValidWizardId(args.wizardId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
+    }
+    const fingerprint = setWizardSanctumFingerprint(args.wizardId, args.change);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "set_wizard_sanctum", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applySetWizardSanctumV5Candidate(
+      campaign.currentState,
+      args.wizardId as WizardId,
+      args.change as ExpectedFieldChange<PlaceId | null>,
+    );
+    const receipt = await commitM3Command(ctx, args.commandId, "set_wizard_sanctum", fingerprint, campaign, result);
     return { revision: receipt.newRevision };
   },
 });

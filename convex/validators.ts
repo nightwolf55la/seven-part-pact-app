@@ -696,6 +696,26 @@ const placeUpdatedEventV1Validator = v.object({
   }),
 });
 
+const wizardHomeIsleChangedEventV1Validator = v.object({
+  type: v.literal("wizard_home_isle_changed"),
+  version: v.literal(1),
+  data: v.object({
+    wizardId: v.string(),
+    previousHomeIsleId: v.union(v.string(), v.null()),
+    newHomeIsleId: v.union(v.string(), v.null()),
+  }),
+});
+
+const wizardSanctumChangedEventV1Validator = v.object({
+  type: v.literal("wizard_sanctum_changed"),
+  version: v.literal(1),
+  data: v.object({
+    wizardId: v.string(),
+    previousSanctumPlaceId: v.union(v.string(), v.null()),
+    newSanctumPlaceId: v.union(v.string(), v.null()),
+  }),
+});
+
 const companionRelationshipValidator = v.object({
   companionRelationshipId: v.string(),
   wizardId: v.string(),
@@ -812,6 +832,8 @@ export const campaignEventValidator = v.union(
   isleUpdatedEventV1Validator,
   placeCreatedEventV1Validator,
   placeUpdatedEventV1Validator,
+  wizardHomeIsleChangedEventV1Validator,
+  wizardSanctumChangedEventV1Validator,
 );
 
 export const anyCampaignStateValidator = campaignStateV5Validator;

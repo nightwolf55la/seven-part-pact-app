@@ -107,6 +107,10 @@ export type {
   PlaceCreatedEventV1,
   PlaceUpdatedDataV1,
   PlaceUpdatedEventV1,
+  WizardHomeIsleChangedDataV1,
+  WizardHomeIsleChangedEventV1,
+  WizardSanctumChangedDataV1,
+  WizardSanctumChangedEventV1,
   CampaignEvent,
 } from "./events";
 
@@ -247,6 +251,8 @@ export {
   updateIsleFingerprint,
   createPlaceFingerprint,
   updatePlaceFingerprint,
+  setWizardHomeIsleFingerprint,
+  setWizardSanctumFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
@@ -563,9 +569,8 @@ export {
 
 export type {
   RelationshipTransitionResult,
+  WizardAssociationTransitionResult,
   CandidateRelationshipEvent,
-  WizardHomeIsleChangedEventV1,
-  WizardSanctumChangedEventV1,
   WizardCompanionChangedEventV1,
   CompanionDescriptionChangedEventV1,
   SetWizardCompanionInput,
