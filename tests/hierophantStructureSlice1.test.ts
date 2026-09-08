@@ -314,6 +314,40 @@ describe("CampaignStateV5 Hierophant core", () => {
     expect(() => validateCampaignStateV5Candidate(bad)).toThrow(DomainError);
   });
 
+  it("fails closed when a campaign Temple is encoded with kind hestar", () => {
+    const initialized = applyCreatePlaceV5Candidate(initializeReady().nextState, {
+      placeId: placeId(20),
+      name: "Custom Temple Place",
+      description: null,
+      placement: { kind: "unspecified" },
+    }).nextState;
+    const temples = [
+      ...initialized.hierophant.temples,
+      {
+        templeId: "htm_00000000-0000-0000-0000-0000000000ab",
+        kind: "hestar" as const,
+        placeId: placeId(20),
+        hostSeatId: "necromancer" as const,
+        status: "active" as const,
+        abundance: 0,
+        conviction: 0,
+      },
+    ];
+    const bad = { ...initialized, hierophant: { ...initialized.hierophant, temples } };
+    expect(() => validateCampaignState(bad as CampaignStateV5)).toThrow(DomainError);
+  });
+
+  it("fails closed when templeId hestar is encoded as kind ordinary", () => {
+    const initialized = initializeReady().nextState;
+    const temples = initialized.hierophant.temples.map((t) =>
+      t.templeId === "hestar"
+        ? { ...t, kind: "ordinary" as const, doctrine: { kind: "unset" as const } }
+        : t,
+    );
+    const bad = { ...initialized, hierophant: { ...initialized.hierophant, temples } };
+    expect(() => validateCampaignState(bad)).toThrow(DomainError);
+  });
+
   it("fails closed on negative Temple resources", () => {
     const initialized = initializeReady().nextState;
     const temples = initialized.hierophant.temples.map((t, i) =>

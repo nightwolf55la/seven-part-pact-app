@@ -46,6 +46,7 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "create_temple",
   "update_temple",
   "set_temple_holiday",
+  "set_selected_flame_laws",
   "add_supplicant",
   "update_supplicant",
   "remove_supplicant",
@@ -122,6 +123,7 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "create_temple":
     case "update_temple":
     case "set_temple_holiday":
+    case "set_selected_flame_laws":
     case "add_supplicant":
     case "update_supplicant":
     case "remove_supplicant":

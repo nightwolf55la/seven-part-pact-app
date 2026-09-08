@@ -86,6 +86,7 @@ import {
   createTempleFingerprint,
   updateTempleFingerprint,
   setTempleHolidayFingerprint,
+  setSelectedFlameLawsFingerprint,
   addSupplicantFingerprint,
   updateSupplicantFingerprint,
   removeSupplicantFingerprint,
@@ -117,6 +118,7 @@ import {
   applyCreateTemple,
   applyUpdateTemple,
   applySetTempleHoliday,
+  applySetSelectedFlameLaws,
   applyAddSupplicant,
   applyUpdateSupplicant,
   applyRemoveSupplicant,
@@ -1785,6 +1787,35 @@ export const setTempleHoliday = mutation({
         commandType: "set_temple_holiday",
         commandFingerprint: setTempleHolidayFingerprint(args.expectedCampaignId, args.templeId, args.marked),
         apply: (state) => applySetTempleHoliday(state, args.templeId as HierophantTempleId, args.marked),
+      }),
+    );
+  },
+});
+
+export const setSelectedFlameLaws = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    expectedSelectedFlameLawIds: v.array(v.string()),
+    selectedFlameLawIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "set_selected_flame_laws",
+        commandFingerprint: setSelectedFlameLawsFingerprint(
+          args.expectedCampaignId,
+          args.expectedSelectedFlameLawIds,
+          args.selectedFlameLawIds,
+        ),
+        apply: (state) =>
+          applySetSelectedFlameLaws(
+            state,
+            args.expectedSelectedFlameLawIds as HierophantFlameLawId[],
+            args.selectedFlameLawIds as HierophantFlameLawId[],
+          ),
       }),
     );
   },

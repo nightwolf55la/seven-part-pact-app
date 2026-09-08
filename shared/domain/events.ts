@@ -657,6 +657,16 @@ export interface TempleHolidayChangedEventV1 {
   readonly data: TempleHolidayChangedDataV1;
 }
 
+export interface FlameLawsChangedDataV1 {
+  readonly previousSelectedFlameLawIds: readonly HierophantFlameLawId[];
+  readonly newSelectedFlameLawIds: readonly HierophantFlameLawId[];
+}
+export interface FlameLawsChangedEventV1 {
+  readonly type: "flame_laws_changed";
+  readonly version: 1;
+  readonly data: FlameLawsChangedDataV1;
+}
+
 export interface SupplicantAddedDataV1 {
   readonly supplicant: HierophantSupplicant;
 }
@@ -828,6 +838,7 @@ export type HierophantEvent =
   | TempleCreatedEventV1
   | TempleUpdatedEventV1
   | TempleHolidayChangedEventV1
+  | FlameLawsChangedEventV1
   | SupplicantAddedEventV1
   | SupplicantUpdatedEventV1
   | SupplicantRemovedEventV1

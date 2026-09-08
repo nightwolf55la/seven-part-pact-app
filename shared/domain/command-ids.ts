@@ -367,6 +367,18 @@ export function setTempleHolidayFingerprint(expectedCampaignId: string, templeId
   return `set_temple_holiday:v1:${canonicalJsonStringify({ expectedCampaignId, templeId, marked })}`;
 }
 
+export function setSelectedFlameLawsFingerprint(
+  expectedCampaignId: string,
+  expectedSelectedFlameLawIds: readonly string[],
+  selectedFlameLawIds: readonly string[],
+): string {
+  return `set_selected_flame_laws:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    expectedSelectedFlameLawIds,
+    selectedFlameLawIds,
+  })}`;
+}
+
 export function addSupplicantFingerprint(expectedCampaignId: string, supplicant: unknown): string {
   return `add_supplicant:v1:${canonicalJsonStringify({ expectedCampaignId, supplicant })}`;
 }

@@ -784,7 +784,7 @@ const ordinaryTempleValidator = v.object({
 });
 
 const hestarTempleValidator = v.object({
-  templeId: v.string(),
+  templeId: v.literal("hestar"),
   kind: v.literal("hestar"),
   placeId: v.string(),
   hostSeatId: v.string(),
@@ -934,6 +934,15 @@ const templeHolidayChangedEventV1Validator = v.object({
     templeId: v.string(),
     previousMarked: v.boolean(),
     newMarked: v.boolean(),
+  }),
+});
+
+const flameLawsChangedEventV1Validator = v.object({
+  type: v.literal("flame_laws_changed"),
+  version: v.literal(1),
+  data: v.object({
+    previousSelectedFlameLawIds: v.array(v.string()),
+    newSelectedFlameLawIds: v.array(v.string()),
   }),
 });
 
@@ -1173,6 +1182,7 @@ export const campaignEventValidator = v.union(
   templeCreatedEventV1Validator,
   templeUpdatedEventV1Validator,
   templeHolidayChangedEventV1Validator,
+  flameLawsChangedEventV1Validator,
   supplicantAddedEventV1Validator,
   supplicantUpdatedEventV1Validator,
   supplicantRemovedEventV1Validator,

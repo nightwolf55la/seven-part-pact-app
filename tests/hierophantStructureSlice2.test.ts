@@ -37,6 +37,7 @@ import {
   applyRemoveCultDogma,
   applyRemoveProphet,
   applyRemoveSupplicant,
+  applySetSelectedFlameLaws,
   applySetTempleHoliday,
   applyUpdateCult,
   applyUpdateCultDogma,
@@ -599,6 +600,119 @@ describe("Anti-automation", () => {
       host: { kind: "cult", cultDenizenId: denizenId(2) },
     }).nextState;
     expect(() => applyRemoveCult(state, denizenId(2))).toThrow(DomainError);
+  });
+});
+
+describe("Hestar identity fail-closed", () => {
+  it("rejects a custom htm_ Temple encoded with kind hestar", () => {
+    let state = initializeReady();
+    state = applyCreatePlaceV5Candidate(state, {
+      placeId: placeId(20),
+      name: "Temple of the New Flame",
+      description: null,
+      placement: { kind: "unspecified" },
+    }).nextState;
+    state = applyCreateTemple(state, {
+      templeId: campaignTempleId(1),
+      placeId: placeId(20),
+      hostSeatId: "necromancer",
+      abundance: 2,
+      conviction: 1,
+      status: "active",
+      doctrine: { kind: "unset" },
+    }).nextState;
+    const temples = state.hierophant.temples.map((t) =>
+      t.templeId === campaignTempleId(1)
+        ? {
+            templeId: t.templeId,
+            kind: "hestar" as const,
+            placeId: t.placeId,
+            hostSeatId: t.hostSeatId,
+            status: t.status,
+            abundance: t.abundance,
+            conviction: t.conviction,
+          }
+        : t,
+    );
+    const bad = { ...state, hierophant: { ...state.hierophant, temples } };
+    expect(() => validateCampaignState(bad)).toThrow(DomainError);
+  });
+
+  it("rejects templeId hestar encoded as kind ordinary", () => {
+    const state = initializeReady();
+    const temples = state.hierophant.temples.map((t) =>
+      t.templeId === "hestar"
+        ? { ...t, kind: "ordinary" as const, doctrine: { kind: "unset" as const } }
+        : t,
+    );
+    const bad = { ...state, hierophant: { ...state.hierophant, temples } };
+    expect(() => validateCampaignState(bad)).toThrow(DomainError);
+  });
+});
+
+describe("set_selected_flame_laws", () => {
+  it("still requires exactly two Flame Laws at initialization", () => {
+    const withPlaces = withStartingTemplePlaces(baseV5());
+    const bindings = HIEROPHANT_STARTING_TEMPLE_IDS.map((templeId, index) => ({
+      templeId,
+      placeId: placeId(index + 1),
+    }));
+    expect(() =>
+      applyInitializeHierophant(withPlaces, {
+        selectedFlameLawIds: ["first"],
+        templePlaces: bindings,
+      }),
+    ).toThrow(DomainError);
+    expect(() =>
+      applyInitializeHierophant(withPlaces, {
+        selectedFlameLawIds: ["first", "second", "third"],
+        templePlaces: bindings,
+      }),
+    ).toThrow(DomainError);
+  });
+
+  it("changes a two-Law selection to one or three without altering other Hierophant state", () => {
+    const state = initializeReady();
+    const { selectedFlameLawIds: _before, ...restBefore } = state.hierophant;
+    expect(CAMPAIGN_COMMAND_TYPES as readonly string[]).toContain("set_selected_flame_laws");
+    expect(isLogicalStateCommandType("set_selected_flame_laws")).toBe(true);
+
+    const toOne = applySetSelectedFlameLaws(state, ["first", "second"], ["first"]);
+    expect(toOne.events).toEqual([{
+      type: "flame_laws_changed",
+      version: 1,
+      data: {
+        previousSelectedFlameLawIds: ["first", "second"],
+        newSelectedFlameLawIds: ["first"],
+      },
+    }]);
+    expect(toOne.nextState.hierophant.selectedFlameLawIds).toEqual(["first"]);
+    const { selectedFlameLawIds: _one, ...restOne } = toOne.nextState.hierophant;
+    expect(restOne).toEqual(restBefore);
+    expect(() => validateCampaignState(toOne.nextState)).not.toThrow();
+
+    const toThree = applySetSelectedFlameLaws(state, ["first", "second"], ["first", "second", "third"]);
+    expect(toThree.nextState.hierophant.selectedFlameLawIds).toEqual(["first", "second", "third"]);
+    const { selectedFlameLawIds: _three, ...restThree } = toThree.nextState.hierophant;
+    expect(restThree).toEqual(restBefore);
+    expect(toThree.nextState.world).toEqual(state.world);
+    expect(() => validateCampaignState(toThree.nextState)).not.toThrow();
+  });
+
+  it("rejects duplicates, unknown Law IDs, stale expected selection, and no-op", () => {
+    const state = initializeReady();
+    expect(() =>
+      applySetSelectedFlameLaws(state, ["first", "second"], ["first", "first"]),
+    ).toThrow(DomainError);
+    expect(() =>
+      applySetSelectedFlameLaws(state, ["first", "second"], ["first", "not_a_law" as never]),
+    ).toThrow(DomainError);
+    expect(() =>
+      applySetSelectedFlameLaws(state, ["sixth", "seventh"], ["first"]),
+    ).toThrow(DomainError);
+    expect(() =>
+      applySetSelectedFlameLaws(state, ["first", "second"], ["first", "second"]),
+    ).toThrow(DomainError);
   });
 });
 

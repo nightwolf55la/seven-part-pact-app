@@ -115,6 +115,9 @@ function validateTemple(
   assertNonNegativeSafeInteger(`${path}.conviction`, t.conviction);
 
   if (t.kind === "hestar") {
+    if (t.templeId !== "hestar") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} kind hestar must have templeId "hestar"`);
+    }
     if ("doctrine" in t && t.doctrine !== undefined) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} Hestar must not have a set Doctrine`);
     }
@@ -122,6 +125,9 @@ function validateTemple(
   }
   if (t.kind !== "ordinary") {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.kind is invalid: ${JSON.stringify(t.kind)}`);
+  }
+  if (t.templeId === "hestar") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} templeId "hestar" must have kind "hestar"`);
   }
   validateDoctrineState(path, t.doctrine, campaignDoctrineIds, campaignBlasphemyIds, true);
 }

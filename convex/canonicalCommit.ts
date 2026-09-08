@@ -169,6 +169,7 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   create_temple: { required: ["temple_created"] },
   update_temple: { required: ["temple_updated"] },
   set_temple_holiday: { required: ["temple_holiday_changed"] },
+  set_selected_flame_laws: { required: ["flame_laws_changed"] },
   add_supplicant: { required: ["supplicant_added"] },
   update_supplicant: { required: ["supplicant_updated"] },
   remove_supplicant: { required: ["supplicant_removed"] },

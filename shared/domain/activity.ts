@@ -141,6 +141,8 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Updated Temple";
     case "temple_holiday_changed":
       return "Changed Temple Holiday marker";
+    case "flame_laws_changed":
+      return "Changed selected Laws of the Flame";
     case "supplicant_added":
       return "Added Supplicant";
     case "supplicant_updated":
@@ -306,6 +308,7 @@ export function mapEventToActivityEntry(
     case "temple_created":
     case "temple_updated":
     case "temple_holiday_changed":
+    case "flame_laws_changed":
     case "supplicant_added":
     case "supplicant_updated":
     case "supplicant_removed":

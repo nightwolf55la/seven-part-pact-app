@@ -32,7 +32,7 @@ export type OrdinaryTempleDoctrineState =
   | { readonly kind: "blasphemy"; readonly blasphemyId: HierophantBlasphemyId };
 
 export interface OrdinaryHierophantTemple {
-  readonly templeId: HierophantTempleId;
+  readonly templeId: Exclude<HierophantTempleId, "hestar">;
   readonly kind: "ordinary";
   readonly placeId: PlaceId;
   readonly hostSeatId: PactSeatId;
@@ -43,7 +43,7 @@ export interface OrdinaryHierophantTemple {
 }
 
 export interface HestarHierophantTemple {
-  readonly templeId: HierophantTempleId;
+  readonly templeId: "hestar";
   readonly kind: "hestar";
   readonly placeId: PlaceId;
   readonly hostSeatId: PactSeatId;

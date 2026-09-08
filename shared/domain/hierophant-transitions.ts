@@ -107,6 +107,10 @@ function uniqueOrThrow(ids: readonly string[], label: string): void {
   }
 }
 
+function flameLawIdsEqual(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((id, i) => id === b[i]);
+}
+
 function normalizeName(raw: string): string {
   const trimmed = raw.trim();
   if (trimmed.length === 0) {
@@ -357,6 +361,44 @@ export function applyInitializeHierophant(
   };
 }
 
+export function applySetSelectedFlameLaws(
+  state: CampaignStateV5,
+  expectedSelectedFlameLawIds: readonly HierophantFlameLawId[],
+  selectedFlameLawIds: readonly HierophantFlameLawId[],
+): HierophantTransitionResult {
+  const current = state.hierophant.selectedFlameLawIds;
+  if (!flameLawIdsEqual(current, expectedSelectedFlameLawIds)) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      `selectedFlameLawIds: expected "${expectedSelectedFlameLawIds.join(",")}" but current is "${current.join(",")}"`,
+    );
+  }
+  uniqueOrThrow(selectedFlameLawIds, "selectedFlameLawId");
+  for (const lawId of selectedFlameLawIds) {
+    if (!isValidHierophantFlameLawId(lawId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown Flame Law id: ${lawId}`);
+    }
+  }
+  if (flameLawIdsEqual(current, selectedFlameLawIds)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Update produces no change");
+  }
+  const hierophant: HierophantState = {
+    ...state.hierophant,
+    selectedFlameLawIds: [...selectedFlameLawIds],
+  };
+  return {
+    nextState: replaceHierophant(state, hierophant),
+    events: [{
+      type: "flame_laws_changed",
+      version: 1,
+      data: {
+        previousSelectedFlameLawIds: [...current],
+        newSelectedFlameLawIds: [...selectedFlameLawIds],
+      },
+    }],
+  };
+}
+
 export function applyAdjustTempleResources(
   state: CampaignStateV5,
   templeId: HierophantTempleId,
@@ -448,7 +490,7 @@ export function applyCreateTemple(state: CampaignStateV5, input: CreateTempleInp
   assertDoctrineState(state, input.doctrine);
 
   const temple: OrdinaryHierophantTemple = {
-    templeId: input.templeId,
+    templeId: input.templeId as Exclude<HierophantTempleId, "hestar">,
     kind: "ordinary",
     placeId: input.placeId,
     hostSeatId: input.hostSeatId,

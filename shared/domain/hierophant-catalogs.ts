@@ -332,6 +332,7 @@ interface HierophantStartingTempleBase {
 }
 
 export interface OrdinaryHierophantStartingTempleDefinition extends HierophantStartingTempleBase {
+  readonly templeId: Exclude<HierophantStartingTempleId, "hestar">;
   readonly kind: "ordinary";
   readonly doctrineId: HierophantBuiltinDoctrineId;
 }
