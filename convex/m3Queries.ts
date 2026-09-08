@@ -481,3 +481,46 @@ export const getPlayReference = query({
     };
   },
 });
+
+export const getWorldReference = query({
+  args: {},
+  handler: async (ctx) => {
+    const maybeCanonical = await ctx.db
+      .query("campaigns")
+      .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
+      .unique();
+
+    if (
+      maybeCanonical === null ||
+      !("campaignKey" in maybeCanonical) ||
+      (maybeCanonical as any).campaignKey !== "default"
+    ) {
+      return null;
+    }
+
+    const doc = maybeCanonical as any;
+    const current = validateCampaignState(doc.state);
+
+    const world = current.world;
+
+    return {
+      denizens: world.denizens.map((d) => ({
+        denizenId: d.denizenId as string,
+        name: d.name,
+        representation: d.representation,
+        description: d.description,
+      })),
+      isles: world.isles.map((i) => ({
+        isleId: i.isleId as string,
+        name: i.name,
+        description: i.description,
+      })),
+      places: world.places.map((p) => ({
+        placeId: p.placeId as string,
+        name: p.name,
+        description: p.description,
+        placement: p.placement,
+      })),
+    };
+  },
+});
