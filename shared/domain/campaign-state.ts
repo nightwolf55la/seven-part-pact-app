@@ -116,7 +116,7 @@ export interface CampaignStateV3 {
   readonly players: readonly CampaignPlayer[];
   readonly wizards: readonly LegacyCampaignWizard[];
   readonly pactSeats: { readonly [K in PactSeatId]: PactSeatState };
-  readonly lifecycle: CampaignLifecycle;
+  readonly lifecycle: CampaignLifecycleV4;
   readonly wizardmootHistory: readonly WizardmootHistoryEntry[];
 }
 

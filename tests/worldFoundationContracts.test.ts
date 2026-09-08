@@ -36,6 +36,10 @@ import type {
   EngagementTarget,
   EngagementRecord,
   MonthlyPlayState,
+  CampaignStateV3,
+  CampaignLifecycleV4,
+  EngagementTargetKind,
+  EngagementTargetKindV5,
 } from "../shared/domain";
 import {
   CURRENT_STATE_SCHEMA_VERSION,
@@ -53,6 +57,7 @@ import {
   parsePlaceId,
   parseCompanionRelationshipId,
   validateV5WorldReferenceIntegrity,
+  ENGAGEMENT_TARGET_KINDS,
 } from "../shared/domain";
 
 // ---------------------------------------------------------------------------
@@ -232,6 +237,18 @@ describe("Historical contract isolation", () => {
     expectTypeOf<EngagementTarget>().toEqualTypeOf<EngagementTargetV5>();
     expectTypeOf<EngagementRecord>().toEqualTypeOf<EngagementRecordV5>();
     expectTypeOf<MonthlyPlayState>().toEqualTypeOf<MonthlyPlayStateV5>();
+  });
+
+  it("current ENGAGEMENT_TARGET_KINDS contains denizen", () => {
+    expect((ENGAGEMENT_TARGET_KINDS as readonly string[]).includes("denizen")).toBe(true);
+  });
+
+  it("current EngagementTargetKind is the V5 kind type", () => {
+    expectTypeOf<EngagementTargetKind>().toEqualTypeOf<EngagementTargetKindV5>();
+  });
+
+  it("CampaignStateV3 lifecycle is frozen to CampaignLifecycleV4", () => {
+    expectTypeOf<CampaignStateV3["lifecycle"]>().toEqualTypeOf<CampaignLifecycleV4>();
   });
 });
 

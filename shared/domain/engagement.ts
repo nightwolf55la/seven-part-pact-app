@@ -35,11 +35,11 @@ export type EngagementTargetV4 =
 
 export type EngagementTarget = EngagementTargetV5;
 
-export const ENGAGEMENT_TARGET_KINDS = [
+export const ENGAGEMENT_TARGET_KINDS_V4 = [
   "wizard", "self", "familiar", "named_character",
 ] as const;
 
-export type EngagementTargetKind = (typeof ENGAGEMENT_TARGET_KINDS)[number];
+export type EngagementTargetKindV4 = (typeof ENGAGEMENT_TARGET_KINDS_V4)[number];
 
 export interface EngagementRecordV4 {
   readonly engagementId: EngagementId;
@@ -70,6 +70,9 @@ export const ENGAGEMENT_TARGET_KINDS_V5 = [
 ] as const;
 
 export type EngagementTargetKindV5 = (typeof ENGAGEMENT_TARGET_KINDS_V5)[number];
+
+export const ENGAGEMENT_TARGET_KINDS = ENGAGEMENT_TARGET_KINDS_V5;
+export type EngagementTargetKind = EngagementTargetKindV5;
 
 export interface EngagementRecordV5 {
   readonly engagementId: EngagementId;

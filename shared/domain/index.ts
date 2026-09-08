@@ -434,11 +434,13 @@ export type {
   EngagementTarget,
   EngagementTargetV5,
   EngagementTargetKind,
+  EngagementTargetKindV4,
+  EngagementTargetKindV5,
   EngagementRecordV4,
   EngagementRecord,
   EngagementRecordV5,
 } from "./engagement";
-export { ENGAGEMENT_RESOLUTIONS, ENGAGEMENT_TARGET_KINDS } from "./engagement";
+export { ENGAGEMENT_RESOLUTIONS, ENGAGEMENT_TARGET_KINDS, ENGAGEMENT_TARGET_KINDS_V4, ENGAGEMENT_TARGET_KINDS_V5 } from "./engagement";
 
 // --- Wizardmoot ---
 

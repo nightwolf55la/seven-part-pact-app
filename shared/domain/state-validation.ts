@@ -30,7 +30,7 @@ import {
 import type { MovablePlanetId } from "./orrery";
 import { ALLOCATION_RESOLUTIONS } from "./time-model";
 import type { AllocationResolution } from "./time-model";
-import { ENGAGEMENT_RESOLUTIONS, ENGAGEMENT_TARGET_KINDS, ENGAGEMENT_TARGET_KINDS_V5 } from "./engagement";
+import { ENGAGEMENT_RESOLUTIONS, ENGAGEMENT_TARGET_KINDS_V4, ENGAGEMENT_TARGET_KINDS_V5 } from "./engagement";
 import type { EngagementResolution, EngagementTargetKind } from "./engagement";
 import { TIME_DESTINATION_KINDS } from "./time-model";
 import { ELEMENT_IDS } from "./shared-world";
@@ -459,7 +459,7 @@ function validateEngagements(
         throw new DomainError("INVALID_CAMPAIGN_STATE", `${engPath}.target must be object or null`);
       }
       const target = engObj.target as Record<string, unknown>;
-      const allowedKinds = version >= 5 ? ENGAGEMENT_TARGET_KINDS_V5 : ENGAGEMENT_TARGET_KINDS;
+      const allowedKinds = version >= 5 ? ENGAGEMENT_TARGET_KINDS_V5 : ENGAGEMENT_TARGET_KINDS_V4;
       if (!(allowedKinds as readonly string[]).includes(target.kind as string)) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `${engPath}.target.kind is invalid: ${JSON.stringify(target.kind)}`);
       }
