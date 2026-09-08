@@ -7,6 +7,8 @@ import {
   buildCharacterPatch,
   buildNullableAssociationChange,
   buildCurrentCompanionSlots,
+  buildCompanionAssignmentChange,
+  buildCompanionDescriptionChange,
   elementsTotal,
   isElementsComplete,
 } from "../src/wizard-character-sheet-view-model";
@@ -320,5 +322,60 @@ describe("buildCurrentCompanionSlots", () => {
     });
     expect(slots[2].relationship).toBeNull();
     expect(slots[3].relationship).toBeNull();
+  });
+});
+
+describe("buildCompanionAssignmentChange", () => {
+  it("preserves captured expected relationship ID and converts blank description to null", () => {
+    const change = buildCompanionAssignmentChange("rel_1", "den_a", "");
+    expect(change).toEqual({
+      expectedCurrentRelationshipId: "rel_1",
+      newRelationship: {
+        denizenId: "den_a",
+        description: null,
+      },
+    });
+  });
+
+  it("preserves exact description string without trimming", () => {
+    const change = buildCompanionAssignmentChange(null, "den_b", "  hello  ");
+    expect(change).toEqual({
+      expectedCurrentRelationshipId: null,
+      newRelationship: {
+        denizenId: "den_b",
+        description: "  hello  ",
+      },
+    });
+  });
+});
+
+describe("buildCompanionDescriptionChange", () => {
+  it("returns null when description is unchanged", () => {
+    expect(buildCompanionDescriptionChange("rel_1", null, "")).toBeNull();
+    expect(buildCompanionDescriptionChange("rel_1", "old", "old")).toBeNull();
+  });
+
+  it("converts blank draft to null and carries original as expected", () => {
+    const change = buildCompanionDescriptionChange("rel_1", "old desc", "");
+    expect(change).toEqual({
+      companionRelationshipId: "rel_1",
+      expectedStatus: "current",
+      description: {
+        expected: "old desc",
+        value: null,
+      },
+    });
+  });
+
+  it("preserves exact draft string without trimming", () => {
+    const change = buildCompanionDescriptionChange("rel_1", null, "  new  ");
+    expect(change).toEqual({
+      companionRelationshipId: "rel_1",
+      expectedStatus: "current",
+      description: {
+        expected: null,
+        value: "  new  ",
+      },
+    });
   });
 });

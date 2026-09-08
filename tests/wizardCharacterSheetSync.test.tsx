@@ -31,6 +31,16 @@ function renderSheet(props: {
   worldRef?: unknown;
   onSetHomeIsle?: (change: { expected: string | null; value: string | null }) => Promise<void>;
   onSetSanctum?: (change: { expected: string | null; value: string | null }) => Promise<void>;
+  onSetCompanion?: (change: {
+    element: "air" | "fire" | "earth" | "water";
+    expectedCurrentRelationshipId: string | null;
+    newRelationship: null | { denizenId: string; description: string | null };
+  }) => Promise<void>;
+  onUpdateCompanionDescription?: (change: {
+    companionRelationshipId: string;
+    expectedStatus: "current";
+    description: { expected: string | null; value: string | null };
+  }) => Promise<void>;
 }) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -45,6 +55,8 @@ function renderSheet(props: {
   let currentWorldRef = props.worldRef;
   let currentOnSetHomeIsle = props.onSetHomeIsle;
   let currentOnSetSanctum = props.onSetSanctum;
+  let currentOnSetCompanion = props.onSetCompanion;
+  let currentOnUpdateCompanionDescription = props.onUpdateCompanionDescription;
 
   const rerender = (next: {
     character?: WizardCharacterData;
@@ -74,6 +86,8 @@ function renderSheet(props: {
             worldRef: currentWorldRef as any,
             onSetHomeIsle: currentOnSetHomeIsle as any,
             onSetSanctum: currentOnSetSanctum as any,
+            onSetCompanion: currentOnSetCompanion as any,
+            onUpdateCompanionDescription: currentOnUpdateCompanionDescription as any,
           }),
         ),
       );
@@ -98,6 +112,8 @@ function renderSheet(props: {
           worldRef: currentWorldRef as any,
           onSetHomeIsle: currentOnSetHomeIsle as any,
           onSetSanctum: currentOnSetSanctum as any,
+          onSetCompanion: currentOnSetCompanion as any,
+          onUpdateCompanionDescription: currentOnUpdateCompanionDescription as any,
         }),
       ),
     );
@@ -361,6 +377,111 @@ describe("WizardCharacterSheet reactive sync", () => {
       { expected: null, value: ISLE_A_ID },
       { expected: ISLE_A_ID, value: ISLE_B_ID },
     ]);
+
+    unmount();
+  });
+
+  it("Companion Set/Replace/End/Edit controls and assignment callback", async () => {
+    const ASH_ID = "den_a";
+    const BROOK_ID = "den_b";
+    const worldRef = {
+      denizens: [
+        { denizenId: ASH_ID, name: "Ash", representation: "individual", description: null },
+        { denizenId: BROOK_ID, name: "Brook", representation: "individual", description: null },
+      ],
+      isles: [],
+      places: [],
+      companionRelationships: [
+        { companionRelationshipId: "rel_1", wizardId: "wiz_1", element: "air", denizenId: ASH_ID, description: "Air pal", status: "current" },
+      ],
+    };
+
+    const companionCalls: any[] = [];
+    const onSetCompanion = vi.fn(async (change: any) => {
+      companionCalls.push(change);
+    });
+    const onUpdateCompanionDescription = vi.fn(async (_change: any) => {});
+    const onSetHomeIsle = vi.fn(async (_c: any) => {});
+    const onSetSanctum = vi.fn(async (_c: any) => {});
+
+    const { container, unmount } = renderSheet({
+      character: { ...BLANK_WIZARD_CHARACTER },
+      worldRef,
+      onSetHomeIsle,
+      onSetSanctum,
+      onSetCompanion,
+      onUpdateCompanionDescription,
+    });
+
+    // Air slot should have Replace / Edit Description / End buttons
+    const buttons = container.querySelectorAll("button");
+    let hasReplace = false;
+    let hasEditDesc = false;
+    let hasEnd = false;
+    let hasSetEarth = false;
+    for (const b of buttons) {
+      if (b.textContent === "Replace Companion") hasReplace = true;
+      if (b.textContent === "Edit Description") hasEditDesc = true;
+      if (b.textContent === "End Companion") hasEnd = true;
+      if (b.textContent === "Set Companion") hasSetEarth = true;
+    }
+    expect(hasReplace).toBe(true);
+    expect(hasEditDesc).toBe(true);
+    expect(hasEnd).toBe(true);
+    expect(hasSetEarth).toBe(true);
+
+    // Click "Set Companion" for the empty Earth slot (2nd Set Companion button: Fire is 1st empty, Earth is 2nd)
+    let setBtn: HTMLButtonElement | null = null;
+    let setCount = 0;
+    for (const b of buttons) {
+      if (b.textContent === "Set Companion") {
+        setCount++;
+        if (setCount === 2) { setBtn = b as HTMLButtonElement; break; }
+      }
+    }
+    expect(setBtn).not.toBeNull();
+    setBtn!.click();
+    flushSync(() => {});
+
+    // Select Brook in the denizen select
+    const selects = container.querySelectorAll("select");
+    let denizenSelect: HTMLSelectElement | null = null;
+    for (const s of selects) {
+      if (s.querySelector('option[value="' + BROOK_ID + '"]')) {
+        denizenSelect = s as HTMLSelectElement;
+        break;
+      }
+    }
+    expect(denizenSelect).not.toBeNull();
+    const selectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set;
+    if (selectSetter) selectSetter.call(denizenSelect!, BROOK_ID);
+    denizenSelect!.dispatchEvent(new Event("change", { bubbles: true }));
+    flushSync(() => {});
+
+    // Click the Set Companion submit button in the editor (inside the assignment editor div)
+    const editorDivs = container.querySelectorAll("[class*=\"border-slate-300\"]");
+    let saveBtn: HTMLButtonElement | null = null;
+    for (const ed of editorDivs) {
+      const btn = ed.querySelector("button");
+      if (btn && (btn.textContent === "Set Companion" || btn.textContent === "Replace Companion")) {
+        saveBtn = btn as HTMLButtonElement;
+        break;
+      }
+    }
+    expect(saveBtn).not.toBeNull();
+    saveBtn!.click();
+    await vi.runAllTimersAsync();
+    flushSync(() => {});
+
+    expect(companionCalls).toHaveLength(1);
+    expect(companionCalls[0]).toEqual({
+      element: "earth",
+      expectedCurrentRelationshipId: null,
+      newRelationship: {
+        denizenId: BROOK_ID,
+        description: null,
+      },
+    });
 
     unmount();
   });

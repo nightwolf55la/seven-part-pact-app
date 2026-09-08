@@ -25,6 +25,10 @@ function generateWizardId(): string {
   return `wiz_${crypto.randomUUID()}`;
 }
 
+function generateCompanionRelationshipId(): string {
+  return `cmprel_${crypto.randomUUID()}`;
+}
+
 export default function TableWizards({
   pactSeats,
   players,
@@ -41,6 +45,8 @@ export default function TableWizards({
   const updateWizardCharacter = useMutation(api.m3Commands.updateWizardCharacter);
   const setWizardHomeIsle = useMutation(api.m3Commands.setWizardHomeIsle);
   const setWizardSanctum = useMutation(api.m3Commands.setWizardSanctum);
+  const setWizardCompanion = useMutation(api.m3Commands.setWizardCompanion);
+  const updateCompanionDescription = useMutation(api.m3Commands.updateCompanionDescription);
 
   const [pending, setPending] = useState(false);
   const [showAddWizard, setShowAddWizard] = useState(false);
@@ -207,6 +213,42 @@ export default function TableWizards({
                 commandId: generateCommandId(),
                 wizardId: characterWizard.wizardId,
                 change,
+              });
+            } finally {
+              setPending(false);
+            }
+          }}
+          onSetCompanion={async (change) => {
+            setCharacterError(null);
+            setPending(true);
+            try {
+              await setWizardCompanion({
+                commandId: generateCommandId(),
+                wizardId: characterWizard.wizardId,
+                element: change.element,
+                expectedCurrentRelationshipId: change.expectedCurrentRelationshipId,
+                newRelationship:
+                  change.newRelationship === null
+                    ? null
+                    : {
+                        companionRelationshipId: generateCompanionRelationshipId(),
+                        denizenId: change.newRelationship.denizenId,
+                        description: change.newRelationship.description,
+                      },
+              });
+            } finally {
+              setPending(false);
+            }
+          }}
+          onUpdateCompanionDescription={async (change) => {
+            setCharacterError(null);
+            setPending(true);
+            try {
+              await updateCompanionDescription({
+                commandId: generateCommandId(),
+                companionRelationshipId: change.companionRelationshipId,
+                expectedStatus: change.expectedStatus,
+                description: change.description,
               });
             } finally {
               setPending(false);

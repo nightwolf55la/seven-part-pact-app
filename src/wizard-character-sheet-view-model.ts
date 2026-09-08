@@ -277,3 +277,44 @@ export function buildCurrentCompanionSlots(
     };
   });
 }
+
+export function buildCompanionAssignmentChange(
+  expectedCurrentRelationshipId: string | null,
+  denizenId: string,
+  descriptionInput: string,
+): {
+  expectedCurrentRelationshipId: string | null;
+  newRelationship: {
+    denizenId: string;
+    description: string | null;
+  };
+} {
+  return {
+    expectedCurrentRelationshipId,
+    newRelationship: {
+      denizenId,
+      description: descriptionInput === "" ? null : descriptionInput,
+    },
+  };
+}
+
+export function buildCompanionDescriptionChange(
+  companionRelationshipId: string,
+  expectedDescription: string | null,
+  draftDescription: string,
+): {
+  companionRelationshipId: string;
+  expectedStatus: "current";
+  description: { expected: string | null; value: string | null };
+} | null {
+  const converted = draftDescription === "" ? null : draftDescription;
+  if (converted === expectedDescription) return null;
+  return {
+    companionRelationshipId,
+    expectedStatus: "current",
+    description: {
+      expected: expectedDescription,
+      value: converted,
+    },
+  };
+}

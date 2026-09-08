@@ -5,6 +5,8 @@ import {
   buildCharacterPatch,
   buildNullableAssociationChange,
   buildCurrentCompanionSlots,
+  buildCompanionAssignmentChange,
+  buildCompanionDescriptionChange,
   isCharacterFormDirty,
   parseAgeInput,
   validateElementInputs,
@@ -33,6 +35,16 @@ export interface WizardCharacterSheetProps {
   readonly worldRef?: WorldReference | null | undefined;
   readonly onSetHomeIsle?: (change: { expected: string | null; value: string | null }) => Promise<void>;
   readonly onSetSanctum?: (change: { expected: string | null; value: string | null }) => Promise<void>;
+  readonly onSetCompanion?: (change: {
+    element: "air" | "fire" | "earth" | "water";
+    expectedCurrentRelationshipId: string | null;
+    newRelationship: null | { denizenId: string; description: string | null };
+  }) => Promise<void>;
+  readonly onUpdateCompanionDescription?: (change: {
+    companionRelationshipId: string;
+    expectedStatus: "current";
+    description: { expected: string | null; value: string | null };
+  }) => Promise<void>;
 }
 
 export default function WizardCharacterSheet({
@@ -48,6 +60,8 @@ export default function WizardCharacterSheet({
   worldRef,
   onSetHomeIsle,
   onSetSanctum,
+  onSetCompanion,
+  onUpdateCompanionDescription,
 }: WizardCharacterSheetProps) {
   const [form, setForm] = useState<WizardCharacterSheetForm>(() => formFromCharacter(character));
   const [elementError, setElementError] = useState<string | null>(null);
@@ -59,6 +73,117 @@ export default function WizardCharacterSheet({
   const homeIsleBaselineRef = useRef<string | null>(homeIsleId ?? null);
   const sanctumBaselineRef = useRef<string | null>(sanctumPlaceId ?? null);
   const [assocError, setAssocError] = useState<string | null>(null);
+
+  const hasCompanionControls = onSetCompanion !== undefined && onUpdateCompanionDescription !== undefined;
+
+  type CompanionEditor =
+    | {
+        kind: "assignment";
+        element: "air" | "fire" | "earth" | "water";
+        capturedExpectedRelationshipId: string | null;
+        selectedDenizenId: string;
+        descriptionDraft: string;
+      }
+    | {
+        kind: "description";
+        companionRelationshipId: string;
+        capturedExpectedDescription: string | null;
+        descriptionDraft: string;
+      };
+
+  const [companionEditor, setCompanionEditor] = useState<CompanionEditor | null>(null);
+
+  function openAssignmentEditor(
+    element: "air" | "fire" | "earth" | "water",
+    expectedCurrentRelationshipId: string | null,
+  ): void {
+    setAssocError(null);
+    setCompanionEditor({
+      kind: "assignment",
+      element,
+      capturedExpectedRelationshipId: expectedCurrentRelationshipId,
+      selectedDenizenId: "",
+      descriptionDraft: "",
+    });
+  }
+
+  function openDescriptionEditor(
+    companionRelationshipId: string,
+    currentDescription: string | null,
+  ): void {
+    setAssocError(null);
+    setCompanionEditor({
+      kind: "description",
+      companionRelationshipId,
+      capturedExpectedDescription: currentDescription,
+      descriptionDraft: currentDescription ?? "",
+    });
+  }
+
+  function closeCompanionEditor(): void {
+    setCompanionEditor(null);
+    setAssocError(null);
+  }
+
+  async function handleCompanionAssignment(): Promise<void> {
+    if (!companionEditor || companionEditor.kind !== "assignment") return;
+    if (!onSetCompanion) return;
+    if (companionEditor.selectedDenizenId === "") {
+      setAssocError("Choose a Denizen.");
+      return;
+    }
+    const change = buildCompanionAssignmentChange(
+      companionEditor.capturedExpectedRelationshipId,
+      companionEditor.selectedDenizenId,
+      companionEditor.descriptionDraft,
+    );
+    try {
+      await onSetCompanion({
+        element: companionEditor.element,
+        ...change,
+      });
+      closeCompanionEditor();
+    } catch (e: any) {
+      setAssocError(e?.message ?? "Failed to save Companion");
+    }
+  }
+
+  async function handleCompanionEnd(
+    element: "air" | "fire" | "earth" | "water",
+    companionRelationshipId: string,
+  ): Promise<void> {
+    if (!onSetCompanion) return;
+    setAssocError(null);
+    try {
+      await onSetCompanion({
+        element,
+        expectedCurrentRelationshipId: companionRelationshipId,
+        newRelationship: null,
+      });
+    } catch (e: any) {
+      setAssocError(e?.message ?? "Failed to end Companion");
+    }
+  }
+
+  async function handleCompanionDescriptionSave(): Promise<void> {
+    if (!companionEditor || companionEditor.kind !== "description") return;
+    if (!onUpdateCompanionDescription) return;
+    const change = buildCompanionDescriptionChange(
+      companionEditor.companionRelationshipId,
+      companionEditor.capturedExpectedDescription,
+      companionEditor.descriptionDraft,
+    );
+    if (change === null) {
+      closeCompanionEditor();
+      return;
+    }
+    try {
+      await onUpdateCompanionDescription(change);
+      closeCompanionEditor();
+    } catch (e: any) {
+      setAssocError(e?.message ?? "Failed to save Companion description");
+    }
+  }
 
   const syncedBaselineRef = useRef(character);
   const formRef = useRef(form);
@@ -339,7 +464,18 @@ export default function WizardCharacterSheet({
                           {slot.element}
                         </span>
                         {slot.relationship === null ? (
-                          <span className="text-xs text-slate-400 dark:text-slate-500">No Companion</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-400 dark:text-slate-500">No Companion</span>
+                            {hasCompanionControls && (
+                              <button
+                                onClick={() => openAssignmentEditor(slot.element, null)}
+                                disabled={pending}
+                                className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer disabled:opacity-50"
+                              >
+                                Set Companion
+                              </button>
+                            )}
+                          </div>
                         ) : (
                           <div className="flex flex-col">
                             <span className="text-sm text-slate-700 dark:text-slate-300">
@@ -350,6 +486,105 @@ export default function WizardCharacterSheet({
                                 {slot.relationship.description}
                               </span>
                             )}
+                            {hasCompanionControls && (
+                              <div className="flex items-center gap-3 mt-0.5">
+                                <button
+                                  onClick={() => openAssignmentEditor(slot.element, slot.relationship!.companionRelationshipId)}
+                                  disabled={pending}
+                                  className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer disabled:opacity-50"
+                                >
+                                  Replace Companion
+                                </button>
+                                <button
+                                  onClick={() => openDescriptionEditor(slot.relationship!.companionRelationshipId, slot.relationship!.description)}
+                                  disabled={pending}
+                                  className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer disabled:opacity-50"
+                                >
+                                  Edit Description
+                                </button>
+                                <button
+                                  onClick={() => handleCompanionEnd(slot.element, slot.relationship!.companionRelationshipId)}
+                                  disabled={pending}
+                                  className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer disabled:opacity-50"
+                                >
+                                  End Companion
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {companionEditor !== null && companionEditor.kind === "assignment" && companionEditor.element === slot.element && (
+                          <div className="rounded-lg border border-slate-300 dark:border-slate-600 p-3 mt-1 bg-slate-50 dark:bg-slate-800 flex flex-col gap-2">
+                            <div className="flex flex-col gap-1">
+                              <label className="text-xs text-slate-500 dark:text-slate-400">Denizen</label>
+                              <select
+                                value={companionEditor.selectedDenizenId}
+                                onChange={(e) => setCompanionEditor({ ...companionEditor, selectedDenizenId: e.target.value })}
+                                disabled={pending}
+                                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300"
+                              >
+                                <option value="">Select Denizen</option>
+                                {worldRef.denizens.map((d) => (
+                                  <option key={d.denizenId} value={d.denizenId}>{d.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <label className="text-xs text-slate-500 dark:text-slate-400">Relationship description</label>
+                              <textarea
+                                value={companionEditor.descriptionDraft}
+                                onChange={(e) => setCompanionEditor({ ...companionEditor, descriptionDraft: e.target.value })}
+                                disabled={pending}
+                                rows={2}
+                                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 resize-y"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={handleCompanionAssignment}
+                                disabled={pending}
+                                className="text-xs font-medium bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-900 rounded-lg px-3 py-1.5 hover:bg-slate-600 dark:hover:bg-slate-300 disabled:opacity-50 cursor-pointer"
+                              >
+                                {companionEditor.capturedExpectedRelationshipId === null ? "Set Companion" : "Replace Companion"}
+                              </button>
+                              <button
+                                onClick={closeCompanionEditor}
+                                disabled={pending}
+                                className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer disabled:opacity-50"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {companionEditor !== null && companionEditor.kind === "description" && slot.relationship !== null && companionEditor.companionRelationshipId === slot.relationship.companionRelationshipId && (
+                          <div className="rounded-lg border border-slate-300 dark:border-slate-600 p-3 mt-1 bg-slate-50 dark:bg-slate-800 flex flex-col gap-2">
+                            <div className="flex flex-col gap-1">
+                              <label className="text-xs text-slate-500 dark:text-slate-400">Description</label>
+                              <textarea
+                                value={companionEditor.descriptionDraft}
+                                onChange={(e) => setCompanionEditor({ ...companionEditor, descriptionDraft: e.target.value })}
+                                disabled={pending}
+                                rows={2}
+                                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-700 dark:text-slate-300 resize-y"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={handleCompanionDescriptionSave}
+                                disabled={pending}
+                                className="text-xs font-medium bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-900 rounded-lg px-3 py-1.5 hover:bg-slate-600 dark:hover:bg-slate-300 disabled:opacity-50 cursor-pointer"
+                              >
+                                Save Description
+                              </button>
+                              <button
+                                onClick={closeCompanionEditor}
+                                disabled={pending}
+                                className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer disabled:opacity-50"
+                              >
+                                Cancel
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
