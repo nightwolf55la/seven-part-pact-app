@@ -5,6 +5,7 @@ import CampaignTools from "./CampaignTools";
 import CurrentPhaseSurface from "./CurrentPhaseSurface";
 import OrreryView from "./OrreryView";
 import TableWizards from "./TableWizards";
+import WorldSurface from "./WorldSurface";
 import {
   initPlaySurface,
   navigateSurface,
@@ -32,20 +33,46 @@ const SURFACE_LABELS: Record<SurfaceId, string> = {
   current_phase: "Current Phase",
   orrery: "Orrery",
   table_wizards: "Table / Wizards",
+  world: "World",
 };
 
 function renderSurface(
   surface: SurfaceId,
-  ref: { monthOrdinal: number; orreryPositions: Record<string, number>; phase: LunarPhase; pactSeats: Record<string, { status: string | null; wizardId: string | null; watcherPlayerId: string | null }>; players: { playerId: string; name: string }[]; wizards: { wizardId: string; name: string; portrayedByPlayerId: string | null; character: { elements: { air: number; fire: number; earth: number; water: number } | null; pactFragmentPersonalForm: string | null; familiarDescription: string | null; ageYears: number | null; publicChangesOfMagic: readonly string[]; importantNotes: string | null; companionDescriptions: { air: string | null; fire: string | null; earth: string | null; water: string | null } } }[] },
+  ref: { campaignId: string; monthOrdinal: number; orreryPositions: Record<string, number>; phase: LunarPhase; pactSeats: Record<string, { status: string | null; wizardId: string | null; watcherPlayerId: string | null }>; players: { playerId: string; name: string }[]; wizards: { wizardId: string; name: string; portrayedByPlayerId: string | null; character: { elements: { air: number; fire: number; earth: number; water: number } | null; pactFragmentPersonalForm: string | null; familiarDescription: string | null; ageYears: number | null; publicChangesOfMagic: readonly string[]; importantNotes: string | null }; homeIsleId: string | null; sanctumPlaceId: string | null }[] },
+  worldRef: { readonly denizens: readonly { readonly denizenId: string; readonly name: string; readonly representation: "individual" | "collective"; readonly description: string | null }[]; readonly isles: readonly { readonly isleId: string; readonly name: string; readonly description: string | null }[]; readonly places: readonly { readonly placeId: string; readonly name: string; readonly description: string | null; readonly placement: { readonly kind: "unspecified" } | { readonly kind: "on_isle"; readonly isleId: string } | { readonly kind: "mobile"; readonly associatedIsleId: string | null } }[] } | null | undefined,
 ) {
   switch (surface) {
     case "current_phase":
-      return <CurrentPhaseSurface phase={ref.phase} monthOrdinal={ref.monthOrdinal} />;
+      return (
+        <CurrentPhaseSurface
+          phase={ref.phase}
+          monthOrdinal={ref.monthOrdinal}
+          denizens={
+            worldRef === undefined
+              ? undefined
+              : worldRef === null
+                ? null
+                : worldRef.denizens
+          }
+        />
+      );
     case "orrery":
       return <OrreryView monthOrdinal={ref.monthOrdinal} orreryPositions={ref.orreryPositions} />;
     case "table_wizards":
-      return <TableWizards pactSeats={ref.pactSeats} players={ref.players} wizards={ref.wizards} />;
+      return <TableWizards pactSeats={ref.pactSeats} players={ref.players} wizards={ref.wizards} worldRef={worldRef} campaignId={ref.campaignId} />;
+    case "world":
+      return null;
   }
+}
+
+function renderWorld(worldRef: ReturnType<typeof useQuery<typeof api.m3Queries.getWorldReference>>, campaignId: string) {
+  if (worldRef === undefined) {
+    return <div className="py-12 text-center text-sm text-slate-400">Loading world…</div>;
+  }
+  if (worldRef === null) {
+    return <div className="py-12 text-center text-sm text-slate-400">World unavailable.</div>;
+  }
+  return <WorldSurface world={worldRef} campaignId={campaignId} />;
 }
 
 export default function PlayShell({
@@ -65,6 +92,7 @@ export default function PlayShell({
   );
 
   const playRef = useQuery(api.m3Queries.getPlayReference, {});
+  const worldRef = useQuery(api.m3Queries.getWorldReference, {});
 
   const nav = useMemo(() => ({
     navigate: (pane: PaneLabel, target: SurfaceId) => setSurfaceState((s) => navigateSurface(s, pane, target)),
@@ -164,7 +192,9 @@ export default function PlayShell({
         ) : showSecondary && surfaceState.secondary ? (
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 min-w-0">
-              {renderSurface(surfaceState.primary.current, playRef)}
+              {surfaceState.primary.current === "world"
+                ? renderWorld(worldRef, playRef.campaignId)
+                : renderSurface(surfaceState.primary.current, playRef, worldRef)}
             </div>
             <div className="hidden md:block md:w-80 lg:w-96 flex-shrink-0">
               <div className="flex items-center gap-1 mb-2">
@@ -196,12 +226,16 @@ export default function PlayShell({
                   Fwd
                 </button>
               </div>
-              {renderSurface(surfaceState.secondary.current, playRef)}
+              {surfaceState.secondary.current === "world"
+                ? renderWorld(worldRef, playRef.campaignId)
+                : renderSurface(surfaceState.secondary.current, playRef, worldRef)}
             </div>
           </div>
         ) : (
           <div className="w-full">
-            {renderSurface(surfaceState.primary.current, playRef)}
+            {surfaceState.primary.current === "world"
+              ? renderWorld(worldRef, playRef.campaignId)
+              : renderSurface(surfaceState.primary.current, playRef, worldRef)}
           </div>
         )}
       </div>

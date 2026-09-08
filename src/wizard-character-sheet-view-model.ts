@@ -1,7 +1,6 @@
 import type {
   WizardCharacterData,
   WizardElementScores,
-  WizardCompanionDescriptions,
 } from "../shared/domain/campaign-state";
 import type { WizardCharacterPatch } from "../shared/domain/wizard-character";
 
@@ -18,10 +17,6 @@ export interface WizardCharacterSheetForm {
   readonly ageYears: string;
   readonly publicChangesOfMagic: string;
   readonly importantNotes: string;
-  readonly companionAir: string;
-  readonly companionFire: string;
-  readonly companionEarth: string;
-  readonly companionWater: string;
 }
 
 export function formFromCharacter(character: WizardCharacterData): WizardCharacterSheetForm {
@@ -36,10 +31,6 @@ export function formFromCharacter(character: WizardCharacterData): WizardCharact
     ageYears: character.ageYears !== null ? String(character.ageYears) : "",
     publicChangesOfMagic: character.publicChangesOfMagic.join("\n"),
     importantNotes: character.importantNotes ?? "",
-    companionAir: character.companionDescriptions.air ?? "",
-    companionFire: character.companionDescriptions.fire ?? "",
-    companionEarth: character.companionDescriptions.earth ?? "",
-    companionWater: character.companionDescriptions.water ?? "",
   };
 }
 
@@ -131,20 +122,6 @@ export function parseChangesOfMagic(text: string): string[] {
     .filter((line) => line.length > 0);
 }
 
-export function normalizeCompanionDescriptions(
-  air: string,
-  fire: string,
-  earth: string,
-  water: string,
-): WizardCompanionDescriptions {
-  return {
-    air: normalizeScalarText(air),
-    fire: normalizeScalarText(fire),
-    earth: normalizeScalarText(earth),
-    water: normalizeScalarText(water),
-  };
-}
-
 function elementsEqual(
   a: WizardElementScores | null,
   b: WizardElementScores | null,
@@ -152,18 +129,6 @@ function elementsEqual(
   if (a === null && b === null) return true;
   if (a === null || b === null) return false;
   return a.air === b.air && a.fire === b.fire && a.earth === b.earth && a.water === b.water;
-}
-
-function companionDescriptionsEqual(
-  a: WizardCompanionDescriptions,
-  b: WizardCompanionDescriptions,
-): boolean {
-  return (
-    a.air === b.air &&
-    a.fire === b.fire &&
-    a.earth === b.earth &&
-    a.water === b.water
-  );
 }
 
 function stringArraysEqual(
@@ -232,16 +197,124 @@ export function buildCharacterPatch(
     patch.importantNotes = notes;
   }
 
-  const companions = normalizeCompanionDescriptions(
-    form.companionAir,
-    form.companionFire,
-    form.companionEarth,
-    form.companionWater,
-  );
-  if (!companionDescriptionsEqual(companions, baseline.companionDescriptions)) {
-    patch.companionDescriptions = companions;
-  }
-
   if (Object.keys(patch).length === 0) return null;
   return patch as WizardCharacterPatch;
+}
+
+export function buildNullableAssociationChange(
+  expected: string | null,
+  value: string | null,
+): { expected: string | null; value: string | null } | null {
+  if (expected === value) return null;
+  return { expected, value };
+}
+
+export interface CompanionSlotRelationship {
+  readonly companionRelationshipId: string;
+  readonly denizenId: string;
+  readonly denizenName: string;
+  readonly description: string | null;
+}
+
+export interface CompanionSlot {
+  readonly element: "air" | "fire" | "earth" | "water";
+  readonly relationship: CompanionSlotRelationship | null;
+}
+
+interface CompanionRelationshipInput {
+  readonly companionRelationshipId: string;
+  readonly wizardId: string;
+  readonly element: "air" | "fire" | "earth" | "water";
+  readonly denizenId: string;
+  readonly description: string | null;
+  readonly status: "current" | "ended";
+}
+
+interface DenizenInput {
+  readonly denizenId: string;
+  readonly name: string;
+}
+
+export function buildCurrentCompanionSlots(
+  wizardId: string,
+  denizens: readonly DenizenInput[],
+  relationships: readonly CompanionRelationshipInput[],
+): readonly CompanionSlot[] {
+  const denizenMap = new Map<string, string>();
+  for (const d of denizens) {
+    denizenMap.set(d.denizenId, d.name);
+  }
+
+  const currentByElement = new Map<
+    "air" | "fire" | "earth" | "water",
+    CompanionRelationshipInput
+  >();
+
+  for (const r of relationships) {
+    if (r.wizardId !== wizardId) continue;
+    if (r.status !== "current") continue;
+    currentByElement.set(r.element, r);
+  }
+
+  const elements: readonly ("air" | "fire" | "earth" | "water")[] = [
+    "air",
+    "fire",
+    "earth",
+    "water",
+  ];
+
+  return elements.map((element) => {
+    const r = currentByElement.get(element);
+    if (!r) return { element, relationship: null };
+    return {
+      element,
+      relationship: {
+        companionRelationshipId: r.companionRelationshipId,
+        denizenId: r.denizenId,
+        denizenName: denizenMap.get(r.denizenId) ?? "Unknown Denizen",
+        description: r.description,
+      },
+    };
+  });
+}
+
+export function buildCompanionAssignmentChange(
+  expectedCurrentRelationshipId: string | null,
+  denizenId: string,
+  descriptionInput: string,
+): {
+  expectedCurrentRelationshipId: string | null;
+  newRelationship: {
+    denizenId: string;
+    description: string | null;
+  };
+} {
+  return {
+    expectedCurrentRelationshipId,
+    newRelationship: {
+      denizenId,
+      description: descriptionInput === "" ? null : descriptionInput,
+    },
+  };
+}
+
+export function buildCompanionDescriptionChange(
+  companionRelationshipId: string,
+  expectedDescription: string | null,
+  draftDescription: string,
+): {
+  companionRelationshipId: string;
+  expectedStatus: "current";
+  description: { expected: string | null; value: string | null };
+} | null {
+  const converted = draftDescription === "" ? null : draftDescription;
+  if (converted === expectedDescription) return null;
+  return {
+    companionRelationshipId,
+    expectedStatus: "current",
+    description: {
+      expected: expectedDescription,
+      value: converted,
+    },
+  };
 }

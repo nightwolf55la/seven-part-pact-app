@@ -31,6 +31,16 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "complete_meeting",
   "begin_next_month",
   "update_wizard_character",
+  "create_denizen",
+  "update_denizen",
+  "create_isle",
+  "update_isle",
+  "create_place",
+  "update_place",
+  "set_wizard_home_isle",
+  "set_wizard_sanctum",
+  "set_wizard_companion",
+  "update_companion_description",
 ] as const;
 
 // Historical command types that may appear in persisted revision records but
@@ -76,6 +86,16 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "complete_meeting":
     case "begin_next_month":
     case "update_wizard_character":
+    case "create_denizen":
+    case "update_denizen":
+    case "create_isle":
+    case "update_isle":
+    case "create_place":
+    case "update_place":
+    case "set_wizard_home_isle":
+    case "set_wizard_sanctum":
+    case "set_wizard_companion":
+    case "update_companion_description":
     case "move_month":
     case "legacy_month_change":
       return true;

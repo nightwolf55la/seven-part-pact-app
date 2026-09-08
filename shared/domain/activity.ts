@@ -111,6 +111,26 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Began Next Month";
     case "wizard_character_updated":
       return "Updated wizard character";
+    case "denizen_created":
+      return `Created denizen "${event.data.denizen.name}"`;
+    case "denizen_updated":
+      return `Updated denizen "${event.data.updated.name}"`;
+    case "isle_created":
+      return `Created isle "${event.data.isle.name}"`;
+    case "isle_updated":
+      return `Updated isle "${event.data.updated.name}"`;
+    case "place_created":
+      return `Created place "${event.data.place.name}"`;
+    case "place_updated":
+      return `Updated place "${event.data.updated.name}"`;
+    case "wizard_home_isle_changed":
+      return `Changed wizard home Isle`;
+    case "wizard_sanctum_changed":
+      return `Changed wizard Sanctum`;
+    case "wizard_companion_changed":
+      return "Changed wizard Companion";
+    case "companion_description_changed":
+      return "Updated Companion description";
     default:
       return "Campaign configuration changed";
   }
@@ -228,7 +248,17 @@ export function mapEventToActivityEntry(
     case "wizardmoot_attendance_adjusted":
     case "meeting_completed":
     case "month_begun":
-    case "wizard_character_updated": {
+    case "wizard_character_updated":
+    case "denizen_created":
+    case "denizen_updated":
+    case "isle_created":
+    case "isle_updated":
+    case "place_created":
+    case "place_updated":
+    case "wizard_home_isle_changed":
+    case "wizard_sanctum_changed":
+    case "wizard_companion_changed":
+    case "companion_description_changed": {
       return {
         id,
         revision,

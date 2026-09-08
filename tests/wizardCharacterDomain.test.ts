@@ -9,7 +9,7 @@ import {
 import type {
   CurrentCampaignState,
   WizardCharacterData,
-  WizardCharacterUpdatedEventV1,
+  WizardCharacterUpdatedEventV2,
 } from "../shared/domain";
 import type { PlayerId, WizardId } from "../shared/domain/ids";
 import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
@@ -214,13 +214,13 @@ describe("applyUpdateWizardCharacter", () => {
     ).toThrow(/not found/);
   });
 
-  it("produces exactly one wizard_character_updated v1 event", () => {
+  it("produces exactly one wizard_character_updated v2 event", () => {
     const state = setupWithWizard();
     const { events } = applyUpdateWizardCharacter(state, W1, { ageYears: 100 });
     expect(events).toHaveLength(1);
-    const evt = events[0] as WizardCharacterUpdatedEventV1;
+    const evt = events[0] as WizardCharacterUpdatedEventV2;
     expect(evt.type).toBe("wizard_character_updated");
-    expect(evt.version).toBe(1);
+    expect(evt.version).toBe(2);
   });
 
   it("event previousCharacter and newCharacter are correct", () => {
@@ -229,7 +229,7 @@ describe("applyUpdateWizardCharacter", () => {
       ageYears: 100,
       pactFragmentPersonalForm: "Stag",
     });
-    const evt = events[0] as WizardCharacterUpdatedEventV1;
+    const evt = events[0] as WizardCharacterUpdatedEventV2;
     expect(evt.data.wizardId).toBe(W1);
     expect(evt.data.previousCharacter).toEqual(BLANK_WIZARD_CHARACTER);
     expect(evt.data.newCharacter.ageYears).toBe(100);

@@ -4,8 +4,11 @@ import {
   parseAgeInput,
   normalizeScalarText,
   parseChangesOfMagic,
-  normalizeCompanionDescriptions,
   buildCharacterPatch,
+  buildNullableAssociationChange,
+  buildCurrentCompanionSlots,
+  buildCompanionAssignmentChange,
+  buildCompanionDescriptionChange,
   elementsTotal,
   isElementsComplete,
 } from "../src/wizard-character-sheet-view-model";
@@ -135,28 +138,6 @@ describe("parseChangesOfMagic", () => {
   });
 });
 
-describe("normalizeCompanionDescriptions", () => {
-  it("all blank => all null", () => {
-    expect(normalizeCompanionDescriptions("", "", "", "")).toEqual({
-      air: null,
-      fire: null,
-      earth: null,
-      water: null,
-    });
-  });
-
-  it("trims non-blank, nulls blank", () => {
-    expect(
-      normalizeCompanionDescriptions("  Sprite  ", "", "  Golem  ", "   "),
-    ).toEqual({
-      air: "Sprite",
-      fire: null,
-      earth: "Golem",
-      water: null,
-    });
-  });
-});
-
 describe("buildCharacterPatch", () => {
   it("no changes => empty patch", () => {
     const form = {
@@ -169,10 +150,6 @@ describe("buildCharacterPatch", () => {
       ageYears: "",
       publicChangesOfMagic: "",
       importantNotes: "",
-      companionAir: "",
-      companionFire: "",
-      companionEarth: "",
-      companionWater: "",
     };
     expect(buildCharacterPatch(form, BASELINE)).toBeNull();
   });
@@ -188,10 +165,6 @@ describe("buildCharacterPatch", () => {
       ageYears: "",
       publicChangesOfMagic: "",
       importantNotes: "",
-      companionAir: "",
-      companionFire: "",
-      companionEarth: "",
-      companionWater: "",
     };
     const patch = buildCharacterPatch(form, BASELINE);
     expect(patch).not.toBeNull();
@@ -214,10 +187,6 @@ describe("buildCharacterPatch", () => {
       ageYears: "",
       publicChangesOfMagic: "",
       importantNotes: "",
-      companionAir: "",
-      companionFire: "",
-      companionEarth: "",
-      companionWater: "",
     };
     const patch = buildCharacterPatch(form, baselineWithElements);
     expect(patch).not.toBeNull();
@@ -235,10 +204,6 @@ describe("buildCharacterPatch", () => {
       ageYears: "",
       publicChangesOfMagic: "",
       importantNotes: "",
-      companionAir: "",
-      companionFire: "",
-      companionEarth: "",
-      companionWater: "",
     };
     const patch = buildCharacterPatch(form, BASELINE);
     expect(patch!.pactFragmentPersonalForm).toBe("wolf");
@@ -259,10 +224,6 @@ describe("buildCharacterPatch", () => {
       ageYears: "",
       publicChangesOfMagic: "",
       importantNotes: "   ",
-      companionAir: "",
-      companionFire: "",
-      companionEarth: "",
-      companionWater: "",
     };
     const patch = buildCharacterPatch(form, baselineWithNotes);
     expect(patch!.importantNotes).toBeNull();
@@ -279,10 +240,6 @@ describe("buildCharacterPatch", () => {
       ageYears: "42",
       publicChangesOfMagic: "",
       importantNotes: "",
-      companionAir: "",
-      companionFire: "",
-      companionEarth: "",
-      companionWater: "",
     };
     const patch = buildCharacterPatch(form, BASELINE);
     expect(patch!.ageYears).toBe(42);
@@ -299,61 +256,126 @@ describe("buildCharacterPatch", () => {
       ageYears: "",
       publicChangesOfMagic: "Fireball\n\nIce Storm",
       importantNotes: "",
-      companionAir: "",
-      companionFire: "",
-      companionEarth: "",
-      companionWater: "",
     };
     const patch = buildCharacterPatch(form, BASELINE);
     expect(patch!.publicChangesOfMagic).toEqual(["Fireball", "Ice Storm"]);
   });
 
-  it("companion description change => full companionDescriptions object", () => {
-    const form = {
-      elementsAir: "",
-      elementsFire: "",
-      elementsEarth: "",
-      elementsWater: "",
-      pactFragmentPersonalForm: "",
-      familiarDescription: "",
-      ageYears: "",
-      publicChangesOfMagic: "",
-      importantNotes: "",
-      companionAir: "Sprite",
-      companionFire: "",
-      companionEarth: "Golem",
-      companionWater: "",
-    };
-    const patch = buildCharacterPatch(form, BASELINE);
-    expect(patch!.companionDescriptions).toEqual({
-      air: "Sprite",
-      fire: null,
-      earth: "Golem",
-      water: null,
+});
+
+describe("buildNullableAssociationChange", () => {
+  it("same value => null, changed value => { expected, value }", () => {
+    expect(buildNullableAssociationChange(null, null)).toBeNull();
+    expect(buildNullableAssociationChange("isle_1", "isle_1")).toBeNull();
+    expect(buildNullableAssociationChange(null, "isle_1")).toEqual({
+      expected: null,
+      value: "isle_1",
+    });
+    expect(buildNullableAssociationChange("isle_1", null)).toEqual({
+      expected: "isle_1",
+      value: null,
+    });
+    expect(buildNullableAssociationChange("isle_1", "isle_2")).toEqual({
+      expected: "isle_1",
+      value: "isle_2",
+    });
+  });
+});
+
+describe("buildCurrentCompanionSlots", () => {
+  it("returns four slots ordered air/fire/earth/water with only current relationships for the wizard", () => {
+    const WIZARD_ID = "wiz_1";
+    const OTHER_WIZARD_ID = "wiz_2";
+
+    const denizens = [
+      { denizenId: "den_a", name: "Ash", representation: "individual" as const, description: null },
+      { denizenId: "den_b", name: "Brook", representation: "individual" as const, description: null },
+      { denizenId: "den_c", name: "Cinder", representation: "individual" as const, description: null },
+    ];
+
+    const relationships = [
+      { companionRelationshipId: "rel_1", wizardId: WIZARD_ID, element: "air" as const, denizenId: "den_a", description: "Air companion", status: "current" as const },
+      { companionRelationshipId: "rel_2", wizardId: WIZARD_ID, element: "air" as const, denizenId: "den_b", description: "Ended air", status: "ended" as const },
+      { companionRelationshipId: "rel_3", wizardId: WIZARD_ID, element: "fire" as const, denizenId: "den_c", description: "Fire companion", status: "current" as const },
+      { companionRelationshipId: "rel_4", wizardId: OTHER_WIZARD_ID, element: "water" as const, denizenId: "den_a", description: "Other wizard water", status: "current" as const },
+    ];
+
+    const slots = buildCurrentCompanionSlots(WIZARD_ID, denizens, relationships);
+
+    expect(slots).toHaveLength(4);
+    expect(slots[0].element).toBe("air");
+    expect(slots[1].element).toBe("fire");
+    expect(slots[2].element).toBe("earth");
+    expect(slots[3].element).toBe("water");
+
+    expect(slots[0].relationship).toEqual({
+      companionRelationshipId: "rel_1",
+      denizenId: "den_a",
+      denizenName: "Ash",
+      description: "Air companion",
+    });
+    expect(slots[1].relationship).toEqual({
+      companionRelationshipId: "rel_3",
+      denizenId: "den_c",
+      denizenName: "Cinder",
+      description: "Fire companion",
+    });
+    expect(slots[2].relationship).toBeNull();
+    expect(slots[3].relationship).toBeNull();
+  });
+});
+
+describe("buildCompanionAssignmentChange", () => {
+  it("preserves captured expected relationship ID and converts blank description to null", () => {
+    const change = buildCompanionAssignmentChange("rel_1", "den_a", "");
+    expect(change).toEqual({
+      expectedCurrentRelationshipId: "rel_1",
+      newRelationship: {
+        denizenId: "den_a",
+        description: null,
+      },
     });
   });
 
-  it("unchanged companion descriptions => no companionDescriptions in patch", () => {
-    const baselineWithCompanions: WizardCharacterData = {
-      ...BASELINE,
-      companionDescriptions: { air: "Sprite", fire: null, earth: null, water: null },
-    };
-    const form = {
-      elementsAir: "",
-      elementsFire: "",
-      elementsEarth: "",
-      elementsWater: "",
-      pactFragmentPersonalForm: "",
-      familiarDescription: "",
-      ageYears: "",
-      publicChangesOfMagic: "",
-      importantNotes: "",
-      companionAir: "Sprite",
-      companionFire: "",
-      companionEarth: "",
-      companionWater: "",
-    };
-    const patch = buildCharacterPatch(form, baselineWithCompanions);
-    expect(patch).toBeNull();
+  it("preserves exact description string without trimming", () => {
+    const change = buildCompanionAssignmentChange(null, "den_b", "  hello  ");
+    expect(change).toEqual({
+      expectedCurrentRelationshipId: null,
+      newRelationship: {
+        denizenId: "den_b",
+        description: "  hello  ",
+      },
+    });
+  });
+});
+
+describe("buildCompanionDescriptionChange", () => {
+  it("returns null when description is unchanged", () => {
+    expect(buildCompanionDescriptionChange("rel_1", null, "")).toBeNull();
+    expect(buildCompanionDescriptionChange("rel_1", "old", "old")).toBeNull();
+  });
+
+  it("converts blank draft to null and carries original as expected", () => {
+    const change = buildCompanionDescriptionChange("rel_1", "old desc", "");
+    expect(change).toEqual({
+      companionRelationshipId: "rel_1",
+      expectedStatus: "current",
+      description: {
+        expected: "old desc",
+        value: null,
+      },
+    });
+  });
+
+  it("preserves exact draft string without trimming", () => {
+    const change = buildCompanionDescriptionChange("rel_1", null, "  new  ");
+    expect(change).toEqual({
+      companionRelationshipId: "rel_1",
+      expectedStatus: "current",
+      description: {
+        expected: null,
+        value: "  new  ",
+      },
+    });
   });
 });

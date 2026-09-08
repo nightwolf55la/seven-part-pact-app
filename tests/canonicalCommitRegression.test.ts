@@ -44,6 +44,7 @@ function makeState(monthOrdinal: number): CurrentCampaignState {
       currentMonth: { timeParticipants: [], engagements: [], wizardmootAttendance: null },
     },
     wizardmootHistory: [],
+    world: { denizens: [], isles: [], places: [], companionRelationships: [] },
   };
 }
 

@@ -34,13 +34,13 @@ const V2_STATE = {
   },
 };
 
-describe("V1/V2 Legacy Retirement — Fail-Closed", () => {
-  it("SUPPORTED_STATE_SCHEMA_VERSIONS contains only V4", () => {
-    expect(SUPPORTED_STATE_SCHEMA_VERSIONS).toEqual([4]);
+describe("V1/V2/V3/V4 Legacy Retirement — Fail-Closed", () => {
+  it("SUPPORTED_STATE_SCHEMA_VERSIONS contains only V5", () => {
+    expect(SUPPORTED_STATE_SCHEMA_VERSIONS).toEqual([5]);
   });
 
-  it("CURRENT_STATE_SCHEMA_VERSION is 4", () => {
-    expect(CURRENT_STATE_SCHEMA_VERSION).toBe(4);
+  it("CURRENT_STATE_SCHEMA_VERSION is 5", () => {
+    expect(CURRENT_STATE_SCHEMA_VERSION).toBe(5);
   });
 
   it("isSupportedSchemaVersion rejects V1", () => {
@@ -55,8 +55,12 @@ describe("V1/V2 Legacy Retirement — Fail-Closed", () => {
     expect(isSupportedSchemaVersion(3)).toBe(false);
   });
 
-  it("isSupportedSchemaVersion accepts V4", () => {
-    expect(isSupportedSchemaVersion(4)).toBe(true);
+  it("isSupportedSchemaVersion rejects V4", () => {
+    expect(isSupportedSchemaVersion(4)).toBe(false);
+  });
+
+  it("isSupportedSchemaVersion accepts V5", () => {
+    expect(isSupportedSchemaVersion(5)).toBe(true);
   });
 
   describe("validateAnyCampaignState rejects V1/V2", () => {
@@ -249,5 +253,90 @@ describe("M4 Free-Month Legacy Runtime Retirement", () => {
       const hasLegacyFallback = ensureSection.includes('"monthOrdinal" in c');
       expect(hasLegacyFallback).toBe(false);
     });
+  });
+});
+
+// ============================================================
+// Historical v1 event validators remain frozen for persisted data
+// ============================================================
+
+describe("Historical v1 event validators remain frozen", () => {
+  const TARGET_TYPES = [
+    "wizard_character_updated",
+    "engagement_target_changed",
+    "engagement_rescheduled",
+  ] as const;
+
+  function findValidatorMembers(
+    validator: any,
+  type: string,
+    version: number,
+  ): any[] {
+    if (validator.kind === "union") {
+      return validator.members.flatMap((m: any) =>
+        findValidatorMembers(m, type, version),
+      );
+    }
+    if (validator.kind === "object") {
+      const typeField = validator.fields?.type;
+      const versionField = validator.fields?.version;
+      if (
+        typeField?.kind === "literal" && typeField?.value === type &&
+        versionField?.kind === "literal" && versionField?.value === version
+      ) {
+        return [validator];
+      }
+    }
+    return [];
+  }
+
+  for (const eventType of TARGET_TYPES) {
+    it(`campaignEventValidator contains v1 branch for ${eventType}`, async () => {
+      const { campaignEventValidator } = await import("../convex/validators");
+      const v1Members = findValidatorMembers(campaignEventValidator, eventType, 1);
+      expect(v1Members.length).toBeGreaterThanOrEqual(1);
+    });
+  }
+
+  it("wizard_character_updated v1 uses frozen pre-V5 character contract (with companionDescriptions)", async () => {
+    const { campaignEventValidator } = await import("../convex/validators");
+    const v1Members = findValidatorMembers(campaignEventValidator, "wizard_character_updated", 1);
+    expect(v1Members.length).toBe(1);
+    const dataValidator = v1Members[0].fields.data;
+    expect(dataValidator.kind).toBe("object");
+    // V1 character has companionDescriptions; V5 does not
+    expect("companionDescriptions" in dataValidator.fields.newCharacter.fields).toBe(true);
+  });
+
+  it("engagement_target_changed v1 uses frozen pre-V5 EngagementTarget (no denizen kind)", async () => {
+    const { campaignEventValidator } = await import("../convex/validators");
+    const v1Members = findValidatorMembers(campaignEventValidator, "engagement_target_changed", 1);
+    expect(v1Members.length).toBe(1);
+    const dataValidator = v1Members[0].fields.data;
+    expect(dataValidator.kind).toBe("object");
+    const targetValidator = dataValidator.fields.newTarget;
+    // V1 target union has no "denizen" member; V5 adds it
+    if (targetValidator.kind === "union") {
+      const kinds = targetValidator.members
+        .filter((m: any) => m.kind === "object" && m.fields?.kind?.kind === "literal")
+        .map((m: any) => m.fields.kind.value);
+      expect(kinds).not.toContain("denizen");
+    }
+  });
+
+  it("engagement_rescheduled v1 uses frozen pre-V5 EngagementTarget (no denizen kind)", async () => {
+    const { campaignEventValidator } = await import("../convex/validators");
+    const v1Members = findValidatorMembers(campaignEventValidator, "engagement_rescheduled", 1);
+    expect(v1Members.length).toBe(1);
+    const dataValidator = v1Members[0].fields.data;
+    expect(dataValidator.kind).toBe("object");
+    const targetValidator = dataValidator.fields.newTarget;
+    // V1 newTarget is a non-null EngagementTarget (required, not union-with-null)
+    if (targetValidator.kind === "union") {
+      const kinds = targetValidator.members
+        .filter((m: any) => m.kind === "object" && m.fields?.kind?.kind === "literal")
+        .map((m: any) => m.fields.kind.value);
+      expect(kinds).not.toContain("denizen");
+    }
   });
 });

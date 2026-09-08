@@ -57,7 +57,7 @@ const ENG = "eng_00000000-0000-0000-0000-000000000001" as EngagementId;
 
 function v3SetupState(): CurrentCampaignState {
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
     calendar: { monthOrdinal: null },
     configuration: { ageId: null, facilitatorPlayerId: null },
@@ -69,6 +69,7 @@ function v3SetupState(): CurrentCampaignState {
       orrery: { saturn: asCentidegreePosition(500), jupiter: null, mars: null, venus: null, mercury: null },
     },
     wizardmootHistory: [],
+    world: { denizens: [], isles: [], places: [], companionRelationships: [] },
   } as CurrentCampaignState;
 }
 
@@ -97,12 +98,12 @@ function v3PlayState(): CurrentCampaignState {
   };
 
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
     calendar: { monthOrdinal: 5 as MonthOrdinal },
     configuration: { ageId: "awakening", facilitatorPlayerId: PLR },
     players: [{ playerId: PLR, name: "Alice" }],
-    wizards: [{ wizardId: WIZ, name: "Valdris", portrayedByPlayerId: PLR, character: { elements: null, pactFragmentPersonalForm: null, familiarDescription: null, ageYears: null, publicChangesOfMagic: [], importantNotes: null, companionDescriptions: { air: null, fire: null, earth: null, water: null } } }],
+    wizards: [{ wizardId: WIZ, name: "Valdris", portrayedByPlayerId: PLR, character: { elements: null, pactFragmentPersonalForm: null, familiarDescription: null, ageYears: null, publicChangesOfMagic: [], importantNotes: null }, homeIsleId: null, sanctumPlaceId: null }],
     pactSeats: {
       ...emptyPactSeats(),
       necromancer: { status: "present", wizardId: WIZ, watcherPlayerId: null },
@@ -123,6 +124,7 @@ function v3PlayState(): CurrentCampaignState {
       { monthOrdinal: 3 as MonthOrdinal, attendance: [{ wizardId: WIZ, attended: true }] },
       { monthOrdinal: 4 as MonthOrdinal, attendance: [{ wizardId: WIZ, attended: false }] },
     ],
+    world: { denizens: [], isles: [], places: [], companionRelationships: [] },
   } as CurrentCampaignState;
 }
 
@@ -149,7 +151,7 @@ describe("B3B2: V3 Setup backup roundtrip", () => {
     const backup = await buildBackup(setup);
 
     expect(backup.state.calendar.monthOrdinal).toBeNull();
-    if (backup.state.schemaVersion === 4 && backup.state.lifecycle.kind === "setup") {
+    if (backup.state.schemaVersion === 5 && backup.state.lifecycle.kind === "setup") {
       expect(backup.state.lifecycle.orrery.saturn).toBe(500);
       expect(backup.state.lifecycle.orrery.jupiter).toBeNull();
       expect(backup.state.lifecycle.orrery.mars).toBeNull();

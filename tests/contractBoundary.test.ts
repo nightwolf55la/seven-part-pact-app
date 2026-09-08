@@ -83,6 +83,7 @@ function makeV2State(monthOrdinal: number = 3): CurrentCampaignState {
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
     },
     wizardmootHistory: [],
+    world: { denizens: [], isles: [], places: [], companionRelationships: [] },
   };
 }
 
@@ -95,7 +96,7 @@ describe("M3 CONTRACT: domain-level current-state validation rejects V1", () => 
 
   it("validateCampaignState accepts current state", () => {
     const result = validateCampaignState(makeV2State());
-    expect(result.schemaVersion).toBe(4);
+    expect(result.schemaVersion).toBe(5);
   });
 });
 
@@ -106,7 +107,7 @@ describe("M3 CONTRACT: V1/V2 rejection and V3-only acceptance", () => {
 
   it("validateAnyCampaignState accepts V4", () => {
     const result = validateAnyCampaignState(makeV2State());
-    expect(result.schemaVersion).toBe(4);
+    expect(result.schemaVersion).toBe(5);
   });
 
   it("loadHistoricalState rejects V1", () => {

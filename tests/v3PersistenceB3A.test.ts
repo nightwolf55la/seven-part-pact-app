@@ -21,7 +21,7 @@ import {
 import type {
   CampaignStateV1,
   CampaignStateV2,
-  CampaignStateV4,
+  CampaignStateV5,
   CurrentCampaignState,
   MonthlyPlayState,
 } from "../shared/domain/campaign-state";
@@ -41,9 +41,9 @@ function emptyPactSeats() {
   };
 }
 
-function baseV3Setup(overrides?: Partial<CampaignStateV4>): CampaignStateV4 {
+function baseV3Setup(overrides?: Partial<CampaignStateV5>): CampaignStateV5 {
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
     calendar: { monthOrdinal: null },
     configuration: { ageId: null, facilitatorPlayerId: null },
@@ -52,11 +52,12 @@ function baseV3Setup(overrides?: Partial<CampaignStateV4>): CampaignStateV4 {
     pactSeats: emptyPactSeats(),
     lifecycle: { kind: "setup", orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } },
     wizardmootHistory: [],
+    world: { denizens: [], isles: [], places: [], companionRelationships: [] },
     ...overrides,
   };
 }
 
-function richPlayState(): CampaignStateV4 {
+function richPlayState(): CampaignStateV5 {
   const playerId = "plr_00000000-0000-0000-0000-000000000001" as PlayerId;
   const wizardId = "wiz_00000000-0000-0000-0000-000000000001" as WizardId;
   const allocId = "alc_00000000-0000-0000-0000-000000000001" as AllocationId;
@@ -86,12 +87,12 @@ function richPlayState(): CampaignStateV4 {
   };
 
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
     calendar: { monthOrdinal: 5 as MonthOrdinal },
     configuration: { ageId: "awakening", facilitatorPlayerId: playerId },
     players: [{ playerId, name: "Alice" }],
-    wizards: [{ wizardId, name: "Valdris", portrayedByPlayerId: playerId, character: { elements: null, pactFragmentPersonalForm: null, familiarDescription: null, ageYears: null, publicChangesOfMagic: [], importantNotes: null, companionDescriptions: { air: null, fire: null, earth: null, water: null } } }],
+    wizards: [{ wizardId, name: "Valdris", portrayedByPlayerId: playerId, character: { elements: null, pactFragmentPersonalForm: null, familiarDescription: null, ageYears: null, publicChangesOfMagic: [], importantNotes: null }, homeIsleId: null, sanctumPlaceId: null }],
     pactSeats: {
       ...emptyPactSeats(),
       necromancer: { status: "present", wizardId, watcherPlayerId: null },
@@ -112,6 +113,7 @@ function richPlayState(): CampaignStateV4 {
       { monthOrdinal: 3 as MonthOrdinal, attendance: [{ wizardId, attended: true }] },
       { monthOrdinal: 4 as MonthOrdinal, attendance: [{ wizardId, attended: false }] },
     ],
+    world: { denizens: [], isles: [], places: [], companionRelationships: [] },
   };
 }
 
@@ -195,7 +197,7 @@ describe("B3A: V3 Play state serialize/validate roundtrip", () => {
     const play = richPlayState();
     const json = canonicalJsonStringify(play);
     const parsed = JSON.parse(json);
-    expect(parsed.schemaVersion).toBe(4);
+    expect(parsed.schemaVersion).toBe(5);
     expect(parsed.lifecycle.kind).toBe("play");
     expect(parsed.lifecycle.phase).toBe("meeting");
     expect(parsed.lifecycle.orrery.saturn).toBe(500);
@@ -224,12 +226,12 @@ describe("B3A: V3 Play state serialize/validate roundtrip", () => {
 describe("B3A: current campaign validator accepts V3", () => {
   it("validateCampaignState accepts V3 Setup", () => {
     const result = validateCampaignState(baseV3Setup());
-    expect(result.schemaVersion).toBe(4);
+    expect(result.schemaVersion).toBe(5);
   });
 
   it("validateCampaignState accepts V3 Play", () => {
     const result = validateCampaignState(richPlayState());
-    expect(result.schemaVersion).toBe(4);
+    expect(result.schemaVersion).toBe(5);
   });
 
   it("initialCampaignState passes validation", () => {
@@ -245,17 +247,17 @@ describe("B3A: current campaign validator accepts V3", () => {
 describe("B3A: snapshot validator accepts V3", () => {
   it("validateAnyCampaignState accepts V3 Setup", () => {
     const result = validateAnyCampaignState(baseV3Setup());
-    expect(result.schemaVersion).toBe(4);
+    expect(result.schemaVersion).toBe(5);
   });
 
   it("validateAnyCampaignState accepts V3 Play", () => {
     const result = validateAnyCampaignState(richPlayState());
-    expect(result.schemaVersion).toBe(4);
+    expect(result.schemaVersion).toBe(5);
   });
 
   it("loadHistoricalState accepts V3", () => {
     const result = loadHistoricalState(richPlayState());
-    expect(result.schemaVersion).toBe(4);
+    expect(result.schemaVersion).toBe(5);
   });
 });
 
@@ -275,7 +277,7 @@ describe("B3A: V1 rejected", () => {
   });
 
   it("validateAnyCampaignState rejects V1", () => {
-    expect(() => validateAnyCampaignState(v1)).toThrow("no longer supported");
+    expect(() => validateAnyCampaignState(v1)).toThrow("Unsupported schemaVersion");
   });
 
   it("loadHistoricalState rejects V1", () => {
@@ -307,7 +309,7 @@ describe("B3A: V2 rejected", () => {
   });
 
   it("validateAnyCampaignState rejects V2", () => {
-    expect(() => validateAnyCampaignState(v2)).toThrow("no longer supported");
+    expect(() => validateAnyCampaignState(v2)).toThrow("Unsupported schemaVersion");
   });
 
   it("loadHistoricalState rejects V2", () => {
@@ -324,12 +326,12 @@ describe("B3A: V2 rejected", () => {
 // ============================================================
 
 describe("B3A: no migration-to-V3 path", () => {
-  it("SUPPORTED_STATE_SCHEMA_VERSIONS is V3-only", () => {
-    expect(SUPPORTED_STATE_SCHEMA_VERSIONS).toEqual([4]);
+  it("SUPPORTED_STATE_SCHEMA_VERSIONS is V5-only", () => {
+    expect(SUPPORTED_STATE_SCHEMA_VERSIONS).toEqual([5]);
   });
 
-  it("CURRENT_STATE_SCHEMA_VERSION is 4", () => {
-    expect(CURRENT_STATE_SCHEMA_VERSION).toBe(4);
+  it("CURRENT_STATE_SCHEMA_VERSION is 5", () => {
+    expect(CURRENT_STATE_SCHEMA_VERSION).toBe(5);
   });
 
   it("migrateToCurrentVersion passes V3 through", () => {
@@ -338,9 +340,9 @@ describe("B3A: no migration-to-V3 path", () => {
     expect(result).toBe(state);
   });
 
-  it("migrateToCurrentVersion throws on non-V3", () => {
-    const fakeV5 = { ...baseV3Setup(), schemaVersion: 5 } as any;
-    expect(() => migrateToCurrentVersion(fakeV5)).toThrow();
+  it("migrateToCurrentVersion throws on non-V5", () => {
+    const fakeV6 = { ...baseV3Setup(), schemaVersion: 6 } as any;
+    expect(() => migrateToCurrentVersion(fakeV6)).toThrow();
   });
 
   it("unknown schema version fails closed", () => {
@@ -356,14 +358,14 @@ describe("B3A: serialization preserves wizardmoot history and monthly state", ()
   it("wizardmootHistory entries survive canonical JSON roundtrip", () => {
     const play = richPlayState();
     const json = canonicalJsonStringify(play);
-    const parsed = JSON.parse(json) as CampaignStateV4;
+    const parsed = JSON.parse(json) as CampaignStateV5;
     expect(parsed.wizardmootHistory).toEqual(play.wizardmootHistory);
   });
 
   it("currentMonth.timeParticipants survive", () => {
     const play = richPlayState();
     const json = canonicalJsonStringify(play);
-    const parsed = JSON.parse(json) as CampaignStateV4;
+    const parsed = JSON.parse(json) as CampaignStateV5;
     if (parsed.lifecycle.kind === "play") {
       expect(parsed.lifecycle.currentMonth.timeParticipants).toEqual(
         (play.lifecycle as any).currentMonth.timeParticipants,
@@ -374,7 +376,7 @@ describe("B3A: serialization preserves wizardmoot history and monthly state", ()
   it("currentMonth.engagements survive", () => {
     const play = richPlayState();
     const json = canonicalJsonStringify(play);
-    const parsed = JSON.parse(json) as CampaignStateV4;
+    const parsed = JSON.parse(json) as CampaignStateV5;
     if (parsed.lifecycle.kind === "play") {
       expect(parsed.lifecycle.currentMonth.engagements).toEqual(
         (play.lifecycle as any).currentMonth.engagements,
@@ -385,7 +387,7 @@ describe("B3A: serialization preserves wizardmoot history and monthly state", ()
   it("currentMonth.wizardmootAttendance survives", () => {
     const play = richPlayState();
     const json = canonicalJsonStringify(play);
-    const parsed = JSON.parse(json) as CampaignStateV4;
+    const parsed = JSON.parse(json) as CampaignStateV5;
     if (parsed.lifecycle.kind === "play") {
       expect(parsed.lifecycle.currentMonth.wizardmootAttendance).toEqual(
         (play.lifecycle as any).currentMonth.wizardmootAttendance,

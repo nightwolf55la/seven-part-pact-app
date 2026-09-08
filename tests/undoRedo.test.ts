@@ -16,7 +16,7 @@ import {
 
 function makeState(monthOrdinal: number): CurrentCampaignState {
   return {
-    schemaVersion: 4,
+    schemaVersion: 5,
     ruleset: { id: "seven_part_pact_draft4", version: 1 },
     calendar: { monthOrdinal: monthOrdinal as any },
     configuration: { ageId: null, facilitatorPlayerId: null },
@@ -38,6 +38,7 @@ function makeState(monthOrdinal: number): CurrentCampaignState {
       currentMonth: { timeParticipants: [], engagements: [], wizardmootAttendance: null },
     },
     wizardmootHistory: [],
+    world: { denizens: [], isles: [], places: [], companionRelationships: [] },
   };
 }
 

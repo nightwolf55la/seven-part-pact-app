@@ -29,6 +29,12 @@ function validState(monthOrdinal: number = 0) {
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
     },
     wizardmootHistory: [],
+    world: {
+      denizens: [],
+      isles: [],
+      places: [],
+      companionRelationships: [],
+    },
   };
 }
 

@@ -14,12 +14,6 @@ export interface WizardCharacterRef {
   readonly ageYears: number | null;
   readonly publicChangesOfMagic: readonly string[];
   readonly importantNotes: string | null;
-  readonly companionDescriptions: {
-    readonly air: string | null;
-    readonly fire: string | null;
-    readonly earth: string | null;
-    readonly water: string | null;
-  };
 }
 
 export interface WizardRef {
@@ -27,6 +21,8 @@ export interface WizardRef {
   readonly name: string;
   readonly portrayedByPlayerId: string | null;
   readonly character: WizardCharacterRef;
+  readonly homeIsleId: string | null;
+  readonly sanctumPlaceId: string | null;
 }
 
 export interface SeatRef {

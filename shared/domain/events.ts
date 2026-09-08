@@ -1,10 +1,11 @@
 import type { MonthOrdinal } from "./calendar";
 import type { MonthDirection } from "./calendar";
 import type { MovablePlanetId, CentidegreePosition } from "./orrery";
-import type { LunarPhase } from "./campaign-state";
-import type { WizardCharacterData } from "./campaign-state";
+import type { LunarPhase, WizardCharacterDataV4, WizardCharacterDataV5 } from "./campaign-state";
 import type { TimeDestination } from "./time-model";
-import type { EngagementTarget } from "./engagement";
+import type { EngagementTargetV4, EngagementTargetV5 } from "./engagement";
+import type { Denizen, Isle, WorldPlace, CompanionRelationship, ElementId } from "./shared-world";
+import type { DenizenId, IsleId, PlaceId, WizardId, CompanionRelationshipId } from "./ids";
 
 export interface UndoAppliedDataV1 {
   readonly fromRevision: number;
@@ -257,8 +258,8 @@ export interface EngagementTargetChangedDataV1 {
   readonly monthOrdinal: MonthOrdinal;
   readonly engagementId: string;
   readonly actingWizardId: string;
-  readonly previousTarget: EngagementTarget | null;
-  readonly newTarget: EngagementTarget | null;
+  readonly previousTarget: EngagementTargetV4 | null;
+  readonly newTarget: EngagementTargetV4 | null;
 }
 
 export interface EngagementTargetChangedEventV1 {
@@ -351,8 +352,8 @@ export interface EngagementResolvedEventV1 {
 export interface EngagementRescheduledDataV1 {
   readonly monthOrdinal: MonthOrdinal;
   readonly engagementId: string;
-  readonly previousTarget: EngagementTarget | null;
-  readonly newTarget: EngagementTarget;
+  readonly previousTarget: EngagementTargetV4 | null;
+  readonly newTarget: EngagementTargetV4;
 }
 
 export interface EngagementRescheduledEventV1 {
@@ -440,8 +441,8 @@ export interface MonthChangedEventV1 {
 
 export interface WizardCharacterUpdatedDataV1 {
   readonly wizardId: string;
-  readonly previousCharacter: WizardCharacterData;
-  readonly newCharacter: WizardCharacterData;
+  readonly previousCharacter: WizardCharacterDataV4;
+  readonly newCharacter: WizardCharacterDataV4;
 }
 
 export interface WizardCharacterUpdatedEventV1 {
@@ -465,12 +466,14 @@ export type SetupEvent =
   | SetupMonthChangedEventV1
   | SetupOrreryPositionChangedEventV1
   | BeginPlayEventV1
-  | WizardCharacterUpdatedEventV1;
+  | WizardCharacterUpdatedEventV1
+  | WizardCharacterUpdatedEventV2;
 
 export type PlayEvent =
   | PhaseAdvancedEvent
   | TimeAllocationScheduledEventV1
   | EngagementTargetChangedEventV1
+  | EngagementTargetChangedEventV2
   | TimeRescheduledEventV1
   | TimeSpentEventV1
   | TimeWastedEventV1
@@ -478,13 +481,175 @@ export type PlayEvent =
   | EngagementTimeCommittedEventV1
   | EngagementResolvedEventV1
   | EngagementRescheduledEventV1
+  | EngagementRescheduledEventV2
   | WizardmootAttendanceAdjustedEventV1
   | MeetingCompletedEventV1
   | MonthBegunEventV1;
 
+// --- World events (V5 Shared World, activated per-entity) ---
+
+export interface DenizenCreatedDataV1 {
+  readonly denizen: Denizen;
+}
+export interface DenizenCreatedEventV1 {
+  readonly type: "denizen_created";
+  readonly version: 1;
+  readonly data: DenizenCreatedDataV1;
+}
+
+export interface DenizenUpdatedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly previous: Denizen;
+  readonly updated: Denizen;
+}
+export interface DenizenUpdatedEventV1 {
+  readonly type: "denizen_updated";
+  readonly version: 1;
+  readonly data: DenizenUpdatedDataV1;
+}
+
+export interface IsleCreatedDataV1 {
+  readonly isle: Isle;
+}
+export interface IsleCreatedEventV1 {
+  readonly type: "isle_created";
+  readonly version: 1;
+  readonly data: IsleCreatedDataV1;
+}
+
+export interface IsleUpdatedDataV1 {
+  readonly isleId: IsleId;
+  readonly previous: Isle;
+  readonly updated: Isle;
+}
+export interface IsleUpdatedEventV1 {
+  readonly type: "isle_updated";
+  readonly version: 1;
+  readonly data: IsleUpdatedDataV1;
+}
+
+export interface PlaceCreatedDataV1 {
+  readonly place: WorldPlace;
+}
+export interface PlaceCreatedEventV1 {
+  readonly type: "place_created";
+  readonly version: 1;
+  readonly data: PlaceCreatedDataV1;
+}
+
+export interface PlaceUpdatedDataV1 {
+  readonly placeId: PlaceId;
+  readonly previous: WorldPlace;
+  readonly updated: WorldPlace;
+}
+export interface PlaceUpdatedEventV1 {
+  readonly type: "place_updated";
+  readonly version: 1;
+  readonly data: PlaceUpdatedDataV1;
+}
+
+export interface WizardHomeIsleChangedDataV1 {
+  readonly wizardId: WizardId;
+  readonly previousHomeIsleId: IsleId | null;
+  readonly newHomeIsleId: IsleId | null;
+}
+export interface WizardHomeIsleChangedEventV1 {
+  readonly type: "wizard_home_isle_changed";
+  readonly version: 1;
+  readonly data: WizardHomeIsleChangedDataV1;
+}
+
+export interface WizardSanctumChangedDataV1 {
+  readonly wizardId: WizardId;
+  readonly previousSanctumPlaceId: PlaceId | null;
+  readonly newSanctumPlaceId: PlaceId | null;
+}
+export interface WizardSanctumChangedEventV1 {
+  readonly type: "wizard_sanctum_changed";
+  readonly version: 1;
+  readonly data: WizardSanctumChangedDataV1;
+}
+
+export interface WizardCompanionChangedDataV1 {
+  readonly wizardId: WizardId;
+  readonly element: ElementId;
+  readonly previousCurrentRelationship: CompanionRelationship | null;
+  readonly newCurrentRelationship: CompanionRelationship | null;
+}
+export interface WizardCompanionChangedEventV1 {
+  readonly type: "wizard_companion_changed";
+  readonly version: 1;
+  readonly data: WizardCompanionChangedDataV1;
+}
+
+export interface CompanionDescriptionChangedDataV1 {
+  readonly companionRelationshipId: CompanionRelationshipId;
+  readonly previous: CompanionRelationship;
+  readonly updated: CompanionRelationship;
+}
+export interface CompanionDescriptionChangedEventV1 {
+  readonly type: "companion_description_changed";
+  readonly version: 1;
+  readonly data: CompanionDescriptionChangedDataV1;
+}
+
+export type WorldEvent =
+  | DenizenCreatedEventV1
+  | DenizenUpdatedEventV1
+  | IsleCreatedEventV1
+  | IsleUpdatedEventV1
+  | PlaceCreatedEventV1
+  | PlaceUpdatedEventV1
+  | WizardHomeIsleChangedEventV1
+  | WizardSanctumChangedEventV1
+  | WizardCompanionChangedEventV1
+  | CompanionDescriptionChangedEventV1;
+
 export type CampaignEvent =
   | InfrastructureEvent
   | SetupEvent
-  | PlayEvent;
+  | PlayEvent
+  | WorldEvent;
 
 export type PhaseAdvancedEvent = PhaseAdvancedEventV1 | PhaseAdvancedEventV2;
+
+// --- Candidate V2 event types (NOT added to active unions) ---
+
+export interface WizardCharacterUpdatedDataV2 {
+  readonly wizardId: string;
+  readonly previousCharacter: WizardCharacterDataV5;
+  readonly newCharacter: WizardCharacterDataV5;
+}
+
+export interface WizardCharacterUpdatedEventV2 {
+  readonly type: "wizard_character_updated";
+  readonly version: 2;
+  readonly data: WizardCharacterUpdatedDataV2;
+}
+
+export interface EngagementTargetChangedDataV2 {
+  readonly monthOrdinal: MonthOrdinal;
+  readonly engagementId: string;
+  readonly actingWizardId: string;
+  readonly previousTarget: EngagementTargetV5 | null;
+  readonly newTarget: EngagementTargetV5 | null;
+}
+
+export interface EngagementTargetChangedEventV2 {
+  readonly type: "engagement_target_changed";
+  readonly version: 2;
+  readonly data: EngagementTargetChangedDataV2;
+}
+
+export interface EngagementRescheduledDataV2 {
+  readonly monthOrdinal: MonthOrdinal;
+  readonly engagementId: string;
+  readonly previousTarget: EngagementTargetV5 | null;
+  readonly newTarget: EngagementTargetV5;
+}
+
+export interface EngagementRescheduledEventV2 {
+  readonly type: "engagement_rescheduled";
+  readonly version: 2;
+  readonly data: EngagementRescheduledDataV2;
+}

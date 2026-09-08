@@ -1,6 +1,6 @@
 export type { Brand } from "./brand";
 
-export type { CampaignId, CommandId, CheckpointId, PlayerId, WizardId, AllocationId, EngagementId } from "./ids";
+export type { CampaignId, CommandId, CheckpointId, PlayerId, WizardId, AllocationId, EngagementId, DenizenId, IsleId, PlaceId, CompanionRelationshipId } from "./ids";
 export {
   isValidCampaignId,
   parseCampaignId,
@@ -18,6 +18,14 @@ export {
   isValidEngagementId,
   parseEngagementId,
   generateEngagementId,
+  isValidDenizenId,
+  parseDenizenId,
+  isValidIsleId,
+  parseIsleId,
+  isValidPlaceId,
+  parsePlaceId,
+  isValidCompanionRelationshipId,
+  parseCompanionRelationshipId,
 } from "./ids";
 
 export type {
@@ -80,8 +88,33 @@ export type {
   MeetingCompletedEventV1,
   MonthBegunEventV1,
   WizardCharacterUpdatedEventV1,
+  WizardCharacterUpdatedEventV2,
+  EngagementTargetChangedEventV2,
+  EngagementRescheduledEventV1,
+  EngagementRescheduledEventV2,
   InfrastructureEvent,
   PhaseAdvancedEvent,
+  WorldEvent,
+  DenizenCreatedDataV1,
+  DenizenCreatedEventV1,
+  DenizenUpdatedDataV1,
+  DenizenUpdatedEventV1,
+  IsleCreatedDataV1,
+  IsleCreatedEventV1,
+  IsleUpdatedDataV1,
+  IsleUpdatedEventV1,
+  PlaceCreatedDataV1,
+  PlaceCreatedEventV1,
+  PlaceUpdatedDataV1,
+  PlaceUpdatedEventV1,
+  WizardHomeIsleChangedDataV1,
+  WizardHomeIsleChangedEventV1,
+  WizardSanctumChangedDataV1,
+  WizardSanctumChangedEventV1,
+  WizardCompanionChangedDataV1,
+  WizardCompanionChangedEventV1,
+  CompanionDescriptionChangedDataV1,
+  CompanionDescriptionChangedEventV1,
   CampaignEvent,
 } from "./events";
 
@@ -99,23 +132,34 @@ export type {
   CampaignStateV2,
   CampaignStateV3,
   CampaignStateV4,
+  CampaignStateV5,
   CampaignPlayer,
   LegacyCampaignWizard,
+  CampaignWizardV4,
   CampaignWizard,
+  CampaignWizardV5,
   WizardElementScores,
   WizardCompanionDescriptions,
+  WizardCharacterDataV4,
   WizardCharacterData,
+  WizardCharacterDataV5,
   PactSeatState,
   PactSeatStatus,
   LunarPhase,
+  MonthlyPlayStateV4,
   MonthlyPlayState,
+  MonthlyPlayStateV5,
+  PlayLifecycleV4,
+  PlayLifecycleV5,
   SetupLifecycle,
   PlayLifecycle,
+  CampaignLifecycleV4,
+  CampaignLifecycleV5,
   CampaignLifecycle,
   CurrentCampaignState,
   AnyCampaignState,
 } from "./campaign-state";
-export { CURRENT_STATE_SCHEMA_VERSION, LUNAR_PHASES, BLANK_WIZARD_CHARACTER } from "./campaign-state";
+export { CURRENT_STATE_SCHEMA_VERSION, LUNAR_PHASES, BLANK_WIZARD_CHARACTER, BLANK_WIZARD_CHARACTER_V4, BLANK_WIZARD_CHARACTER_V5 } from "./campaign-state";
 
 export type { WizardCharacterPatch } from "./wizard-character";
 export { normalizeWizardCharacterPatch, applyWizardCharacterPatch } from "./wizard-character";
@@ -131,7 +175,7 @@ export { migrateToCurrentVersion, loadHistoricalState, isHistoricalStateLogicall
 export type { DomainErrorCode } from "./errors";
 export { DomainError } from "./errors";
 
-export { validateCampaignState, validateAnyCampaignState } from "./state-validation";
+export { validateCampaignState, validateAnyCampaignState, validateCampaignStateV5Candidate } from "./state-validation";
 
 export { initialCampaignState } from "./initial-state";
 
@@ -205,6 +249,16 @@ export {
   adjustWizardmootAttendanceFingerprint,
   completeMeetingFingerprint,
   beginNextMonthFingerprint,
+  createDenizenFingerprint,
+  updateDenizenFingerprint,
+  createIsleFingerprint,
+  updateIsleFingerprint,
+  createPlaceFingerprint,
+  updatePlaceFingerprint,
+  setWizardHomeIsleFingerprint,
+  setWizardSanctumFingerprint,
+  setWizardCompanionFingerprint,
+  updateCompanionDescriptionFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
@@ -406,11 +460,18 @@ export type {
   SelfTarget,
   FamiliarTarget,
   NamedCharacterTarget,
+  DenizenTarget,
+  EngagementTargetV4,
   EngagementTarget,
+  EngagementTargetV5,
   EngagementTargetKind,
+  EngagementTargetKindV4,
+  EngagementTargetKindV5,
+  EngagementRecordV4,
   EngagementRecord,
+  EngagementRecordV5,
 } from "./engagement";
-export { ENGAGEMENT_RESOLUTIONS, ENGAGEMENT_TARGET_KINDS } from "./engagement";
+export { ENGAGEMENT_RESOLUTIONS, ENGAGEMENT_TARGET_KINDS, ENGAGEMENT_TARGET_KINDS_V4, ENGAGEMENT_TARGET_KINDS_V5 } from "./engagement";
 
 // --- Wizardmoot ---
 
@@ -463,3 +524,82 @@ export {
   applyBeginNextMonth,
   computePhaseTransitionWarnings,
 } from "./play-transitions";
+
+// --- Shared World (V5 candidate) ---
+
+export type {
+  ElementId,
+  Denizen,
+  Isle,
+  UnspecifiedPlacement,
+  OnIslePlacement,
+  MobilePlacement,
+  WorldPlacePlacement,
+  WorldPlace,
+  CompanionRelationshipStatus,
+  CompanionRelationship,
+  SharedWorldState,
+} from "./shared-world";
+export { ELEMENT_IDS, EMPTY_SHARED_WORLD_STATE } from "./shared-world";
+
+// --- V5 Reference Validation (candidate, not active) ---
+
+export { validateV5WorldReferenceIntegrity } from "./v5-reference-validation";
+
+// --- V5 World Subject Transitions (candidate, not active) ---
+
+export type {
+  ExpectedFieldChange,
+  DenizenTransitionResult,
+  IsleTransitionResult,
+  PlaceTransitionResult,
+  WorldSubjectTransitionResult,
+  CandidateWorldSubjectEvent,
+  CreateDenizenInput,
+  UpdateDenizenFields,
+  CreateIsleInput,
+  UpdateIsleFields,
+  CreatePlaceInput,
+  UpdatePlaceFields,
+} from "./world-subject-transitions";
+export {
+  applyCreateDenizenV5Candidate,
+  applyUpdateDenizenV5Candidate,
+  applyCreateIsleV5Candidate,
+  applyUpdateIsleV5Candidate,
+  applyCreatePlaceV5Candidate,
+  applyUpdatePlaceV5Candidate,
+} from "./world-subject-transitions";
+
+// --- V5 World Relationship Transitions (candidate, not active) ---
+
+export type {
+  RelationshipTransitionResult,
+  WizardAssociationTransitionResult,
+  CompanionTransitionResult,
+  CandidateRelationshipEvent,
+  SetWizardCompanionInput,
+  UpdateCompanionDescriptionInput,
+} from "./world-relationship-transitions";
+export {
+  applySetWizardHomeIsleV5Candidate,
+  applySetWizardSanctumV5Candidate,
+  applySetWizardCompanionV5Candidate,
+  applyUpdateCompanionDescriptionV5Candidate,
+} from "./world-relationship-transitions";
+
+// --- V5 Integration Transitions (candidate, not active) ---
+
+export type {
+  WizardCharacterPatchV5,
+  V5IntegrationTransitionResult,
+  SetEngagementTargetV5Input,
+  RescheduleEngagementV5Input,
+} from "./v5-integration-transitions";
+export {
+  normalizeWizardCharacterPatchV5,
+  validateEngagementTargetV5,
+  applyUpdateWizardCharacterV5Candidate,
+  applySetEngagementTargetV5Candidate,
+  applyRescheduleEngagementV5Candidate,
+} from "./v5-integration-transitions";

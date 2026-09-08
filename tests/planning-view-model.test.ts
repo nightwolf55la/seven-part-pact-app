@@ -250,4 +250,37 @@ describe("buildEngagementTarget", () => {
   it("rejects named character with empty text", () => {
     expect(buildEngagementTarget("named_character", "  ")).toBeNull();
   });
+
+  it("builds denizen target", () => {
+    expect(buildEngagementTarget("denizen" as any, "den_1")).toEqual({
+      kind: "denizen",
+      denizenId: "den_1",
+    });
+  });
+
+  it("rejects denizen with empty text", () => {
+    expect(buildEngagementTarget("denizen" as any, "   ")).toBeNull();
+  });
+});
+
+describe("engagementTargetLabel denizen resolution", () => {
+  it("resolves denizen name from denizens list", () => {
+    expect(
+      engagementTargetLabel(
+        { kind: "denizen", denizenId: "den_1" } as any,
+        baseData,
+        [{ denizenId: "den_1", name: "Elder Thorn" }],
+      ),
+    ).toBe("Denizen: Elder Thorn");
+  });
+
+  it("falls back to denizenId when not found", () => {
+    expect(
+      engagementTargetLabel(
+        { kind: "denizen", denizenId: "den_missing" } as any,
+        baseData,
+        [{ denizenId: "den_1", name: "Elder Thorn" }],
+      ),
+    ).toBe("Denizen: den_missing");
+  });
 });

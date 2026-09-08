@@ -60,8 +60,9 @@ export const getCampaignSetup = query({
           ageYears: w.character.ageYears,
           publicChangesOfMagic: w.character.publicChangesOfMagic,
           importantNotes: w.character.importantNotes,
-          companionDescriptions: w.character.companionDescriptions,
         },
+        homeIsleId: w.homeIsleId as string | null,
+        sanctumPlaceId: w.sanctumPlaceId as string | null,
       })),
       pactSeats: Object.fromEntries(
         Object.entries(current.pactSeats).map(([seatId, seat]) => [
@@ -463,8 +464,9 @@ export const getPlayReference = query({
           ageYears: w.character.ageYears,
           publicChangesOfMagic: w.character.publicChangesOfMagic,
           importantNotes: w.character.importantNotes,
-          companionDescriptions: w.character.companionDescriptions,
         },
+        homeIsleId: w.homeIsleId as string | null,
+        sanctumPlaceId: w.sanctumPlaceId as string | null,
       })),
       pactSeats: Object.fromEntries(
         Object.entries(current.pactSeats).map(([seatId, seat]) => [
@@ -476,6 +478,57 @@ export const getPlayReference = query({
           },
         ]),
       ),
+    };
+  },
+});
+
+export const getWorldReference = query({
+  args: {},
+  handler: async (ctx) => {
+    const maybeCanonical = await ctx.db
+      .query("campaigns")
+      .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
+      .unique();
+
+    if (
+      maybeCanonical === null ||
+      !("campaignKey" in maybeCanonical) ||
+      (maybeCanonical as any).campaignKey !== "default"
+    ) {
+      return null;
+    }
+
+    const doc = maybeCanonical as any;
+    const current = validateCampaignState(doc.state);
+
+    const world = current.world;
+
+    return {
+      denizens: world.denizens.map((d) => ({
+        denizenId: d.denizenId as string,
+        name: d.name,
+        representation: d.representation,
+        description: d.description,
+      })),
+      isles: world.isles.map((i) => ({
+        isleId: i.isleId as string,
+        name: i.name,
+        description: i.description,
+      })),
+      places: world.places.map((p) => ({
+        placeId: p.placeId as string,
+        name: p.name,
+        description: p.description,
+        placement: p.placement,
+      })),
+      companionRelationships: world.companionRelationships.map((r) => ({
+        companionRelationshipId: r.companionRelationshipId as string,
+        wizardId: r.wizardId as string,
+        element: r.element,
+        denizenId: r.denizenId as string,
+        description: r.description,
+        status: r.status,
+      })),
     };
   },
 });

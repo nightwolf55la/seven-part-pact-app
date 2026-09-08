@@ -221,5 +221,6 @@ export const STORY_TARGET_CHOICES: readonly TargetChoice[] = [
   "self",
   "familiar",
   "wizard",
+  "denizen",
   "named_character",
 ] as const;

@@ -8,6 +8,7 @@ import AddWizardDialog from "./AddWizardDialog";
 import WizardCharacterSheet from "./WizardCharacterSheet";
 import { eligiblePortrayingPlayersForNewWizard } from "./setup-view-model";
 import type { WizardCharacterData } from "../shared/domain/campaign-state";
+import type { WorldReference } from "./WorldSurface";
 
 const STATUS_COLORS: Record<string, string> = {
   Present: "text-green-700 dark:text-green-400",
@@ -24,24 +25,49 @@ function generateWizardId(): string {
   return `wiz_${crypto.randomUUID()}`;
 }
 
+function generateCompanionRelationshipId(): string {
+  return `cmprel_${crypto.randomUUID()}`;
+}
+
 export default function TableWizards({
   pactSeats,
   players,
   wizards,
+  worldRef,
+  campaignId,
 }: {
   pactSeats: Readonly<Record<string, SeatRef>>;
   players: readonly PlayerRef[];
   wizards: readonly WizardRef[];
+  worldRef: WorldReference | null | undefined;
+  campaignId: string;
 }) {
   const rows = buildTableWizardsRows(pactSeats, players, wizards);
   const createWizard = useMutation(api.m3Commands.createWizard);
   const updateWizardCharacter = useMutation(api.m3Commands.updateWizardCharacter);
+  const setWizardHomeIsle = useMutation(api.m3Commands.setWizardHomeIsle);
+  const setWizardSanctum = useMutation(api.m3Commands.setWizardSanctum);
+  const setWizardCompanion = useMutation(api.m3Commands.setWizardCompanion);
+  const updateCompanionDescription = useMutation(api.m3Commands.updateCompanionDescription);
 
   const [pending, setPending] = useState(false);
   const [showAddWizard, setShowAddWizard] = useState(false);
   const [addWizardError, setAddWizardError] = useState<string | null>(null);
   const [characterWizardId, setCharacterWizardId] = useState<string | null>(null);
+  const [characterCampaignId, setCharacterCampaignId] = useState<string | null>(null);
   const [characterError, setCharacterError] = useState<string | null>(null);
+
+  function openCharacterSheet(wizardId: string): void {
+    setCharacterWizardId(wizardId);
+    setCharacterCampaignId(campaignId);
+    setCharacterError(null);
+  }
+
+  function closeCharacterSheet(): void {
+    setCharacterWizardId(null);
+    setCharacterCampaignId(null);
+    setCharacterError(null);
+  }
 
   const assignedWizardIds = new Set(
     PACT_SEAT_IDS
@@ -89,7 +115,7 @@ export default function TableWizards({
                   {row.wizardId !== null && (
                     <button
                       disabled={pending}
-                      onClick={() => { setCharacterWizardId(row.wizardId!); setCharacterError(null); }}
+                      onClick={() => openCharacterSheet(row.wizardId!)}
                       className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
                     >
                       Character Sheet
@@ -132,7 +158,7 @@ export default function TableWizards({
               <span className="text-xs text-slate-500">{w.name}</span>
               <button
                 disabled={pending}
-                onClick={() => { setCharacterWizardId(w.wizardId); setCharacterError(null); }}
+                onClick={() => openCharacterSheet(w.wizardId)}
                 className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
               >
                 Character Sheet
@@ -178,6 +204,75 @@ export default function TableWizards({
           character={characterWizard.character as WizardCharacterData}
           pending={pending}
           error={characterError}
+          homeIsleId={characterWizard.homeIsleId}
+          sanctumPlaceId={characterWizard.sanctumPlaceId}
+          worldRef={worldRef}
+          onSetHomeIsle={async (change) => {
+            setCharacterError(null);
+            setPending(true);
+            try {
+              await setWizardHomeIsle({
+                commandId: generateCommandId(),
+                expectedCampaignId: characterCampaignId!,
+                wizardId: characterWizard.wizardId,
+                change,
+              });
+            } finally {
+              setPending(false);
+            }
+          }}
+          onSetSanctum={async (change) => {
+            setCharacterError(null);
+            setPending(true);
+            try {
+              await setWizardSanctum({
+                commandId: generateCommandId(),
+                expectedCampaignId: characterCampaignId!,
+                wizardId: characterWizard.wizardId,
+                change,
+              });
+            } finally {
+              setPending(false);
+            }
+          }}
+          onSetCompanion={async (change) => {
+            setCharacterError(null);
+            setPending(true);
+            try {
+              await setWizardCompanion({
+                commandId: generateCommandId(),
+                expectedCampaignId: characterCampaignId!,
+                wizardId: characterWizard.wizardId,
+                element: change.element,
+                expectedCurrentRelationshipId: change.expectedCurrentRelationshipId,
+                newRelationship:
+                  change.newRelationship === null
+                    ? null
+                    : {
+                        companionRelationshipId: generateCompanionRelationshipId(),
+                        denizenId: change.newRelationship.denizenId,
+                        description: change.newRelationship.description,
+                      },
+              });
+            } finally {
+              setPending(false);
+            }
+          }}
+          onUpdateCompanionDescription={async (change) => {
+            setCharacterError(null);
+            setPending(true);
+            try {
+              await updateCompanionDescription({
+                commandId: generateCommandId(),
+                expectedCampaignId: characterCampaignId!,
+                companionRelationshipId: change.companionRelationshipId,
+                expectedStatus: change.expectedStatus,
+                description: change.description,
+              });
+            } finally {
+              setPending(false);
+            }
+          }}
           onSave={async (patch) => {
             setCharacterError(null);
             setPending(true);
@@ -187,15 +282,14 @@ export default function TableWizards({
                 wizardId: characterWizard.wizardId,
                 patch,
               });
-              setCharacterWizardId(null);
-              setCharacterError(null);
+              closeCharacterSheet();
             } catch (e: any) {
               setCharacterError(e?.message ?? "Failed to save character");
             } finally {
               setPending(false);
             }
           }}
-          onClose={() => { setCharacterWizardId(null); setCharacterError(null); }}
+          onClose={() => closeCharacterSheet()}
         />
       )}
     </section>

@@ -263,6 +263,79 @@ export function rescheduleEngagementFingerprint(expectedMonthOrdinal: number, en
   return `reschedule_engagement:v1:month=${expectedMonthOrdinal}:eng=${engagementId}:target=${targetCanonical}`;
 }
 
+export function createDenizenFingerprint(expectedCampaignId: string, denizenId: string, name: string, representation: string, description: string | null): string {
+  const payload = canonicalJsonStringify({ expectedCampaignId, denizenId, name, representation, description });
+  return `create_denizen:v2:${payload}`;
+}
+
+export function updateDenizenFingerprint(expectedCampaignId: string, denizenId: string, fields: Record<string, unknown>): string {
+  const fieldsCanonical = canonicalJsonStringify(fields);
+  return `update_denizen:v2:campaign=${expectedCampaignId}:denizen=${denizenId}:fields=${fieldsCanonical}`;
+}
+
+export function createIsleFingerprint(expectedCampaignId: string, isleId: string, name: string, description: string | null): string {
+  const payload = canonicalJsonStringify({ expectedCampaignId, isleId, name, description });
+  return `create_isle:v2:${payload}`;
+}
+
+export function updateIsleFingerprint(expectedCampaignId: string, isleId: string, fields: Record<string, unknown>): string {
+  const fieldsCanonical = canonicalJsonStringify(fields);
+  return `update_isle:v2:campaign=${expectedCampaignId}:isle=${isleId}:fields=${fieldsCanonical}`;
+}
+
+export function createPlaceFingerprint(expectedCampaignId: string, placeId: string, name: string, description: string | null, placement: unknown): string {
+  const payload = canonicalJsonStringify({ expectedCampaignId, placeId, name, description, placement });
+  return `create_place:v2:${payload}`;
+}
+
+export function updatePlaceFingerprint(expectedCampaignId: string, placeId: string, fields: Record<string, unknown>): string {
+  const fieldsCanonical = canonicalJsonStringify(fields);
+  return `update_place:v2:campaign=${expectedCampaignId}:place=${placeId}:fields=${fieldsCanonical}`;
+}
+
+export function setWizardHomeIsleFingerprint(
+  expectedCampaignId: string,
+  wizardId: string,
+  change: { expected: string | null; value: string | null },
+): string {
+  const payload = canonicalJsonStringify({ expectedCampaignId, wizardId, change });
+  return `set_wizard_home_isle:v2:${payload}`;
+}
+
+export function setWizardSanctumFingerprint(
+  expectedCampaignId: string,
+  wizardId: string,
+  change: { expected: string | null; value: string | null },
+): string {
+  const payload = canonicalJsonStringify({ expectedCampaignId, wizardId, change });
+  return `set_wizard_sanctum:v2:${payload}`;
+}
+
+export function setWizardCompanionFingerprint(input: {
+  expectedCampaignId: string;
+  wizardId: string;
+  element: string;
+  expectedCurrentRelationshipId: string | null;
+  newRelationship: {
+    companionRelationshipId: string;
+    denizenId: string;
+    description: string | null;
+  } | null;
+}): string {
+  const payload = canonicalJsonStringify(input);
+  return `set_wizard_companion:v2:${payload}`;
+}
+
+export function updateCompanionDescriptionFingerprint(input: {
+  expectedCampaignId: string;
+  companionRelationshipId: string;
+  expectedStatus: string;
+  description: { expected: string | null; value: string | null };
+}): string {
+  const payload = canonicalJsonStringify(input);
+  return `update_companion_description:v2:${payload}`;
+}
+
 /**
  * Pure deterministic idempotency match for command replay.
  * Given a previously committed command record and an incoming attempt,

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createElement, useMemo, Component, type ReactNode } from "react";
+import { createElement, useMemo, Component, type ReactNode, type ReactElement } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import WizardCharacterSheet from "../src/WizardCharacterSheet";
@@ -26,6 +26,21 @@ function renderSheet(props: {
   onClose?: () => void;
   pending?: boolean;
   error?: string | null;
+  homeIsleId?: string | null;
+  sanctumPlaceId?: string | null;
+  worldRef?: unknown;
+  onSetHomeIsle?: (change: { expected: string | null; value: string | null }) => Promise<void>;
+  onSetSanctum?: (change: { expected: string | null; value: string | null }) => Promise<void>;
+  onSetCompanion?: (change: {
+    element: "air" | "fire" | "earth" | "water";
+    expectedCurrentRelationshipId: string | null;
+    newRelationship: null | { denizenId: string; description: string | null };
+  }) => Promise<void>;
+  onUpdateCompanionDescription?: (change: {
+    companionRelationshipId: string;
+    expectedStatus: "current";
+    description: { expected: string | null; value: string | null };
+  }) => Promise<void>;
 }) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -35,6 +50,13 @@ function renderSheet(props: {
   let currentOnClose = props.onClose ?? (() => {});
   let currentPending = props.pending ?? false;
   let currentError = props.error ?? null;
+  let currentHomeIsleId = props.homeIsleId ?? null;
+  let currentSanctumPlaceId = props.sanctumPlaceId ?? null;
+  let currentWorldRef = props.worldRef;
+  let currentOnSetHomeIsle = props.onSetHomeIsle;
+  let currentOnSetSanctum = props.onSetSanctum;
+  let currentOnSetCompanion = props.onSetCompanion;
+  let currentOnUpdateCompanionDescription = props.onUpdateCompanionDescription;
 
   const rerender = (next: {
     character?: WizardCharacterData;
@@ -59,6 +81,13 @@ function renderSheet(props: {
             error: currentError,
             onSave: currentOnSave,
             onClose: currentOnClose,
+            homeIsleId: currentHomeIsleId,
+            sanctumPlaceId: currentSanctumPlaceId,
+            worldRef: currentWorldRef as any,
+            onSetHomeIsle: currentOnSetHomeIsle as any,
+            onSetSanctum: currentOnSetSanctum as any,
+            onSetCompanion: currentOnSetCompanion as any,
+            onUpdateCompanionDescription: currentOnUpdateCompanionDescription as any,
           }),
         ),
       );
@@ -78,6 +107,13 @@ function renderSheet(props: {
           error: currentError,
           onSave: currentOnSave,
           onClose: currentOnClose,
+          homeIsleId: currentHomeIsleId,
+          sanctumPlaceId: currentSanctumPlaceId,
+          worldRef: currentWorldRef as any,
+          onSetHomeIsle: currentOnSetHomeIsle as any,
+          onSetSanctum: currentOnSetSanctum as any,
+          onSetCompanion: currentOnSetCompanion as any,
+          onUpdateCompanionDescription: currentOnUpdateCompanionDescription as any,
         }),
       ),
     );
@@ -260,6 +296,192 @@ describe("WizardCharacterSheet reactive sync", () => {
     expect(h2).not.toBeNull();
     expect(h2!.textContent).toContain("Test Wizard");
     expect(h2!.textContent).toContain("Character Sheet");
+
+    unmount();
+  });
+
+  it("advances Home Isle baseline after a successful save so the next save uses the new expected value", async () => {
+    const ISLE_A_ID = "isle_a";
+    const ISLE_B_ID = "isle_b";
+    const worldRef = {
+      denizens: [],
+      isles: [
+        { isleId: ISLE_A_ID, name: "Isle A", description: null },
+        { isleId: ISLE_B_ID, name: "Isle B", description: null },
+      ],
+      places: [],
+    };
+
+    const calls: { expected: string | null; value: string | null }[] = [];
+    const onSetHomeIsle = vi.fn(async (change: { expected: string | null; value: string | null }) => {
+      calls.push(change);
+    });
+    const onSetSanctum = vi.fn(async (_change: { expected: string | null; value: string | null }) => {});
+
+    const { container, unmount } = renderSheet({
+      character: { ...BLANK_WIZARD_CHARACTER },
+      homeIsleId: null,
+      worldRef,
+      onSetHomeIsle,
+      onSetSanctum,
+    });
+
+    // Helper: find the Home Isle select
+    const getHomeIsleSelect = (): HTMLSelectElement | null => {
+      const labels = container.querySelectorAll("label");
+      for (const l of labels) {
+        if (l.textContent?.trim() === "Home Isle") {
+          const sel = l.parentElement?.querySelector("select");
+          if (sel) return sel as HTMLSelectElement;
+        }
+      }
+      return null;
+    };
+
+    // Helper: find the "Save Home Isle" button
+    const getSaveHomeIsleButton = (): HTMLButtonElement | null => {
+      const buttons = container.querySelectorAll("button");
+      for (const b of buttons) {
+        if (b.textContent === "Save Home Isle") return b as HTMLButtonElement;
+      }
+      return null;
+    };
+
+    // 1. Select Isle A
+    const select1 = getHomeIsleSelect();
+    expect(select1).not.toBeNull();
+    select1!.value = ISLE_A_ID;
+    select1!.dispatchEvent(new Event("change", { bubbles: true }));
+    flushSync(() => {});
+
+    // 2. Save Home Isle
+    const btn1 = getSaveHomeIsleButton();
+    expect(btn1).not.toBeNull();
+    btn1!.click();
+    await vi.runAllTimersAsync();
+    flushSync(() => {});
+
+    // 3. Select Isle B
+    const select2 = getHomeIsleSelect();
+    select2!.value = ISLE_B_ID;
+    select2!.dispatchEvent(new Event("change", { bubbles: true }));
+    flushSync(() => {});
+
+    // 4. Save Home Isle
+    const btn2 = getSaveHomeIsleButton();
+    btn2!.click();
+    await vi.runAllTimersAsync();
+    flushSync(() => {});
+
+    expect(calls).toEqual([
+      { expected: null, value: ISLE_A_ID },
+      { expected: ISLE_A_ID, value: ISLE_B_ID },
+    ]);
+
+    unmount();
+  });
+
+  it("Companion Set/Replace/End/Edit controls and assignment callback", async () => {
+    const ASH_ID = "den_a";
+    const BROOK_ID = "den_b";
+    const worldRef = {
+      denizens: [
+        { denizenId: ASH_ID, name: "Ash", representation: "individual", description: null },
+        { denizenId: BROOK_ID, name: "Brook", representation: "individual", description: null },
+      ],
+      isles: [],
+      places: [],
+      companionRelationships: [
+        { companionRelationshipId: "rel_1", wizardId: "wiz_1", element: "air", denizenId: ASH_ID, description: "Air pal", status: "current" },
+      ],
+    };
+
+    const companionCalls: any[] = [];
+    const onSetCompanion = vi.fn(async (change: any) => {
+      companionCalls.push(change);
+    });
+    const onUpdateCompanionDescription = vi.fn(async (_change: any) => {});
+    const onSetHomeIsle = vi.fn(async (_c: any) => {});
+    const onSetSanctum = vi.fn(async (_c: any) => {});
+
+    const { container, unmount } = renderSheet({
+      character: { ...BLANK_WIZARD_CHARACTER },
+      worldRef,
+      onSetHomeIsle,
+      onSetSanctum,
+      onSetCompanion,
+      onUpdateCompanionDescription,
+    });
+
+    // Air slot should have Replace / Edit Description / End buttons
+    const buttons = container.querySelectorAll("button");
+    let hasReplace = false;
+    let hasEditDesc = false;
+    let hasEnd = false;
+    let hasSetEarth = false;
+    for (const b of buttons) {
+      if (b.textContent === "Replace Companion") hasReplace = true;
+      if (b.textContent === "Edit Description") hasEditDesc = true;
+      if (b.textContent === "End Companion") hasEnd = true;
+      if (b.textContent === "Set Companion") hasSetEarth = true;
+    }
+    expect(hasReplace).toBe(true);
+    expect(hasEditDesc).toBe(true);
+    expect(hasEnd).toBe(true);
+    expect(hasSetEarth).toBe(true);
+
+    // Click "Set Companion" for the empty Earth slot (2nd Set Companion button: Fire is 1st empty, Earth is 2nd)
+    let setBtn: HTMLButtonElement | null = null;
+    let setCount = 0;
+    for (const b of buttons) {
+      if (b.textContent === "Set Companion") {
+        setCount++;
+        if (setCount === 2) { setBtn = b as HTMLButtonElement; break; }
+      }
+    }
+    expect(setBtn).not.toBeNull();
+    setBtn!.click();
+    flushSync(() => {});
+
+    // Select Brook in the denizen select
+    const selects = container.querySelectorAll("select");
+    let denizenSelect: HTMLSelectElement | null = null;
+    for (const s of selects) {
+      if (s.querySelector('option[value="' + BROOK_ID + '"]')) {
+        denizenSelect = s as HTMLSelectElement;
+        break;
+      }
+    }
+    expect(denizenSelect).not.toBeNull();
+    const selectSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set;
+    if (selectSetter) selectSetter.call(denizenSelect!, BROOK_ID);
+    denizenSelect!.dispatchEvent(new Event("change", { bubbles: true }));
+    flushSync(() => {});
+
+    // Click the Set Companion submit button in the editor (inside the assignment editor div)
+    const editorDivs = container.querySelectorAll("[class*=\"border-slate-300\"]");
+    let saveBtn: HTMLButtonElement | null = null;
+    for (const ed of editorDivs) {
+      const btn = ed.querySelector("button");
+      if (btn && (btn.textContent === "Set Companion" || btn.textContent === "Replace Companion")) {
+        saveBtn = btn as HTMLButtonElement;
+        break;
+      }
+    }
+    expect(saveBtn).not.toBeNull();
+    saveBtn!.click();
+    await vi.runAllTimersAsync();
+    flushSync(() => {});
+
+    expect(companionCalls).toHaveLength(1);
+    expect(companionCalls[0]).toEqual({
+      element: "earth",
+      expectedCurrentRelationshipId: null,
+      newRelationship: {
+        denizenId: BROOK_ID,
+        description: null,
+      },
+    });
 
     unmount();
   });

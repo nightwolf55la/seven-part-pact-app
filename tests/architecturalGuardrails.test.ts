@@ -13,7 +13,7 @@ import {
   SEVEN_PART_PACT_DRAFT4_VERSION,
 } from "../shared/domain";
 import type { PersistableCampaignState } from "../shared/domain";
-import type { CampaignStateV4 } from "../shared/domain/campaign-state";
+import type { CampaignStateV5 } from "../shared/domain/campaign-state";
 
 // ==========================================================================
 // A. Full-state equality guardrails
@@ -106,7 +106,13 @@ describe("assertPortableCampaignState: validates without transforming", () => {
     },
     lifecycle: { kind: "setup", orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } },
     wizardmootHistory: [],
-  } as unknown as CampaignStateV4;
+    world: {
+      denizens: [],
+      isles: [],
+      places: [],
+      companionRelationships: [],
+    },
+  } as unknown as CampaignStateV5;
 
   it("returns the same object reference (no copy/transform)", () => {
     const result = assertPortableCampaignState(validState);
@@ -123,7 +129,7 @@ describe("assertPortableCampaignState: validates without transforming", () => {
         elementalist: { power: 8, domain: "fire" },
       },
       resources: [{ type: "sulfur", quantity: 5 }],
-    } as unknown as CampaignStateV4;
+    } as unknown as CampaignStateV5;
     const result = assertPortableCampaignState(stateWithFuture);
     expect(result).toBe(stateWithFuture);
     expect((result as any).wizards.necromancer.power).toBe(10);
@@ -136,7 +142,7 @@ describe("assertPortableCampaignState: validates without transforming", () => {
       ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
       calendar: { monthOrdinal: 0 },
       future: undefined,
-    } as unknown as CampaignStateV4;
+    } as unknown as CampaignStateV5;
     expect(() => assertPortableCampaignState(badState)).toThrow(CanonicalJsonError);
   });
 
@@ -146,7 +152,7 @@ describe("assertPortableCampaignState: validates without transforming", () => {
       ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
       calendar: { monthOrdinal: 0 },
       items: [1, undefined, 3],
-    } as unknown as CampaignStateV4;
+    } as unknown as CampaignStateV5;
     expect(() => assertPortableCampaignState(badState)).toThrow(CanonicalJsonError);
   });
 
@@ -156,7 +162,7 @@ describe("assertPortableCampaignState: validates without transforming", () => {
       ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
       calendar: { monthOrdinal: 0 },
       power: Infinity,
-    } as unknown as CampaignStateV4;
+    } as unknown as CampaignStateV5;
     expect(() => assertPortableCampaignState(badState)).toThrow(CanonicalJsonError);
   });
 });
@@ -239,7 +245,7 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
     // assignment would still work. But if it were missing the calendar field
     // entirely, this would fail. The key guard is the next test.
     const ps: PersistableCampaignState = {
-      schemaVersion: 4,
+      schemaVersion: CURRENT_STATE_SCHEMA_VERSION,
       ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: 1 },
       calendar: { monthOrdinal: 5 },
       configuration: { ageId: null, facilitatorPlayerId: null },
@@ -256,18 +262,20 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
       },
       lifecycle: { kind: "setup", orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } },
       wizardmootHistory: [],
+      world: {
+        denizens: [],
+        isles: [],
+        places: [],
+        companionRelationships: [],
+      },
     };
     expect(ps.calendar.monthOrdinal).toBe(5);
     expect(typeof ps.calendar.monthOrdinal).toBe("number");
   });
 
-  it("a CampaignStateV4 is assignable to PersistableCampaignState (structural compatibility)", () => {
-    // CampaignStateV4 has branded MonthOrdinal; PersistableCampaignState has
-    // plain number. If DeepUnbrand works correctly, CampaignStateV4 should be
-    // assignable to PersistableCampaignState because branded number is a
-    // subtype of number.
-    const state: CampaignStateV4 = {
-      schemaVersion: 4,
+  it("a CampaignStateV5 is assignable to PersistableCampaignState (structural compatibility)", () => {
+    const state: CampaignStateV5 = {
+      schemaVersion: 5,
       ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: 1 },
       calendar: { monthOrdinal: 5 as any },
       configuration: { ageId: null, facilitatorPlayerId: null },
@@ -284,8 +292,14 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
       },
       lifecycle: { kind: "setup", orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } } as any,
       wizardmootHistory: [],
+      world: {
+        denizens: [],
+        isles: [],
+        places: [],
+        companionRelationships: [],
+      },
     };
     const ps: PersistableCampaignState = state;
-    expect(ps.schemaVersion).toBe(4);
+    expect(ps.schemaVersion).toBe(5);
   });
 });

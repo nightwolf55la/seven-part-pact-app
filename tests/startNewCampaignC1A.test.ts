@@ -22,7 +22,7 @@ describe("C1A: initialCampaignState produces exact V3 incomplete Setup", () => {
 
   it("is schema version 4", () => {
     expect(state.schemaVersion).toBe(CURRENT_STATE_SCHEMA_VERSION);
-    expect(state.schemaVersion).toBe(4);
+    expect(state.schemaVersion).toBe(5);
   });
 
   it("uses correct ruleset", () => {

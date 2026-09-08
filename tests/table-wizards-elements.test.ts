@@ -32,6 +32,8 @@ describe("buildTableWizardsRows element display", () => {
         name: "Zoltan",
         portrayedByPlayerId: "plr_1",
         character: { ...BLANK_CHARACTER, elements: { air: 3, fire: 1, earth: 2, water: 2 } },
+        homeIsleId: null,
+        sanctumPlaceId: null,
       },
     ];
     const seats = emptySeats();
@@ -48,6 +50,8 @@ describe("buildTableWizardsRows element display", () => {
         name: "Zoltan",
         portrayedByPlayerId: "plr_1",
         character: { ...BLANK_CHARACTER, elements: { air: -1, fire: 5, earth: 0, water: -3 } },
+        homeIsleId: null,
+        sanctumPlaceId: null,
       },
     ];
     const seats = emptySeats();
@@ -64,6 +68,8 @@ describe("buildTableWizardsRows element display", () => {
         name: "Zoltan",
         portrayedByPlayerId: "plr_1",
         character: BLANK_CHARACTER,
+        homeIsleId: null,
+        sanctumPlaceId: null,
       },
     ];
     const seats = emptySeats();

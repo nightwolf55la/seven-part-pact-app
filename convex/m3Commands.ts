@@ -68,8 +68,32 @@ import {
   applyCompleteMeeting,
   applyBeginNextMonth,
   beginNextMonthFingerprint,
+  isValidDenizenId,
+  isValidCompanionRelationshipId,
+  createDenizenFingerprint,
+  updateDenizenFingerprint,
+  isValidIsleId,
+  createIsleFingerprint,
+  updateIsleFingerprint,
+  isValidPlaceId,
+  createPlaceFingerprint,
+  updatePlaceFingerprint,
+  setWizardHomeIsleFingerprint,
+  setWizardSanctumFingerprint,
+  setWizardCompanionFingerprint,
+  updateCompanionDescriptionFingerprint,
+  applyCreateDenizenV5Candidate,
+  applyUpdateDenizenV5Candidate,
+  applyCreateIsleV5Candidate,
+  applyUpdateIsleV5Candidate,
+  applyCreatePlaceV5Candidate,
+  applyUpdatePlaceV5Candidate,
+  applySetWizardHomeIsleV5Candidate,
+  applySetWizardSanctumV5Candidate,
+  applySetWizardCompanionV5Candidate,
+  applyUpdateCompanionDescriptionV5Candidate,
 } from "../shared/domain";
-import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection } from "../shared/domain";
+import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange, CompanionRelationshipId } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
 import type { WizardInitIds } from "../shared/domain/begin-play";
 import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
@@ -79,6 +103,7 @@ import type { AgeDefinitionId } from "../shared/domain/ages";
 import { isValidAgeDefinitionId } from "../shared/domain/ages";
 import { loadHistoricalState } from "../shared/domain/state-migration";
 import { matchCommandIdempotency } from "../shared/domain/command-ids";
+import { isValidCampaignId } from "../shared/domain";
 import { canonicalCommit } from "./canonicalCommit";
 import type { CanonicalCommitInput, CanonicalCommitReceipt } from "./canonicalCommit";
 import type { Id } from "./_generated/dataModel";
@@ -91,6 +116,27 @@ interface CanonicalCampaign {
   campaignId: string;
   currentRevision: number;
   currentState: CurrentCampaignState;
+}
+
+function validateM5ExpectedCampaignId(expectedCampaignId: string): void {
+  if (!isValidCampaignId(expectedCampaignId)) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Invalid expectedCampaignId: ${expectedCampaignId}`,
+    );
+  }
+}
+
+export function assertM5ExpectedCampaignIdMatches(
+  expectedCampaignId: string,
+  actualCampaignId: string,
+): void {
+  if (expectedCampaignId !== actualCampaignId) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      `Expected campaign "${expectedCampaignId}" but current campaign is "${actualCampaignId}"`,
+    );
+  }
 }
 
 async function loadCanonicalV2ForMutation(ctx: MutationCtx): Promise<CanonicalCampaign> {
@@ -647,6 +693,7 @@ export const setEngagementTarget = mutation({
       v.object({ kind: v.literal("self") }),
       v.object({ kind: v.literal("familiar") }),
       v.object({ kind: v.literal("named_character"), name: v.string() }),
+      v.object({ kind: v.literal("denizen"), denizenId: v.string() }),
       v.null(),
     ),
   },
@@ -918,6 +965,7 @@ export const rescheduleEngagement = mutation({
       v.object({ kind: v.literal("self") }),
       v.object({ kind: v.literal("familiar") }),
       v.object({ kind: v.literal("named_character"), name: v.string() }),
+      v.object({ kind: v.literal("denizen"), denizenId: v.string() }),
     ),
   },
   handler: async (ctx, args) => {
@@ -1049,14 +1097,6 @@ export const updateWizardCharacter = mutation({
       ageYears: v.optional(v.union(v.number(), v.null())),
       publicChangesOfMagic: v.optional(v.array(v.string())),
       importantNotes: v.optional(v.union(v.string(), v.null())),
-      companionDescriptions: v.optional(
-        v.object({
-          air: v.union(v.string(), v.null()),
-          fire: v.union(v.string(), v.null()),
-          earth: v.union(v.string(), v.null()),
-          water: v.union(v.string(), v.null()),
-        }),
-      ),
     }),
   },
   handler: async (ctx, args) => {
@@ -1125,6 +1165,381 @@ export const beginNextMonth = mutation({
     }
 
     const receipt = await commitM3Command(ctx, args.commandId, "begin_next_month", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+// ============================================================
+// M5: Shared World — Denizen commands
+// ============================================================
+
+export const createDenizen = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    name: v.string(),
+    representation: v.union(v.literal("individual"), v.literal("collective")),
+    description: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
+    if (!isValidDenizenId(args.denizenId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
+    }
+    const fingerprint = createDenizenFingerprint(args.expectedCampaignId, args.denizenId, args.name, args.representation, args.description);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "create_denizen", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applyCreateDenizenV5Candidate(campaign.currentState, {
+      denizenId: args.denizenId as DenizenId,
+      name: args.name,
+      representation: args.representation,
+      description: args.description,
+    });
+    const receipt = await commitM3Command(ctx, args.commandId, "create_denizen", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+export const updateDenizen = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    fields: v.object({
+      name: v.optional(v.object({ expected: v.string(), value: v.string() })),
+      representation: v.optional(v.object({
+        expected: v.union(v.literal("individual"), v.literal("collective")),
+        value: v.union(v.literal("individual"), v.literal("collective")),
+      })),
+      description: v.optional(v.object({
+        expected: v.union(v.string(), v.null()),
+        value: v.union(v.string(), v.null()),
+      })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
+    if (!isValidDenizenId(args.denizenId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
+    }
+    const fingerprint = updateDenizenFingerprint(args.expectedCampaignId, args.denizenId, args.fields);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "update_denizen", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applyUpdateDenizenV5Candidate(campaign.currentState, args.denizenId as DenizenId, args.fields);
+    const receipt = await commitM3Command(ctx, args.commandId, "update_denizen", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+// ============================================================
+// M5: Shared World — Isle commands
+// ============================================================
+
+export const createIsle = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    isleId: v.string(),
+    name: v.string(),
+    description: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
+    if (!isValidIsleId(args.isleId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid isleId: ${args.isleId}`);
+    }
+    const fingerprint = createIsleFingerprint(args.expectedCampaignId, args.isleId, args.name, args.description);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "create_isle", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applyCreateIsleV5Candidate(campaign.currentState, {
+      isleId: args.isleId as IsleId,
+      name: args.name,
+      description: args.description,
+    });
+    const receipt = await commitM3Command(ctx, args.commandId, "create_isle", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+export const updateIsle = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    isleId: v.string(),
+    fields: v.object({
+      name: v.optional(v.object({ expected: v.string(), value: v.string() })),
+      description: v.optional(v.object({
+        expected: v.union(v.string(), v.null()),
+        value: v.union(v.string(), v.null()),
+      })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
+    if (!isValidIsleId(args.isleId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid isleId: ${args.isleId}`);
+    }
+    const fingerprint = updateIsleFingerprint(args.expectedCampaignId, args.isleId, args.fields);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "update_isle", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applyUpdateIsleV5Candidate(campaign.currentState, args.isleId as IsleId, args.fields);
+    const receipt = await commitM3Command(ctx, args.commandId, "update_isle", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+// ============================================================
+// M5: Shared World — Place commands
+// ============================================================
+
+const placePlacementArgValidator = v.union(
+  v.object({ kind: v.literal("unspecified") }),
+  v.object({ kind: v.literal("on_isle"), isleId: v.string() }),
+  v.object({ kind: v.literal("mobile"), associatedIsleId: v.union(v.string(), v.null()) }),
+);
+
+export const createPlace = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    placeId: v.string(),
+    name: v.string(),
+    description: v.union(v.string(), v.null()),
+    placement: placePlacementArgValidator,
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
+    if (!isValidPlaceId(args.placeId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid placeId: ${args.placeId}`);
+    }
+    const fingerprint = createPlaceFingerprint(args.expectedCampaignId, args.placeId, args.name, args.description, args.placement);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "create_place", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applyCreatePlaceV5Candidate(campaign.currentState, {
+      placeId: args.placeId as PlaceId,
+      name: args.name,
+      description: args.description,
+      placement: args.placement as WorldPlacePlacement,
+    });
+    const receipt = await commitM3Command(ctx, args.commandId, "create_place", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+export const updatePlace = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    placeId: v.string(),
+    fields: v.object({
+      name: v.optional(v.object({ expected: v.string(), value: v.string() })),
+      description: v.optional(v.object({
+        expected: v.union(v.string(), v.null()),
+        value: v.union(v.string(), v.null()),
+      })),
+      placement: v.optional(v.object({
+        expected: placePlacementArgValidator,
+        value: placePlacementArgValidator,
+      })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
+    if (!isValidPlaceId(args.placeId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid placeId: ${args.placeId}`);
+    }
+    const fingerprint = updatePlaceFingerprint(args.expectedCampaignId, args.placeId, args.fields);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "update_place", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applyUpdatePlaceV5Candidate(campaign.currentState, args.placeId as PlaceId, args.fields as UpdatePlaceFields);
+    const receipt = await commitM3Command(ctx, args.commandId, "update_place", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+// ============================================================
+// M5: Wizard World Association commands
+// ============================================================
+
+export const setWizardHomeIsle = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    wizardId: v.string(),
+    change: v.object({
+      expected: v.union(v.string(), v.null()),
+      value: v.union(v.string(), v.null()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
+    if (!isValidWizardId(args.wizardId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
+    }
+    const fingerprint = setWizardHomeIsleFingerprint(args.expectedCampaignId, args.wizardId, args.change);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "set_wizard_home_isle", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applySetWizardHomeIsleV5Candidate(
+      campaign.currentState,
+      args.wizardId as WizardId,
+      args.change as ExpectedFieldChange<IsleId | null>,
+    );
+    const receipt = await commitM3Command(ctx, args.commandId, "set_wizard_home_isle", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+export const setWizardSanctum = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    wizardId: v.string(),
+    change: v.object({
+      expected: v.union(v.string(), v.null()),
+      value: v.union(v.string(), v.null()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
+    if (!isValidWizardId(args.wizardId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
+    }
+    const fingerprint = setWizardSanctumFingerprint(args.expectedCampaignId, args.wizardId, args.change);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "set_wizard_sanctum", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applySetWizardSanctumV5Candidate(
+      campaign.currentState,
+      args.wizardId as WizardId,
+      args.change as ExpectedFieldChange<PlaceId | null>,
+    );
+    const receipt = await commitM3Command(ctx, args.commandId, "set_wizard_sanctum", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+export const setWizardCompanion = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    wizardId: v.string(),
+    element: v.union(
+      v.literal("air"),
+      v.literal("fire"),
+      v.literal("earth"),
+      v.literal("water"),
+    ),
+    expectedCurrentRelationshipId: v.union(v.string(), v.null()),
+    newRelationship: v.union(
+      v.null(),
+      v.object({
+        companionRelationshipId: v.string(),
+        denizenId: v.string(),
+        description: v.union(v.string(), v.null()),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
+    if (!isValidWizardId(args.wizardId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
+    }
+    const fingerprint = setWizardCompanionFingerprint({
+      expectedCampaignId: args.expectedCampaignId,
+      wizardId: args.wizardId,
+      element: args.element,
+      expectedCurrentRelationshipId: args.expectedCurrentRelationshipId,
+      newRelationship: args.newRelationship,
+    });
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "set_wizard_companion", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applySetWizardCompanionV5Candidate(campaign.currentState, {
+      wizardId: args.wizardId as WizardId,
+      element: args.element,
+      expectedCurrentRelationshipId: args.expectedCurrentRelationshipId as CompanionRelationshipId | null,
+      newRelationship: args.newRelationship === null
+        ? null
+        : {
+            companionRelationshipId: args.newRelationship.companionRelationshipId as CompanionRelationshipId,
+            denizenId: args.newRelationship.denizenId as DenizenId,
+            description: args.newRelationship.description,
+          },
+    });
+    const receipt = await commitM3Command(ctx, args.commandId, "set_wizard_companion", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+export const updateCompanionDescription = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    companionRelationshipId: v.string(),
+    expectedStatus: v.union(v.literal("current"), v.literal("ended")),
+    description: v.object({
+      expected: v.union(v.string(), v.null()),
+      value: v.union(v.string(), v.null()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
+    if (!isValidCompanionRelationshipId(args.companionRelationshipId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid companionRelationshipId: ${args.companionRelationshipId}`);
+    }
+    const fingerprint = updateCompanionDescriptionFingerprint({
+      expectedCampaignId: args.expectedCampaignId,
+      companionRelationshipId: args.companionRelationshipId,
+      expectedStatus: args.expectedStatus,
+      description: args.description,
+    });
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "update_companion_description", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applyUpdateCompanionDescriptionV5Candidate(campaign.currentState, {
+      companionRelationshipId: args.companionRelationshipId as CompanionRelationshipId,
+      expectedStatus: args.expectedStatus,
+      description: args.description,
+    });
+    const receipt = await commitM3Command(ctx, args.commandId, "update_companion_description", fingerprint, campaign, result);
     return { revision: receipt.newRevision };
   },
 });

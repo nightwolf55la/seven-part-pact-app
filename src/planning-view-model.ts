@@ -1,6 +1,6 @@
 import type { TimeDestination } from "../shared/domain/time-model";
 import type { EngagementTarget } from "../shared/domain/engagement";
-import type { WizardId } from "../shared/domain/ids";
+import type { WizardId, DenizenId } from "../shared/domain/ids";
 
 // --- Read-model types (mirrors the Convex query return shape) ---
 
@@ -109,6 +109,7 @@ export function destinationLabel(
 export function engagementTargetLabel(
   target: EngagementTarget | null,
   data?: WorkspaceDataLike,
+  denizens?: readonly { denizenId: string; name: string }[] | null,
 ): string {
   if (target === null) return "Not targeted";
   switch (target.kind) {
@@ -120,6 +121,10 @@ export function engagementTargetLabel(
       return "Familiar";
     case "named_character":
       return `Named character: ${target.name}`;
+    case "denizen": {
+      const found = denizens?.find((d) => d.denizenId === target.denizenId);
+      return `Denizen: ${found ? found.name : target.denizenId}`;
+    }
   }
 }
 
@@ -201,6 +206,7 @@ export type TargetChoice =
   | "self"
   | "familiar"
   | "wizard"
+  | "denizen"
   | "named_character";
 
 export function buildEngagementTarget(
@@ -217,6 +223,9 @@ export function buildEngagementTarget(
     case "wizard":
       if (text.trim().length === 0) return null;
       return { kind: "wizard", wizardId: text as WizardId };
+    case "denizen":
+      if (text.trim().length === 0) return null;
+      return { kind: "denizen", denizenId: text as DenizenId };
     case "named_character":
       if (text.trim().length === 0) return null;
       return { kind: "named_character", name: text };

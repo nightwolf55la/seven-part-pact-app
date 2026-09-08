@@ -20,7 +20,7 @@ import type {
   WatcherAssignmentChangedEventV1,
   SetupMonthChangedEventV1,
   SetupOrreryPositionChangedEventV1,
-  WizardCharacterUpdatedEventV1,
+  WizardCharacterUpdatedEventV2,
 } from "./events";
 import { PACT_SEAT_IDS, isValidPactSeatId } from "./pact-seats";
 import { isValidAgeDefinitionId } from "./ages";
@@ -264,6 +264,8 @@ export function applyCreateWizard(
     name: trimmedName,
     portrayedByPlayerId,
     character: { ...BLANK_WIZARD_CHARACTER, publicChangesOfMagic: [] },
+    homeIsleId: null,
+    sanctumPlaceId: null,
   };
   const nextState: CurrentCampaignState = {
     ...state,
@@ -594,9 +596,9 @@ export function applyUpdateWizardCharacter(
     ),
   };
 
-  const event: WizardCharacterUpdatedEventV1 = {
+  const event: WizardCharacterUpdatedEventV2 = {
     type: "wizard_character_updated",
-    version: 1,
+    version: 2,
     data: { wizardId, previousCharacter, newCharacter },
   };
 

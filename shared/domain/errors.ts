@@ -23,7 +23,8 @@ export type DomainErrorCode =
   | "CAMPAIGN_DELETION_CONFIRMATION_FAILED"
   | "CAMPAIGN_ALREADY_EXISTS"
   | "CAMPAIGN_GRAPH_NOT_EMPTY"
-  | "UNSUPPORTED_LEGACY_STATE";
+  | "UNSUPPORTED_LEGACY_STATE"
+  | "STALE_COMMAND_PRECONDITION";
 
 export class DomainError extends Error {
   public readonly code: DomainErrorCode;

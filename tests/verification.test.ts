@@ -47,6 +47,7 @@ function makeState(monthOrdinal: number): CurrentCampaignState {
       currentMonth: { timeParticipants: [], engagements: [], wizardmootAttendance: null },
     },
     wizardmootHistory: [],
+    world: { denizens: [], isles: [], places: [], companionRelationships: [] },
   };
 }
 
@@ -134,7 +135,7 @@ describe("historical snapshot loading uses loadSnapshotState (V1/V2 regression)"
 describe("verifyBackupImportRevisionStructure with V1 historical snapshot", () => {
   it("accepts a valid V1 result snapshot in backup_import history", () => {
     const v1Snapshot = {
-      schemaVersion: 4 as const,
+      schemaVersion: 5 as const,
       ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
       calendar: { monthOrdinal: 5 },
       configuration: { ageId: null, facilitatorPlayerId: null },
@@ -151,6 +152,7 @@ describe("verifyBackupImportRevisionStructure with V1 historical snapshot", () =
       },
       lifecycle: { kind: "setup" as const, orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } },
       wizardmootHistory: [],
+      world: { denizens: [], isles: [], places: [], companionRelationships: [] },
     };
 
     const payloadDigest = "a".repeat(64);

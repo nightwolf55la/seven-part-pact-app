@@ -121,6 +121,12 @@ function makeState(): CurrentCampaignState {
       currentMonth: { timeParticipants: [], engagements: [], wizardmootAttendance: null },
     },
     wizardmootHistory: [],
+    world: {
+      denizens: [],
+      isles: [],
+      places: [],
+      companionRelationships: [],
+    },
   };
 }
 
@@ -172,8 +178,8 @@ function assertDomainError(fn: () => unknown, code: string): void {
 }
 
 describe("validateEventCoherence — update_wizard_character", () => {
-  it("valid: update_wizard_character + exactly one wizard_character_updated v1 + logical_state_append does not throw", () => {
-    const evt = makeWizardCharacterUpdatedEvent();
+  it("valid: update_wizard_character + exactly one wizard_character_updated v2 + logical_state_append does not throw", () => {
+    const evt = makeWizardCharacterUpdatedEvent({ version: 2 });
     const input = makeInput([evt]);
     expect(() => validateEventCoherenceForTest(input, 11)).not.toThrow();
   });
@@ -195,8 +201,8 @@ describe("validateEventCoherence — update_wizard_character", () => {
     assertDomainError(() => validateEventCoherenceForTest(input, 11), "INVALID_CAMPAIGN_STATE");
   });
 
-  it("wizard_character_updated version 2 throws DomainError INVALID_CAMPAIGN_STATE", () => {
-    const evt = makeWizardCharacterUpdatedEvent({ version: 2 });
+  it("wizard_character_updated version 1 throws DomainError INVALID_CAMPAIGN_STATE", () => {
+    const evt = makeWizardCharacterUpdatedEvent({ version: 1 });
     const input = makeInput([evt]);
     assertDomainError(() => validateEventCoherenceForTest(input, 11), "INVALID_CAMPAIGN_STATE");
   });
