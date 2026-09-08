@@ -17,13 +17,6 @@ const ELEMENT_FIELDS: { key: "elementsAir" | "elementsFire" | "elementsEarth" | 
   { key: "elementsWater", label: "Water" },
 ];
 
-const COMPANION_FIELDS: { key: "companionAir" | "companionFire" | "companionEarth" | "companionWater"; label: string }[] = [
-  { key: "companionAir", label: "Air" },
-  { key: "companionFire", label: "Fire" },
-  { key: "companionEarth", label: "Earth" },
-  { key: "companionWater", label: "Water" },
-];
-
 export interface WizardCharacterSheetProps {
   readonly wizardId: string;
   readonly wizardName: string;
@@ -194,27 +187,6 @@ export default function WizardCharacterSheet({
               <p className="text-xs text-red-500">Age must be a non-negative integer or blank.</p>
             )}
           </div>
-
-          {/* Companion descriptions */}
-          <fieldset className="flex flex-col gap-2">
-            <legend className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-              Companion descriptions
-            </legend>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {COMPANION_FIELDS.map((f) => (
-                <div key={f.key} className="flex flex-col gap-1">
-                  <label className="text-xs text-slate-500 dark:text-slate-400">{f.label}</label>
-                  <input
-                    type="text"
-                    value={form[f.key]}
-                    onChange={(e) => updateField(f.key, e.target.value)}
-                    disabled={pending}
-                    className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-300"
-                  />
-                </div>
-              ))}
-            </div>
-          </fieldset>
 
           {/* Public Changes of Magic */}
           <div className="flex flex-col gap-1">

@@ -120,6 +120,8 @@ export function engagementTargetLabel(
       return "Familiar";
     case "named_character":
       return `Named character: ${target.name}`;
+    case "denizen":
+      return `Denizen: ${target.denizenId}`;
   }
 }
 

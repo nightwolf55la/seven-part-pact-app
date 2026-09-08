@@ -60,8 +60,9 @@ export const getCampaignSetup = query({
           ageYears: w.character.ageYears,
           publicChangesOfMagic: w.character.publicChangesOfMagic,
           importantNotes: w.character.importantNotes,
-          companionDescriptions: w.character.companionDescriptions,
         },
+        homeIsleId: w.homeIsleId as string | null,
+        sanctumPlaceId: w.sanctumPlaceId as string | null,
       })),
       pactSeats: Object.fromEntries(
         Object.entries(current.pactSeats).map(([seatId, seat]) => [
@@ -463,8 +464,9 @@ export const getPlayReference = query({
           ageYears: w.character.ageYears,
           publicChangesOfMagic: w.character.publicChangesOfMagic,
           importantNotes: w.character.importantNotes,
-          companionDescriptions: w.character.companionDescriptions,
         },
+        homeIsleId: w.homeIsleId as string | null,
+        sanctumPlaceId: w.sanctumPlaceId as string | null,
       })),
       pactSeats: Object.fromEntries(
         Object.entries(current.pactSeats).map(([seatId, seat]) => [

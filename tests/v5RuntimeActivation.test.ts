@@ -218,6 +218,7 @@ describe("V5 Runtime Activation", () => {
         denizens: [{ denizenId: D1, name: "Goblin", representation: "individual" as const, description: null }],
       },
     };
+    if (state.lifecycle.kind !== "play") throw new Error("Expected play lifecycle");
     const eng = state.lifecycle.currentMonth.engagements[0];
     expect(eng).toBeDefined();
     const result = applySetEngagementTarget(state, {

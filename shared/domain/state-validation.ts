@@ -144,7 +144,8 @@ function validatePlayersAndWizards(
     validateWizardCharacter(wizard, i, version);
 
     if (version >= 5) {
-      if ("companionDescriptions" in wizard.character) {
+      const character = wizard.character as Record<string, unknown>;
+      if ("companionDescriptions" in character) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `wizards[${i}].character must not contain retired companionDescriptions field`);
       }
       if (wizard.homeIsleId !== null) {
