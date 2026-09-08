@@ -43,6 +43,25 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "update_companion_description",
   "initialize_hierophant",
   "adjust_temple_resources",
+  "create_temple",
+  "update_temple",
+  "set_temple_holiday",
+  "add_supplicant",
+  "update_supplicant",
+  "remove_supplicant",
+  "add_prophet",
+  "update_prophet",
+  "remove_prophet",
+  "establish_cult",
+  "update_cult",
+  "remove_cult",
+  "add_cult_dogma",
+  "update_cult_dogma",
+  "remove_cult_dogma",
+  "create_campaign_class",
+  "update_campaign_class",
+  "create_campaign_doctrine",
+  "update_campaign_doctrine",
 ] as const;
 
 // Historical command types that may appear in persisted revision records but
@@ -100,6 +119,25 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "update_companion_description":
     case "initialize_hierophant":
     case "adjust_temple_resources":
+    case "create_temple":
+    case "update_temple":
+    case "set_temple_holiday":
+    case "add_supplicant":
+    case "update_supplicant":
+    case "remove_supplicant":
+    case "add_prophet":
+    case "update_prophet":
+    case "remove_prophet":
+    case "establish_cult":
+    case "update_cult":
+    case "remove_cult":
+    case "add_cult_dogma":
+    case "update_cult_dogma":
+    case "remove_cult_dogma":
+    case "create_campaign_class":
+    case "update_campaign_class":
+    case "create_campaign_doctrine":
+    case "update_campaign_doctrine":
     case "move_month":
     case "legacy_month_change":
       return true;

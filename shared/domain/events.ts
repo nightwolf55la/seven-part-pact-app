@@ -7,7 +7,16 @@ import type { EngagementTargetV4, EngagementTargetV5 } from "./engagement";
 import type { Denizen, Isle, WorldPlace, CompanionRelationship, ElementId } from "./shared-world";
 import type { DenizenId, IsleId, PlaceId, WizardId, CompanionRelationshipId } from "./ids";
 import type { HierophantFlameLawId, HierophantTempleId } from "./hierophant-catalogs";
-import type { HierophantTemple } from "./hierophant-state";
+import type {
+  HierophantCampaignClass,
+  HierophantCampaignDoctrine,
+  HierophantCult,
+  HierophantCultDogma,
+  HierophantDogmaEntryId,
+  HierophantProphet,
+  HierophantSupplicant,
+  HierophantTemple,
+} from "./hierophant-state";
 
 export interface UndoAppliedDataV1 {
   readonly fromRevision: number;
@@ -618,6 +627,189 @@ export interface TempleResourcesAdjustedEventV1 {
   readonly data: TempleResourcesAdjustedDataV1;
 }
 
+export interface TempleCreatedDataV1 {
+  readonly temple: HierophantTemple;
+}
+export interface TempleCreatedEventV1 {
+  readonly type: "temple_created";
+  readonly version: 1;
+  readonly data: TempleCreatedDataV1;
+}
+
+export interface TempleUpdatedDataV1 {
+  readonly previous: HierophantTemple;
+  readonly updated: HierophantTemple;
+}
+export interface TempleUpdatedEventV1 {
+  readonly type: "temple_updated";
+  readonly version: 1;
+  readonly data: TempleUpdatedDataV1;
+}
+
+export interface TempleHolidayChangedDataV1 {
+  readonly templeId: HierophantTempleId;
+  readonly previousMarked: boolean;
+  readonly newMarked: boolean;
+}
+export interface TempleHolidayChangedEventV1 {
+  readonly type: "temple_holiday_changed";
+  readonly version: 1;
+  readonly data: TempleHolidayChangedDataV1;
+}
+
+export interface SupplicantAddedDataV1 {
+  readonly supplicant: HierophantSupplicant;
+}
+export interface SupplicantAddedEventV1 {
+  readonly type: "supplicant_added";
+  readonly version: 1;
+  readonly data: SupplicantAddedDataV1;
+}
+
+export interface SupplicantUpdatedDataV1 {
+  readonly previous: HierophantSupplicant;
+  readonly updated: HierophantSupplicant;
+}
+export interface SupplicantUpdatedEventV1 {
+  readonly type: "supplicant_updated";
+  readonly version: 1;
+  readonly data: SupplicantUpdatedDataV1;
+}
+
+export interface SupplicantRemovedDataV1 {
+  readonly denizenId: DenizenId;
+}
+export interface SupplicantRemovedEventV1 {
+  readonly type: "supplicant_removed";
+  readonly version: 1;
+  readonly data: SupplicantRemovedDataV1;
+}
+
+export interface ProphetAddedDataV1 {
+  readonly prophet: HierophantProphet;
+}
+export interface ProphetAddedEventV1 {
+  readonly type: "prophet_added";
+  readonly version: 1;
+  readonly data: ProphetAddedDataV1;
+}
+
+export interface ProphetUpdatedDataV1 {
+  readonly previous: HierophantProphet;
+  readonly updated: HierophantProphet;
+}
+export interface ProphetUpdatedEventV1 {
+  readonly type: "prophet_updated";
+  readonly version: 1;
+  readonly data: ProphetUpdatedDataV1;
+}
+
+export interface ProphetRemovedDataV1 {
+  readonly denizenId: DenizenId;
+}
+export interface ProphetRemovedEventV1 {
+  readonly type: "prophet_removed";
+  readonly version: 1;
+  readonly data: ProphetRemovedDataV1;
+}
+
+export interface CultEstablishedDataV1 {
+  readonly cult: HierophantCult;
+}
+export interface CultEstablishedEventV1 {
+  readonly type: "cult_established";
+  readonly version: 1;
+  readonly data: CultEstablishedDataV1;
+}
+
+export interface CultUpdatedDataV1 {
+  readonly previous: HierophantCult;
+  readonly updated: HierophantCult;
+}
+export interface CultUpdatedEventV1 {
+  readonly type: "cult_updated";
+  readonly version: 1;
+  readonly data: CultUpdatedDataV1;
+}
+
+export interface CultRemovedDataV1 {
+  readonly cultDenizenId: DenizenId;
+}
+export interface CultRemovedEventV1 {
+  readonly type: "cult_removed";
+  readonly version: 1;
+  readonly data: CultRemovedDataV1;
+}
+
+export interface CultDogmaAddedDataV1 {
+  readonly cultDenizenId: DenizenId;
+  readonly dogma: HierophantCultDogma;
+}
+export interface CultDogmaAddedEventV1 {
+  readonly type: "cult_dogma_added";
+  readonly version: 1;
+  readonly data: CultDogmaAddedDataV1;
+}
+
+export interface CultDogmaUpdatedDataV1 {
+  readonly cultDenizenId: DenizenId;
+  readonly previous: HierophantCultDogma;
+  readonly updated: HierophantCultDogma;
+}
+export interface CultDogmaUpdatedEventV1 {
+  readonly type: "cult_dogma_updated";
+  readonly version: 1;
+  readonly data: CultDogmaUpdatedDataV1;
+}
+
+export interface CultDogmaRemovedDataV1 {
+  readonly cultDenizenId: DenizenId;
+  readonly dogmaEntryId: HierophantDogmaEntryId;
+}
+export interface CultDogmaRemovedEventV1 {
+  readonly type: "cult_dogma_removed";
+  readonly version: 1;
+  readonly data: CultDogmaRemovedDataV1;
+}
+
+export interface CampaignClassCreatedDataV1 {
+  readonly campaignClass: HierophantCampaignClass;
+}
+export interface CampaignClassCreatedEventV1 {
+  readonly type: "campaign_class_created";
+  readonly version: 1;
+  readonly data: CampaignClassCreatedDataV1;
+}
+
+export interface CampaignClassUpdatedDataV1 {
+  readonly previous: HierophantCampaignClass;
+  readonly updated: HierophantCampaignClass;
+}
+export interface CampaignClassUpdatedEventV1 {
+  readonly type: "campaign_class_updated";
+  readonly version: 1;
+  readonly data: CampaignClassUpdatedDataV1;
+}
+
+export interface CampaignDoctrineCreatedDataV1 {
+  readonly campaignDoctrine: HierophantCampaignDoctrine;
+}
+export interface CampaignDoctrineCreatedEventV1 {
+  readonly type: "campaign_doctrine_created";
+  readonly version: 1;
+  readonly data: CampaignDoctrineCreatedDataV1;
+}
+
+export interface CampaignDoctrineUpdatedDataV1 {
+  readonly previous: HierophantCampaignDoctrine;
+  readonly updated: HierophantCampaignDoctrine;
+}
+export interface CampaignDoctrineUpdatedEventV1 {
+  readonly type: "campaign_doctrine_updated";
+  readonly version: 1;
+  readonly data: CampaignDoctrineUpdatedDataV1;
+}
+
 export type WorldEvent =
   | DenizenCreatedEventV1
   | DenizenUpdatedEventV1
@@ -632,7 +824,26 @@ export type WorldEvent =
 
 export type HierophantEvent =
   | HierophantInitializedEventV1
-  | TempleResourcesAdjustedEventV1;
+  | TempleResourcesAdjustedEventV1
+  | TempleCreatedEventV1
+  | TempleUpdatedEventV1
+  | TempleHolidayChangedEventV1
+  | SupplicantAddedEventV1
+  | SupplicantUpdatedEventV1
+  | SupplicantRemovedEventV1
+  | ProphetAddedEventV1
+  | ProphetUpdatedEventV1
+  | ProphetRemovedEventV1
+  | CultEstablishedEventV1
+  | CultUpdatedEventV1
+  | CultRemovedEventV1
+  | CultDogmaAddedEventV1
+  | CultDogmaUpdatedEventV1
+  | CultDogmaRemovedEventV1
+  | CampaignClassCreatedEventV1
+  | CampaignClassUpdatedEventV1
+  | CampaignDoctrineCreatedEventV1
+  | CampaignDoctrineUpdatedEventV1;
 
 export type CampaignEvent =
   | InfrastructureEvent

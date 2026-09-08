@@ -135,6 +135,44 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Initialized Hierophant Temples";
     case "temple_resources_adjusted":
       return "Adjusted Temple resources";
+    case "temple_created":
+      return "Created Temple";
+    case "temple_updated":
+      return "Updated Temple";
+    case "temple_holiday_changed":
+      return "Changed Temple Holiday marker";
+    case "supplicant_added":
+      return "Added Supplicant";
+    case "supplicant_updated":
+      return "Updated Supplicant";
+    case "supplicant_removed":
+      return "Removed Supplicant";
+    case "prophet_added":
+      return "Added Prophet";
+    case "prophet_updated":
+      return "Updated Prophet";
+    case "prophet_removed":
+      return "Removed Prophet";
+    case "cult_established":
+      return "Established Cult";
+    case "cult_updated":
+      return "Updated Cult";
+    case "cult_removed":
+      return "Removed Cult";
+    case "cult_dogma_added":
+      return "Added Cult Dogma";
+    case "cult_dogma_updated":
+      return "Updated Cult Dogma";
+    case "cult_dogma_removed":
+      return "Removed Cult Dogma";
+    case "campaign_class_created":
+      return "Created campaign Class";
+    case "campaign_class_updated":
+      return "Updated campaign Class";
+    case "campaign_doctrine_created":
+      return "Created campaign Doctrine";
+    case "campaign_doctrine_updated":
+      return "Updated campaign Doctrine";
     default:
       return "Campaign configuration changed";
   }
@@ -264,7 +302,26 @@ export function mapEventToActivityEntry(
     case "wizard_companion_changed":
     case "companion_description_changed":
     case "hierophant_initialized":
-    case "temple_resources_adjusted": {
+    case "temple_resources_adjusted":
+    case "temple_created":
+    case "temple_updated":
+    case "temple_holiday_changed":
+    case "supplicant_added":
+    case "supplicant_updated":
+    case "supplicant_removed":
+    case "prophet_added":
+    case "prophet_updated":
+    case "prophet_removed":
+    case "cult_established":
+    case "cult_updated":
+    case "cult_removed":
+    case "cult_dogma_added":
+    case "cult_dogma_updated":
+    case "cult_dogma_removed":
+    case "campaign_class_created":
+    case "campaign_class_updated":
+    case "campaign_doctrine_created":
+    case "campaign_doctrine_updated": {
       return {
         id,
         revision,

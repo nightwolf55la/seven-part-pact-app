@@ -330,7 +330,7 @@ describe("CampaignStateV5 Hierophant core", () => {
     expect(() => validateCampaignStateV5Candidate(initialized)).not.toThrow();
   });
 
-  it("fails closed on nonempty deferred Supplicant, Prophet, or Cult collections", () => {
+  it("fails closed on rejected synthetic Supplicant/Prophet/Cult identity records", () => {
     const initialized = initializeReady().nextState;
     const withSupplicants = {
       ...initialized,
