@@ -1,3 +1,8 @@
+* text=auto eol=lf
+
+# Keep Windows-native scripts CRLF only if we ever actually need them.
+*.bat text eol=crlf
+*.cmd text eol=crlf
 
 # Convex generated files must retain LF line endings
 convex/_generated/* text eol=lf
