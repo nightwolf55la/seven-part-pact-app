@@ -826,9 +826,10 @@ const hierophantStateValidator = v.object({
     supportedClassIds: v.array(v.string()),
   })),
   temples: v.array(v.union(ordinaryTempleValidator, hestarTempleValidator)),
-  supplicants: v.array(v.object({ supplicantId: v.string() })),
-  prophets: v.array(v.object({ prophetId: v.string() })),
-  cults: v.array(v.object({ cultId: v.string() })),
+  // Slice 2 will replace these with Denizen-backed records. Domain validation requires empty.
+  supplicants: v.array(v.any()),
+  prophets: v.array(v.any()),
+  cults: v.array(v.any()),
   holidayTempleIds: v.array(v.string()),
 });
 

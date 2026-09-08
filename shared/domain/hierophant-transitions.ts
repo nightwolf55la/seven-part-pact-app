@@ -101,7 +101,7 @@ function buildStartingTemple(
     status: definition.status,
     abundance: definition.abundance,
     conviction: definition.conviction,
-    doctrine: { kind: "unset" },
+    doctrine: { kind: "doctrine", doctrineId: definition.doctrineId },
   };
   return temple;
 }

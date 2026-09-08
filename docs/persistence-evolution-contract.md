@@ -85,10 +85,14 @@ contract:
   exact target.
 - Valuable persisted data is never implicitly disposable.
 
-V5 Hierophant structural state uses this pre-activation policy: there is no
-activated V5 campaign, snapshot, checkpoint, or portable backup intended for
-preservation, so Hierophant fields are added to CampaignStateV5 in place
-without CampaignStateV6 or V5 compatibility machinery.
+At the time the M5.2C-H Hierophant structural work was approved, Master/human
+explicitly designated existing V5 artifacts as disposable and V5 as
+pre-activation. That explicit decision allowed the Hierophant shape to be
+added in place. This historical exception is not evidence that V5 remains
+pre-activation or that any current deployment's data is disposable. Before
+any destructive cleanup or later incompatible V5 change, obtain fresh
+confirmation for the exact target.
+
 ### M4 V3 Boundary Exception
 
 M4 introduces V3 and retires V1/V2 as a one-time pre-release compatibility

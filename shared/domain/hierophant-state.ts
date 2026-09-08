@@ -2,17 +2,22 @@ import type { Brand } from "./brand";
 import type { PlaceId } from "./ids";
 import type { PactSeatId } from "./pact-seats";
 import type {
+  HierophantBuiltinBlasphemyId,
+  HierophantBuiltinClassId,
+  HierophantBuiltinDoctrineId,
   HierophantFlameLawId,
   HierophantTempleId,
   HierophantTempleKind,
 } from "./hierophant-catalogs";
 
-export type HierophantClassId = Brand<string, "HierophantClassId">;
-export type HierophantDoctrineId = Brand<string, "HierophantDoctrineId">;
-export type HierophantBlasphemyId = Brand<string, "HierophantBlasphemyId">;
-export type HierophantSupplicantId = Brand<string, "HierophantSupplicantId">;
-export type HierophantProphetId = Brand<string, "HierophantProphetId">;
-export type HierophantCultId = Brand<string, "HierophantCultId">;
+export type HierophantCampaignClassId = Brand<string, "HierophantCampaignClassId">;
+export type HierophantClassId = HierophantBuiltinClassId | HierophantCampaignClassId;
+
+export type HierophantCampaignDoctrineId = Brand<string, "HierophantCampaignDoctrineId">;
+export type HierophantDoctrineId = HierophantBuiltinDoctrineId | HierophantCampaignDoctrineId;
+
+export type HierophantCampaignBlasphemyId = Brand<string, "HierophantCampaignBlasphemyId">;
+export type HierophantBlasphemyId = HierophantBuiltinBlasphemyId | HierophantCampaignBlasphemyId;
 
 export type HierophantTempleStatus = "active" | "collapsed";
 
@@ -45,26 +50,14 @@ export interface HestarHierophantTemple {
 export type HierophantTemple = OrdinaryHierophantTemple | HestarHierophantTemple;
 
 export interface HierophantCampaignClass {
-  readonly classId: HierophantClassId;
+  readonly classId: HierophantCampaignClassId;
   readonly name: string;
 }
 
 export interface HierophantCampaignDoctrine {
-  readonly doctrineId: HierophantDoctrineId;
+  readonly doctrineId: HierophantCampaignDoctrineId;
   readonly name: string;
   readonly supportedClassIds: readonly HierophantClassId[];
-}
-
-export interface HierophantSupplicant {
-  readonly supplicantId: HierophantSupplicantId;
-}
-
-export interface HierophantProphet {
-  readonly prophetId: HierophantProphetId;
-}
-
-export interface HierophantCult {
-  readonly cultId: HierophantCultId;
 }
 
 export interface HierophantState {
@@ -72,9 +65,12 @@ export interface HierophantState {
   readonly campaignClasses: readonly HierophantCampaignClass[];
   readonly campaignDoctrines: readonly HierophantCampaignDoctrine[];
   readonly temples: readonly HierophantTemple[];
-  readonly supplicants: readonly HierophantSupplicant[];
-  readonly prophets: readonly HierophantProphet[];
-  readonly cults: readonly HierophantCult[];
+  /** Slice 2 will use Denizen-backed records. Nonempty values are invalid until then. */
+  readonly supplicants: readonly never[];
+  /** Slice 2 will use Denizen-backed records. Nonempty values are invalid until then. */
+  readonly prophets: readonly never[];
+  /** Slice 2 will use Denizen-backed records. Nonempty values are invalid until then. */
+  readonly cults: readonly never[];
   readonly holidayTempleIds: readonly HierophantTempleId[];
 }
 

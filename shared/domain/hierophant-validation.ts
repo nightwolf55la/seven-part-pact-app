@@ -3,6 +3,8 @@ import { DomainError } from "./errors";
 import { isValidPlaceId } from "./ids";
 import { isValidPactSeatId } from "./pact-seats";
 import {
+  isValidHierophantBuiltinClassId,
+  isValidHierophantBuiltinDoctrineId,
   isValidHierophantFlameLawId,
   isValidHierophantTempleId,
 } from "./hierophant-catalogs";
@@ -32,7 +34,15 @@ function uniqueIds(ids: readonly string[], label: string): void {
   }
 }
 
-function validateDoctrineState(path: string, doctrine: unknown, doctrineIds: Set<string>, blasphemyAllowed: boolean): void {
+function isResolvableDoctrineId(id: string, campaignDoctrineIds: Set<string>): boolean {
+  return isValidHierophantBuiltinDoctrineId(id) || campaignDoctrineIds.has(id);
+}
+
+function isResolvableClassId(id: string, campaignClassIds: Set<string>): boolean {
+  return isValidHierophantBuiltinClassId(id) || campaignClassIds.has(id);
+}
+
+function validateDoctrineState(path: string, doctrine: unknown, campaignDoctrineIds: Set<string>, blasphemyAllowed: boolean): void {
   if (doctrine === null || doctrine === undefined || typeof doctrine !== "object") {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.doctrine must be an object`);
   }
@@ -42,7 +52,7 @@ function validateDoctrineState(path: string, doctrine: unknown, doctrineIds: Set
   }
   if (d.kind === "doctrine") {
     assertNonEmptyString(`${path}.doctrine.doctrineId`, d.doctrineId);
-    if (!doctrineIds.has(d.doctrineId)) {
+    if (!isResolvableDoctrineId(d.doctrineId, campaignDoctrineIds)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.doctrine.doctrineId does not resolve: ${d.doctrineId}`);
     }
     return;
@@ -57,7 +67,7 @@ function validateDoctrineState(path: string, doctrine: unknown, doctrineIds: Set
   throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.doctrine.kind is invalid: ${JSON.stringify(d.kind)}`);
 }
 
-function validateTemple(path: string, temple: unknown, placeIds: Set<string> | null, doctrineIds: Set<string>): void {
+function validateTemple(path: string, temple: unknown, placeIds: Set<string> | null, campaignDoctrineIds: Set<string>): void {
   if (temple === null || temple === undefined || typeof temple !== "object") {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} is not a valid object`);
   }
@@ -89,7 +99,7 @@ function validateTemple(path: string, temple: unknown, placeIds: Set<string> | n
   if (t.kind !== "ordinary") {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.kind is invalid: ${JSON.stringify(t.kind)}`);
   }
-  validateDoctrineState(path, t.doctrine, doctrineIds, true);
+  validateDoctrineState(path, t.doctrine, campaignDoctrineIds, true);
 }
 
 export function validateHierophantStructure(hierophant: unknown): void {
@@ -147,13 +157,16 @@ export function validateHierophantStructure(hierophant: unknown): void {
     const c = cls as Record<string, unknown>;
     assertNonEmptyString(`${path}.classId`, c.classId);
     assertNonEmptyString(`${path}.name`, c.name);
+    if (isValidHierophantBuiltinClassId(c.classId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.classId collides with a built-in Class: ${c.classId}`);
+    }
     if (classIds.has(c.classId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate campaign Class id: ${c.classId}`);
     }
     classIds.add(c.classId);
   }
 
-  const doctrineIds = new Set<string>();
+  const campaignDoctrineIds = new Set<string>();
   for (let i = 0; i < (h.campaignDoctrines as unknown[]).length; i++) {
     const doc = (h.campaignDoctrines as unknown[])[i];
     const path = `hierophant.campaignDoctrines[${i}]`;
@@ -166,56 +179,42 @@ export function validateHierophantStructure(hierophant: unknown): void {
     if (!Array.isArray(d.supportedClassIds)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.supportedClassIds must be an array`);
     }
-    if (doctrineIds.has(d.doctrineId)) {
+    if (isValidHierophantBuiltinDoctrineId(d.doctrineId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.doctrineId collides with a built-in Doctrine: ${d.doctrineId}`);
+    }
+    if (campaignDoctrineIds.has(d.doctrineId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate campaign Doctrine id: ${d.doctrineId}`);
     }
-    doctrineIds.add(d.doctrineId);
+    campaignDoctrineIds.add(d.doctrineId);
     for (let j = 0; j < (d.supportedClassIds as unknown[]).length; j++) {
       const classId = (d.supportedClassIds as unknown[])[j];
       if (typeof classId !== "string" || classId.length === 0) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.supportedClassIds[${j}] is invalid`);
       }
-      if (!classIds.has(classId)) {
+      if (!isResolvableClassId(classId, classIds)) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.supportedClassIds[${j}] does not resolve: ${classId}`);
       }
     }
   }
 
-  const supplicantIds: string[] = [];
-  for (let i = 0; i < (h.supplicants as unknown[]).length; i++) {
-    const s = (h.supplicants as unknown[])[i];
-    const path = `hierophant.supplicants[${i}]`;
-    if (s === null || s === undefined || typeof s !== "object") {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} is not a valid object`);
-    }
-    assertNonEmptyString(`${path}.supplicantId`, (s as Record<string, unknown>).supplicantId);
-    supplicantIds.push((s as Record<string, unknown>).supplicantId as string);
+  if ((h.supplicants as unknown[]).length > 0) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      "hierophant.supplicants must be empty until Slice 2 Denizen-backed records",
+    );
   }
-  uniqueIds(supplicantIds, "supplicantId");
-
-  const prophetIds: string[] = [];
-  for (let i = 0; i < (h.prophets as unknown[]).length; i++) {
-    const p = (h.prophets as unknown[])[i];
-    const path = `hierophant.prophets[${i}]`;
-    if (p === null || p === undefined || typeof p !== "object") {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} is not a valid object`);
-    }
-    assertNonEmptyString(`${path}.prophetId`, (p as Record<string, unknown>).prophetId);
-    prophetIds.push((p as Record<string, unknown>).prophetId as string);
+  if ((h.prophets as unknown[]).length > 0) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      "hierophant.prophets must be empty until Slice 2 Denizen-backed records",
+    );
   }
-  uniqueIds(prophetIds, "prophetId");
-
-  const cultIds: string[] = [];
-  for (let i = 0; i < (h.cults as unknown[]).length; i++) {
-    const c = (h.cults as unknown[])[i];
-    const path = `hierophant.cults[${i}]`;
-    if (c === null || c === undefined || typeof c !== "object") {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} is not a valid object`);
-    }
-    assertNonEmptyString(`${path}.cultId`, (c as Record<string, unknown>).cultId);
-    cultIds.push((c as Record<string, unknown>).cultId as string);
+  if ((h.cults as unknown[]).length > 0) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      "hierophant.cults must be empty until Slice 2 Denizen-backed records",
+    );
   }
-  uniqueIds(cultIds, "cultId");
 
   const holidayIds: string[] = [];
   for (let i = 0; i < (h.holidayTempleIds as unknown[]).length; i++) {
@@ -231,7 +230,7 @@ export function validateHierophantStructure(hierophant: unknown): void {
   const templePlaceIds: string[] = [];
   for (let i = 0; i < (h.temples as unknown[]).length; i++) {
     const temple = (h.temples as unknown[])[i];
-    validateTemple(`hierophant.temples[${i}]`, temple, null, doctrineIds);
+    validateTemple(`hierophant.temples[${i}]`, temple, null, campaignDoctrineIds);
     const t = temple as Record<string, unknown>;
     templeIds.push(t.templeId as string);
     templePlaceIds.push(t.placeId as string);
@@ -253,10 +252,10 @@ export function validateHierophantReferenceIntegrity(state: CampaignStateV5): vo
   validateHierophantStructure(state.hierophant);
 
   const placeIds = new Set(state.world.places.map((p) => p.placeId as string));
-  const doctrineIds = new Set(state.hierophant.campaignDoctrines.map((d) => d.doctrineId as string));
+  const campaignDoctrineIds = new Set(state.hierophant.campaignDoctrines.map((d) => d.doctrineId as string));
 
   for (let i = 0; i < state.hierophant.temples.length; i++) {
     const temple: HierophantTemple = state.hierophant.temples[i];
-    validateTemple(`hierophant.temples[${i}]`, temple, placeIds, doctrineIds);
+    validateTemple(`hierophant.temples[${i}]`, temple, placeIds, campaignDoctrineIds);
   }
 }

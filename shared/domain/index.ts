@@ -597,16 +597,35 @@ export {
 
 export type {
   HierophantFlameLawId,
+  HierophantFlameLawDefinition,
   HierophantStartingTempleId,
   HierophantTempleId,
   HierophantTempleKind,
   HierophantStartingTempleDefinition,
+  OrdinaryHierophantStartingTempleDefinition,
+  HestarHierophantStartingTempleDefinition,
+  HierophantBuiltinClassId,
+  HierophantBuiltinClassDefinition,
+  HierophantBuiltinDoctrineId,
+  HierophantBuiltinBlasphemyId,
+  HierophantBuiltinDoctrineDefinition,
 } from "./hierophant-catalogs";
 export {
   HIEROPHANT_FLAME_LAW_IDS,
   HIEROPHANT_FLAME_LAW_DEFINITIONS,
+  hierophantFlameLawApplicationLabel,
   hierophantFlameLawDisplayName,
+  hierophantFlameLawText,
   isValidHierophantFlameLawId,
+  HIEROPHANT_BUILTIN_CLASS_IDS,
+  HIEROPHANT_BUILTIN_CLASS_DEFINITIONS,
+  isValidHierophantBuiltinClassId,
+  HIEROPHANT_BUILTIN_DOCTRINE_IDS,
+  HIEROPHANT_BUILTIN_BLASPHEMY_IDS,
+  HIEROPHANT_BUILTIN_DOCTRINE_DEFINITIONS,
+  isValidHierophantBuiltinDoctrineId,
+  isValidHierophantBuiltinBlasphemyId,
+  hierophantBuiltinDoctrineDefinition,
   HIEROPHANT_STARTING_TEMPLE_IDS,
   HIEROPHANT_STARTING_TEMPLE_DEFINITIONS,
   hierophantStartingTempleDisplayName,
@@ -616,12 +635,12 @@ export {
 } from "./hierophant-catalogs";
 
 export type {
+  HierophantCampaignClassId,
   HierophantClassId,
+  HierophantCampaignDoctrineId,
   HierophantDoctrineId,
+  HierophantCampaignBlasphemyId,
   HierophantBlasphemyId,
-  HierophantSupplicantId,
-  HierophantProphetId,
-  HierophantCultId,
   HierophantTempleStatus,
   OrdinaryTempleDoctrineState,
   OrdinaryHierophantTemple,
@@ -629,9 +648,6 @@ export type {
   HierophantTemple,
   HierophantCampaignClass,
   HierophantCampaignDoctrine,
-  HierophantSupplicant,
-  HierophantProphet,
-  HierophantCult,
   HierophantState,
 } from "./hierophant-state";
 export { EMPTY_HIEROPHANT_STATE } from "./hierophant-state";

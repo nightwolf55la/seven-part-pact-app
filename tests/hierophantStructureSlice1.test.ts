@@ -11,6 +11,10 @@ import {
   DomainError,
   EMPTY_HIEROPHANT_STATE,
   EMPTY_SHARED_WORLD_STATE,
+  HIEROPHANT_BUILTIN_CLASS_IDS,
+  HIEROPHANT_BUILTIN_CLASS_DEFINITIONS,
+  HIEROPHANT_BUILTIN_DOCTRINE_DEFINITIONS,
+  HIEROPHANT_FLAME_LAW_DEFINITIONS,
   HIEROPHANT_FLAME_LAW_IDS,
   HIEROPHANT_STARTING_TEMPLE_DEFINITIONS,
   HIEROPHANT_STARTING_TEMPLE_IDS,
@@ -121,13 +125,80 @@ function initializeReady(state: CampaignStateV5 = baseV5()) {
 }
 
 describe("Hierophant Slice 1 catalogs", () => {
-  it("defines seven Laws of the Flame with unique resolvable IDs", () => {
+  it("defines seven Laws of the Flame with unique resolvable IDs and source text", () => {
     expect(HIEROPHANT_FLAME_LAW_IDS).toHaveLength(7);
     expect(new Set(HIEROPHANT_FLAME_LAW_IDS).size).toBe(7);
     for (const id of HIEROPHANT_FLAME_LAW_IDS) {
       expect(isValidHierophantFlameLawId(id)).toBe(true);
     }
     expect(isValidHierophantFlameLawId("unknown_law")).toBe(false);
+    const byId = Object.fromEntries(HIEROPHANT_FLAME_LAW_DEFINITIONS.map((d) => [d.id, d]));
+    expect(byId.first.text).toBe(
+      "Thou shalt not spill blood here, or allow even a single drop to touch the ground.",
+    );
+    expect(byId.second.text).toBe(
+      "Thou shalt not speak with a voice above a whisper here, or yell within the temple.",
+    );
+    expect(byId.third.text).toBe(
+      "Thou shalt not depict others as images here, or represent the divine as human.",
+    );
+    expect(byId.fourth.text).toBe(
+      "Thou shalt not enter the temples without ritually bathing and breathing incense.",
+    );
+    expect(byId.fifth.text).toBe(
+      "Thou shalt not perform magic here, or allow magic to occur near the flame.",
+    );
+    expect(byId.sixth.text).toBe(
+      "Thou shalt not judge another here, no matter their crimes.",
+    );
+    expect(byId.seventh.text).toBe(
+      "Thou shalt not bring coins here, or allow any wealth to enter.",
+    );
+    expect(byId.first.applicationLabel).toBe("First Law of the Flame");
+  });
+
+  it("defines built-in Classes and starting Doctrine records", () => {
+    expect([...HIEROPHANT_BUILTIN_CLASS_IDS]).toEqual([
+      "pariah", "peasant", "artisan", "merchant", "gentry",
+    ]);
+    expect(HIEROPHANT_BUILTIN_CLASS_DEFINITIONS.map((c) => c.name)).toEqual([
+      "Pariah", "Peasant", "Artisan", "Merchant", "Gentry",
+    ]);
+    const doctrines = Object.fromEntries(
+      HIEROPHANT_BUILTIN_DOCTRINE_DEFINITIONS.map((d) => [d.id, d]),
+    );
+    expect(doctrines.worth_proved_through_labor).toMatchObject({
+      text: "One's worth is proved through one's labor.",
+      supportedClassIds: ["artisan", "peasant"],
+      pairedBlasphemy: {
+        id: "old_land_demands_blood",
+        text: "The old land demands the blood of the idle.",
+      },
+    });
+    expect(doctrines.charity_measure_of_moral_worth).toMatchObject({
+      text: "Charity is the measure of moral worth.",
+      supportedClassIds: ["gentry", "pariah"],
+      pairedBlasphemy: {
+        id: "law_of_the_wolf",
+        text: "There is no law but the law of the wolf.",
+      },
+    });
+    expect(doctrines.people_used_to_be_kinder).toMatchObject({
+      text: "People used to be kinder to each other.",
+      supportedClassIds: ["peasant", "pariah"],
+      pairedBlasphemy: {
+        id: "destroy_trappings_of_modernity",
+        text: "We must destroy all trappings of modernity.",
+      },
+    });
+    expect(doctrines.wealthy_deserve_pleasures).toMatchObject({
+      text: "The wealthy deserve the pleasures of their station.",
+      supportedClassIds: ["gentry", "merchant"],
+      pairedBlasphemy: {
+        id: "indulge_every_desire",
+        text: "Indulge your every sumptuous, exotic, and twisted desire.",
+      },
+    });
   });
 
   it("encodes source starting Temple defaults", () => {
@@ -142,21 +213,41 @@ describe("Hierophant Slice 1 catalogs", () => {
       displayName: "Temple Krolis",
       kind: "ordinary",
       hostSeatId: "hierophant",
-      abundance: 0,
-      conviction: 0,
+      abundance: 5,
+      conviction: 4,
       status: "active",
+      doctrineId: "worth_proved_through_labor",
+    });
+    expect(byId.notor).toMatchObject({
+      displayName: "Temple Notor",
+      kind: "ordinary",
+      abundance: 3,
+      conviction: 6,
+      doctrineId: "charity_measure_of_moral_worth",
+    });
+    expect(byId.zephon).toMatchObject({
+      displayName: "Temple Zephon",
+      kind: "ordinary",
+      abundance: 4,
+      conviction: 5,
+      doctrineId: "people_used_to_be_kinder",
+    });
+    expect(byId.ushin).toMatchObject({
+      displayName: "Temple Ushin",
+      kind: "ordinary",
+      abundance: 5,
+      conviction: 4,
+      doctrineId: "wealthy_deserve_pleasures",
     });
     expect(byId.hestar).toMatchObject({
       displayName: "Temple Hestar",
       kind: "hestar",
       hostSeatId: "hierophant",
-      abundance: 0,
-      conviction: 0,
+      abundance: 4,
+      conviction: 5,
       status: "active",
     });
-    expect(byId.notor.kind).toBe("ordinary");
-    expect(byId.ushin.kind).toBe("ordinary");
-    expect(byId.zephon.kind).toBe("ordinary");
+    expect(byId.hestar).not.toHaveProperty("doctrineId");
   });
 });
 
@@ -231,6 +322,41 @@ describe("CampaignStateV5 Hierophant core", () => {
     const bad = { ...initialized, hierophant: { ...initialized.hierophant, temples } };
     expect(() => validateCampaignStateV5Candidate(bad)).toThrow(DomainError);
   });
+
+  it("resolves built-in starting Doctrine IDs without campaign-created records", () => {
+    const initialized = initializeReady().nextState;
+    expect(initialized.hierophant.campaignDoctrines).toEqual([]);
+    expect(initialized.hierophant.campaignClasses).toEqual([]);
+    expect(() => validateCampaignStateV5Candidate(initialized)).not.toThrow();
+  });
+
+  it("fails closed on nonempty deferred Supplicant, Prophet, or Cult collections", () => {
+    const initialized = initializeReady().nextState;
+    const withSupplicants = {
+      ...initialized,
+      hierophant: {
+        ...initialized.hierophant,
+        supplicants: [{ supplicantId: "syn_supplicant" }],
+      },
+    };
+    const withProphets = {
+      ...initialized,
+      hierophant: {
+        ...initialized.hierophant,
+        prophets: [{ prophetId: "syn_prophet" }],
+      },
+    };
+    const withCults = {
+      ...initialized,
+      hierophant: {
+        ...initialized.hierophant,
+        cults: [{ cultId: "syn_cult" }],
+      },
+    };
+    expect(() => validateCampaignStateV5Candidate(withSupplicants)).toThrow(DomainError);
+    expect(() => validateCampaignStateV5Candidate(withProphets)).toThrow(DomainError);
+    expect(() => validateCampaignStateV5Candidate(withCults)).toThrow(DomainError);
+  });
 });
 
 describe("Hierophant initialization", () => {
@@ -249,12 +375,12 @@ describe("Hierophant initialization", () => {
       expect(temple.kind).toBe(definition.kind);
       expect(temple.placeId).toBe(placeId(i + 1));
       expect(temple.hostSeatId).toBe("hierophant");
-      expect(temple.abundance).toBe(0);
-      expect(temple.conviction).toBe(0);
+      expect(temple.abundance).toBe(definition.abundance);
+      expect(temple.conviction).toBe(definition.conviction);
       expect(temple.status).toBe("active");
       expect(result.nextState.world.places.some((p) => p.placeId === temple.placeId)).toBe(true);
-      if (temple.kind === "ordinary") {
-        expect(temple.doctrine).toEqual({ kind: "unset" });
+      if (temple.kind === "ordinary" && definition.kind === "ordinary") {
+        expect(temple.doctrine).toEqual({ kind: "doctrine", doctrineId: definition.doctrineId });
       } else {
         expect("doctrine" in temple).toBe(false);
       }
@@ -310,36 +436,44 @@ describe("adjust_temple_resources representative command", () => {
 
     const initialized = initializeReady().nextState;
     const result = applyAdjustTempleResources(initialized, "krolis", {
-      abundance: { expected: 0, value: 4 },
+      abundance: { expected: 5, value: 4 },
     });
     expect(result.events[0].type).toBe("temple_resources_adjusted");
     const krolis = result.nextState.hierophant.temples.find((t) => t.templeId === "krolis")!;
     expect(krolis.abundance).toBe(4);
-    expect(krolis.conviction).toBe(0);
+    expect(krolis.conviction).toBe(4);
     expect(krolis.status).toBe("active");
     expect(result.nextState.world).toEqual(initialized.world);
     expect(result.nextState.hierophant.selectedFlameLawIds).toEqual(initialized.hierophant.selectedFlameLawIds);
     expect(result.nextState.hierophant.supplicants).toEqual([]);
   });
 
-  it("does not trigger collapse or other automatic Temple consequences at a high resource value", () => {
+  it("records a manual resource drop to 0 without automatic Temple consequences", () => {
     const initialized = initializeReady().nextState;
+    const before = initialized.hierophant.temples.find((t) => t.templeId === "krolis")!;
+    expect(before.kind).toBe("ordinary");
     const result = applyAdjustTempleResources(initialized, "krolis", {
-      abundance: { expected: 0, value: 99 },
-      conviction: { expected: 0, value: 99 },
+      abundance: { expected: 5, value: 0 },
+      conviction: { expected: 4, value: 0 },
     });
     const krolis = result.nextState.hierophant.temples.find((t) => t.templeId === "krolis")!;
+    expect(krolis.abundance).toBe(0);
+    expect(krolis.conviction).toBe(0);
     expect(krolis.status).toBe("active");
     expect(krolis.kind).toBe("ordinary");
-    if (krolis.kind === "ordinary") {
-      expect(krolis.doctrine).toEqual({ kind: "unset" });
+    if (krolis.kind === "ordinary" && before.kind === "ordinary") {
+      expect(krolis.doctrine).toEqual(before.doctrine);
+      expect(krolis.doctrine.kind).toBe("doctrine");
+      expect(krolis.doctrine).not.toMatchObject({ kind: "blasphemy" });
     }
     expect(result.nextState.hierophant.cults).toEqual([]);
+    expect(result.nextState.hierophant.supplicants).toEqual([]);
+    expect(result.nextState.hierophant.prophets).toEqual([]);
   });
 
   it("preserves fingerprints, campaign protection, idempotency, and coherence", async () => {
     const initialized = initializeReady().nextState;
-    const fields = { abundance: { expected: 0, value: 3 } };
+    const fields = { abundance: { expected: 5, value: 3 } };
     const fp1 = adjustTempleResourcesFingerprint(CAMPAIGN_A, "krolis", fields);
     const fp2 = adjustTempleResourcesFingerprint(CAMPAIGN_A, "krolis", fields);
     expect(fp1).toBe(fp2);
