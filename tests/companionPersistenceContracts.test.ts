@@ -12,7 +12,9 @@ import {
   isLogicalStateCommandType,
   setWizardCompanionFingerprint,
   updateCompanionDescriptionFingerprint,
+  mapEventToActivityEntry,
 } from "../shared/domain";
+import * as m3Commands from "../convex/m3Commands";
 import { validateEventCoherenceForTest } from "../convex/canonicalCommit";
 import type { CanonicalCommitInput } from "../convex/canonicalCommit";
 import type { CurrentCampaignState } from "../shared/domain";
@@ -165,5 +167,57 @@ describe("Companion persistence contracts", () => {
         1,
       ),
     ).not.toThrow();
+  });
+
+  // 5. Mutation exports exist
+  it("m3Commands exports setWizardCompanion and updateCompanionDescription", () => {
+    expect(m3Commands).toHaveProperty("setWizardCompanion");
+    expect(m3Commands).toHaveProperty("updateCompanionDescription");
+  });
+
+  // 6. Companion Activity descriptions are specific
+  it("mapEventToActivityEntry produces specific descriptions for companion events", () => {
+    const companionEvent: WizardCompanionChangedEventV1 = {
+      type: "wizard_companion_changed",
+      version: 1,
+      data: {
+        wizardId: "wizard_00000000-0000-0000-0000-000000000001" as WizardId,
+        element: "fire" as ElementId,
+        previousCurrentRelationship: null,
+        newCurrentRelationship: null,
+      },
+    };
+    const companionEntry = mapEventToActivityEntry("id1", 1, companionEvent);
+    expect(companionEntry.type).toBe("campaign_configuration");
+    if (companionEntry.type !== "campaign_configuration") throw new Error("unexpected type");
+    expect(companionEntry.description).toBe("Changed wizard Companion");
+
+    const descEvent: CompanionDescriptionChangedEventV1 = {
+      type: "companion_description_changed",
+      version: 1,
+      data: {
+        companionRelationshipId: "comp_00000000-0000-0000-0000-000000000001" as CompanionRelationshipId,
+        previous: {
+          companionRelationshipId: "comp_00000000-0000-0000-0000-000000000001" as CompanionRelationshipId,
+          wizardId: "wizard_00000000-0000-0000-0000-000000000001" as WizardId,
+          element: "fire" as ElementId,
+          denizenId: "denizen_00000000-0000-0000-0000-000000000001" as unknown as CompanionRelationship["denizenId"],
+          description: "old",
+          status: "current",
+        },
+        updated: {
+          companionRelationshipId: "comp_00000000-0000-0000-0000-000000000001" as CompanionRelationshipId,
+          wizardId: "wizard_00000000-0000-0000-0000-000000000001" as WizardId,
+          element: "fire" as ElementId,
+          denizenId: "denizen_00000000-0000-0000-0000-000000000001" as unknown as CompanionRelationship["denizenId"],
+          description: "new",
+          status: "current",
+        },
+      },
+    };
+    const descEntry = mapEventToActivityEntry("id2", 2, descEvent);
+    expect(descEntry.type).toBe("campaign_configuration");
+    if (descEntry.type !== "campaign_configuration") throw new Error("unexpected type");
+    expect(descEntry.description).toBe("Updated Companion description");
   });
 });

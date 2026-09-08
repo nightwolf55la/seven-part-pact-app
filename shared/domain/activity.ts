@@ -127,6 +127,10 @@ function describeConfigEvent(event: CampaignEvent): string {
       return `Changed wizard home Isle`;
     case "wizard_sanctum_changed":
       return `Changed wizard Sanctum`;
+    case "wizard_companion_changed":
+      return "Changed wizard Companion";
+    case "companion_description_changed":
+      return "Updated Companion description";
     default:
       return "Campaign configuration changed";
   }

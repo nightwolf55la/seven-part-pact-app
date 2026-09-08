@@ -727,6 +727,38 @@ const companionRelationshipValidator = v.object({
   status: v.union(v.literal("current"), v.literal("ended")),
 });
 
+const wizardCompanionChangedEventV1Validator = v.object({
+  type: v.literal("wizard_companion_changed"),
+  version: v.literal(1),
+  data: v.object({
+    wizardId: v.string(),
+    element: v.union(
+      v.literal("air"),
+      v.literal("fire"),
+      v.literal("earth"),
+      v.literal("water"),
+    ),
+    previousCurrentRelationship: v.union(
+      companionRelationshipValidator,
+      v.null(),
+    ),
+    newCurrentRelationship: v.union(
+      companionRelationshipValidator,
+      v.null(),
+    ),
+  }),
+});
+
+const companionDescriptionChangedEventV1Validator = v.object({
+  type: v.literal("companion_description_changed"),
+  version: v.literal(1),
+  data: v.object({
+    companionRelationshipId: v.string(),
+    previous: companionRelationshipValidator,
+    updated: companionRelationshipValidator,
+  }),
+});
+
 const sharedWorldStateValidator = v.object({
   denizens: v.array(denizenValidator),
   isles: v.array(isleValidator),
@@ -834,6 +866,8 @@ export const campaignEventValidator = v.union(
   placeUpdatedEventV1Validator,
   wizardHomeIsleChangedEventV1Validator,
   wizardSanctumChangedEventV1Validator,
+  wizardCompanionChangedEventV1Validator,
+  companionDescriptionChangedEventV1Validator,
 );
 
 export const anyCampaignStateValidator = campaignStateV5Validator;

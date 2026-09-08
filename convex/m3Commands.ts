@@ -69,6 +69,7 @@ import {
   applyBeginNextMonth,
   beginNextMonthFingerprint,
   isValidDenizenId,
+  isValidCompanionRelationshipId,
   createDenizenFingerprint,
   updateDenizenFingerprint,
   isValidIsleId,
@@ -79,6 +80,8 @@ import {
   updatePlaceFingerprint,
   setWizardHomeIsleFingerprint,
   setWizardSanctumFingerprint,
+  setWizardCompanionFingerprint,
+  updateCompanionDescriptionFingerprint,
   applyCreateDenizenV5Candidate,
   applyUpdateDenizenV5Candidate,
   applyCreateIsleV5Candidate,
@@ -87,8 +90,10 @@ import {
   applyUpdatePlaceV5Candidate,
   applySetWizardHomeIsleV5Candidate,
   applySetWizardSanctumV5Candidate,
+  applySetWizardCompanionV5Candidate,
+  applyUpdateCompanionDescriptionV5Candidate,
 } from "../shared/domain";
-import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange } from "../shared/domain";
+import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange, CompanionRelationshipId } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
 import type { WizardInitIds } from "../shared/domain/begin-play";
 import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
@@ -1395,6 +1400,92 @@ export const setWizardSanctum = mutation({
       args.change as ExpectedFieldChange<PlaceId | null>,
     );
     const receipt = await commitM3Command(ctx, args.commandId, "set_wizard_sanctum", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+export const setWizardCompanion = mutation({
+  args: {
+    commandId: v.string(),
+    wizardId: v.string(),
+    element: v.union(
+      v.literal("air"),
+      v.literal("fire"),
+      v.literal("earth"),
+      v.literal("water"),
+    ),
+    expectedCurrentRelationshipId: v.union(v.string(), v.null()),
+    newRelationship: v.union(
+      v.null(),
+      v.object({
+        companionRelationshipId: v.string(),
+        denizenId: v.string(),
+        description: v.union(v.string(), v.null()),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    if (!isValidWizardId(args.wizardId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
+    }
+    const fingerprint = setWizardCompanionFingerprint({
+      wizardId: args.wizardId,
+      element: args.element,
+      expectedCurrentRelationshipId: args.expectedCurrentRelationshipId,
+      newRelationship: args.newRelationship,
+    });
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "set_wizard_companion", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applySetWizardCompanionV5Candidate(campaign.currentState, {
+      wizardId: args.wizardId as WizardId,
+      element: args.element,
+      expectedCurrentRelationshipId: args.expectedCurrentRelationshipId as CompanionRelationshipId | null,
+      newRelationship: args.newRelationship === null
+        ? null
+        : {
+            companionRelationshipId: args.newRelationship.companionRelationshipId as CompanionRelationshipId,
+            denizenId: args.newRelationship.denizenId as DenizenId,
+            description: args.newRelationship.description,
+          },
+    });
+    const receipt = await commitM3Command(ctx, args.commandId, "set_wizard_companion", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+export const updateCompanionDescription = mutation({
+  args: {
+    commandId: v.string(),
+    companionRelationshipId: v.string(),
+    expectedStatus: v.union(v.literal("current"), v.literal("ended")),
+    description: v.object({
+      expected: v.union(v.string(), v.null()),
+      value: v.union(v.string(), v.null()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    if (!isValidCompanionRelationshipId(args.companionRelationshipId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid companionRelationshipId: ${args.companionRelationshipId}`);
+    }
+    const fingerprint = updateCompanionDescriptionFingerprint({
+      companionRelationshipId: args.companionRelationshipId,
+      expectedStatus: args.expectedStatus,
+      description: args.description,
+    });
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "update_companion_description", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applyUpdateCompanionDescriptionV5Candidate(campaign.currentState, {
+      companionRelationshipId: args.companionRelationshipId as CompanionRelationshipId,
+      expectedStatus: args.expectedStatus,
+      description: args.description,
+    });
+    const receipt = await commitM3Command(ctx, args.commandId, "update_companion_description", fingerprint, campaign, result);
     return { revision: receipt.newRevision };
   },
 });
