@@ -101,6 +101,26 @@ describe("toggle secondary", () => {
   });
 });
 
+describe("hierophant surface navigation", () => {
+  it("accepts Hierophant as a navigable surface without changing phase defaults", () => {
+    const planning = phaseDefaultLayout("planning");
+    expect(planning.primary).toBe("current_phase");
+    expect(planning.secondary).toBe("orrery");
+    let s = initPlaySurface("planning");
+    s = navigateSurface(s, "primary", "hierophant");
+    expect(s.primary.current).toBe("hierophant");
+    s = navigateSurface(s, "secondary", "hierophant");
+    expect(s.secondary!.current).toBe("hierophant");
+    s = goBack(s, "primary");
+    expect(s.primary.current).toBe("current_phase");
+    expect(s.secondary!.current).toBe("hierophant");
+    s = goForward(s, "primary");
+    expect(s.primary.current).toBe("hierophant");
+    s = promoteSecondary(s);
+    expect(s.primary.current).toBe("hierophant");
+  });
+});
+
 describe("no campaign state in model", () => {
   it("PlaySurfaceState contains only surface IDs and history", () => {
     const s = initPlaySurface("story");

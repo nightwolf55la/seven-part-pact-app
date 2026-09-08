@@ -6,6 +6,7 @@ import CurrentPhaseSurface from "./CurrentPhaseSurface";
 import OrreryView from "./OrreryView";
 import TableWizards from "./TableWizards";
 import WorldSurface from "./WorldSurface";
+import HierophantSurface from "./HierophantSurface";
 import {
   initPlaySurface,
   navigateSurface,
@@ -34,6 +35,7 @@ const SURFACE_LABELS: Record<SurfaceId, string> = {
   orrery: "Orrery",
   table_wizards: "Table / Wizards",
   world: "World",
+  hierophant: "Hierophant",
 };
 
 function renderSurface(
@@ -61,6 +63,7 @@ function renderSurface(
     case "table_wizards":
       return <TableWizards pactSeats={ref.pactSeats} players={ref.players} wizards={ref.wizards} worldRef={worldRef} campaignId={ref.campaignId} />;
     case "world":
+    case "hierophant":
       return null;
   }
 }
@@ -73,6 +76,32 @@ function renderWorld(worldRef: ReturnType<typeof useQuery<typeof api.m3Queries.g
     return <div className="py-12 text-center text-sm text-slate-400">World unavailable.</div>;
   }
   return <WorldSurface world={worldRef} campaignId={campaignId} />;
+}
+
+function paneBody(
+  surface: SurfaceId,
+  ref: Parameters<typeof renderSurface>[1],
+  worldRef: ReturnType<typeof useQuery<typeof api.m3Queries.getWorldReference>>,
+  hierRef: ReturnType<typeof useQuery<typeof api.m3Queries.getHierophantReference>>,
+  campaignId: string,
+) {
+  if (surface === "world") return renderWorld(worldRef, campaignId);
+  if (surface === "hierophant") return renderHierophant(hierRef, worldRef, campaignId);
+  return renderSurface(surface, ref, worldRef);
+}
+
+function renderHierophant(
+  hierRef: ReturnType<typeof useQuery<typeof api.m3Queries.getHierophantReference>>,
+  worldRef: ReturnType<typeof useQuery<typeof api.m3Queries.getWorldReference>>,
+  campaignId: string,
+) {
+  if (hierRef === undefined || worldRef === undefined) {
+    return <div className="py-12 text-center text-sm text-slate-400">Loading Hierophant…</div>;
+  }
+  if (hierRef === null || worldRef === null) {
+    return <div className="py-12 text-center text-sm text-slate-400">Hierophant unavailable.</div>;
+  }
+  return <HierophantSurface hierophant={hierRef.hierophant} world={worldRef} campaignId={campaignId} />;
 }
 
 export default function PlayShell({
@@ -93,6 +122,7 @@ export default function PlayShell({
 
   const playRef = useQuery(api.m3Queries.getPlayReference, {});
   const worldRef = useQuery(api.m3Queries.getWorldReference, {});
+  const hierRef = useQuery(api.m3Queries.getHierophantReference, {});
 
   const nav = useMemo(() => ({
     navigate: (pane: PaneLabel, target: SurfaceId) => setSurfaceState((s) => navigateSurface(s, pane, target)),
@@ -192,9 +222,7 @@ export default function PlayShell({
         ) : showSecondary && surfaceState.secondary ? (
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 min-w-0">
-              {surfaceState.primary.current === "world"
-                ? renderWorld(worldRef, playRef.campaignId)
-                : renderSurface(surfaceState.primary.current, playRef, worldRef)}
+              {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, campaignId)}
             </div>
             <div className="hidden md:block md:w-80 lg:w-96 flex-shrink-0">
               <div className="flex items-center gap-1 mb-2">
@@ -226,16 +254,12 @@ export default function PlayShell({
                   Fwd
                 </button>
               </div>
-              {surfaceState.secondary.current === "world"
-                ? renderWorld(worldRef, playRef.campaignId)
-                : renderSurface(surfaceState.secondary.current, playRef, worldRef)}
+              {paneBody(surfaceState.secondary.current, playRef, worldRef, hierRef, campaignId)}
             </div>
           </div>
         ) : (
           <div className="w-full">
-            {surfaceState.primary.current === "world"
-              ? renderWorld(worldRef, playRef.campaignId)
-              : renderSurface(surfaceState.primary.current, playRef, worldRef)}
+            {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, campaignId)}
           </div>
         )}
       </div>
