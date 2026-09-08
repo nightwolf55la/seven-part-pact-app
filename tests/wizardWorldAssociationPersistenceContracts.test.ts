@@ -13,6 +13,8 @@ import {
   setWizardSanctumFingerprint,
   mapEventToActivityEntry,
 } from "../shared/domain";
+
+const CAMPAIGN_ID = "cmp_00000000-0000-0000-0000-000000000001";
 import { validateEventCoherenceForTest } from "../convex/canonicalCommit";
 import type { CanonicalCommitInput } from "../convex/canonicalCommit";
 import type { CurrentCampaignState } from "../shared/domain";
@@ -32,29 +34,33 @@ describe("Wizard world association persistence contracts", () => {
     const wizId = "wizard_00000000-0000-0000-0000-000000000001";
 
     // home isle: deterministic
-    const fp1 = setWizardHomeIsleFingerprint(wizId, { expected: null, value: "isle_001" });
-    const fp2 = setWizardHomeIsleFingerprint(wizId, { expected: null, value: "isle_001" });
+    const fp1 = setWizardHomeIsleFingerprint(CAMPAIGN_ID, wizId, { expected: null, value: "isle_001" });
+    const fp2 = setWizardHomeIsleFingerprint(CAMPAIGN_ID, wizId, { expected: null, value: "isle_001" });
     expect(fp1).toBe(fp2);
 
     // home isle: changes when expected changes
-    const fp3 = setWizardHomeIsleFingerprint(wizId, { expected: "isle_001", value: "isle_001" });
+    const fp3 = setWizardHomeIsleFingerprint(CAMPAIGN_ID, wizId, { expected: "isle_001", value: "isle_001" });
     expect(fp3).not.toBe(fp1);
 
     // home isle: changes when value changes
-    const fp4 = setWizardHomeIsleFingerprint(wizId, { expected: null, value: "isle_002" });
+    const fp4 = setWizardHomeIsleFingerprint(CAMPAIGN_ID, wizId, { expected: null, value: "isle_002" });
     expect(fp4).not.toBe(fp1);
 
+    // home isle: changing expectedCampaignId changes fingerprint
+    const fp5 = setWizardHomeIsleFingerprint("cmp_00000000-0000-0000-0000-000000000002", wizId, { expected: null, value: "isle_001" });
+    expect(fp5).not.toBe(fp1);
+
     // sanctum: deterministic
-    const sf1 = setWizardSanctumFingerprint(wizId, { expected: null, value: "place_001" });
-    const sf2 = setWizardSanctumFingerprint(wizId, { expected: null, value: "place_001" });
+    const sf1 = setWizardSanctumFingerprint(CAMPAIGN_ID, wizId, { expected: null, value: "place_001" });
+    const sf2 = setWizardSanctumFingerprint(CAMPAIGN_ID, wizId, { expected: null, value: "place_001" });
     expect(sf1).toBe(sf2);
 
     // sanctum: changes when expected changes
-    const sf3 = setWizardSanctumFingerprint(wizId, { expected: "place_001", value: "place_001" });
+    const sf3 = setWizardSanctumFingerprint(CAMPAIGN_ID, wizId, { expected: "place_001", value: "place_001" });
     expect(sf3).not.toBe(sf1);
 
     // sanctum: changes when value changes
-    const sf4 = setWizardSanctumFingerprint(wizId, { expected: null, value: "place_002" });
+    const sf4 = setWizardSanctumFingerprint(CAMPAIGN_ID, wizId, { expected: null, value: "place_002" });
     expect(sf4).not.toBe(sf1);
   });
 

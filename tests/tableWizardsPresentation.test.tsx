@@ -58,7 +58,7 @@ function renderTable(props: {
   flushSync(() => {
     root.render(
       createElement(CaptureBoundary, null,
-        createElement(TableWizards, { ...props, worldRef: undefined }),
+        createElement(TableWizards, { ...props, worldRef: undefined, campaignId: "cmp_00000000-0000-0000-0000-000000000001" }),
       ),
     );
   });

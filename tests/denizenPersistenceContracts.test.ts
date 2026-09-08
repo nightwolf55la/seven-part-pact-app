@@ -12,6 +12,8 @@ import {
   updateDenizenFingerprint,
   mapEventToActivityEntry,
 } from "../shared/domain";
+
+const CAMPAIGN_ID = "cmp_00000000-0000-0000-0000-000000000001";
 import { validateEventCoherenceForTest } from "../convex/canonicalCommit";
 import type { CanonicalCommitInput } from "../convex/canonicalCommit";
 import type { CurrentCampaignState } from "../shared/domain";
@@ -28,12 +30,16 @@ describe("Denizen persistence contracts", () => {
 
   // 2. createDenizenFingerprint is deterministic and sensitive to input
   it("createDenizenFingerprint is deterministic and changes when input changes", () => {
-    const fp1 = createDenizenFingerprint("den_00000000-0000-0000-0000-000000000001", "Elder Thorn", "individual", null);
-    const fp2 = createDenizenFingerprint("den_00000000-0000-0000-0000-000000000001", "Elder Thorn", "individual", null);
+    const fp1 = createDenizenFingerprint(CAMPAIGN_ID, "den_00000000-0000-0000-0000-000000000001", "Elder Thorn", "individual", null);
+    const fp2 = createDenizenFingerprint(CAMPAIGN_ID, "den_00000000-0000-0000-0000-000000000001", "Elder Thorn", "individual", null);
     expect(fp1).toBe(fp2);
 
-    const fp3 = createDenizenFingerprint("den_00000000-0000-0000-0000-000000000001", "Different Name", "individual", null);
+    const fp3 = createDenizenFingerprint(CAMPAIGN_ID, "den_00000000-0000-0000-0000-000000000001", "Different Name", "individual", null);
     expect(fp3).not.toBe(fp1);
+
+    // changing expectedCampaignId changes fingerprint
+    const fp4 = createDenizenFingerprint("cmp_00000000-0000-0000-0000-000000000002", "den_00000000-0000-0000-0000-000000000001", "Elder Thorn", "individual", null);
+    expect(fp4).not.toBe(fp1);
   });
 
   // 3. updateDenizenFingerprint is order-independent via canonical JSON and sensitive to values
@@ -47,13 +53,13 @@ describe("Denizen persistence contracts", () => {
       name: { expected: "Old", value: "New" },
     };
     const id = "den_00000000-0000-0000-0000-000000000001";
-    expect(updateDenizenFingerprint(id, fields1)).toBe(updateDenizenFingerprint(id, fields2));
+    expect(updateDenizenFingerprint(CAMPAIGN_ID, id, fields1)).toBe(updateDenizenFingerprint(CAMPAIGN_ID, id, fields2));
 
     const fields3 = {
       name: { expected: "Old", value: "New" },
       description: { expected: "was this" as string | null, value: "A desc" as string | null },
     };
-    expect(updateDenizenFingerprint(id, fields3)).not.toBe(updateDenizenFingerprint(id, fields1));
+    expect(updateDenizenFingerprint(CAMPAIGN_ID, id, fields3)).not.toBe(updateDenizenFingerprint(CAMPAIGN_ID, id, fields1));
   });
 
   // 4. Denizen events are assignable to CampaignEvent

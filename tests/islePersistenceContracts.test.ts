@@ -7,6 +7,8 @@ import {
   updateIsleFingerprint,
   mapEventToActivityEntry,
 } from "../shared/domain";
+
+const CAMPAIGN_ID = "cmp_00000000-0000-0000-0000-000000000001";
 import { validateEventCoherenceForTest } from "../convex/canonicalCommit";
 import type { CanonicalCommitInput } from "../convex/canonicalCommit";
 import type { CurrentCampaignState } from "../shared/domain";
@@ -23,12 +25,16 @@ describe("Isle persistence contracts", () => {
 
   // 2. createIsleFingerprint is deterministic and sensitive to input
   it("createIsleFingerprint is deterministic and changes when input changes", () => {
-    const fp1 = createIsleFingerprint("isle_00000000-0000-0000-0000-000000000001", "Grey Isle", null);
-    const fp2 = createIsleFingerprint("isle_00000000-0000-0000-0000-000000000001", "Grey Isle", null);
+    const fp1 = createIsleFingerprint(CAMPAIGN_ID, "isle_00000000-0000-0000-0000-000000000001", "Grey Isle", null);
+    const fp2 = createIsleFingerprint(CAMPAIGN_ID, "isle_00000000-0000-0000-0000-000000000001", "Grey Isle", null);
     expect(fp1).toBe(fp2);
 
-    const fp3 = createIsleFingerprint("isle_00000000-0000-0000-0000-000000000001", "Different Isle", null);
+    const fp3 = createIsleFingerprint(CAMPAIGN_ID, "isle_00000000-0000-0000-0000-000000000001", "Different Isle", null);
     expect(fp3).not.toBe(fp1);
+
+    // changing expectedCampaignId changes fingerprint
+    const fp4 = createIsleFingerprint("cmp_00000000-0000-0000-0000-000000000002", "isle_00000000-0000-0000-0000-000000000001", "Grey Isle", null);
+    expect(fp4).not.toBe(fp1);
   });
 
   // 3. updateIsleFingerprint is order-independent and sensitive to values
@@ -42,13 +48,13 @@ describe("Isle persistence contracts", () => {
       description: { expected: null as string | null, value: "A desc" as string | null },
       name: { expected: "Old", value: "New" },
     };
-    expect(updateIsleFingerprint(id, fields1)).toBe(updateIsleFingerprint(id, fields2));
+    expect(updateIsleFingerprint(CAMPAIGN_ID, id, fields1)).toBe(updateIsleFingerprint(CAMPAIGN_ID, id, fields2));
 
     const fields3 = {
       name: { expected: "Old", value: "New" },
       description: { expected: "was this" as string | null, value: "A desc" as string | null },
     };
-    expect(updateIsleFingerprint(id, fields3)).not.toBe(updateIsleFingerprint(id, fields1));
+    expect(updateIsleFingerprint(CAMPAIGN_ID, id, fields3)).not.toBe(updateIsleFingerprint(CAMPAIGN_ID, id, fields1));
   });
 
   // 4. Canonical coherence accepts create_isle and update_isle

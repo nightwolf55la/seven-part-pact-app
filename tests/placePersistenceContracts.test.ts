@@ -7,6 +7,8 @@ import {
   updatePlaceFingerprint,
   mapEventToActivityEntry,
 } from "../shared/domain";
+
+const CAMPAIGN_ID = "cmp_00000000-0000-0000-0000-000000000001";
 import { validateEventCoherenceForTest } from "../convex/canonicalCommit";
 import type { CanonicalCommitInput } from "../convex/canonicalCommit";
 import type { CurrentCampaignState } from "../shared/domain";
@@ -28,13 +30,17 @@ describe("Place persistence contracts", () => {
     const placement2: WorldPlacePlacement = { kind: "unspecified" };
 
     // create: deterministic
-    const fp1 = createPlaceFingerprint(id, "Old Tower", null, placement1);
-    const fp2 = createPlaceFingerprint(id, "Old Tower", null, placement1);
+    const fp1 = createPlaceFingerprint(CAMPAIGN_ID, id, "Old Tower", null, placement1);
+    const fp2 = createPlaceFingerprint(CAMPAIGN_ID, id, "Old Tower", null, placement1);
     expect(fp1).toBe(fp2);
 
     // create: placement changes fingerprint
-    const fp3 = createPlaceFingerprint(id, "Old Tower", null, placement2);
+    const fp3 = createPlaceFingerprint(CAMPAIGN_ID, id, "Old Tower", null, placement2);
     expect(fp3).not.toBe(fp1);
+
+    // create: changing expectedCampaignId changes fingerprint
+    const fp4 = createPlaceFingerprint("cmp_00000000-0000-0000-0000-000000000002", id, "Old Tower", null, placement1);
+    expect(fp4).not.toBe(fp1);
 
     // update: canonical across key order
     const fields1 = {
@@ -45,14 +51,14 @@ describe("Place persistence contracts", () => {
       placement: { expected: placement1, value: placement2 },
       name: { expected: "Old", value: "New" },
     };
-    expect(updatePlaceFingerprint(id, fields1)).toBe(updatePlaceFingerprint(id, fields2));
+    expect(updatePlaceFingerprint(CAMPAIGN_ID, id, fields1)).toBe(updatePlaceFingerprint(CAMPAIGN_ID, id, fields2));
 
     // update: changes when expected placement changes
     const fields3 = {
       name: { expected: "Old", value: "New" },
       placement: { expected: placement2, value: placement2 },
     };
-    expect(updatePlaceFingerprint(id, fields3)).not.toBe(updatePlaceFingerprint(id, fields1));
+    expect(updatePlaceFingerprint(CAMPAIGN_ID, id, fields3)).not.toBe(updatePlaceFingerprint(CAMPAIGN_ID, id, fields1));
   });
 
   // 3. Canonical coherence accepts create_place and update_place

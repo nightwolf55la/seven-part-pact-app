@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 
 const EMBER_ISLE_ID = "isle_ember";
+const CAMPAIGN_ID = "cmp_00000000-0000-0000-0000-000000000001";
 
 const WORLD_REF = {
   denizens: [
@@ -69,12 +70,12 @@ vi.mock("../convex/_generated/api.js", () => ({
 
 import WorldSurface from "../src/WorldSurface";
 
-function renderWorld(world: typeof WORLD_REF): { container: HTMLDivElement; root: ReturnType<typeof createRoot> } {
+function renderWorld(world: typeof WORLD_REF, campaignId: string = CAMPAIGN_ID): { container: HTMLDivElement; root: ReturnType<typeof createRoot> } {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
   flushSync(() => {
-    root.render(createElement(WorldSurface, { world }));
+    root.render(createElement(WorldSurface, { world, campaignId }));
   });
   return { container, root };
 }
@@ -151,6 +152,7 @@ describe("World surface editing", () => {
     expect(createArgs.name).toBe("The Watcher");
     expect(createArgs.representation).toBe("collective");
     expect(createArgs.description).toBe("Watches from afar");
+    expect(createArgs.expectedCampaignId).toBe(CAMPAIGN_ID);
 
     // --- Edit: only change representation ---
     clickButton(container, "Edit");
@@ -166,6 +168,7 @@ describe("World surface editing", () => {
     const updateArgs = (mockMutations.updateDenizen.mock.calls as any)[0][0];
     expect(updateArgs.commandId).toMatch(/^cmd_/);
     expect(updateArgs.denizenId).toBe("den_thorn");
+    expect(updateArgs.expectedCampaignId).toBe(CAMPAIGN_ID);
     expect(updateArgs.fields.representation).toEqual({
       expected: "individual",
       value: "collective",
@@ -201,6 +204,7 @@ describe("World surface editing", () => {
     expect(createArgs.isleId).toMatch(/^isl_/);
     expect(createArgs.name).toBe("Shadow Isle");
     expect(createArgs.description).toBe("Dark and cold");
+    expect(createArgs.expectedCampaignId).toBe(CAMPAIGN_ID);
 
     // --- Edit: only change name ---
     clickButton(container, "Edit");
@@ -214,6 +218,7 @@ describe("World surface editing", () => {
     const updateArgs = (mockMutations.updateIsle.mock.calls as any)[0][0];
     expect(updateArgs.commandId).toMatch(/^cmd_/);
     expect(updateArgs.isleId).toBe("isle_ember");
+    expect(updateArgs.expectedCampaignId).toBe(CAMPAIGN_ID);
     expect(updateArgs.fields.name).toEqual({
       expected: "Ember Isle",
       value: "Ember Isle Renamed",
@@ -251,6 +256,7 @@ describe("World surface editing", () => {
     expect(createArgs.placeId).toMatch(/^plc_/);
     expect(createArgs.name).toBe("Obsidian Gate");
     expect(createArgs.placement).toEqual({ kind: "on_isle", isleId: EMBER_ISLE_ID });
+    expect(createArgs.expectedCampaignId).toBe(CAMPAIGN_ID);
 
     // --- Edit: change placement to mobile with associatedIsleId ---
     clickButton(container, "Edit");
@@ -268,6 +274,7 @@ describe("World surface editing", () => {
     const updateArgs = (mockMutations.updatePlace.mock.calls as any)[0][0];
     expect(updateArgs.commandId).toMatch(/^cmd_/);
     expect(updateArgs.placeId).toBe("plc_ash");
+    expect(updateArgs.expectedCampaignId).toBe(CAMPAIGN_ID);
     expect(updateArgs.fields.placement).toEqual({
       expected: { kind: "on_isle", isleId: EMBER_ISLE_ID },
       value: { kind: "mobile", associatedIsleId: EMBER_ISLE_ID },

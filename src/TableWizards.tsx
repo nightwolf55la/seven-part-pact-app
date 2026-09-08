@@ -34,11 +34,13 @@ export default function TableWizards({
   players,
   wizards,
   worldRef,
+  campaignId,
 }: {
   pactSeats: Readonly<Record<string, SeatRef>>;
   players: readonly PlayerRef[];
   wizards: readonly WizardRef[];
   worldRef: WorldReference | null | undefined;
+  campaignId: string;
 }) {
   const rows = buildTableWizardsRows(pactSeats, players, wizards);
   const createWizard = useMutation(api.m3Commands.createWizard);
@@ -52,7 +54,20 @@ export default function TableWizards({
   const [showAddWizard, setShowAddWizard] = useState(false);
   const [addWizardError, setAddWizardError] = useState<string | null>(null);
   const [characterWizardId, setCharacterWizardId] = useState<string | null>(null);
+  const [characterCampaignId, setCharacterCampaignId] = useState<string | null>(null);
   const [characterError, setCharacterError] = useState<string | null>(null);
+
+  function openCharacterSheet(wizardId: string): void {
+    setCharacterWizardId(wizardId);
+    setCharacterCampaignId(campaignId);
+    setCharacterError(null);
+  }
+
+  function closeCharacterSheet(): void {
+    setCharacterWizardId(null);
+    setCharacterCampaignId(null);
+    setCharacterError(null);
+  }
 
   const assignedWizardIds = new Set(
     PACT_SEAT_IDS
@@ -100,7 +115,7 @@ export default function TableWizards({
                   {row.wizardId !== null && (
                     <button
                       disabled={pending}
-                      onClick={() => { setCharacterWizardId(row.wizardId!); setCharacterError(null); }}
+                      onClick={() => openCharacterSheet(row.wizardId!)}
                       className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
                     >
                       Character Sheet
@@ -143,7 +158,7 @@ export default function TableWizards({
               <span className="text-xs text-slate-500">{w.name}</span>
               <button
                 disabled={pending}
-                onClick={() => { setCharacterWizardId(w.wizardId); setCharacterError(null); }}
+                onClick={() => openCharacterSheet(w.wizardId)}
                 className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
               >
                 Character Sheet
@@ -198,6 +213,7 @@ export default function TableWizards({
             try {
               await setWizardHomeIsle({
                 commandId: generateCommandId(),
+                expectedCampaignId: characterCampaignId!,
                 wizardId: characterWizard.wizardId,
                 change,
               });
@@ -211,6 +227,7 @@ export default function TableWizards({
             try {
               await setWizardSanctum({
                 commandId: generateCommandId(),
+                expectedCampaignId: characterCampaignId!,
                 wizardId: characterWizard.wizardId,
                 change,
               });
@@ -224,6 +241,7 @@ export default function TableWizards({
             try {
               await setWizardCompanion({
                 commandId: generateCommandId(),
+                expectedCampaignId: characterCampaignId!,
                 wizardId: characterWizard.wizardId,
                 element: change.element,
                 expectedCurrentRelationshipId: change.expectedCurrentRelationshipId,
@@ -246,6 +264,7 @@ export default function TableWizards({
             try {
               await updateCompanionDescription({
                 commandId: generateCommandId(),
+                expectedCampaignId: characterCampaignId!,
                 companionRelationshipId: change.companionRelationshipId,
                 expectedStatus: change.expectedStatus,
                 description: change.description,
@@ -263,15 +282,14 @@ export default function TableWizards({
                 wizardId: characterWizard.wizardId,
                 patch,
               });
-              setCharacterWizardId(null);
-              setCharacterError(null);
+              closeCharacterSheet();
             } catch (e: any) {
               setCharacterError(e?.message ?? "Failed to save character");
             } finally {
               setPending(false);
             }
           }}
-          onClose={() => { setCharacterWizardId(null); setCharacterError(null); }}
+          onClose={() => closeCharacterSheet()}
         />
       )}
     </section>

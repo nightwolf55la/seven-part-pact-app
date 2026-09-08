@@ -63,6 +63,7 @@ interface EditorState {
   readonly placementKind: "unspecified" | "on_isle" | "mobile";
   readonly isleId: string;
   readonly associatedIsleId: string;
+  readonly expectedCampaignId: string;
 }
 
 function representationLabel(rep: "individual" | "collective"): string {
@@ -110,17 +111,17 @@ function buildPlacement(state: EditorState): PlacementRef {
   }
 }
 
-function blankEditor(tab: WorldTab): EditorState {
+function blankEditor(tab: WorldTab, campaignId: string): EditorState {
   if (tab === "denizens") {
-    return { kind: "denizen-create", entityId: null, original: null, name: "", representation: "individual", description: "", placementKind: "unspecified", isleId: "", associatedIsleId: "" };
+    return { kind: "denizen-create", entityId: null, original: null, name: "", representation: "individual", description: "", placementKind: "unspecified", isleId: "", associatedIsleId: "", expectedCampaignId: campaignId };
   }
   if (tab === "isles") {
-    return { kind: "isle-create", entityId: null, original: null, name: "", representation: "individual", description: "", placementKind: "unspecified", isleId: "", associatedIsleId: "" };
+    return { kind: "isle-create", entityId: null, original: null, name: "", representation: "individual", description: "", placementKind: "unspecified", isleId: "", associatedIsleId: "", expectedCampaignId: campaignId };
   }
-  return { kind: "place-create", entityId: null, original: null, name: "", representation: "individual", description: "", placementKind: "unspecified", isleId: "", associatedIsleId: "" };
+  return { kind: "place-create", entityId: null, original: null, name: "", representation: "individual", description: "", placementKind: "unspecified", isleId: "", associatedIsleId: "", expectedCampaignId: campaignId };
 }
 
-export default function WorldSurface({ world }: { world: WorldReference }) {
+export default function WorldSurface({ world, campaignId }: { world: WorldReference; campaignId: string }) {
   const [activeTab, setActiveTab] = useState<WorldTab>("denizens");
   const [filter, setFilter] = useState("");
   const [editor, setEditor] = useState<EditorState | null>(null);
@@ -144,7 +145,7 @@ export default function WorldSurface({ world }: { world: WorldReference }) {
 
   function openCreate(): void {
     setError(null);
-    setEditor(blankEditor(activeTab));
+    setEditor(blankEditor(activeTab, campaignId));
   }
 
   function openEditDenizen(d: DenizenRef): void {
@@ -159,6 +160,7 @@ export default function WorldSurface({ world }: { world: WorldReference }) {
       placementKind: "unspecified",
       isleId: "",
       associatedIsleId: "",
+      expectedCampaignId: campaignId,
     });
   }
 
@@ -174,6 +176,7 @@ export default function WorldSurface({ world }: { world: WorldReference }) {
       placementKind: "unspecified",
       isleId: "",
       associatedIsleId: "",
+      expectedCampaignId: campaignId,
     });
   }
 
@@ -190,6 +193,7 @@ export default function WorldSurface({ world }: { world: WorldReference }) {
       placementKind: pk,
       isleId: pk === "on_isle" ? p.placement.isleId : "",
       associatedIsleId: pk === "mobile" && p.placement.associatedIsleId !== null ? p.placement.associatedIsleId : "",
+      expectedCampaignId: campaignId,
     });
   }
 
@@ -208,6 +212,7 @@ export default function WorldSurface({ world }: { world: WorldReference }) {
         const denizenId = `den_${crypto.randomUUID()}`;
         await createDenizen({
           commandId,
+          expectedCampaignId: editor.expectedCampaignId,
           denizenId,
           name: editor.name,
           representation: editor.representation,
@@ -232,13 +237,14 @@ export default function WorldSurface({ world }: { world: WorldReference }) {
           return;
         }
         const commandId = `cmd_${crypto.randomUUID()}`;
-        await updateDenizen({ commandId, denizenId: editor.entityId!, fields });
+        await updateDenizen({ commandId, expectedCampaignId: editor.expectedCampaignId, denizenId: editor.entityId!, fields });
         closeEditor();
       } else if (editor.kind === "isle-create") {
         const commandId = `cmd_${crypto.randomUUID()}`;
         const isleId = `isl_${crypto.randomUUID()}`;
         await createIsle({
           commandId,
+          expectedCampaignId: editor.expectedCampaignId,
           isleId,
           name: editor.name,
           description: editor.description.trim() === "" ? null : editor.description,
@@ -259,7 +265,7 @@ export default function WorldSurface({ world }: { world: WorldReference }) {
           return;
         }
         const commandId = `cmd_${crypto.randomUUID()}`;
-        await updateIsle({ commandId, isleId: editor.entityId!, fields });
+        await updateIsle({ commandId, expectedCampaignId: editor.expectedCampaignId, isleId: editor.entityId!, fields });
         closeEditor();
       } else if (editor.kind === "place-create") {
         if (editor.placementKind === "on_isle" && editor.isleId === "") {
@@ -270,6 +276,7 @@ export default function WorldSurface({ world }: { world: WorldReference }) {
         const placeId = `plc_${crypto.randomUUID()}`;
         await createPlace({
           commandId,
+          expectedCampaignId: editor.expectedCampaignId,
           placeId,
           name: editor.name,
           description: editor.description.trim() === "" ? null : editor.description,
@@ -295,7 +302,7 @@ export default function WorldSurface({ world }: { world: WorldReference }) {
           return;
         }
         const commandId = `cmd_${crypto.randomUUID()}`;
-        await updatePlace({ commandId, placeId: editor.entityId!, fields });
+        await updatePlace({ commandId, expectedCampaignId: editor.expectedCampaignId, placeId: editor.entityId!, fields });
         closeEditor();
       }
     } catch (e: any) {

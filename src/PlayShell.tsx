@@ -38,7 +38,7 @@ const SURFACE_LABELS: Record<SurfaceId, string> = {
 
 function renderSurface(
   surface: SurfaceId,
-  ref: { monthOrdinal: number; orreryPositions: Record<string, number>; phase: LunarPhase; pactSeats: Record<string, { status: string | null; wizardId: string | null; watcherPlayerId: string | null }>; players: { playerId: string; name: string }[]; wizards: { wizardId: string; name: string; portrayedByPlayerId: string | null; character: { elements: { air: number; fire: number; earth: number; water: number } | null; pactFragmentPersonalForm: string | null; familiarDescription: string | null; ageYears: number | null; publicChangesOfMagic: readonly string[]; importantNotes: string | null }; homeIsleId: string | null; sanctumPlaceId: string | null }[] },
+  ref: { campaignId: string; monthOrdinal: number; orreryPositions: Record<string, number>; phase: LunarPhase; pactSeats: Record<string, { status: string | null; wizardId: string | null; watcherPlayerId: string | null }>; players: { playerId: string; name: string }[]; wizards: { wizardId: string; name: string; portrayedByPlayerId: string | null; character: { elements: { air: number; fire: number; earth: number; water: number } | null; pactFragmentPersonalForm: string | null; familiarDescription: string | null; ageYears: number | null; publicChangesOfMagic: readonly string[]; importantNotes: string | null }; homeIsleId: string | null; sanctumPlaceId: string | null }[] },
   worldRef: { readonly denizens: readonly { readonly denizenId: string; readonly name: string; readonly representation: "individual" | "collective"; readonly description: string | null }[]; readonly isles: readonly { readonly isleId: string; readonly name: string; readonly description: string | null }[]; readonly places: readonly { readonly placeId: string; readonly name: string; readonly description: string | null; readonly placement: { readonly kind: "unspecified" } | { readonly kind: "on_isle"; readonly isleId: string } | { readonly kind: "mobile"; readonly associatedIsleId: string | null } }[] } | null | undefined,
 ) {
   switch (surface) {
@@ -59,20 +59,20 @@ function renderSurface(
     case "orrery":
       return <OrreryView monthOrdinal={ref.monthOrdinal} orreryPositions={ref.orreryPositions} />;
     case "table_wizards":
-      return <TableWizards pactSeats={ref.pactSeats} players={ref.players} wizards={ref.wizards} worldRef={worldRef} />;
+      return <TableWizards pactSeats={ref.pactSeats} players={ref.players} wizards={ref.wizards} worldRef={worldRef} campaignId={ref.campaignId} />;
     case "world":
       return null;
   }
 }
 
-function renderWorld(worldRef: ReturnType<typeof useQuery<typeof api.m3Queries.getWorldReference>>) {
+function renderWorld(worldRef: ReturnType<typeof useQuery<typeof api.m3Queries.getWorldReference>>, campaignId: string) {
   if (worldRef === undefined) {
     return <div className="py-12 text-center text-sm text-slate-400">Loading world…</div>;
   }
   if (worldRef === null) {
     return <div className="py-12 text-center text-sm text-slate-400">World unavailable.</div>;
   }
-  return <WorldSurface world={worldRef} />;
+  return <WorldSurface world={worldRef} campaignId={campaignId} />;
 }
 
 export default function PlayShell({
@@ -193,7 +193,7 @@ export default function PlayShell({
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 min-w-0">
               {surfaceState.primary.current === "world"
-                ? renderWorld(worldRef)
+                ? renderWorld(worldRef, playRef.campaignId)
                 : renderSurface(surfaceState.primary.current, playRef, worldRef)}
             </div>
             <div className="hidden md:block md:w-80 lg:w-96 flex-shrink-0">
@@ -227,14 +227,14 @@ export default function PlayShell({
                 </button>
               </div>
               {surfaceState.secondary.current === "world"
-                ? renderWorld(worldRef)
+                ? renderWorld(worldRef, playRef.campaignId)
                 : renderSurface(surfaceState.secondary.current, playRef, worldRef)}
             </div>
           </div>
         ) : (
           <div className="w-full">
             {surfaceState.primary.current === "world"
-              ? renderWorld(worldRef)
+              ? renderWorld(worldRef, playRef.campaignId)
               : renderSurface(surfaceState.primary.current, playRef, worldRef)}
           </div>
         )}

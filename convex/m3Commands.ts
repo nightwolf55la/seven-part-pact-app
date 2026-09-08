@@ -103,6 +103,7 @@ import type { AgeDefinitionId } from "../shared/domain/ages";
 import { isValidAgeDefinitionId } from "../shared/domain/ages";
 import { loadHistoricalState } from "../shared/domain/state-migration";
 import { matchCommandIdempotency } from "../shared/domain/command-ids";
+import { isValidCampaignId } from "../shared/domain";
 import { canonicalCommit } from "./canonicalCommit";
 import type { CanonicalCommitInput, CanonicalCommitReceipt } from "./canonicalCommit";
 import type { Id } from "./_generated/dataModel";
@@ -115,6 +116,27 @@ interface CanonicalCampaign {
   campaignId: string;
   currentRevision: number;
   currentState: CurrentCampaignState;
+}
+
+function validateM5ExpectedCampaignId(expectedCampaignId: string): void {
+  if (!isValidCampaignId(expectedCampaignId)) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Invalid expectedCampaignId: ${expectedCampaignId}`,
+    );
+  }
+}
+
+export function assertM5ExpectedCampaignIdMatches(
+  expectedCampaignId: string,
+  actualCampaignId: string,
+): void {
+  if (expectedCampaignId !== actualCampaignId) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      `Expected campaign "${expectedCampaignId}" but current campaign is "${actualCampaignId}"`,
+    );
+  }
 }
 
 async function loadCanonicalV2ForMutation(ctx: MutationCtx): Promise<CanonicalCampaign> {
@@ -1154,6 +1176,7 @@ export const beginNextMonth = mutation({
 export const createDenizen = mutation({
   args: {
     commandId: v.string(),
+    expectedCampaignId: v.string(),
     denizenId: v.string(),
     name: v.string(),
     representation: v.union(v.literal("individual"), v.literal("collective")),
@@ -1162,11 +1185,13 @@ export const createDenizen = mutation({
   handler: async (ctx, args) => {
     await assertCampaignNotDeleting(ctx);
     parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
     if (!isValidDenizenId(args.denizenId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
     }
-    const fingerprint = createDenizenFingerprint(args.denizenId, args.name, args.representation, args.description);
+    const fingerprint = createDenizenFingerprint(args.expectedCampaignId, args.denizenId, args.name, args.representation, args.description);
     const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
     const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "create_denizen", fingerprint);
     if (replay) return { revision: replay.newRevision };
     const result = applyCreateDenizenV5Candidate(campaign.currentState, {
@@ -1183,6 +1208,7 @@ export const createDenizen = mutation({
 export const updateDenizen = mutation({
   args: {
     commandId: v.string(),
+    expectedCampaignId: v.string(),
     denizenId: v.string(),
     fields: v.object({
       name: v.optional(v.object({ expected: v.string(), value: v.string() })),
@@ -1199,11 +1225,13 @@ export const updateDenizen = mutation({
   handler: async (ctx, args) => {
     await assertCampaignNotDeleting(ctx);
     parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
     if (!isValidDenizenId(args.denizenId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
     }
-    const fingerprint = updateDenizenFingerprint(args.denizenId, args.fields);
+    const fingerprint = updateDenizenFingerprint(args.expectedCampaignId, args.denizenId, args.fields);
     const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
     const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "update_denizen", fingerprint);
     if (replay) return { revision: replay.newRevision };
     const result = applyUpdateDenizenV5Candidate(campaign.currentState, args.denizenId as DenizenId, args.fields);
@@ -1219,6 +1247,7 @@ export const updateDenizen = mutation({
 export const createIsle = mutation({
   args: {
     commandId: v.string(),
+    expectedCampaignId: v.string(),
     isleId: v.string(),
     name: v.string(),
     description: v.union(v.string(), v.null()),
@@ -1226,11 +1255,13 @@ export const createIsle = mutation({
   handler: async (ctx, args) => {
     await assertCampaignNotDeleting(ctx);
     parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
     if (!isValidIsleId(args.isleId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid isleId: ${args.isleId}`);
     }
-    const fingerprint = createIsleFingerprint(args.isleId, args.name, args.description);
+    const fingerprint = createIsleFingerprint(args.expectedCampaignId, args.isleId, args.name, args.description);
     const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
     const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "create_isle", fingerprint);
     if (replay) return { revision: replay.newRevision };
     const result = applyCreateIsleV5Candidate(campaign.currentState, {
@@ -1246,6 +1277,7 @@ export const createIsle = mutation({
 export const updateIsle = mutation({
   args: {
     commandId: v.string(),
+    expectedCampaignId: v.string(),
     isleId: v.string(),
     fields: v.object({
       name: v.optional(v.object({ expected: v.string(), value: v.string() })),
@@ -1258,11 +1290,13 @@ export const updateIsle = mutation({
   handler: async (ctx, args) => {
     await assertCampaignNotDeleting(ctx);
     parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
     if (!isValidIsleId(args.isleId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid isleId: ${args.isleId}`);
     }
-    const fingerprint = updateIsleFingerprint(args.isleId, args.fields);
+    const fingerprint = updateIsleFingerprint(args.expectedCampaignId, args.isleId, args.fields);
     const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
     const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "update_isle", fingerprint);
     if (replay) return { revision: replay.newRevision };
     const result = applyUpdateIsleV5Candidate(campaign.currentState, args.isleId as IsleId, args.fields);
@@ -1284,6 +1318,7 @@ const placePlacementArgValidator = v.union(
 export const createPlace = mutation({
   args: {
     commandId: v.string(),
+    expectedCampaignId: v.string(),
     placeId: v.string(),
     name: v.string(),
     description: v.union(v.string(), v.null()),
@@ -1292,11 +1327,13 @@ export const createPlace = mutation({
   handler: async (ctx, args) => {
     await assertCampaignNotDeleting(ctx);
     parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
     if (!isValidPlaceId(args.placeId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid placeId: ${args.placeId}`);
     }
-    const fingerprint = createPlaceFingerprint(args.placeId, args.name, args.description, args.placement);
+    const fingerprint = createPlaceFingerprint(args.expectedCampaignId, args.placeId, args.name, args.description, args.placement);
     const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
     const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "create_place", fingerprint);
     if (replay) return { revision: replay.newRevision };
     const result = applyCreatePlaceV5Candidate(campaign.currentState, {
@@ -1313,6 +1350,7 @@ export const createPlace = mutation({
 export const updatePlace = mutation({
   args: {
     commandId: v.string(),
+    expectedCampaignId: v.string(),
     placeId: v.string(),
     fields: v.object({
       name: v.optional(v.object({ expected: v.string(), value: v.string() })),
@@ -1329,11 +1367,13 @@ export const updatePlace = mutation({
   handler: async (ctx, args) => {
     await assertCampaignNotDeleting(ctx);
     parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
     if (!isValidPlaceId(args.placeId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid placeId: ${args.placeId}`);
     }
-    const fingerprint = updatePlaceFingerprint(args.placeId, args.fields);
+    const fingerprint = updatePlaceFingerprint(args.expectedCampaignId, args.placeId, args.fields);
     const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
     const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "update_place", fingerprint);
     if (replay) return { revision: replay.newRevision };
     const result = applyUpdatePlaceV5Candidate(campaign.currentState, args.placeId as PlaceId, args.fields as UpdatePlaceFields);
@@ -1349,6 +1389,7 @@ export const updatePlace = mutation({
 export const setWizardHomeIsle = mutation({
   args: {
     commandId: v.string(),
+    expectedCampaignId: v.string(),
     wizardId: v.string(),
     change: v.object({
       expected: v.union(v.string(), v.null()),
@@ -1358,11 +1399,13 @@ export const setWizardHomeIsle = mutation({
   handler: async (ctx, args) => {
     await assertCampaignNotDeleting(ctx);
     parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
     if (!isValidWizardId(args.wizardId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
     }
-    const fingerprint = setWizardHomeIsleFingerprint(args.wizardId, args.change);
+    const fingerprint = setWizardHomeIsleFingerprint(args.expectedCampaignId, args.wizardId, args.change);
     const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
     const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "set_wizard_home_isle", fingerprint);
     if (replay) return { revision: replay.newRevision };
     const result = applySetWizardHomeIsleV5Candidate(
@@ -1378,6 +1421,7 @@ export const setWizardHomeIsle = mutation({
 export const setWizardSanctum = mutation({
   args: {
     commandId: v.string(),
+    expectedCampaignId: v.string(),
     wizardId: v.string(),
     change: v.object({
       expected: v.union(v.string(), v.null()),
@@ -1387,11 +1431,13 @@ export const setWizardSanctum = mutation({
   handler: async (ctx, args) => {
     await assertCampaignNotDeleting(ctx);
     parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
     if (!isValidWizardId(args.wizardId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
     }
-    const fingerprint = setWizardSanctumFingerprint(args.wizardId, args.change);
+    const fingerprint = setWizardSanctumFingerprint(args.expectedCampaignId, args.wizardId, args.change);
     const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
     const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "set_wizard_sanctum", fingerprint);
     if (replay) return { revision: replay.newRevision };
     const result = applySetWizardSanctumV5Candidate(
@@ -1407,6 +1453,7 @@ export const setWizardSanctum = mutation({
 export const setWizardCompanion = mutation({
   args: {
     commandId: v.string(),
+    expectedCampaignId: v.string(),
     wizardId: v.string(),
     element: v.union(
       v.literal("air"),
@@ -1427,16 +1474,19 @@ export const setWizardCompanion = mutation({
   handler: async (ctx, args) => {
     await assertCampaignNotDeleting(ctx);
     parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
     if (!isValidWizardId(args.wizardId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
     }
     const fingerprint = setWizardCompanionFingerprint({
+      expectedCampaignId: args.expectedCampaignId,
       wizardId: args.wizardId,
       element: args.element,
       expectedCurrentRelationshipId: args.expectedCurrentRelationshipId,
       newRelationship: args.newRelationship,
     });
     const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
     const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "set_wizard_companion", fingerprint);
     if (replay) return { revision: replay.newRevision };
     const result = applySetWizardCompanionV5Candidate(campaign.currentState, {
@@ -1459,6 +1509,7 @@ export const setWizardCompanion = mutation({
 export const updateCompanionDescription = mutation({
   args: {
     commandId: v.string(),
+    expectedCampaignId: v.string(),
     companionRelationshipId: v.string(),
     expectedStatus: v.union(v.literal("current"), v.literal("ended")),
     description: v.object({
@@ -1469,15 +1520,18 @@ export const updateCompanionDescription = mutation({
   handler: async (ctx, args) => {
     await assertCampaignNotDeleting(ctx);
     parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
     if (!isValidCompanionRelationshipId(args.companionRelationshipId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid companionRelationshipId: ${args.companionRelationshipId}`);
     }
     const fingerprint = updateCompanionDescriptionFingerprint({
+      expectedCampaignId: args.expectedCampaignId,
       companionRelationshipId: args.companionRelationshipId,
       expectedStatus: args.expectedStatus,
       description: args.description,
     });
     const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
     const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "update_companion_description", fingerprint);
     if (replay) return { revision: replay.newRevision };
     const result = applyUpdateCompanionDescriptionV5Candidate(campaign.currentState, {

@@ -15,6 +15,8 @@ import {
   mapEventToActivityEntry,
 } from "../shared/domain";
 import * as m3Commands from "../convex/m3Commands";
+
+const CAMPAIGN_ID = "cmp_00000000-0000-0000-0000-000000000001";
 import { validateEventCoherenceForTest } from "../convex/canonicalCommit";
 import type { CanonicalCommitInput } from "../convex/canonicalCommit";
 import type { CurrentCampaignState } from "../shared/domain";
@@ -33,6 +35,7 @@ describe("Companion persistence contracts", () => {
   it("setWizardCompanionFingerprint is deterministic and sensitive to intent changes", () => {
     const wizId = "wizard_00000000-0000-0000-0000-000000000001";
     const baseInput = {
+      expectedCampaignId: CAMPAIGN_ID,
       wizardId: wizId,
       element: "fire" as ElementId,
       expectedCurrentRelationshipId: null as CompanionRelationshipId | null,
@@ -70,12 +73,20 @@ describe("Companion persistence contracts", () => {
       newRelationship: null,
     });
     expect(fp5).not.toBe(fp1);
+
+    // changing expectedCampaignId changes fingerprint
+    const fp6 = setWizardCompanionFingerprint({
+      ...baseInput,
+      expectedCampaignId: "cmp_00000000-0000-0000-0000-000000000002",
+    });
+    expect(fp6).not.toBe(fp1);
   });
 
   // 3. updateCompanionDescriptionFingerprint: canonical/deterministic and sensitive
   it("updateCompanionDescriptionFingerprint is canonical and sensitive to intent changes", () => {
     const compId = "comp_00000000-0000-0000-0000-000000000001";
     const baseInput = {
+      expectedCampaignId: CAMPAIGN_ID,
       companionRelationshipId: compId,
       expectedStatus: "current" as const,
       description: { expected: "old desc" as string | null, value: "new desc" as string | null },
@@ -105,6 +116,13 @@ describe("Companion persistence contracts", () => {
       description: { ...baseInput.description, value: "different new" },
     });
     expect(fp5).not.toBe(fp1);
+
+    // changing expectedCampaignId changes fingerprint
+    const fp6 = updateCompanionDescriptionFingerprint({
+      ...baseInput,
+      expectedCampaignId: "cmp_00000000-0000-0000-0000-000000000002",
+    });
+    expect(fp6).not.toBe(fp1);
   });
 
   // 4. Canonical coherence accepts both command/event pairs
