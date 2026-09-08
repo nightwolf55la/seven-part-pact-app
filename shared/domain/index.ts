@@ -111,6 +111,10 @@ export type {
   WizardHomeIsleChangedEventV1,
   WizardSanctumChangedDataV1,
   WizardSanctumChangedEventV1,
+  WizardCompanionChangedDataV1,
+  WizardCompanionChangedEventV1,
+  CompanionDescriptionChangedDataV1,
+  CompanionDescriptionChangedEventV1,
   CampaignEvent,
 } from "./events";
 
@@ -253,6 +257,8 @@ export {
   updatePlaceFingerprint,
   setWizardHomeIsleFingerprint,
   setWizardSanctumFingerprint,
+  setWizardCompanionFingerprint,
+  updateCompanionDescriptionFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
@@ -570,9 +576,8 @@ export {
 export type {
   RelationshipTransitionResult,
   WizardAssociationTransitionResult,
+  CompanionTransitionResult,
   CandidateRelationshipEvent,
-  WizardCompanionChangedEventV1,
-  CompanionDescriptionChangedEventV1,
   SetWizardCompanionInput,
   UpdateCompanionDescriptionInput,
 } from "./world-relationship-transitions";

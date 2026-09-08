@@ -10,13 +10,22 @@ import type { WizardId, IsleId, PlaceId, DenizenId, CompanionRelationshipId } fr
 import { isValidCompanionRelationshipId } from "./ids";
 import { DomainError } from "./errors";
 import type { ExpectedFieldChange } from "./world-subject-transitions";
-import type { WizardHomeIsleChangedEventV1, WizardSanctumChangedEventV1 } from "./events";
+import type {
+  WizardHomeIsleChangedEventV1,
+  WizardSanctumChangedEventV1,
+  WizardCompanionChangedEventV1,
+  CompanionDescriptionChangedEventV1,
+} from "./events";
 
 export type {
   WizardHomeIsleChangedDataV1,
   WizardHomeIsleChangedEventV1,
   WizardSanctumChangedDataV1,
   WizardSanctumChangedEventV1,
+  WizardCompanionChangedDataV1,
+  WizardCompanionChangedEventV1,
+  CompanionDescriptionChangedDataV1,
+  CompanionDescriptionChangedEventV1,
 } from "./events";
 
 // ---------------------------------------------------------------------------
@@ -55,30 +64,12 @@ export interface WizardAssociationTransitionResult {
 }
 
 // ---------------------------------------------------------------------------
-// Candidate events (NOT added to active CampaignEvent union)
+// Companion result type (narrow)
 // ---------------------------------------------------------------------------
 
-export interface WizardCompanionChangedDataV1 {
-  readonly wizardId: WizardId;
-  readonly element: ElementId;
-  readonly previousCurrentRelationship: CompanionRelationship | null;
-  readonly newCurrentRelationship: CompanionRelationship | null;
-}
-export interface WizardCompanionChangedEventV1 {
-  readonly type: "wizard_companion_changed";
-  readonly version: 1;
-  readonly data: WizardCompanionChangedDataV1;
-}
-
-export interface CompanionDescriptionChangedDataV1 {
-  readonly companionRelationshipId: CompanionRelationshipId;
-  readonly previous: CompanionRelationship;
-  readonly updated: CompanionRelationship;
-}
-export interface CompanionDescriptionChangedEventV1 {
-  readonly type: "companion_description_changed";
-  readonly version: 1;
-  readonly data: CompanionDescriptionChangedDataV1;
+export interface CompanionTransitionResult {
+  readonly nextState: CampaignStateV5;
+  readonly events: readonly (WizardCompanionChangedEventV1 | CompanionDescriptionChangedEventV1)[];
 }
 
 export interface RelationshipTransitionResult {
@@ -226,7 +217,7 @@ export interface SetWizardCompanionInput {
 export function applySetWizardCompanionV5Candidate(
   state: CampaignStateV5,
   input: SetWizardCompanionInput,
-): RelationshipTransitionResult {
+): CompanionTransitionResult {
   findWizard(state, input.wizardId);
 
   if (!(ELEMENT_IDS as readonly string[]).includes(input.element)) {
@@ -317,7 +308,7 @@ export interface UpdateCompanionDescriptionInput {
 export function applyUpdateCompanionDescriptionV5Candidate(
   state: CampaignStateV5,
   input: UpdateCompanionDescriptionInput,
-): RelationshipTransitionResult {
+): CompanionTransitionResult {
   const idx = state.world.companionRelationships.findIndex(
     (r) => r.companionRelationshipId === input.companionRelationshipId,
   );

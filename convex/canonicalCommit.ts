@@ -162,6 +162,8 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   update_place: { required: ["place_updated"] },
   set_wizard_home_isle: { required: ["wizard_home_isle_changed"] },
   set_wizard_sanctum: { required: ["wizard_sanctum_changed"] },
+  set_wizard_companion: { required: ["wizard_companion_changed"] },
+  update_companion_description: { required: ["companion_description_changed"] },
 };
 
 function validateM3EventCoherence(input: CanonicalCommitInput): void {

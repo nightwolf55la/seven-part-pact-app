@@ -252,7 +252,9 @@ export function mapEventToActivityEntry(
     case "place_created":
     case "place_updated":
     case "wizard_home_isle_changed":
-    case "wizard_sanctum_changed": {
+    case "wizard_sanctum_changed":
+    case "wizard_companion_changed":
+    case "companion_description_changed": {
       return {
         id,
         revision,

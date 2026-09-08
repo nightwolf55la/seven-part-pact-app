@@ -309,6 +309,29 @@ export function setWizardSanctumFingerprint(
   return `set_wizard_sanctum:v1:${payload}`;
 }
 
+export function setWizardCompanionFingerprint(input: {
+  wizardId: string;
+  element: string;
+  expectedCurrentRelationshipId: string | null;
+  newRelationship: {
+    companionRelationshipId: string;
+    denizenId: string;
+    description: string | null;
+  } | null;
+}): string {
+  const payload = canonicalJsonStringify(input);
+  return `set_wizard_companion:v1:${payload}`;
+}
+
+export function updateCompanionDescriptionFingerprint(input: {
+  companionRelationshipId: string;
+  expectedStatus: string;
+  description: { expected: string | null; value: string | null };
+}): string {
+  const payload = canonicalJsonStringify(input);
+  return `update_companion_description:v1:${payload}`;
+}
+
 /**
  * Pure deterministic idempotency match for command replay.
  * Given a previously committed command record and an incoming attempt,

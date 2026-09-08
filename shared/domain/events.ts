@@ -4,8 +4,8 @@ import type { MovablePlanetId, CentidegreePosition } from "./orrery";
 import type { LunarPhase, WizardCharacterDataV4, WizardCharacterDataV5 } from "./campaign-state";
 import type { TimeDestination } from "./time-model";
 import type { EngagementTargetV4, EngagementTargetV5 } from "./engagement";
-import type { Denizen, Isle, WorldPlace } from "./shared-world";
-import type { DenizenId, IsleId, PlaceId, WizardId } from "./ids";
+import type { Denizen, Isle, WorldPlace, CompanionRelationship, ElementId } from "./shared-world";
+import type { DenizenId, IsleId, PlaceId, WizardId, CompanionRelationshipId } from "./ids";
 
 export interface UndoAppliedDataV1 {
   readonly fromRevision: number;
@@ -570,6 +570,29 @@ export interface WizardSanctumChangedEventV1 {
   readonly data: WizardSanctumChangedDataV1;
 }
 
+export interface WizardCompanionChangedDataV1 {
+  readonly wizardId: WizardId;
+  readonly element: ElementId;
+  readonly previousCurrentRelationship: CompanionRelationship | null;
+  readonly newCurrentRelationship: CompanionRelationship | null;
+}
+export interface WizardCompanionChangedEventV1 {
+  readonly type: "wizard_companion_changed";
+  readonly version: 1;
+  readonly data: WizardCompanionChangedDataV1;
+}
+
+export interface CompanionDescriptionChangedDataV1 {
+  readonly companionRelationshipId: CompanionRelationshipId;
+  readonly previous: CompanionRelationship;
+  readonly updated: CompanionRelationship;
+}
+export interface CompanionDescriptionChangedEventV1 {
+  readonly type: "companion_description_changed";
+  readonly version: 1;
+  readonly data: CompanionDescriptionChangedDataV1;
+}
+
 export type WorldEvent =
   | DenizenCreatedEventV1
   | DenizenUpdatedEventV1
@@ -578,7 +601,9 @@ export type WorldEvent =
   | PlaceCreatedEventV1
   | PlaceUpdatedEventV1
   | WizardHomeIsleChangedEventV1
-  | WizardSanctumChangedEventV1;
+  | WizardSanctumChangedEventV1
+  | WizardCompanionChangedEventV1
+  | CompanionDescriptionChangedEventV1;
 
 export type CampaignEvent =
   | InfrastructureEvent
