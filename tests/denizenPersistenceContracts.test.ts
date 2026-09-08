@@ -12,6 +12,9 @@ import {
   updateDenizenFingerprint,
   mapEventToActivityEntry,
 } from "../shared/domain";
+import { validateEventCoherenceForTest } from "../convex/canonicalCommit";
+import type { CanonicalCommitInput } from "../convex/canonicalCommit";
+import type { CurrentCampaignState } from "../shared/domain";
 
 describe("Denizen persistence contracts", () => {
   // 1. Command types are active and logical-state
@@ -103,5 +106,65 @@ describe("Denizen persistence contracts", () => {
     if (entry2.type === "campaign_configuration") {
       expect(entry2.description).toContain("New Name");
     }
+  });
+
+  // 6. Canonical event coherence accepts Denizen commands
+  it("validateEventCoherence accepts create_denizen and update_denizen with matching events", () => {
+    const dummyState = {} as CurrentCampaignState;
+    const baseInput = {
+      campaignDocId: "dummy" as unknown as CanonicalCommitInput["campaignDocId"],
+      campaignId: "cmp_dummy",
+      currentRevision: 0,
+      currentState: dummyState,
+      commandId: "cmd_dummy",
+      commandFingerprint: "fp_dummy",
+      nextState: dummyState,
+      historyControlUpdate: { kind: "logical_state_append" as const },
+    };
+
+    const createdEvent: DenizenCreatedEventV1 = {
+      type: "denizen_created",
+      version: 1,
+      data: {
+        denizen: {
+          denizenId: "den_00000000-0000-0000-0000-000000000001" as DenizenId,
+          name: "Elder Thorn",
+          representation: "individual",
+          description: null,
+        },
+      },
+    };
+    expect(() =>
+      validateEventCoherenceForTest(
+        { ...baseInput, commandType: "create_denizen", events: [createdEvent] },
+        1,
+      ),
+    ).not.toThrow();
+
+    const updatedEvent: DenizenUpdatedEventV1 = {
+      type: "denizen_updated",
+      version: 1,
+      data: {
+        denizenId: "den_00000000-0000-0000-0000-000000000001" as DenizenId,
+        previous: {
+          denizenId: "den_00000000-0000-0000-0000-000000000001" as DenizenId,
+          name: "Old Name",
+          representation: "individual",
+          description: null,
+        },
+        updated: {
+          denizenId: "den_00000000-0000-0000-0000-000000000001" as DenizenId,
+          name: "New Name",
+          representation: "individual",
+          description: null,
+        },
+      },
+    };
+    expect(() =>
+      validateEventCoherenceForTest(
+        { ...baseInput, commandType: "update_denizen", events: [updatedEvent] },
+        1,
+      ),
+    ).not.toThrow();
   });
 });
