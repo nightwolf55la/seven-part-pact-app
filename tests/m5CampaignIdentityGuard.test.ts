@@ -123,13 +123,13 @@ describe("M5 campaign identity guard — fingerprint includes expectedCampaignId
 // C. Ten-handler structural guardrail
 // ---------------------------------------------------------------------------
 
-describe("M5 campaign identity guard — structural ordering of all ten handlers", () => {
+describe("M5 campaign identity guard — structural ordering of World handlers", () => {
   const source = readFileSync(
     join(__dirname, "..", "convex", "m3Commands.ts"),
     "utf8",
   );
 
-  const inScopeMutations = [
+  const worldMutations = [
     "createDenizen",
     "updateDenizen",
     "createIsle",
@@ -145,54 +145,32 @@ describe("M5 campaign identity guard — structural ordering of all ten handlers
   function extractHandlerBlock(name: string): string {
     const exportIdx = source.indexOf(`export const ${name} = mutation({`);
     expect(exportIdx, `${name} mutation not found`).toBeGreaterThan(-1);
-    // Find the matching closing "});" for the mutation call.
-    // We search from exportIdx for the handler block.
     const handlerIdx = source.indexOf("handler: async (ctx, args) => {", exportIdx);
     expect(handlerIdx).toBeGreaterThan(-1);
-    // Find the end of the handler — the first "  },\n});" after handlerIdx.
     const endPattern = "\n  },\n});";
     const endIdx = source.indexOf(endPattern, handlerIdx);
     expect(endIdx, `${name} handler end not found`).toBeGreaterThan(-1);
     return source.slice(handlerIdx, endIdx);
   }
 
-  for (const mutationName of inScopeMutations) {
-    describe(`${mutationName}`, () => {
-      let block: string;
+  for (const mutationName of worldMutations) {
+    it(`${mutationName} args include expectedCampaignId: v.string()`, () => {
+      const exportIdx = source.indexOf(`export const ${mutationName} = mutation({`);
+      const argsStart = source.indexOf("args: {", exportIdx);
+      const argsEnd = source.indexOf("\n  },", argsStart);
+      const argsBlock = source.slice(argsStart, argsEnd);
+      expect(argsBlock).toContain("expectedCampaignId: v.string()");
+    });
+  }
 
-      it("args include expectedCampaignId: v.string()", () => {
-        // Extract the args block between "args: {" and the closing "},"
-        const exportIdx = source.indexOf(`export const ${mutationName} = mutation({`);
-        const argsStart = source.indexOf("args: {", exportIdx);
-        const argsEnd = source.indexOf("\n  },", argsStart);
-        const argsBlock = source.slice(argsStart, argsEnd);
-        expect(argsBlock).toContain("expectedCampaignId: v.string()");
-      });
-
-      it("contains expectedCampaignId format validation before canonical load", () => {
-        block = extractHandlerBlock(mutationName);
-        const validateIdx = block.indexOf("validateM5ExpectedCampaignId");
-        const loadIdx = block.indexOf("loadCanonicalV2ForMutation");
-        expect(validateIdx, "validateM5ExpectedCampaignId call missing").toBeGreaterThan(-1);
-        expect(loadIdx, "loadCanonicalV2ForMutation call missing").toBeGreaterThan(-1);
-        expect(validateIdx, "validation must come before canonical load").toBeLessThan(loadIdx);
-      });
-
-      it("ordering: loadCanonicalV2ForMutation < assertM5ExpectedCampaignIdMatches < checkIdempotency < transition < commitM3Command", () => {
-        block = extractHandlerBlock(mutationName);
-        const loadIdx = block.indexOf("loadCanonicalV2ForMutation");
-        const assertIdx = block.indexOf("assertM5ExpectedCampaignIdMatches");
-        const idemIdx = block.indexOf("checkIdempotency");
-        const commitIdx = block.indexOf("commitM3Command");
-
-        expect(loadIdx).toBeGreaterThan(-1);
-        expect(assertIdx, "assertM5ExpectedCampaignIdMatches missing").toBeGreaterThan(-1);
-        expect(idemIdx).toBeGreaterThan(-1);
-        expect(commitIdx).toBeGreaterThan(-1);
-
-        expect(loadIdx).toBeLessThan(assertIdx);
-        expect(assertIdx).toBeLessThan(idemIdx);
-        expect(idemIdx).toBeLessThan(commitIdx);
+  for (const mutationName of worldMutations) {
+    describe(`${mutationName} (executor-backed)`, () => {
+      it("delegates the persistence protocol to executeConvexOrdinaryLogicalCommand", () => {
+        const block = extractHandlerBlock(mutationName);
+        expect(block).toContain("executeConvexOrdinaryLogicalCommand");
+        expect(block).not.toContain("checkIdempotency");
+        expect(block).not.toContain("commitM3Command");
+        expect(block).not.toContain("loadCanonicalV2ForMutation");
       });
     });
   }

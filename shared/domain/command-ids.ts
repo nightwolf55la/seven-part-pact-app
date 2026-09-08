@@ -1,6 +1,7 @@
 import type { CommandId } from "./ids";
 import type { MonthDirection } from "./calendar";
 import { canonicalJsonStringify } from "./canonical-json";
+import { DomainError } from "./errors";
 
 const MIGRATION_COMMAND_PREFIX = "migrated_rev_";
 
@@ -362,4 +363,32 @@ export function matchCommandIdempotency(
     committedType: committed.commandType,
     committedFingerprint: committed.commandFingerprint,
   };
+}
+
+export type AcceptedCommandReplayResolution =
+  | { kind: "not_applied" }
+  | { kind: "replay"; revision: number };
+
+/**
+ * Apply the existing accepted-command replay rule to a looked-up record.
+ * Throws COMMAND_ID_REUSED on incompatible reuse. Snapshot loading stays at the I/O boundary.
+ */
+export function resolveAcceptedCommandReplay(
+  commandId: string,
+  existing: { commandType: string; commandFingerprint: string; campaignRevision: number } | null,
+  attempted: { commandType: string; commandFingerprint: string },
+): AcceptedCommandReplayResolution {
+  if (existing === null) {
+    return { kind: "not_applied" };
+  }
+
+  const match = matchCommandIdempotency(existing, attempted);
+  if (match.kind === "conflict") {
+    throw new DomainError(
+      "COMMAND_ID_REUSED",
+      `CommandId "${commandId}" already committed with type="${match.committedType}" fingerprint="${match.committedFingerprint}", cannot reuse for type="${attempted.commandType}" fingerprint="${attempted.commandFingerprint}"`,
+    );
+  }
+
+  return { kind: "replay", revision: match.revision };
 }
