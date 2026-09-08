@@ -13,6 +13,8 @@ import type {
   EngagementRecordV5,
   EngagementTargetV5,
   WizardCharacterDataV5,
+  CampaignEvent,
+  CampaignCommandType,
 } from "../shared/domain";
 import {
   SEVEN_PART_PACT_DRAFT4_ID,
@@ -30,6 +32,10 @@ import type {
   WizardCharacterPatchV5,
   V5IntegrationTransitionResult,
 } from "../shared/domain/v5-integration-transitions";
+import {
+  validateEventCoherenceForTest,
+  type CanonicalCommitInput,
+} from "../convex/canonicalCommit";
 
 // ---------------------------------------------------------------------------
 // IDs
@@ -455,5 +461,219 @@ describe("V5 Element no-op detection", () => {
     // Input state must be unchanged
     const wiz = state.wizards.find((w) => w.wizardId === WIZ_A)!;
     expect(wiz.character.elements).toBe(elements);
+  });
+});
+
+// =========================================================================
+// 10. REAL PRODUCER -> REAL COHERENCE GATE
+// =========================================================================
+
+function makeCoherenceInput(
+  commandType: CampaignCommandType,
+  commandFingerprint: string,
+  currentState: CampaignStateV5,
+  nextState: CampaignStateV5,
+  events: readonly CampaignEvent[],
+): CanonicalCommitInput {
+  return {
+    campaignDocId: "camp-doc-1" as any,
+    campaignId: "camp-test-1",
+    currentRevision: 42,
+    currentState,
+    commandId: "cmd-test-1",
+    commandType,
+    commandFingerprint,
+    nextState,
+    events,
+    historyControlUpdate: { kind: "logical_state_append" },
+  };
+}
+
+describe("Real V5 transition -> real coherence gate", () => {
+  it("update_wizard_character: real v2 event passes validateEventCoherenceForTest", () => {
+    const state = baseV5Setup([blankV5Wizard()]);
+    const result = applyUpdateWizardCharacterV5Candidate(state, WIZ_A, {
+      familiarDescription: "An owl",
+    });
+
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0].type).toBe("wizard_character_updated");
+    expect(result.events[0].version).toBe(2);
+
+    const input = makeCoherenceInput(
+      "update_wizard_character",
+      "update_wizard_character:v1:test",
+      state,
+      result.nextState,
+      result.events as readonly CampaignEvent[],
+    );
+    expect(() => validateEventCoherenceForTest(input, 43)).not.toThrow();
+  });
+
+  it("set_engagement_target: real v2 event passes validateEventCoherenceForTest", () => {
+    const state = baseV5Play("planning", {
+      wizards: [blankV5Wizard()],
+      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+      engagements: [pendingEngagement(ENG_1, WIZ_A, null)],
+    });
+    const result = applySetEngagementTargetV5Candidate(state, {
+      expectedMonthOrdinal: 5 as MonthOrdinal,
+      engagementId: ENG_1,
+      target: { kind: "denizen", denizenId: DEN_1 },
+    });
+
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0].type).toBe("engagement_target_changed");
+    expect(result.events[0].version).toBe(2);
+
+    const input = makeCoherenceInput(
+      "set_engagement_target",
+      "set_engagement_target:v1:test",
+      state,
+      result.nextState,
+      result.events as readonly CampaignEvent[],
+    );
+    expect(() => validateEventCoherenceForTest(input, 43)).not.toThrow();
+  });
+
+  it("reschedule_engagement: real v2 event passes validateEventCoherenceForTest", () => {
+    const state = baseV5Play("story", {
+      wizards: [blankV5Wizard()],
+      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+      engagements: [pendingEngagement(ENG_1, WIZ_A, { kind: "self" })],
+    });
+    const result = applyRescheduleEngagementV5Candidate(state, {
+      expectedMonthOrdinal: 5 as MonthOrdinal,
+      engagementId: ENG_1,
+      target: { kind: "denizen", denizenId: DEN_1 },
+    });
+
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0].type).toBe("engagement_rescheduled");
+    expect(result.events[0].version).toBe(2);
+
+    const input = makeCoherenceInput(
+      "reschedule_engagement",
+      "reschedule_engagement:v1:test",
+      state,
+      result.nextState,
+      result.events as readonly CampaignEvent[],
+    );
+    expect(() => validateEventCoherenceForTest(input, 43)).not.toThrow();
+  });
+});
+
+// =========================================================================
+// 11. WRONG CURRENT VERSION MUST FAIL — v1 rejected for current V5 commands
+// =========================================================================
+
+describe("Current V5 commands require v2 (v1 rejected)", () => {
+  it("update_wizard_character + wizard_character_updated v1 -> INVALID_CAMPAIGN_STATE", () => {
+    const state = baseV5Setup([blankV5Wizard()]);
+    const result = applyUpdateWizardCharacterV5Candidate(state, WIZ_A, {
+      familiarDescription: "An owl",
+    });
+
+    const downgradedEvent = { ...result.events[0], version: 1 } as CampaignEvent;
+    const input = makeCoherenceInput(
+      "update_wizard_character",
+      "update_wizard_character:v1:test",
+      state,
+      result.nextState,
+      [downgradedEvent],
+    );
+    try {
+      validateEventCoherenceForTest(input, 43);
+      expect.unreachable("should have thrown");
+    } catch (e: any) {
+      expect(e).toBeInstanceOf(DomainError);
+      expect(e.code).toBe("INVALID_CAMPAIGN_STATE");
+    }
+  });
+
+  it("set_engagement_target + engagement_target_changed v1 -> INVALID_CAMPAIGN_STATE", () => {
+    const state = baseV5Play("planning", {
+      wizards: [blankV5Wizard()],
+      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+      engagements: [pendingEngagement(ENG_1, WIZ_A, null)],
+    });
+    const result = applySetEngagementTargetV5Candidate(state, {
+      expectedMonthOrdinal: 5 as MonthOrdinal,
+      engagementId: ENG_1,
+      target: { kind: "denizen", denizenId: DEN_1 },
+    });
+
+    const downgradedEvent = { ...result.events[0], version: 1 } as CampaignEvent;
+    const input = makeCoherenceInput(
+      "set_engagement_target",
+      "set_engagement_target:v1:test",
+      state,
+      result.nextState,
+      [downgradedEvent],
+    );
+    try {
+      validateEventCoherenceForTest(input, 43);
+      expect.unreachable("should have thrown");
+    } catch (e: any) {
+      expect(e).toBeInstanceOf(DomainError);
+      expect(e.code).toBe("INVALID_CAMPAIGN_STATE");
+    }
+  });
+
+  it("reschedule_engagement + engagement_rescheduled v1 -> INVALID_CAMPAIGN_STATE", () => {
+    const state = baseV5Play("story", {
+      wizards: [blankV5Wizard()],
+      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+      engagements: [pendingEngagement(ENG_1, WIZ_A, { kind: "self" })],
+    });
+    const result = applyRescheduleEngagementV5Candidate(state, {
+      expectedMonthOrdinal: 5 as MonthOrdinal,
+      engagementId: ENG_1,
+      target: { kind: "denizen", denizenId: DEN_1 },
+    });
+
+    const downgradedEvent = { ...result.events[0], version: 1 } as CampaignEvent;
+    const input = makeCoherenceInput(
+      "reschedule_engagement",
+      "reschedule_engagement:v1:test",
+      state,
+      result.nextState,
+      [downgradedEvent],
+    );
+    try {
+      validateEventCoherenceForTest(input, 43);
+      expect.unreachable("should have thrown");
+    } catch (e: any) {
+      expect(e).toBeInstanceOf(DomainError);
+      expect(e.code).toBe("INVALID_CAMPAIGN_STATE");
+    }
+  });
+});
+
+// =========================================================================
+// 12. UNRELATED UNSUPPORTED v2 STILL FAILS
+// =========================================================================
+
+describe("Unrelated v2 event remains rejected (no generic v2 escape hatch)", () => {
+  it("player_added v2 -> INVALID_CAMPAIGN_STATE", () => {
+    const v2Event: CampaignEvent = {
+      type: "player_added",
+      version: 2,
+      data: { playerId: PLR_A, name: "Alice" },
+    } as unknown as CampaignEvent;
+    const input = makeCoherenceInput(
+      "add_player",
+      "add_player:v1:test",
+      baseV5Setup(),
+      baseV5Setup(),
+      [v2Event],
+    );
+    try {
+      validateEventCoherenceForTest(input, 43);
+      expect.unreachable("should have thrown");
+    } catch (e: any) {
+      expect(e).toBeInstanceOf(DomainError);
+      expect(e.code).toBe("INVALID_CAMPAIGN_STATE");
+    }
   });
 });

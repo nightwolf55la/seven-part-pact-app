@@ -166,6 +166,12 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   update_companion_description: { required: ["companion_description_changed"] },
 };
 
+const CURRENT_V5_EVENT_VERSION_REQUIREMENTS: Record<string, { type: string; version: number }> = {
+  update_wizard_character: { type: "wizard_character_updated", version: 2 },
+  set_engagement_target: { type: "engagement_target_changed", version: 2 },
+  reschedule_engagement: { type: "engagement_rescheduled", version: 2 },
+};
+
 function validateM3EventCoherence(input: CanonicalCommitInput): void {
   const { commandType, events } = input;
 
@@ -197,9 +203,15 @@ function validateM3EventCoherence(input: CanonicalCommitInput): void {
     }
   }
 
+  const v5Requirement = CURRENT_V5_EVENT_VERSION_REQUIREMENTS[commandType];
+
   for (const evt of events) {
     const e = evt as { type: string; version: number };
-    if (e.type === "phase_advanced") {
+    if (v5Requirement && e.type === v5Requirement.type) {
+      if (e.version !== v5Requirement.version) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${commandType} event ${e.type} has unsupported version ${e.version}`);
+      }
+    } else if (e.type === "phase_advanced") {
       if (e.version !== 1 && e.version !== 2) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `${commandType} event ${e.type} has unsupported version ${e.version}`);
       }
