@@ -9,7 +9,7 @@ import type {
 import type { DenizenId, IsleId, PlaceId } from "./ids";
 import { isValidDenizenId, isValidIsleId, isValidPlaceId } from "./ids";
 import { DomainError } from "./errors";
-import type { DenizenCreatedEventV1, DenizenUpdatedEventV1, IsleCreatedEventV1, IsleUpdatedEventV1 } from "./events";
+import type { DenizenCreatedEventV1, DenizenUpdatedEventV1, IsleCreatedEventV1, IsleUpdatedEventV1, PlaceCreatedEventV1, PlaceUpdatedEventV1 } from "./events";
 
 // ---------------------------------------------------------------------------
 // ExpectedFieldChange — field-level optimistic concurrency
@@ -33,27 +33,11 @@ export type {
   IsleCreatedEventV1,
   IsleUpdatedDataV1,
   IsleUpdatedEventV1,
+  PlaceCreatedDataV1,
+  PlaceCreatedEventV1,
+  PlaceUpdatedDataV1,
+  PlaceUpdatedEventV1,
 } from "./events";
-
-export interface PlaceCreatedDataV1 {
-  readonly place: WorldPlace;
-}
-export interface PlaceCreatedEventV1 {
-  readonly type: "place_created";
-  readonly version: 1;
-  readonly data: PlaceCreatedDataV1;
-}
-
-export interface PlaceUpdatedDataV1 {
-  readonly placeId: PlaceId;
-  readonly previous: WorldPlace;
-  readonly updated: WorldPlace;
-}
-export interface PlaceUpdatedEventV1 {
-  readonly type: "place_updated";
-  readonly version: 1;
-  readonly data: PlaceUpdatedDataV1;
-}
 
 export type CandidateWorldSubjectEvent =
   | DenizenCreatedEventV1
@@ -75,6 +59,11 @@ export interface DenizenTransitionResult {
 export interface IsleTransitionResult {
   readonly nextState: CampaignStateV5;
   readonly events: readonly (IsleCreatedEventV1 | IsleUpdatedEventV1)[];
+}
+
+export interface PlaceTransitionResult {
+  readonly nextState: CampaignStateV5;
+  readonly events: readonly (PlaceCreatedEventV1 | PlaceUpdatedEventV1)[];
 }
 
 export interface WorldSubjectTransitionResult {
@@ -383,7 +372,7 @@ export interface CreatePlaceInput {
 export function applyCreatePlaceV5Candidate(
   state: CampaignStateV5,
   input: CreatePlaceInput,
-): WorldSubjectTransitionResult {
+): PlaceTransitionResult {
   if (!isValidPlaceId(input.placeId)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid placeId: ${input.placeId}`);
   }
@@ -428,7 +417,7 @@ export function applyUpdatePlaceV5Candidate(
   state: CampaignStateV5,
   placeId: PlaceId,
   fields: UpdatePlaceFields,
-): WorldSubjectTransitionResult {
+): PlaceTransitionResult {
   if (fields.name === undefined && fields.description === undefined && fields.placement === undefined) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Update must specify at least one field");
   }

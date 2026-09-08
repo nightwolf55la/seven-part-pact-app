@@ -158,6 +158,8 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   update_denizen: { required: ["denizen_updated"] },
   create_isle: { required: ["isle_created"] },
   update_isle: { required: ["isle_updated"] },
+  create_place: { required: ["place_created"] },
+  update_place: { required: ["place_updated"] },
 };
 
 function validateM3EventCoherence(input: CanonicalCommitInput): void {

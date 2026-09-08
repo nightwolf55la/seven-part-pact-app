@@ -119,6 +119,10 @@ function describeConfigEvent(event: CampaignEvent): string {
       return `Created isle "${event.data.isle.name}"`;
     case "isle_updated":
       return `Updated isle "${event.data.updated.name}"`;
+    case "place_created":
+      return `Created place "${event.data.place.name}"`;
+    case "place_updated":
+      return `Updated place "${event.data.updated.name}"`;
     default:
       return "Campaign configuration changed";
   }
@@ -240,7 +244,9 @@ export function mapEventToActivityEntry(
     case "denizen_created":
     case "denizen_updated":
     case "isle_created":
-    case "isle_updated": {
+    case "isle_updated":
+    case "place_created":
+    case "place_updated": {
       return {
         id,
         revision,

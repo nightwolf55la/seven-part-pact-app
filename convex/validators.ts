@@ -678,6 +678,24 @@ const placeValidator = v.object({
   placement: placePlacementValidator,
 });
 
+const placeCreatedEventV1Validator = v.object({
+  type: v.literal("place_created"),
+  version: v.literal(1),
+  data: v.object({
+    place: placeValidator,
+  }),
+});
+
+const placeUpdatedEventV1Validator = v.object({
+  type: v.literal("place_updated"),
+  version: v.literal(1),
+  data: v.object({
+    placeId: v.string(),
+    previous: placeValidator,
+    updated: placeValidator,
+  }),
+});
+
 const companionRelationshipValidator = v.object({
   companionRelationshipId: v.string(),
   wizardId: v.string(),
@@ -792,6 +810,8 @@ export const campaignEventValidator = v.union(
   denizenUpdatedEventV1Validator,
   isleCreatedEventV1Validator,
   isleUpdatedEventV1Validator,
+  placeCreatedEventV1Validator,
+  placeUpdatedEventV1Validator,
 );
 
 export const anyCampaignStateValidator = campaignStateV5Validator;

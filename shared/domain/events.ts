@@ -4,8 +4,8 @@ import type { MovablePlanetId, CentidegreePosition } from "./orrery";
 import type { LunarPhase, WizardCharacterDataV4, WizardCharacterDataV5 } from "./campaign-state";
 import type { TimeDestination } from "./time-model";
 import type { EngagementTargetV4, EngagementTargetV5 } from "./engagement";
-import type { Denizen, Isle } from "./shared-world";
-import type { DenizenId, IsleId } from "./ids";
+import type { Denizen, Isle, WorldPlace } from "./shared-world";
+import type { DenizenId, IsleId, PlaceId } from "./ids";
 
 export interface UndoAppliedDataV1 {
   readonly fromRevision: number;
@@ -528,11 +528,33 @@ export interface IsleUpdatedEventV1 {
   readonly data: IsleUpdatedDataV1;
 }
 
+export interface PlaceCreatedDataV1 {
+  readonly place: WorldPlace;
+}
+export interface PlaceCreatedEventV1 {
+  readonly type: "place_created";
+  readonly version: 1;
+  readonly data: PlaceCreatedDataV1;
+}
+
+export interface PlaceUpdatedDataV1 {
+  readonly placeId: PlaceId;
+  readonly previous: WorldPlace;
+  readonly updated: WorldPlace;
+}
+export interface PlaceUpdatedEventV1 {
+  readonly type: "place_updated";
+  readonly version: 1;
+  readonly data: PlaceUpdatedDataV1;
+}
+
 export type WorldEvent =
   | DenizenCreatedEventV1
   | DenizenUpdatedEventV1
   | IsleCreatedEventV1
-  | IsleUpdatedEventV1;
+  | IsleUpdatedEventV1
+  | PlaceCreatedEventV1
+  | PlaceUpdatedEventV1;
 
 export type CampaignEvent =
   | InfrastructureEvent

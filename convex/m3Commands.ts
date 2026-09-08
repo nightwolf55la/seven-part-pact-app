@@ -74,12 +74,17 @@ import {
   isValidIsleId,
   createIsleFingerprint,
   updateIsleFingerprint,
+  isValidPlaceId,
+  createPlaceFingerprint,
+  updatePlaceFingerprint,
   applyCreateDenizenV5Candidate,
   applyUpdateDenizenV5Candidate,
   applyCreateIsleV5Candidate,
   applyUpdateIsleV5Candidate,
+  applyCreatePlaceV5Candidate,
+  applyUpdatePlaceV5Candidate,
 } from "../shared/domain";
-import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId } from "../shared/domain";
+import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
 import type { WizardInitIds } from "../shared/domain/begin-play";
 import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
@@ -1253,6 +1258,77 @@ export const updateIsle = mutation({
     if (replay) return { revision: replay.newRevision };
     const result = applyUpdateIsleV5Candidate(campaign.currentState, args.isleId as IsleId, args.fields);
     const receipt = await commitM3Command(ctx, args.commandId, "update_isle", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+// ============================================================
+// M5: Shared World — Place commands
+// ============================================================
+
+const placePlacementArgValidator = v.union(
+  v.object({ kind: v.literal("unspecified") }),
+  v.object({ kind: v.literal("on_isle"), isleId: v.string() }),
+  v.object({ kind: v.literal("mobile"), associatedIsleId: v.union(v.string(), v.null()) }),
+);
+
+export const createPlace = mutation({
+  args: {
+    commandId: v.string(),
+    placeId: v.string(),
+    name: v.string(),
+    description: v.union(v.string(), v.null()),
+    placement: placePlacementArgValidator,
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    if (!isValidPlaceId(args.placeId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid placeId: ${args.placeId}`);
+    }
+    const fingerprint = createPlaceFingerprint(args.placeId, args.name, args.description, args.placement);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "create_place", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applyCreatePlaceV5Candidate(campaign.currentState, {
+      placeId: args.placeId as PlaceId,
+      name: args.name,
+      description: args.description,
+      placement: args.placement as WorldPlacePlacement,
+    });
+    const receipt = await commitM3Command(ctx, args.commandId, "create_place", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+export const updatePlace = mutation({
+  args: {
+    commandId: v.string(),
+    placeId: v.string(),
+    fields: v.object({
+      name: v.optional(v.object({ expected: v.string(), value: v.string() })),
+      description: v.optional(v.object({
+        expected: v.union(v.string(), v.null()),
+        value: v.union(v.string(), v.null()),
+      })),
+      placement: v.optional(v.object({
+        expected: placePlacementArgValidator,
+        value: placePlacementArgValidator,
+      })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    if (!isValidPlaceId(args.placeId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid placeId: ${args.placeId}`);
+    }
+    const fingerprint = updatePlaceFingerprint(args.placeId, args.fields);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "update_place", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applyUpdatePlaceV5Candidate(campaign.currentState, args.placeId as PlaceId, args.fields as UpdatePlaceFields);
+    const receipt = await commitM3Command(ctx, args.commandId, "update_place", fingerprint, campaign, result);
     return { revision: receipt.newRevision };
   },
 });
