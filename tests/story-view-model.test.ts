@@ -4,6 +4,7 @@ import {
   classifyAllocationActions,
   formatStoryWarning,
   candidateAllocationsForEngagement,
+  STORY_TARGET_CHOICES,
   type StoryWorkspaceData,
   type StoryWarning,
 } from "../src/story-view-model";
@@ -202,5 +203,12 @@ describe("candidateAllocationsForEngagement", () => {
     };
     const candidates = candidateAllocationsForEngagement(data, "eng_2");
     expect(candidates).toEqual([]);
+  });
+});
+
+describe("STORY_TARGET_CHOICES", () => {
+  it("includes denizen and named_character", () => {
+    expect(STORY_TARGET_CHOICES).toContain("denizen");
+    expect(STORY_TARGET_CHOICES).toContain("named_character");
   });
 });

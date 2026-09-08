@@ -10,9 +10,10 @@ import QuietSurface from "./QuietSurface";
 export interface CurrentPhaseSurfaceProps {
   phase: LunarPhase;
   monthOrdinal: number;
+  denizens?: readonly { denizenId: string; name: string }[] | null;
 }
 
-export default function CurrentPhaseSurface({ phase, monthOrdinal }: CurrentPhaseSurfaceProps) {
+export default function CurrentPhaseSurface({ phase, monthOrdinal, denizens }: CurrentPhaseSurfaceProps) {
   const model = getPhaseWorkspaceModel(phase);
 
   switch (phase) {
@@ -21,9 +22,9 @@ export default function CurrentPhaseSurface({ phase, monthOrdinal }: CurrentPhas
     case "visions":
       return <VisionsSurface phase={phase} monthOrdinal={monthOrdinal} />;
     case "planning":
-      return <PlanningSurface phase={phase} monthOrdinal={monthOrdinal} />;
+      return <PlanningSurface phase={phase} monthOrdinal={monthOrdinal} denizens={denizens} />;
     case "story":
-      return <StorySurface phase={phase} monthOrdinal={monthOrdinal} />;
+      return <StorySurface phase={phase} monthOrdinal={monthOrdinal} denizens={denizens} />;
     case "meeting":
       return <MeetingSurface phase={phase} monthOrdinal={monthOrdinal} />;
     case "quiet":

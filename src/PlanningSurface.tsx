@@ -23,6 +23,7 @@ import type {
 export interface PlanningSurfaceProps {
   phase: LunarPhase;
   monthOrdinal: number;
+  denizens?: readonly { denizenId: string; name: string }[] | null;
 }
 
 function generateCommandId(): string {
@@ -45,7 +46,7 @@ function staleMessage(): string {
   return "The Planning state changed before this edit completed. Review the current schedule and try again.";
 }
 
-export default function PlanningSurface({ phase, monthOrdinal: _monthOrdinal }: PlanningSurfaceProps) {
+export default function PlanningSurface({ phase, monthOrdinal: _monthOrdinal, denizens }: PlanningSurfaceProps) {
   const planningData = useQuery(api.m3Queries.getPlanningWorkspace, {});
 
   const [selectedWizardId, setSelectedWizardId] = useState<string | null>(null);
@@ -180,6 +181,7 @@ export default function PlanningSurface({ phase, monthOrdinal: _monthOrdinal }: 
             setPending={setTargetPending}
             setError={setTargetError}
             error={targetError}
+            denizens={denizens}
           />
         </>
       )}
@@ -441,6 +443,7 @@ interface EngagementSectionProps {
   setPending: (v: boolean) => void;
   setError: (v: string | null) => void;
   error: string | null;
+  denizens?: readonly { denizenId: string; name: string }[] | null;
 }
 
 function EngagementSection({
@@ -452,6 +455,7 @@ function EngagementSection({
   setPending,
   setError,
   error,
+  denizens,
 }: EngagementSectionProps) {
   const wizardEngagements = data.engagements.filter(
     (e) => e.actingWizardId === actingWizardId,
@@ -475,6 +479,7 @@ function EngagementSection({
           setPending={setPending}
           setError={setError}
           error={error}
+          denizens={denizens}
         />
       ))}
     </div>
@@ -490,6 +495,7 @@ interface EngagementCardProps {
   setPending: (v: boolean) => void;
   setError: (v: string | null) => void;
   error: string | null;
+  denizens?: readonly { denizenId: string; name: string }[] | null;
 }
 
 function EngagementCard({
@@ -501,6 +507,7 @@ function EngagementCard({
   setPending,
   setError,
   error,
+  denizens,
 }: EngagementCardProps) {
   const isPending = engagement.resolution === "pending";
 
@@ -516,9 +523,18 @@ function EngagementCard({
     if (engagement.target?.kind === "named_character") return engagement.target.name;
     return "";
   });
+  const [draftDenizenId, setDraftDenizenId] = useState(() => {
+    if (engagement.target?.kind === "denizen") return engagement.target.denizenId;
+    return "";
+  });
 
   const handleSave = useCallback(async () => {
-    const target = buildEngagementTarget(draftChoice, draftChoice === "wizard" ? draftWizardId : draftName);
+    const helperInput = draftChoice === "wizard"
+      ? draftWizardId
+      : draftChoice === "denizen"
+        ? draftDenizenId
+        : draftName;
+    const target = buildEngagementTarget(draftChoice, helperInput);
     if (draftChoice !== "not_targeted" && target === null) {
       setError("Please fill in the required details for this target.");
       return;
@@ -538,7 +554,7 @@ function EngagementCard({
     } finally {
       setPending(false);
     }
-  }, [draftChoice, draftWizardId, draftName, monthOrdinal, engagement.engagementId, setEngagementTarget, setPending, setError]);
+  }, [draftChoice, draftWizardId, draftDenizenId, draftName, monthOrdinal, engagement.engagementId, setEngagementTarget, setPending, setError]);
 
   const otherWizards = data.modeledWizards.filter((w) => w.wizardId !== engagement.actingWizardId);
 
@@ -556,7 +572,7 @@ function EngagementCard({
       </div>
 
       <div className="text-xs text-slate-500 dark:text-slate-400">
-        Target: {engagementTargetLabel(engagement.target, data)}
+        Target: {engagementTargetLabel(engagement.target, data, denizens)}
         {linkedAlloc && (
           <span className="ml-2">Linked: {linkedAlloc.allocationId}</span>
         )}
@@ -574,6 +590,7 @@ function EngagementCard({
               <option value="self">Self</option>
               <option value="familiar">Familiar</option>
               <option value="wizard">Wizard</option>
+              <option value="denizen">Denizen</option>
               <option value="named_character">Named character</option>
             </select>
 
@@ -588,6 +605,25 @@ function EngagementCard({
                   <option key={w.wizardId} value={w.wizardId}>
                     {w.name}
                   </option>
+                ))}
+              </select>
+            )}
+
+            {draftChoice === "denizen" && (
+              <select
+                value={draftDenizenId}
+                onChange={(e) => setDraftDenizenId(e.target.value)}
+                className="text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-slate-700 dark:text-slate-200"
+              >
+                <option value="">
+                  {denizens === undefined
+                    ? "World loading…"
+                    : denizens === null
+                      ? "World unavailable."
+                      : "Select Denizen…"}
+                </option>
+                {denizens && denizens.map((d) => (
+                  <option key={d.denizenId} value={d.denizenId}>{d.name}</option>
                 ))}
               </select>
             )}
