@@ -68,19 +68,19 @@ const PLAY_REF = {
 let mockPlayRef: typeof PLAY_REF | undefined = PLAY_REF;
 let mockWorldRef: typeof WORLD_REF | undefined | null = WORLD_REF;
 
-vi.mock("convex/react", () => ({
-  useQuery: (_query: unknown, _args: unknown) => {
-    // Return different values based on which query is being called.
-    // We identify by the query reference passed in.
-    return undefined;
-  },
-}));
-
 vi.mock("../convex/_generated/api.js", () => ({
   api: {
     m3Queries: {
       getPlayReference: "m3Queries.getPlayReference",
       getWorldReference: "m3Queries.getWorldReference",
+    },
+    m3Commands: {
+      createDenizen: "m3Commands.createDenizen",
+      updateDenizen: "m3Commands.updateDenizen",
+      createIsle: "m3Commands.createIsle",
+      updateIsle: "m3Commands.updateIsle",
+      createPlace: "m3Commands.createPlace",
+      updatePlace: "m3Commands.updatePlace",
     },
   },
 }));
@@ -92,6 +92,7 @@ vi.mock("convex/react", () => ({
     if (queryRef === "m3Queries.getWorldReference") return mockWorldRef;
     return undefined;
   },
+  useMutation: () => vi.fn(async () => {}),
 }));
 
 vi.mock("../src/CampaignTools", () => ({
