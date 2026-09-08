@@ -27,10 +27,20 @@ export interface PlaceRef {
   readonly placement: PlacementRef;
 }
 
+export interface CompanionRelationshipRef {
+  readonly companionRelationshipId: string;
+  readonly wizardId: string;
+  readonly element: "air" | "fire" | "earth" | "water";
+  readonly denizenId: string;
+  readonly description: string | null;
+  readonly status: "current" | "ended";
+}
+
 export interface WorldReference {
   readonly denizens: readonly DenizenRef[];
   readonly isles: readonly IsleRef[];
   readonly places: readonly PlaceRef[];
+  readonly companionRelationships?: readonly CompanionRelationshipRef[];
 }
 
 type WorldTab = "denizens" | "isles" | "places";

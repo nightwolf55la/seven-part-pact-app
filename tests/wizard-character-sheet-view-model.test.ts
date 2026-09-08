@@ -6,6 +6,7 @@ import {
   parseChangesOfMagic,
   buildCharacterPatch,
   buildNullableAssociationChange,
+  buildCurrentCompanionSlots,
   elementsTotal,
   isElementsComplete,
 } from "../src/wizard-character-sheet-view-model";
@@ -276,5 +277,48 @@ describe("buildNullableAssociationChange", () => {
       expected: "isle_1",
       value: "isle_2",
     });
+  });
+});
+
+describe("buildCurrentCompanionSlots", () => {
+  it("returns four slots ordered air/fire/earth/water with only current relationships for the wizard", () => {
+    const WIZARD_ID = "wiz_1";
+    const OTHER_WIZARD_ID = "wiz_2";
+
+    const denizens = [
+      { denizenId: "den_a", name: "Ash", representation: "individual" as const, description: null },
+      { denizenId: "den_b", name: "Brook", representation: "individual" as const, description: null },
+      { denizenId: "den_c", name: "Cinder", representation: "individual" as const, description: null },
+    ];
+
+    const relationships = [
+      { companionRelationshipId: "rel_1", wizardId: WIZARD_ID, element: "air" as const, denizenId: "den_a", description: "Air companion", status: "current" as const },
+      { companionRelationshipId: "rel_2", wizardId: WIZARD_ID, element: "air" as const, denizenId: "den_b", description: "Ended air", status: "ended" as const },
+      { companionRelationshipId: "rel_3", wizardId: WIZARD_ID, element: "fire" as const, denizenId: "den_c", description: "Fire companion", status: "current" as const },
+      { companionRelationshipId: "rel_4", wizardId: OTHER_WIZARD_ID, element: "water" as const, denizenId: "den_a", description: "Other wizard water", status: "current" as const },
+    ];
+
+    const slots = buildCurrentCompanionSlots(WIZARD_ID, denizens, relationships);
+
+    expect(slots).toHaveLength(4);
+    expect(slots[0].element).toBe("air");
+    expect(slots[1].element).toBe("fire");
+    expect(slots[2].element).toBe("earth");
+    expect(slots[3].element).toBe("water");
+
+    expect(slots[0].relationship).toEqual({
+      companionRelationshipId: "rel_1",
+      denizenId: "den_a",
+      denizenName: "Ash",
+      description: "Air companion",
+    });
+    expect(slots[1].relationship).toEqual({
+      companionRelationshipId: "rel_3",
+      denizenId: "den_c",
+      denizenName: "Cinder",
+      description: "Fire companion",
+    });
+    expect(slots[2].relationship).toBeNull();
+    expect(slots[3].relationship).toBeNull();
   });
 });

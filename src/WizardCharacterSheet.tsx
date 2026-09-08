@@ -4,6 +4,7 @@ import {
   formFromCharacter,
   buildCharacterPatch,
   buildNullableAssociationChange,
+  buildCurrentCompanionSlots,
   isCharacterFormDirty,
   parseAgeInput,
   validateElementInputs,
@@ -51,7 +52,7 @@ export default function WizardCharacterSheet({
   const [form, setForm] = useState<WizardCharacterSheetForm>(() => formFromCharacter(character));
   const [elementError, setElementError] = useState<string | null>(null);
 
-  const hasWorld = worldRef !== undefined && onSetHomeIsle !== undefined && onSetSanctum !== undefined;
+  const hasWorld = onSetHomeIsle !== undefined && onSetSanctum !== undefined;
 
   const [homeIsleDraft, setHomeIsleDraft] = useState<string>(homeIsleId ?? "");
   const [sanctumDraft, setSanctumDraft] = useState<string>(sanctumPlaceId ?? "");
@@ -325,6 +326,34 @@ export default function WizardCharacterSheet({
                         Save Sanctum
                       </button>
                     </div>
+                  </div>
+                  <div className="flex flex-col gap-1 border-t border-slate-200 dark:border-slate-700 pt-3">
+                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Companions</label>
+                    {buildCurrentCompanionSlots(
+                      wizardId,
+                      worldRef.denizens,
+                      worldRef.companionRelationships ?? [],
+                    ).map((slot) => (
+                      <div key={slot.element} className="flex flex-col gap-0.5">
+                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400 capitalize">
+                          {slot.element}
+                        </span>
+                        {slot.relationship === null ? (
+                          <span className="text-xs text-slate-400 dark:text-slate-500">No Companion</span>
+                        ) : (
+                          <div className="flex flex-col">
+                            <span className="text-sm text-slate-700 dark:text-slate-300">
+                              {slot.relationship.denizenName}
+                            </span>
+                            {slot.relationship.description !== null && (
+                              <span className="text-xs text-slate-500 dark:text-slate-400">
+                                {slot.relationship.description}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </>
               )}

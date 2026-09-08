@@ -521,6 +521,14 @@ export const getWorldReference = query({
         description: p.description,
         placement: p.placement,
       })),
+      companionRelationships: world.companionRelationships.map((r) => ({
+        companionRelationshipId: r.companionRelationshipId as string,
+        wizardId: r.wizardId as string,
+        element: r.element,
+        denizenId: r.denizenId as string,
+        description: r.description,
+        status: r.status,
+      })),
     };
   },
 });

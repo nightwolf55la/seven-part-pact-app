@@ -208,3 +208,72 @@ export function buildNullableAssociationChange(
   if (expected === value) return null;
   return { expected, value };
 }
+
+export interface CompanionSlotRelationship {
+  readonly companionRelationshipId: string;
+  readonly denizenId: string;
+  readonly denizenName: string;
+  readonly description: string | null;
+}
+
+export interface CompanionSlot {
+  readonly element: "air" | "fire" | "earth" | "water";
+  readonly relationship: CompanionSlotRelationship | null;
+}
+
+interface CompanionRelationshipInput {
+  readonly companionRelationshipId: string;
+  readonly wizardId: string;
+  readonly element: "air" | "fire" | "earth" | "water";
+  readonly denizenId: string;
+  readonly description: string | null;
+  readonly status: "current" | "ended";
+}
+
+interface DenizenInput {
+  readonly denizenId: string;
+  readonly name: string;
+}
+
+export function buildCurrentCompanionSlots(
+  wizardId: string,
+  denizens: readonly DenizenInput[],
+  relationships: readonly CompanionRelationshipInput[],
+): readonly CompanionSlot[] {
+  const denizenMap = new Map<string, string>();
+  for (const d of denizens) {
+    denizenMap.set(d.denizenId, d.name);
+  }
+
+  const currentByElement = new Map<
+    "air" | "fire" | "earth" | "water",
+    CompanionRelationshipInput
+  >();
+
+  for (const r of relationships) {
+    if (r.wizardId !== wizardId) continue;
+    if (r.status !== "current") continue;
+    currentByElement.set(r.element, r);
+  }
+
+  const elements: readonly ("air" | "fire" | "earth" | "water")[] = [
+    "air",
+    "fire",
+    "earth",
+    "water",
+  ];
+
+  return elements.map((element) => {
+    const r = currentByElement.get(element);
+    if (!r) return { element, relationship: null };
+    return {
+      element,
+      relationship: {
+        companionRelationshipId: r.companionRelationshipId,
+        denizenId: r.denizenId,
+        denizenName: denizenMap.get(r.denizenId) ?? "Unknown Denizen",
+        description: r.description,
+      },
+    };
+  });
+}
