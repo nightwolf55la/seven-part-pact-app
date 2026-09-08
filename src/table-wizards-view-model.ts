@@ -21,6 +21,8 @@ export interface WizardRef {
   readonly name: string;
   readonly portrayedByPlayerId: string | null;
   readonly character: WizardCharacterRef;
+  readonly homeIsleId: string | null;
+  readonly sanctumPlaceId: string | null;
 }
 
 export interface SeatRef {

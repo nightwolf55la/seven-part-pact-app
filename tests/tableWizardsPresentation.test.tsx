@@ -25,6 +25,8 @@ vi.mock("../convex/_generated/api.js", () => ({
     m3Commands: {
       createWizard: "m3Commands.createWizard",
       updateWizardCharacter: "m3Commands.updateWizardCharacter",
+      setWizardHomeIsle: "m3Commands.setWizardHomeIsle",
+      setWizardSanctum: "m3Commands.setWizardSanctum",
     },
   },
 }));
@@ -56,7 +58,7 @@ function renderTable(props: {
   flushSync(() => {
     root.render(
       createElement(CaptureBoundary, null,
-        createElement(TableWizards, props),
+        createElement(TableWizards, { ...props, worldRef: undefined }),
       ),
     );
   });
@@ -84,7 +86,7 @@ const SEATS_WITH_WIZARD: Record<string, SeatRef> = {
 describe("TableWizards presentation", () => {
   it("renders 'Character Sheet' action for seated wizard", () => {
     const wizards: WizardRef[] = [
-      { wizardId: "wiz_1", name: "Zoltan", portrayedByPlayerId: "plr_1", character: BLANK_CHARACTER },
+      { wizardId: "wiz_1", name: "Zoltan", portrayedByPlayerId: "plr_1", character: BLANK_CHARACTER, homeIsleId: null, sanctumPlaceId: null },
     ];
     const html = renderTable({ pactSeats: SEATS_WITH_WIZARD, players: PLAYERS, wizards });
     expect(html).toContain("Character Sheet");
@@ -92,7 +94,7 @@ describe("TableWizards presentation", () => {
 
   it("renders 'Character Sheet' action for unassigned wizard", () => {
     const wizards: WizardRef[] = [
-      { wizardId: "wiz_2", name: "Morgaine", portrayedByPlayerId: "plr_2", character: BLANK_CHARACTER },
+      { wizardId: "wiz_2", name: "Morgaine", portrayedByPlayerId: "plr_2", character: BLANK_CHARACTER, homeIsleId: null, sanctumPlaceId: null },
     ];
     const html = renderTable({ pactSeats: SEATS_WITH_WIZARD, players: PLAYERS, wizards });
     expect(html).toContain("Character Sheet");
@@ -105,6 +107,8 @@ describe("TableWizards presentation", () => {
         name: "Zoltan",
         portrayedByPlayerId: "plr_1",
         character: { ...BLANK_CHARACTER, elements: { air: 3, fire: 1, earth: 2, water: 2 } },
+        homeIsleId: null,
+        sanctumPlaceId: null,
       },
     ];
     const html = renderTable({ pactSeats: SEATS_WITH_WIZARD, players: PLAYERS, wizards });
@@ -125,6 +129,8 @@ describe("TableWizards presentation", () => {
         name: "Zoltan",
         portrayedByPlayerId: "plr_1",
         character: { ...BLANK_CHARACTER, elements: { air: -1, fire: 5, earth: 0, water: -3 } },
+        homeIsleId: null,
+        sanctumPlaceId: null,
       },
     ];
     const html = renderTable({ pactSeats: SEATS_WITH_WIZARD, players: PLAYERS, wizards });
@@ -134,7 +140,7 @@ describe("TableWizards presentation", () => {
 
   it("renders 'Elements —' when elements are null", () => {
     const wizards: WizardRef[] = [
-      { wizardId: "wiz_1", name: "Zoltan", portrayedByPlayerId: "plr_1", character: BLANK_CHARACTER },
+      { wizardId: "wiz_1", name: "Zoltan", portrayedByPlayerId: "plr_1", character: BLANK_CHARACTER, homeIsleId: null, sanctumPlaceId: null },
     ];
     const html = renderTable({ pactSeats: SEATS_WITH_WIZARD, players: PLAYERS, wizards });
     expect(html).toContain("Elements");

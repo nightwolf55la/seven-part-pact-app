@@ -18,8 +18,8 @@ const PLAYERS = [
 ];
 
 const WIZARDS = [
-  { wizardId: "wiz_1", name: "Zoltan", portrayedByPlayerId: "plr_1", character: BLANK_CHARACTER },
-  { wizardId: "wiz_2", name: "Morgaine", portrayedByPlayerId: "plr_2", character: BLANK_CHARACTER },
+  { wizardId: "wiz_1", name: "Zoltan", portrayedByPlayerId: "plr_1", character: BLANK_CHARACTER, homeIsleId: null, sanctumPlaceId: null },
+  { wizardId: "wiz_2", name: "Morgaine", portrayedByPlayerId: "plr_2", character: BLANK_CHARACTER, homeIsleId: null, sanctumPlaceId: null },
 ];
 
 describe("buildTableWizardsRows with character", () => {

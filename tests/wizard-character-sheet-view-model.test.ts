@@ -5,6 +5,7 @@ import {
   normalizeScalarText,
   parseChangesOfMagic,
   buildCharacterPatch,
+  buildNullableAssociationChange,
   elementsTotal,
   isElementsComplete,
 } from "../src/wizard-character-sheet-view-model";
@@ -257,4 +258,23 @@ describe("buildCharacterPatch", () => {
     expect(patch!.publicChangesOfMagic).toEqual(["Fireball", "Ice Storm"]);
   });
 
+});
+
+describe("buildNullableAssociationChange", () => {
+  it("same value => null, changed value => { expected, value }", () => {
+    expect(buildNullableAssociationChange(null, null)).toBeNull();
+    expect(buildNullableAssociationChange("isle_1", "isle_1")).toBeNull();
+    expect(buildNullableAssociationChange(null, "isle_1")).toEqual({
+      expected: null,
+      value: "isle_1",
+    });
+    expect(buildNullableAssociationChange("isle_1", null)).toEqual({
+      expected: "isle_1",
+      value: null,
+    });
+    expect(buildNullableAssociationChange("isle_1", "isle_2")).toEqual({
+      expected: "isle_1",
+      value: "isle_2",
+    });
+  });
 });

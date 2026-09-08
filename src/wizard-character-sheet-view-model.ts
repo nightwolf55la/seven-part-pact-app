@@ -200,3 +200,11 @@ export function buildCharacterPatch(
   if (Object.keys(patch).length === 0) return null;
   return patch as WizardCharacterPatch;
 }
+
+export function buildNullableAssociationChange(
+  expected: string | null,
+  value: string | null,
+): { expected: string | null; value: string | null } | null {
+  if (expected === value) return null;
+  return { expected, value };
+}

@@ -39,6 +39,7 @@ const SURFACE_LABELS: Record<SurfaceId, string> = {
 function renderSurface(
   surface: SurfaceId,
   ref: { monthOrdinal: number; orreryPositions: Record<string, number>; phase: LunarPhase; pactSeats: Record<string, { status: string | null; wizardId: string | null; watcherPlayerId: string | null }>; players: { playerId: string; name: string }[]; wizards: { wizardId: string; name: string; portrayedByPlayerId: string | null; character: { elements: { air: number; fire: number; earth: number; water: number } | null; pactFragmentPersonalForm: string | null; familiarDescription: string | null; ageYears: number | null; publicChangesOfMagic: readonly string[]; importantNotes: string | null }; homeIsleId: string | null; sanctumPlaceId: string | null }[] },
+  worldRef: { readonly denizens: readonly { readonly denizenId: string; readonly name: string; readonly representation: "individual" | "collective"; readonly description: string | null }[]; readonly isles: readonly { readonly isleId: string; readonly name: string; readonly description: string | null }[]; readonly places: readonly { readonly placeId: string; readonly name: string; readonly description: string | null; readonly placement: { readonly kind: "unspecified" } | { readonly kind: "on_isle"; readonly isleId: string } | { readonly kind: "mobile"; readonly associatedIsleId: string | null } }[] } | null | undefined,
 ) {
   switch (surface) {
     case "current_phase":
@@ -46,7 +47,7 @@ function renderSurface(
     case "orrery":
       return <OrreryView monthOrdinal={ref.monthOrdinal} orreryPositions={ref.orreryPositions} />;
     case "table_wizards":
-      return <TableWizards pactSeats={ref.pactSeats} players={ref.players} wizards={ref.wizards} />;
+      return <TableWizards pactSeats={ref.pactSeats} players={ref.players} wizards={ref.wizards} worldRef={worldRef} />;
     case "world":
       return null;
   }
@@ -181,7 +182,7 @@ export default function PlayShell({
             <div className="flex-1 min-w-0">
               {surfaceState.primary.current === "world"
                 ? renderWorld(worldRef)
-                : renderSurface(surfaceState.primary.current, playRef)}
+                : renderSurface(surfaceState.primary.current, playRef, worldRef)}
             </div>
             <div className="hidden md:block md:w-80 lg:w-96 flex-shrink-0">
               <div className="flex items-center gap-1 mb-2">
@@ -215,14 +216,14 @@ export default function PlayShell({
               </div>
               {surfaceState.secondary.current === "world"
                 ? renderWorld(worldRef)
-                : renderSurface(surfaceState.secondary.current, playRef)}
+                : renderSurface(surfaceState.secondary.current, playRef, worldRef)}
             </div>
           </div>
         ) : (
           <div className="w-full">
             {surfaceState.primary.current === "world"
               ? renderWorld(worldRef)
-              : renderSurface(surfaceState.primary.current, playRef)}
+              : renderSurface(surfaceState.primary.current, playRef, worldRef)}
           </div>
         )}
       </div>

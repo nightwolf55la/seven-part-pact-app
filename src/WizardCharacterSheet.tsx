@@ -3,12 +3,14 @@ import type { WizardCharacterData } from "../shared/domain/campaign-state";
 import {
   formFromCharacter,
   buildCharacterPatch,
+  buildNullableAssociationChange,
   isCharacterFormDirty,
   parseAgeInput,
   validateElementInputs,
   elementsTotal,
   type WizardCharacterSheetForm,
 } from "./wizard-character-sheet-view-model";
+import type { WorldReference } from "./WorldSurface";
 
 const ELEMENT_FIELDS: { key: "elementsAir" | "elementsFire" | "elementsEarth" | "elementsWater"; label: string }[] = [
   { key: "elementsAir", label: "Air" },
@@ -25,6 +27,11 @@ export interface WizardCharacterSheetProps {
   readonly error: string | null;
   readonly onSave: (patch: Record<string, unknown>) => void;
   readonly onClose: () => void;
+  readonly homeIsleId?: string | null;
+  readonly sanctumPlaceId?: string | null;
+  readonly worldRef?: WorldReference | null | undefined;
+  readonly onSetHomeIsle?: (change: { expected: string | null; value: string | null }) => void;
+  readonly onSetSanctum?: (change: { expected: string | null; value: string | null }) => void;
 }
 
 export default function WizardCharacterSheet({
@@ -35,9 +42,22 @@ export default function WizardCharacterSheet({
   error,
   onSave,
   onClose,
+  homeIsleId,
+  sanctumPlaceId,
+  worldRef,
+  onSetHomeIsle,
+  onSetSanctum,
 }: WizardCharacterSheetProps) {
   const [form, setForm] = useState<WizardCharacterSheetForm>(() => formFromCharacter(character));
   const [elementError, setElementError] = useState<string | null>(null);
+
+  const hasWorld = worldRef !== undefined && onSetHomeIsle !== undefined && onSetSanctum !== undefined;
+
+  const [homeIsleDraft, setHomeIsleDraft] = useState<string>(homeIsleId ?? "");
+  const [sanctumDraft, setSanctumDraft] = useState<string>(sanctumPlaceId ?? "");
+  const homeIsleBaselineRef = useRef<string | null>(homeIsleId ?? null);
+  const sanctumBaselineRef = useRef<string | null>(sanctumPlaceId ?? null);
+  const [assocError, setAssocError] = useState<string | null>(null);
 
   const syncedBaselineRef = useRef(character);
   const formRef = useRef(form);
@@ -85,6 +105,22 @@ export default function WizardCharacterSheet({
   }
 
   const total = elementsTotal(elemValidation.value);
+
+  function handleSaveHomeIsle() {
+    if (!onSetHomeIsle) return;
+    setAssocError(null);
+    const change = buildNullableAssociationChange(homeIsleBaselineRef.current, homeIsleDraft === "" ? null : homeIsleDraft);
+    if (change === null) return;
+    onSetHomeIsle(change);
+  }
+
+  function handleSaveSanctum() {
+    if (!onSetSanctum) return;
+    setAssocError(null);
+    const change = buildNullableAssociationChange(sanctumBaselineRef.current, sanctumDraft === "" ? null : sanctumDraft);
+    if (change === null) return;
+    onSetSanctum(change);
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -219,6 +255,71 @@ export default function WizardCharacterSheet({
               className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-300 resize-y"
             />
           </div>
+
+          {hasWorld && (
+            <fieldset className="flex flex-col gap-3 border-t border-slate-200 dark:border-slate-700 pt-4">
+              <legend className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                World Associations
+              </legend>
+              {worldRef === undefined ? (
+                <p className="text-xs text-slate-400">World associations loading…</p>
+              ) : worldRef === null ? (
+                <p className="text-xs text-slate-400">World associations unavailable.</p>
+              ) : (
+                <>
+                  {assocError && (
+                    <p className="text-sm text-red-600 dark:text-red-400">{assocError}</p>
+                  )}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Home Isle</label>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={homeIsleDraft}
+                        onChange={(e) => setHomeIsleDraft(e.target.value)}
+                        disabled={pending}
+                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-300 flex-1"
+                      >
+                        <option value="">None</option>
+                        {worldRef.isles.map((isle) => (
+                          <option key={isle.isleId} value={isle.isleId}>{isle.name}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={handleSaveHomeIsle}
+                        disabled={pending}
+                        className="text-xs font-medium bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-900 rounded-lg px-3 py-2 hover:bg-slate-600 dark:hover:bg-slate-300 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                      >
+                        Save Home Isle
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Sanctum</label>
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={sanctumDraft}
+                        onChange={(e) => setSanctumDraft(e.target.value)}
+                        disabled={pending}
+                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-300 flex-1"
+                      >
+                        <option value="">None</option>
+                        {worldRef.places.map((place) => (
+                          <option key={place.placeId} value={place.placeId}>{place.name}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={handleSaveSanctum}
+                        disabled={pending}
+                        className="text-xs font-medium bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-900 rounded-lg px-3 py-2 hover:bg-slate-600 dark:hover:bg-slate-300 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                      >
+                        Save Sanctum
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </fieldset>
+          )}
         </div>
 
         <div className="flex items-center justify-end gap-3 p-5 border-t border-slate-200 dark:border-slate-700">

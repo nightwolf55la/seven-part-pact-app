@@ -8,6 +8,7 @@ import AddWizardDialog from "./AddWizardDialog";
 import WizardCharacterSheet from "./WizardCharacterSheet";
 import { eligiblePortrayingPlayersForNewWizard } from "./setup-view-model";
 import type { WizardCharacterData } from "../shared/domain/campaign-state";
+import type { WorldReference } from "./WorldSurface";
 
 const STATUS_COLORS: Record<string, string> = {
   Present: "text-green-700 dark:text-green-400",
@@ -28,14 +29,18 @@ export default function TableWizards({
   pactSeats,
   players,
   wizards,
+  worldRef,
 }: {
   pactSeats: Readonly<Record<string, SeatRef>>;
   players: readonly PlayerRef[];
   wizards: readonly WizardRef[];
+  worldRef: WorldReference | null | undefined;
 }) {
   const rows = buildTableWizardsRows(pactSeats, players, wizards);
   const createWizard = useMutation(api.m3Commands.createWizard);
   const updateWizardCharacter = useMutation(api.m3Commands.updateWizardCharacter);
+  const setWizardHomeIsle = useMutation(api.m3Commands.setWizardHomeIsle);
+  const setWizardSanctum = useMutation(api.m3Commands.setWizardSanctum);
 
   const [pending, setPending] = useState(false);
   const [showAddWizard, setShowAddWizard] = useState(false);
@@ -178,6 +183,39 @@ export default function TableWizards({
           character={characterWizard.character as WizardCharacterData}
           pending={pending}
           error={characterError}
+          homeIsleId={characterWizard.homeIsleId}
+          sanctumPlaceId={characterWizard.sanctumPlaceId}
+          worldRef={worldRef}
+          onSetHomeIsle={async (change) => {
+            setCharacterError(null);
+            setPending(true);
+            try {
+              await setWizardHomeIsle({
+                commandId: generateCommandId(),
+                wizardId: characterWizard.wizardId,
+                change,
+              });
+            } catch (e: any) {
+              setCharacterError(e?.message ?? "Failed to save Home Isle");
+            } finally {
+              setPending(false);
+            }
+          }}
+          onSetSanctum={async (change) => {
+            setCharacterError(null);
+            setPending(true);
+            try {
+              await setWizardSanctum({
+                commandId: generateCommandId(),
+                wizardId: characterWizard.wizardId,
+                change,
+              });
+            } catch (e: any) {
+              setCharacterError(e?.message ?? "Failed to save Sanctum");
+            } finally {
+              setPending(false);
+            }
+          }}
           onSave={async (patch) => {
             setCharacterError(null);
             setPending(true);
