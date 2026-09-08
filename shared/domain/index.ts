@@ -94,6 +94,11 @@ export type {
   EngagementRescheduledEventV2,
   InfrastructureEvent,
   PhaseAdvancedEvent,
+  WorldEvent,
+  DenizenCreatedDataV1,
+  DenizenCreatedEventV1,
+  DenizenUpdatedDataV1,
+  DenizenUpdatedEventV1,
   CampaignEvent,
 } from "./events";
 
@@ -228,6 +233,8 @@ export {
   adjustWizardmootAttendanceFingerprint,
   completeMeetingFingerprint,
   beginNextMonthFingerprint,
+  createDenizenFingerprint,
+  updateDenizenFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
@@ -519,10 +526,9 @@ export { validateV5WorldReferenceIntegrity } from "./v5-reference-validation";
 
 export type {
   ExpectedFieldChange,
+  DenizenTransitionResult,
   WorldSubjectTransitionResult,
   CandidateWorldSubjectEvent,
-  DenizenCreatedEventV1,
-  DenizenUpdatedEventV1,
   IsleCreatedEventV1,
   IsleUpdatedEventV1,
   PlaceCreatedEventV1,

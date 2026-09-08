@@ -263,6 +263,16 @@ export function rescheduleEngagementFingerprint(expectedMonthOrdinal: number, en
   return `reschedule_engagement:v1:month=${expectedMonthOrdinal}:eng=${engagementId}:target=${targetCanonical}`;
 }
 
+export function createDenizenFingerprint(denizenId: string, name: string, representation: string, description: string | null): string {
+  const payload = canonicalJsonStringify({ denizenId, name, representation, description });
+  return `create_denizen:v1:${payload}`;
+}
+
+export function updateDenizenFingerprint(denizenId: string, fields: Record<string, unknown>): string {
+  const fieldsCanonical = canonicalJsonStringify(fields);
+  return `update_denizen:v1:denizen=${denizenId}:fields=${fieldsCanonical}`;
+}
+
 /**
  * Pure deterministic idempotency match for command replay.
  * Given a previously committed command record and an incoming attempt,

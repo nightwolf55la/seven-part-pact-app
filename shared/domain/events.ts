@@ -4,6 +4,8 @@ import type { MovablePlanetId, CentidegreePosition } from "./orrery";
 import type { LunarPhase, WizardCharacterDataV4, WizardCharacterDataV5 } from "./campaign-state";
 import type { TimeDestination } from "./time-model";
 import type { EngagementTargetV4, EngagementTargetV5 } from "./engagement";
+import type { Denizen } from "./shared-world";
+import type { DenizenId } from "./ids";
 
 export interface UndoAppliedDataV1 {
   readonly fromRevision: number;
@@ -484,10 +486,37 @@ export type PlayEvent =
   | MeetingCompletedEventV1
   | MonthBegunEventV1;
 
+// --- World events (V5 Shared World, activated per-entity) ---
+
+export interface DenizenCreatedDataV1 {
+  readonly denizen: Denizen;
+}
+export interface DenizenCreatedEventV1 {
+  readonly type: "denizen_created";
+  readonly version: 1;
+  readonly data: DenizenCreatedDataV1;
+}
+
+export interface DenizenUpdatedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly previous: Denizen;
+  readonly updated: Denizen;
+}
+export interface DenizenUpdatedEventV1 {
+  readonly type: "denizen_updated";
+  readonly version: 1;
+  readonly data: DenizenUpdatedDataV1;
+}
+
+export type WorldEvent =
+  | DenizenCreatedEventV1
+  | DenizenUpdatedEventV1;
+
 export type CampaignEvent =
   | InfrastructureEvent
   | SetupEvent
-  | PlayEvent;
+  | PlayEvent
+  | WorldEvent;
 
 export type PhaseAdvancedEvent = PhaseAdvancedEventV1 | PhaseAdvancedEventV2;
 

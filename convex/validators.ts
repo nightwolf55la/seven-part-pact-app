@@ -623,6 +623,24 @@ const denizenValidator = v.object({
   description: v.union(v.string(), v.null()),
 });
 
+const denizenCreatedEventV1Validator = v.object({
+  type: v.literal("denizen_created"),
+  version: v.literal(1),
+  data: v.object({
+    denizen: denizenValidator,
+  }),
+});
+
+const denizenUpdatedEventV1Validator = v.object({
+  type: v.literal("denizen_updated"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    previous: denizenValidator,
+    updated: denizenValidator,
+  }),
+});
+
 const isleValidator = v.object({
   isleId: v.string(),
   name: v.string(),
@@ -752,6 +770,8 @@ export const campaignEventValidator = v.union(
   monthBegunEventV1Validator,
   wizardCharacterUpdatedEventV1Validator,
   wizardCharacterUpdatedEventV2Validator,
+  denizenCreatedEventV1Validator,
+  denizenUpdatedEventV1Validator,
 );
 
 export const anyCampaignStateValidator = campaignStateV5Validator;

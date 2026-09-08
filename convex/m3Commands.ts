@@ -68,8 +68,13 @@ import {
   applyCompleteMeeting,
   applyBeginNextMonth,
   beginNextMonthFingerprint,
+  isValidDenizenId,
+  createDenizenFingerprint,
+  updateDenizenFingerprint,
+  applyCreateDenizenV5Candidate,
+  applyUpdateDenizenV5Candidate,
 } from "../shared/domain";
-import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection } from "../shared/domain";
+import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
 import type { WizardInitIds } from "../shared/domain/begin-play";
 import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
@@ -1119,6 +1124,71 @@ export const beginNextMonth = mutation({
     }
 
     const receipt = await commitM3Command(ctx, args.commandId, "begin_next_month", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+// ============================================================
+// M5: Shared World — Denizen commands
+// ============================================================
+
+export const createDenizen = mutation({
+  args: {
+    commandId: v.string(),
+    denizenId: v.string(),
+    name: v.string(),
+    representation: v.union(v.literal("individual"), v.literal("collective")),
+    description: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    if (!isValidDenizenId(args.denizenId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
+    }
+    const fingerprint = createDenizenFingerprint(args.denizenId, args.name, args.representation, args.description);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "create_denizen", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applyCreateDenizenV5Candidate(campaign.currentState, {
+      denizenId: args.denizenId as DenizenId,
+      name: args.name,
+      representation: args.representation,
+      description: args.description,
+    });
+    const receipt = await commitM3Command(ctx, args.commandId, "create_denizen", fingerprint, campaign, result);
+    return { revision: receipt.newRevision };
+  },
+});
+
+export const updateDenizen = mutation({
+  args: {
+    commandId: v.string(),
+    denizenId: v.string(),
+    fields: v.object({
+      name: v.optional(v.object({ expected: v.string(), value: v.string() })),
+      representation: v.optional(v.object({
+        expected: v.union(v.literal("individual"), v.literal("collective")),
+        value: v.union(v.literal("individual"), v.literal("collective")),
+      })),
+      description: v.optional(v.object({
+        expected: v.union(v.string(), v.null()),
+        value: v.union(v.string(), v.null()),
+      })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    if (!isValidDenizenId(args.denizenId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
+    }
+    const fingerprint = updateDenizenFingerprint(args.denizenId, args.fields);
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    const replay = await checkIdempotency(ctx, campaign.campaignId, args.commandId, "update_denizen", fingerprint);
+    if (replay) return { revision: replay.newRevision };
+    const result = applyUpdateDenizenV5Candidate(campaign.currentState, args.denizenId as DenizenId, args.fields);
+    const receipt = await commitM3Command(ctx, args.commandId, "update_denizen", fingerprint, campaign, result);
     return { revision: receipt.newRevision };
   },
 });

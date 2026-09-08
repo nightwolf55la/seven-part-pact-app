@@ -111,6 +111,10 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Began Next Month";
     case "wizard_character_updated":
       return "Updated wizard character";
+    case "denizen_created":
+      return `Created denizen "${event.data.denizen.name}"`;
+    case "denizen_updated":
+      return `Updated denizen "${event.data.updated.name}"`;
     default:
       return "Campaign configuration changed";
   }
@@ -228,7 +232,9 @@ export function mapEventToActivityEntry(
     case "wizardmoot_attendance_adjusted":
     case "meeting_completed":
     case "month_begun":
-    case "wizard_character_updated": {
+    case "wizard_character_updated":
+    case "denizen_created":
+    case "denizen_updated": {
       return {
         id,
         revision,

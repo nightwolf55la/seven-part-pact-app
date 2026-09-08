@@ -9,6 +9,7 @@ import type {
 import type { DenizenId, IsleId, PlaceId } from "./ids";
 import { isValidDenizenId, isValidIsleId, isValidPlaceId } from "./ids";
 import { DomainError } from "./errors";
+import type { DenizenCreatedEventV1, DenizenUpdatedEventV1 } from "./events";
 
 // ---------------------------------------------------------------------------
 // ExpectedFieldChange — field-level optimistic concurrency
@@ -20,28 +21,10 @@ export interface ExpectedFieldChange<T> {
 }
 
 // ---------------------------------------------------------------------------
-// Candidate events (NOT added to active CampaignEvent union)
+// Denizen events — durable contracts now in events.ts
 // ---------------------------------------------------------------------------
 
-export interface DenizenCreatedDataV1 {
-  readonly denizen: Denizen;
-}
-export interface DenizenCreatedEventV1 {
-  readonly type: "denizen_created";
-  readonly version: 1;
-  readonly data: DenizenCreatedDataV1;
-}
-
-export interface DenizenUpdatedDataV1 {
-  readonly denizenId: DenizenId;
-  readonly previous: Denizen;
-  readonly updated: Denizen;
-}
-export interface DenizenUpdatedEventV1 {
-  readonly type: "denizen_updated";
-  readonly version: 1;
-  readonly data: DenizenUpdatedDataV1;
-}
+export type { DenizenCreatedDataV1, DenizenCreatedEventV1, DenizenUpdatedDataV1, DenizenUpdatedEventV1 } from "./events";
 
 export interface IsleCreatedDataV1 {
   readonly isle: Isle;
@@ -92,8 +75,13 @@ export type CandidateWorldSubjectEvent =
   | PlaceUpdatedEventV1;
 
 // ---------------------------------------------------------------------------
-// Result type
+// Result types
 // ---------------------------------------------------------------------------
+
+export interface DenizenTransitionResult {
+  readonly nextState: CampaignStateV5;
+  readonly events: readonly (DenizenCreatedEventV1 | DenizenUpdatedEventV1)[];
+}
 
 export interface WorldSubjectTransitionResult {
   readonly nextState: CampaignStateV5;
@@ -197,7 +185,7 @@ export interface CreateDenizenInput {
 export function applyCreateDenizenV5Candidate(
   state: CampaignStateV5,
   input: CreateDenizenInput,
-): WorldSubjectTransitionResult {
+): DenizenTransitionResult {
   if (!isValidDenizenId(input.denizenId)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${input.denizenId}`);
   }
@@ -240,7 +228,7 @@ export function applyUpdateDenizenV5Candidate(
   state: CampaignStateV5,
   denizenId: DenizenId,
   fields: UpdateDenizenFields,
-): WorldSubjectTransitionResult {
+): DenizenTransitionResult {
   if (fields.name === undefined && fields.representation === undefined && fields.description === undefined) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Update must specify at least one field");
   }
