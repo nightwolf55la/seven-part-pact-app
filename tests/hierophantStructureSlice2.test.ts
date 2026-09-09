@@ -15,6 +15,7 @@ import {
   CAMPAIGN_COMMAND_TYPES,
   DomainError,
   EMPTY_HIEROPHANT_STATE,
+  EMPTY_MARINER_STATE,
   EMPTY_SHARED_WORLD_STATE,
   HIEROPHANT_BUILTIN_DOCTRINE_DEFINITIONS,
   HIEROPHANT_BUILTIN_DOGMA_DEFINITIONS,
@@ -124,6 +125,7 @@ function baseV5(): CampaignStateV5 {
     wizardmootHistory: [],
     world: { ...EMPTY_SHARED_WORLD_STATE },
     hierophant: { ...EMPTY_HIEROPHANT_STATE },
+    mariner: { ...EMPTY_MARINER_STATE },
   };
 }
 

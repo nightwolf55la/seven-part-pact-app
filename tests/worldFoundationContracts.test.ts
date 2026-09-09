@@ -166,6 +166,14 @@ function minimalV5State(): CampaignStateV5 {
       cults: [],
       holidayTempleIds: [],
     },
+    mariner: {
+      shipPlaceId: null,
+      selectedLawOfSeaIds: [],
+      boardIsles: [],
+      routes: [],
+      seaRegions: [],
+      beasts: [],
+    },
   };
 }
 

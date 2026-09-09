@@ -709,6 +709,81 @@ export { EMPTY_HIEROPHANT_STATE } from "./hierophant-state";
 export { validateHierophantStructure, validateHierophantReferenceIntegrity } from "./hierophant-validation";
 
 export type {
+  MarinerBoardIsleId,
+  MarinerExternalLandId,
+  MarinerHorizonCardinalGroupId,
+  MarinerHorizonRegionId,
+  MarinerInteriorSeaRegionId,
+  MarinerSeaRegionId,
+  MarinerLawOfSeaId,
+  MarinerBuiltinBeastId,
+  MarinerArrangementId,
+  MarinerRouteEndpoint,
+  MarinerRouteId,
+  MarinerBoardIsleDefinition,
+  MarinerExternalLandDefinition,
+  MarinerRouteDefinition,
+  MarinerInteriorSeaRegionDefinition,
+  MarinerHorizonRegionDefinition,
+  MarinerSeaRegionDefinition,
+  MarinerHorizonCardinalGroupDefinition,
+  MarinerLawOfSeaDefinition,
+  MarinerBuiltinBeastDefinition,
+  MarinerArrangementRaider,
+  MarinerArrangementDefinition,
+} from "./mariner-catalogs";
+export {
+  MARINER_BOARD_ISLE_IDS,
+  MARINER_EXTERNAL_LAND_IDS,
+  MARINER_HORIZON_CARDINAL_GROUP_IDS,
+  MARINER_HORIZON_REGION_IDS,
+  MARINER_INTERIOR_SEA_REGION_IDS,
+  MARINER_SEA_REGION_IDS,
+  MARINER_LAW_OF_SEA_IDS,
+  MARINER_BUILTIN_BEAST_IDS,
+  MARINER_ARRANGEMENT_IDS,
+  MARINER_BOARD_ISLE_DEFINITIONS,
+  MARINER_EXTERNAL_LAND_DEFINITIONS,
+  MARINER_ROUTE_DEFINITIONS,
+  MARINER_ROUTE_IDS,
+  MARINER_HORIZON_CARDINAL_GROUPS,
+  MARINER_SEA_REGION_DEFINITIONS,
+  MARINER_LAW_OF_SEA_DEFINITIONS,
+  MARINER_BUILTIN_BEAST_DEFINITIONS,
+  MARINER_ARRANGEMENT_DEFINITIONS,
+  marinerRouteId,
+  marinerRouteDefinition,
+  isValidMarinerBoardIsleId,
+  isValidMarinerExternalLandId,
+  isValidMarinerSeaRegionId,
+  isValidMarinerHorizonRegionId,
+  isValidMarinerLawOfSeaId,
+  isValidMarinerBuiltinBeastId,
+  isValidMarinerRouteId,
+  marinerRouteEndpointsEqual,
+  marinerRouteHasEndpoint,
+} from "./mariner-catalogs";
+
+export type {
+  MarinerIsleMarket,
+  MarinerBoardIsleState,
+  MarinerRouteOccupancy,
+  MarinerRouteState,
+  MarinerSeaRegionState,
+  MarinerBeastCondition,
+  MarinerBeastLocation,
+  MarinerBeastState,
+  MarinerState,
+  InitializedDefaultMarinerInput,
+} from "./mariner-state";
+export {
+  EMPTY_MARINER_STATE,
+  buildInitializedDefaultMarinerState,
+} from "./mariner-state";
+
+export { validateMarinerStructure, validateMarinerReferenceIntegrity } from "./mariner-validation";
+
+export type {
   HierophantTransitionResult,
   TemplePlaceBinding,
   InitializeHierophantInput,

@@ -59,6 +59,14 @@ function makeSerializableState(monthOrdinal: number): SerializableCampaignState 
       cults: [],
       holidayTempleIds: [],
     },
+    mariner: {
+      shipPlaceId: null,
+      selectedLawOfSeaIds: [],
+      boardIsles: [],
+      routes: [],
+      seaRegions: [],
+      beasts: [],
+    },
   };
 }
 

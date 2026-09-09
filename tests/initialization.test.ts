@@ -99,6 +99,14 @@ function makeInitialState(): SerializableCampaignState {
       cults: [],
       holidayTempleIds: [],
     },
+    mariner: {
+      shipPlaceId: null,
+      selectedLawOfSeaIds: [],
+      boardIsles: [],
+      routes: [],
+      seaRegions: [],
+      beasts: [],
+    },
   };
 }
 

@@ -137,6 +137,14 @@ function makeState(): CurrentCampaignState {
       cults: [],
       holidayTempleIds: [],
     },
+    mariner: {
+      shipPlaceId: null,
+      selectedLawOfSeaIds: [],
+      boardIsles: [],
+      routes: [],
+      seaRegions: [],
+      beasts: [],
+    },
   };
 }
 

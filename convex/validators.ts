@@ -912,6 +912,72 @@ const hierophantStateValidator = v.object({
   holidayTempleIds: v.array(v.string()),
 });
 
+const marinerRouteEndpointValidator = v.union(
+  v.object({
+    kind: v.literal("board_isle"),
+    boardIsleId: v.string(),
+  }),
+  v.object({
+    kind: v.literal("external_land"),
+    externalLandId: v.string(),
+  }),
+);
+
+const marinerRouteOccupancyValidator = v.union(
+  v.object({ kind: v.literal("empty") }),
+  v.object({ kind: v.literal("ship") }),
+  v.object({
+    kind: v.literal("raider"),
+    toward: marinerRouteEndpointValidator,
+  }),
+);
+
+const marinerIsleMarketValidator = v.union(
+  v.object({ present: v.literal(false) }),
+  v.object({
+    present: v.literal(true),
+    rarity: v.union(v.string(), v.null()),
+  }),
+);
+
+const marinerBeastLocationValidator = v.union(
+  v.object({
+    kind: v.literal("sea_region"),
+    regionId: v.string(),
+  }),
+  v.object({
+    kind: v.literal("board_isle"),
+    boardIsleId: v.string(),
+  }),
+  v.object({ kind: v.literal("off_map") }),
+);
+
+const marinerStateValidator = v.object({
+  shipPlaceId: v.union(v.string(), v.null()),
+  selectedLawOfSeaIds: v.array(v.string()),
+  boardIsles: v.array(v.object({
+    boardIsleId: v.string(),
+    worldIsleId: v.string(),
+    market: marinerIsleMarketValidator,
+    ravageStormCount: v.number(),
+  })),
+  routes: v.array(v.object({
+    routeId: v.string(),
+    occupancy: marinerRouteOccupancyValidator,
+  })),
+  seaRegions: v.array(v.object({
+    regionId: v.string(),
+    stormCount: v.number(),
+  })),
+  beasts: v.array(v.object({
+    denizenId: v.string(),
+    element: v.string(),
+    definitionId: v.union(v.string(), v.null()),
+    condition: v.string(),
+    location: marinerBeastLocationValidator,
+  })),
+});
+
 const templeCreatedEventV1Validator = v.object({
   type: v.literal("temple_created"),
   version: v.literal(1),
@@ -1094,6 +1160,7 @@ export const campaignStateV5Validator = v.object({
   wizardmootHistory: v.array(wizardmootHistoryEntryValidator),
   world: sharedWorldStateValidator,
   hierophant: hierophantStateValidator,
+  mariner: marinerStateValidator,
 });
 
 export const wizardCharacterUpdatedEventV2Validator = v.object({

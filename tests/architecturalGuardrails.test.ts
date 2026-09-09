@@ -122,6 +122,14 @@ describe("assertPortableCampaignState: validates without transforming", () => {
       cults: [],
       holidayTempleIds: [],
     },
+    mariner: {
+      shipPlaceId: null,
+      selectedLawOfSeaIds: [],
+      boardIsles: [],
+      routes: [],
+      seaRegions: [],
+      beasts: [],
+    },
   } as unknown as CampaignStateV5;
 
   it("returns the same object reference (no copy/transform)", () => {
@@ -288,6 +296,14 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
         cults: [],
         holidayTempleIds: [],
       },
+      mariner: {
+        shipPlaceId: null,
+        selectedLawOfSeaIds: [],
+        boardIsles: [],
+        routes: [],
+        seaRegions: [],
+        beasts: [],
+      },
     };
     expect(ps.calendar.monthOrdinal).toBe(5);
     expect(typeof ps.calendar.monthOrdinal).toBe("number");
@@ -327,6 +343,14 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
         prophets: [],
         cults: [],
         holidayTempleIds: [],
+      },
+      mariner: {
+        shipPlaceId: null,
+        selectedLawOfSeaIds: [],
+        boardIsles: [],
+        routes: [],
+        seaRegions: [],
+        beasts: [],
       },
     };
     const ps: PersistableCampaignState = state;
