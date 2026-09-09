@@ -337,6 +337,125 @@ export function updateCompanionDescriptionFingerprint(input: {
   return `update_companion_description:v2:${payload}`;
 }
 
+export function initializeHierophantFingerprint(
+  expectedCampaignId: string,
+  selectedFlameLawIds: readonly string[],
+  templePlaces: unknown,
+): string {
+  const payload = canonicalJsonStringify({ expectedCampaignId, selectedFlameLawIds, templePlaces });
+  return `initialize_hierophant:v1:${payload}`;
+}
+
+export function adjustTempleResourcesFingerprint(
+  expectedCampaignId: string,
+  templeId: string,
+  fields: Record<string, unknown>,
+): string {
+  const fieldsCanonical = canonicalJsonStringify(fields);
+  return `adjust_temple_resources:v1:campaign=${expectedCampaignId}:temple=${templeId}:fields=${fieldsCanonical}`;
+}
+
+export function createTempleFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `create_temple:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function updateTempleFingerprint(expectedCampaignId: string, templeId: string, fields: unknown): string {
+  return `update_temple:v1:${canonicalJsonStringify({ expectedCampaignId, templeId, fields })}`;
+}
+
+export function setTempleHolidayFingerprint(expectedCampaignId: string, templeId: string, marked: boolean): string {
+  return `set_temple_holiday:v1:${canonicalJsonStringify({ expectedCampaignId, templeId, marked })}`;
+}
+
+export function setSelectedFlameLawsFingerprint(
+  expectedCampaignId: string,
+  expectedSelectedFlameLawIds: readonly string[],
+  selectedFlameLawIds: readonly string[],
+): string {
+  return `set_selected_flame_laws:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    expectedSelectedFlameLawIds,
+    selectedFlameLawIds,
+  })}`;
+}
+
+export function addSupplicantFingerprint(expectedCampaignId: string, supplicant: unknown): string {
+  return `add_supplicant:v1:${canonicalJsonStringify({ expectedCampaignId, supplicant })}`;
+}
+
+export function updateSupplicantFingerprint(expectedCampaignId: string, denizenId: string, fields: unknown): string {
+  return `update_supplicant:v1:${canonicalJsonStringify({ expectedCampaignId, denizenId, fields })}`;
+}
+
+export function removeSupplicantFingerprint(expectedCampaignId: string, denizenId: string): string {
+  return `remove_supplicant:v1:${canonicalJsonStringify({ expectedCampaignId, denizenId })}`;
+}
+
+export function addProphetFingerprint(expectedCampaignId: string, prophet: unknown): string {
+  return `add_prophet:v1:${canonicalJsonStringify({ expectedCampaignId, prophet })}`;
+}
+
+export function updateProphetFingerprint(expectedCampaignId: string, denizenId: string, fields: unknown): string {
+  return `update_prophet:v1:${canonicalJsonStringify({ expectedCampaignId, denizenId, fields })}`;
+}
+
+export function removeProphetFingerprint(expectedCampaignId: string, denizenId: string): string {
+  return `remove_prophet:v1:${canonicalJsonStringify({ expectedCampaignId, denizenId })}`;
+}
+
+export function establishCultFingerprint(expectedCampaignId: string, cult: unknown): string {
+  return `establish_cult:v1:${canonicalJsonStringify({ expectedCampaignId, cult })}`;
+}
+
+export function updateCultFingerprint(expectedCampaignId: string, cultDenizenId: string, fields: unknown): string {
+  return `update_cult:v1:${canonicalJsonStringify({ expectedCampaignId, cultDenizenId, fields })}`;
+}
+
+export function removeCultFingerprint(expectedCampaignId: string, cultDenizenId: string): string {
+  return `remove_cult:v1:${canonicalJsonStringify({ expectedCampaignId, cultDenizenId })}`;
+}
+
+export function addCultDogmaFingerprint(expectedCampaignId: string, cultDenizenId: string, dogma: unknown): string {
+  return `add_cult_dogma:v1:${canonicalJsonStringify({ expectedCampaignId, cultDenizenId, dogma })}`;
+}
+
+export function updateCultDogmaFingerprint(
+  expectedCampaignId: string,
+  cultDenizenId: string,
+  dogmaEntryId: string,
+  fields: unknown,
+): string {
+  return `update_cult_dogma:v1:${canonicalJsonStringify({ expectedCampaignId, cultDenizenId, dogmaEntryId, fields })}`;
+}
+
+export function removeCultDogmaFingerprint(
+  expectedCampaignId: string,
+  cultDenizenId: string,
+  dogmaEntryId: string,
+): string {
+  return `remove_cult_dogma:v1:${canonicalJsonStringify({ expectedCampaignId, cultDenizenId, dogmaEntryId })}`;
+}
+
+export function createCampaignClassFingerprint(expectedCampaignId: string, campaignClass: unknown): string {
+  return `create_campaign_class:v1:${canonicalJsonStringify({ expectedCampaignId, campaignClass })}`;
+}
+
+export function updateCampaignClassFingerprint(expectedCampaignId: string, classId: string, name: unknown): string {
+  return `update_campaign_class:v1:${canonicalJsonStringify({ expectedCampaignId, classId, name })}`;
+}
+
+export function createCampaignDoctrineFingerprint(expectedCampaignId: string, campaignDoctrine: unknown): string {
+  return `create_campaign_doctrine:v1:${canonicalJsonStringify({ expectedCampaignId, campaignDoctrine })}`;
+}
+
+export function updateCampaignDoctrineFingerprint(
+  expectedCampaignId: string,
+  doctrineId: string,
+  fields: unknown,
+): string {
+  return `update_campaign_doctrine:v1:${canonicalJsonStringify({ expectedCampaignId, doctrineId, fields })}`;
+}
+
 /**
  * Pure deterministic idempotency match for command replay.
  * Given a previously committed command record and an incoming attempt,

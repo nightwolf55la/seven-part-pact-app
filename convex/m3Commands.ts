@@ -81,6 +81,28 @@ import {
   setWizardSanctumFingerprint,
   setWizardCompanionFingerprint,
   updateCompanionDescriptionFingerprint,
+  initializeHierophantFingerprint,
+  adjustTempleResourcesFingerprint,
+  createTempleFingerprint,
+  updateTempleFingerprint,
+  setTempleHolidayFingerprint,
+  setSelectedFlameLawsFingerprint,
+  addSupplicantFingerprint,
+  updateSupplicantFingerprint,
+  removeSupplicantFingerprint,
+  addProphetFingerprint,
+  updateProphetFingerprint,
+  removeProphetFingerprint,
+  establishCultFingerprint,
+  updateCultFingerprint,
+  removeCultFingerprint,
+  addCultDogmaFingerprint,
+  updateCultDogmaFingerprint,
+  removeCultDogmaFingerprint,
+  createCampaignClassFingerprint,
+  updateCampaignClassFingerprint,
+  createCampaignDoctrineFingerprint,
+  updateCampaignDoctrineFingerprint,
   applyCreateDenizenV5Candidate,
   applyUpdateDenizenV5Candidate,
   applyCreateIsleV5Candidate,
@@ -91,8 +113,33 @@ import {
   applySetWizardSanctumV5Candidate,
   applySetWizardCompanionV5Candidate,
   applyUpdateCompanionDescriptionV5Candidate,
+  applyInitializeHierophant,
+  applyAdjustTempleResources,
+  applyCreateTemple,
+  applyUpdateTemple,
+  applySetTempleHoliday,
+  applySetSelectedFlameLaws,
+  applyAddSupplicant,
+  applyUpdateSupplicant,
+  applyRemoveSupplicant,
+  applyAddProphet,
+  applyUpdateProphet,
+  applyRemoveProphet,
+  applyEstablishCult,
+  applyUpdateCult,
+  applyRemoveCult,
+  applyAddCultDogma,
+  applyUpdateCultDogma,
+  applyRemoveCultDogma,
+  applyCreateCampaignClass,
+  applyUpdateCampaignClass,
+  applyCreateCampaignDoctrine,
+  applyUpdateCampaignDoctrine,
+  isValidHierophantFlameLawId,
+  isValidHierophantStartingTempleId,
+  isValidHierophantTempleId,
 } from "../shared/domain";
-import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange, CompanionRelationshipId } from "../shared/domain";
+import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange, CompanionRelationshipId, HierophantFlameLawId, HierophantStartingTempleId, HierophantTempleId, HierophantCampaignClassId, HierophantCampaignDoctrineId, HierophantDogmaEntryId, HierophantSupplicant, HierophantProphet, HierophantCult, HierophantCultDogma, HierophantCampaignClass, HierophantCampaignDoctrine, CreateTempleInput, OrdinaryTempleDoctrineState } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
 import type { WizardInitIds } from "../shared/domain/begin-play";
 import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
@@ -1513,3 +1560,697 @@ export const updateCompanionDescription = mutation({
     );
   },
 });
+
+export const initializeHierophant = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    selectedFlameLawIds: v.array(v.string()),
+    templePlaces: v.array(v.object({
+      templeId: v.string(),
+      placeId: v.string(),
+    })),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        for (const lawId of args.selectedFlameLawIds) {
+          if (!isValidHierophantFlameLawId(lawId)) {
+            throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown Flame Law id: ${lawId}`);
+          }
+        }
+        for (const binding of args.templePlaces) {
+          if (!isValidHierophantStartingTempleId(binding.templeId)) {
+            throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown starting Temple id: ${binding.templeId}`);
+          }
+          if (!isValidPlaceId(binding.placeId)) {
+            throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid Temple placeId: ${binding.placeId}`);
+          }
+        }
+        return {
+          commandType: "initialize_hierophant",
+          commandFingerprint: initializeHierophantFingerprint(
+            args.expectedCampaignId,
+            args.selectedFlameLawIds,
+            args.templePlaces,
+          ),
+          apply: (state) =>
+            applyInitializeHierophant(state, {
+              selectedFlameLawIds: args.selectedFlameLawIds as HierophantFlameLawId[],
+              templePlaces: args.templePlaces.map((b) => ({
+                templeId: b.templeId as HierophantStartingTempleId,
+                placeId: b.placeId as PlaceId,
+              })),
+            }),
+        };
+      },
+    );
+  },
+});
+
+export const adjustTempleResources = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    templeId: v.string(),
+    fields: v.object({
+      abundance: v.optional(v.object({ expected: v.number(), value: v.number() })),
+      conviction: v.optional(v.object({ expected: v.number(), value: v.number() })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidHierophantTempleId(args.templeId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown Temple id: ${args.templeId}`);
+        }
+        return {
+          commandType: "adjust_temple_resources",
+          commandFingerprint: adjustTempleResourcesFingerprint(
+            args.expectedCampaignId,
+            args.templeId,
+            args.fields,
+          ),
+          apply: (state) =>
+            applyAdjustTempleResources(
+              state,
+              args.templeId as HierophantTempleId,
+              args.fields,
+            ),
+        };
+      },
+    );
+  },
+});
+
+const ordinaryDoctrineArg = v.union(
+  v.object({ kind: v.literal("unset") }),
+  v.object({ kind: v.literal("doctrine"), doctrineId: v.string() }),
+  v.object({ kind: v.literal("blasphemy"), blasphemyId: v.string() }),
+);
+
+const expectedString = v.object({ expected: v.string(), value: v.string() });
+const expectedNullableString = v.object({
+  expected: v.union(v.string(), v.null()),
+  value: v.union(v.string(), v.null()),
+});
+const expectedNumber = v.object({ expected: v.number(), value: v.number() });
+
+const supplicantHostArg = v.union(
+  v.object({
+    kind: v.literal("temple"),
+    templeId: v.string(),
+    area: v.union(v.literal("courtyard"), v.literal("agiary"), v.null()),
+  }),
+  v.object({
+    kind: v.literal("cult"),
+    cultDenizenId: v.string(),
+  }),
+);
+
+const prophetHostArg = v.union(
+  v.object({ kind: v.literal("temple"), templeId: v.string() }),
+  v.object({ kind: v.literal("cult"), cultDenizenId: v.string() }),
+);
+
+const cultDogmaArg = v.union(
+  v.object({
+    dogmaEntryId: v.string(),
+    kind: v.literal("builtin"),
+    dogmaId: v.string(),
+  }),
+  v.object({
+    dogmaEntryId: v.string(),
+    kind: v.literal("custom"),
+    category: v.union(
+      v.literal("apocalyptic"),
+      v.literal("ascetic"),
+      v.literal("delirious"),
+      v.literal("perverse"),
+      v.literal("vain"),
+      v.literal("custom"),
+    ),
+    text: v.string(),
+  }),
+);
+
+const campaignBlasphemyArg = v.object({ blasphemyId: v.string(), text: v.string() });
+
+export const createTemple = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    templeId: v.string(),
+    placeId: v.string(),
+    hostSeatId: v.string(),
+    abundance: v.number(),
+    conviction: v.number(),
+    status: v.union(v.literal("active"), v.literal("collapsed")),
+    doctrine: ordinaryDoctrineArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input: CreateTempleInput = {
+          templeId: args.templeId as HierophantTempleId,
+          placeId: args.placeId as PlaceId,
+          hostSeatId: args.hostSeatId as PactSeatId,
+          abundance: args.abundance,
+          conviction: args.conviction,
+          status: args.status,
+          doctrine: args.doctrine as OrdinaryTempleDoctrineState,
+        };
+        return {
+          commandType: "create_temple",
+          commandFingerprint: createTempleFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyCreateTemple(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const updateTemple = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    templeId: v.string(),
+    fields: v.object({
+      placeId: v.optional(v.object({ expected: v.string(), value: v.string() })),
+      hostSeatId: v.optional(expectedString),
+      status: v.optional(v.object({
+        expected: v.union(v.literal("active"), v.literal("collapsed")),
+        value: v.union(v.literal("active"), v.literal("collapsed")),
+      })),
+      doctrine: v.optional(v.object({
+        expected: ordinaryDoctrineArg,
+        value: ordinaryDoctrineArg,
+      })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "update_temple",
+        commandFingerprint: updateTempleFingerprint(args.expectedCampaignId, args.templeId, args.fields),
+        apply: (state) => applyUpdateTemple(state, args.templeId as HierophantTempleId, {
+          placeId: args.fields.placeId as ExpectedFieldChange<PlaceId> | undefined,
+          hostSeatId: args.fields.hostSeatId as ExpectedFieldChange<PactSeatId> | undefined,
+          status: args.fields.status,
+          doctrine: args.fields.doctrine as ExpectedFieldChange<OrdinaryTempleDoctrineState> | undefined,
+        }),
+      }),
+    );
+  },
+});
+
+export const setTempleHoliday = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    templeId: v.string(),
+    marked: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "set_temple_holiday",
+        commandFingerprint: setTempleHolidayFingerprint(args.expectedCampaignId, args.templeId, args.marked),
+        apply: (state) => applySetTempleHoliday(state, args.templeId as HierophantTempleId, args.marked),
+      }),
+    );
+  },
+});
+
+export const setSelectedFlameLaws = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    expectedSelectedFlameLawIds: v.array(v.string()),
+    selectedFlameLawIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "set_selected_flame_laws",
+        commandFingerprint: setSelectedFlameLawsFingerprint(
+          args.expectedCampaignId,
+          args.expectedSelectedFlameLawIds,
+          args.selectedFlameLawIds,
+        ),
+        apply: (state) =>
+          applySetSelectedFlameLaws(
+            state,
+            args.expectedSelectedFlameLawIds as HierophantFlameLawId[],
+            args.selectedFlameLawIds as HierophantFlameLawId[],
+          ),
+      }),
+    );
+  },
+});
+
+export const addSupplicant = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    classId: v.string(),
+    woe: v.number(),
+    host: supplicantHostArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const supplicant = {
+          denizenId: args.denizenId,
+          classId: args.classId,
+          woe: args.woe,
+          host: args.host,
+        } as HierophantSupplicant;
+        return {
+          commandType: "add_supplicant",
+          commandFingerprint: addSupplicantFingerprint(args.expectedCampaignId, supplicant),
+          apply: (state) => applyAddSupplicant(state, supplicant),
+        };
+      },
+    );
+  },
+});
+
+export const updateSupplicant = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    fields: v.object({
+      classId: v.optional(expectedString),
+      woe: v.optional(expectedNumber),
+      host: v.optional(v.object({ expected: supplicantHostArg, value: supplicantHostArg })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "update_supplicant",
+        commandFingerprint: updateSupplicantFingerprint(args.expectedCampaignId, args.denizenId, args.fields),
+        apply: (state) => applyUpdateSupplicant(state, args.denizenId as DenizenId, args.fields as never),
+      }),
+    );
+  },
+});
+
+export const removeSupplicant = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "remove_supplicant",
+        commandFingerprint: removeSupplicantFingerprint(args.expectedCampaignId, args.denizenId),
+        apply: (state) => applyRemoveSupplicant(state, args.denizenId as DenizenId),
+      }),
+    );
+  },
+});
+
+export const addProphet = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    disposition: v.union(v.literal("reliable"), v.literal("disruptive")),
+    host: prophetHostArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const prophet = {
+          denizenId: args.denizenId,
+          disposition: args.disposition,
+          host: args.host,
+        } as HierophantProphet;
+        return {
+          commandType: "add_prophet",
+          commandFingerprint: addProphetFingerprint(args.expectedCampaignId, prophet),
+          apply: (state) => applyAddProphet(state, prophet),
+        };
+      },
+    );
+  },
+});
+
+export const updateProphet = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    fields: v.object({
+      disposition: v.optional(v.object({
+        expected: v.union(v.literal("reliable"), v.literal("disruptive")),
+        value: v.union(v.literal("reliable"), v.literal("disruptive")),
+      })),
+      host: v.optional(v.object({ expected: prophetHostArg, value: prophetHostArg })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "update_prophet",
+        commandFingerprint: updateProphetFingerprint(args.expectedCampaignId, args.denizenId, args.fields),
+        apply: (state) => applyUpdateProphet(state, args.denizenId as DenizenId, args.fields as never),
+      }),
+    );
+  },
+});
+
+export const removeProphet = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "remove_prophet",
+        commandFingerprint: removeProphetFingerprint(args.expectedCampaignId, args.denizenId),
+        apply: (state) => applyRemoveProphet(state, args.denizenId as DenizenId),
+      }),
+    );
+  },
+});
+
+export const establishCult = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    cultDenizenId: v.string(),
+    hostSeatId: v.string(),
+    anchorPlaceId: v.union(v.string(), v.null()),
+    leaderDenizenId: v.union(v.string(), v.null()),
+    blasphemyId: v.string(),
+    abundance: v.number(),
+    conviction: v.number(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const cult = {
+          cultDenizenId: args.cultDenizenId,
+          hostSeatId: args.hostSeatId,
+          anchorPlaceId: args.anchorPlaceId,
+          leaderDenizenId: args.leaderDenizenId,
+          blasphemyId: args.blasphemyId,
+          abundance: args.abundance,
+          conviction: args.conviction,
+          dogmas: [],
+        } as unknown as HierophantCult;
+        return {
+          commandType: "establish_cult",
+          commandFingerprint: establishCultFingerprint(args.expectedCampaignId, cult),
+          apply: (state) => applyEstablishCult(state, cult),
+        };
+      },
+    );
+  },
+});
+
+export const updateCult = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    cultDenizenId: v.string(),
+    fields: v.object({
+      hostSeatId: v.optional(expectedString),
+      anchorPlaceId: v.optional(expectedNullableString),
+      leaderDenizenId: v.optional(expectedNullableString),
+      blasphemyId: v.optional(expectedString),
+      abundance: v.optional(expectedNumber),
+      conviction: v.optional(expectedNumber),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "update_cult",
+        commandFingerprint: updateCultFingerprint(args.expectedCampaignId, args.cultDenizenId, args.fields),
+        apply: (state) => applyUpdateCult(state, args.cultDenizenId as DenizenId, args.fields as never),
+      }),
+    );
+  },
+});
+
+export const removeCult = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    cultDenizenId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "remove_cult",
+        commandFingerprint: removeCultFingerprint(args.expectedCampaignId, args.cultDenizenId),
+        apply: (state) => applyRemoveCult(state, args.cultDenizenId as DenizenId),
+      }),
+    );
+  },
+});
+
+export const addCultDogma = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    cultDenizenId: v.string(),
+    dogma: cultDogmaArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "add_cult_dogma",
+        commandFingerprint: addCultDogmaFingerprint(args.expectedCampaignId, args.cultDenizenId, args.dogma),
+        apply: (state) => applyAddCultDogma(
+          state,
+          args.cultDenizenId as DenizenId,
+          args.dogma as HierophantCultDogma,
+        ),
+      }),
+    );
+  },
+});
+
+export const updateCultDogma = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    cultDenizenId: v.string(),
+    dogmaEntryId: v.string(),
+    fields: v.object({
+      category: v.optional(v.object({
+        expected: v.string(),
+        value: v.string(),
+      })),
+      text: v.optional(expectedString),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "update_cult_dogma",
+        commandFingerprint: updateCultDogmaFingerprint(
+          args.expectedCampaignId,
+          args.cultDenizenId,
+          args.dogmaEntryId,
+          args.fields,
+        ),
+        apply: (state) => applyUpdateCultDogma(
+          state,
+          args.cultDenizenId as DenizenId,
+          args.dogmaEntryId as HierophantDogmaEntryId,
+          args.fields as never,
+        ),
+      }),
+    );
+  },
+});
+
+export const removeCultDogma = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    cultDenizenId: v.string(),
+    dogmaEntryId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "remove_cult_dogma",
+        commandFingerprint: removeCultDogmaFingerprint(
+          args.expectedCampaignId,
+          args.cultDenizenId,
+          args.dogmaEntryId,
+        ),
+        apply: (state) => applyRemoveCultDogma(
+          state,
+          args.cultDenizenId as DenizenId,
+          args.dogmaEntryId as HierophantDogmaEntryId,
+        ),
+      }),
+    );
+  },
+});
+
+export const createCampaignClass = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    classId: v.string(),
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const campaignClass = { classId: args.classId, name: args.name } as HierophantCampaignClass;
+        return {
+          commandType: "create_campaign_class",
+          commandFingerprint: createCampaignClassFingerprint(args.expectedCampaignId, campaignClass),
+          apply: (state) => applyCreateCampaignClass(state, campaignClass),
+        };
+      },
+    );
+  },
+});
+
+export const updateCampaignClass = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    classId: v.string(),
+    name: expectedString,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "update_campaign_class",
+        commandFingerprint: updateCampaignClassFingerprint(args.expectedCampaignId, args.classId, args.name),
+        apply: (state) => applyUpdateCampaignClass(
+          state,
+          args.classId as HierophantCampaignClassId,
+          args.name,
+        ),
+      }),
+    );
+  },
+});
+
+export const createCampaignDoctrine = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    doctrineId: v.string(),
+    orthodoxText: v.union(v.string(), v.null()),
+    blasphemy: v.union(campaignBlasphemyArg, v.null()),
+    supportedClassIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const campaignDoctrine = {
+          doctrineId: args.doctrineId,
+          orthodoxText: args.orthodoxText,
+          blasphemy: args.blasphemy,
+          supportedClassIds: args.supportedClassIds,
+        } as unknown as HierophantCampaignDoctrine;
+        return {
+          commandType: "create_campaign_doctrine",
+          commandFingerprint: createCampaignDoctrineFingerprint(args.expectedCampaignId, campaignDoctrine),
+          apply: (state) => applyCreateCampaignDoctrine(state, campaignDoctrine),
+        };
+      },
+    );
+  },
+});
+
+export const updateCampaignDoctrine = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    doctrineId: v.string(),
+    fields: v.object({
+      orthodoxText: v.optional(expectedNullableString),
+      blasphemy: v.optional(v.object({
+        expected: v.union(campaignBlasphemyArg, v.null()),
+        value: v.union(campaignBlasphemyArg, v.null()),
+      })),
+      supportedClassIds: v.optional(v.object({
+        expected: v.array(v.string()),
+        value: v.array(v.string()),
+      })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "update_campaign_doctrine",
+        commandFingerprint: updateCampaignDoctrineFingerprint(
+          args.expectedCampaignId,
+          args.doctrineId,
+          args.fields,
+        ),
+        apply: (state) => applyUpdateCampaignDoctrine(
+          state,
+          args.doctrineId as HierophantCampaignDoctrineId,
+          args.fields as never,
+        ),
+      }),
+    );
+  },
+});
+

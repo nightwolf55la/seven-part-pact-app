@@ -49,6 +49,16 @@ function makeSerializableState(monthOrdinal: number): SerializableCampaignState 
       places: [],
       companionRelationships: [],
     },
+    hierophant: {
+      selectedFlameLawIds: [],
+      campaignClasses: [],
+      campaignDoctrines: [],
+      temples: [],
+      supplicants: [],
+      prophets: [],
+      cults: [],
+      holidayTempleIds: [],
+    },
   };
 }
 

@@ -1,9 +1,52 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createElement, Component, type ReactNode } from "react";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
-import { PreviewBadge, usePreviewDocumentTitle, BASE_DOCUMENT_TITLE } from "../src/preview-indicator";
+import {
+  EnvironmentBadge,
+  PreviewBadge,
+  usePreviewDocumentTitle,
+  BASE_DOCUMENT_TITLE,
+} from "../src/preview-indicator";
+
+describe("EnvironmentBadge", () => {
+  let container: HTMLElement;
+  let root: ReturnType<typeof createRoot>;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    root.unmount();
+    container.remove();
+  });
+
+  it("renders Local Dev badge", () => {
+    flushSync(() => {
+      root.render(createElement(EnvironmentBadge, { badge: "local-dev" }));
+    });
+    expect(container.textContent).toContain("Local Dev");
+    expect(container.textContent).not.toContain("Preview / Test");
+  });
+
+  it("renders Preview / Test badge", () => {
+    flushSync(() => {
+      root.render(createElement(EnvironmentBadge, { badge: "preview" }));
+    });
+    expect(container.textContent).toContain("Preview / Test");
+  });
+
+  it("renders nothing when badge is null", () => {
+    flushSync(() => {
+      root.render(createElement(EnvironmentBadge, { badge: null }));
+    });
+    expect(container.children.length).toBe(0);
+  });
+});
 
 describe("PreviewBadge", () => {
   let container: HTMLElement;
@@ -33,13 +76,6 @@ describe("PreviewBadge", () => {
     });
     expect(container.textContent).not.toContain("Preview / Test");
     expect(container.children.length).toBe(0);
-  });
-
-  it("renders nothing when isPreview is absent", () => {
-    flushSync(() => {
-      root.render(createElement(PreviewBadge, { isPreview: undefined as unknown as boolean }));
-    });
-    expect(container.textContent).not.toContain("Preview / Test");
   });
 });
 

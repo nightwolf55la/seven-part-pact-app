@@ -7,6 +7,7 @@ import type { SetupOrreryState, OrreryState } from "./orrery";
 import type { TimeParticipant } from "./time-model";
 import type { EngagementRecordV4, EngagementRecordV5 } from "./engagement";
 import type { SharedWorldState } from "./shared-world";
+import type { HierophantState } from "./hierophant-state";
 import type { WizardmootAttendance, WizardmootHistoryEntry } from "./wizardmoot";
 import {
   SEVEN_PART_PACT_DRAFT4_ID,
@@ -251,4 +252,5 @@ export interface CampaignStateV5 {
   readonly lifecycle: CampaignLifecycleV5;
   readonly wizardmootHistory: readonly WizardmootHistoryEntry[];
   readonly world: SharedWorldState;
+  readonly hierophant: HierophantState;
 }

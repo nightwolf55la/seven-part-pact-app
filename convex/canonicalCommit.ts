@@ -164,6 +164,28 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   set_wizard_sanctum: { required: ["wizard_sanctum_changed"] },
   set_wizard_companion: { required: ["wizard_companion_changed"] },
   update_companion_description: { required: ["companion_description_changed"] },
+  initialize_hierophant: { required: ["hierophant_initialized"] },
+  adjust_temple_resources: { required: ["temple_resources_adjusted"] },
+  create_temple: { required: ["temple_created"] },
+  update_temple: { required: ["temple_updated"] },
+  set_temple_holiday: { required: ["temple_holiday_changed"] },
+  set_selected_flame_laws: { required: ["flame_laws_changed"] },
+  add_supplicant: { required: ["supplicant_added"] },
+  update_supplicant: { required: ["supplicant_updated"] },
+  remove_supplicant: { required: ["supplicant_removed"] },
+  add_prophet: { required: ["prophet_added"] },
+  update_prophet: { required: ["prophet_updated"] },
+  remove_prophet: { required: ["prophet_removed"] },
+  establish_cult: { required: ["cult_established"] },
+  update_cult: { required: ["cult_updated"] },
+  remove_cult: { required: ["cult_removed"] },
+  add_cult_dogma: { required: ["cult_dogma_added"] },
+  update_cult_dogma: { required: ["cult_dogma_updated"] },
+  remove_cult_dogma: { required: ["cult_dogma_removed"] },
+  create_campaign_class: { required: ["campaign_class_created"] },
+  update_campaign_class: { required: ["campaign_class_updated"] },
+  create_campaign_doctrine: { required: ["campaign_doctrine_created"] },
+  update_campaign_doctrine: { required: ["campaign_doctrine_updated"] },
 };
 
 const CURRENT_V5_EVENT_VERSION_REQUIREMENTS: Record<string, { type: string; version: number }> = {
@@ -281,6 +303,16 @@ function validateM3EventPayload(evt: CampaignEvent): void {
     case "wizard_character_updated":
       if (typeof evt.data.wizardId !== "string" || !isValidWizardId(evt.data.wizardId)) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", "wizard_character_updated has invalid wizardId");
+      }
+      break;
+    case "hierophant_initialized":
+      if (!Array.isArray(evt.data.selectedFlameLawIds) || !Array.isArray(evt.data.temples)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "hierophant_initialized payload is malformed");
+      }
+      break;
+    case "temple_resources_adjusted":
+      if (typeof evt.data.templeId !== "string") {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "temple_resources_adjusted has invalid templeId");
       }
       break;
     default:

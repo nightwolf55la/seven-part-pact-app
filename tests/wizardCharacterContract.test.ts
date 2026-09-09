@@ -127,6 +127,16 @@ function makeState(): CurrentCampaignState {
       places: [],
       companionRelationships: [],
     },
+    hierophant: {
+      selectedFlameLawIds: [],
+      campaignClasses: [],
+      campaignDoctrines: [],
+      temples: [],
+      supplicants: [],
+      prophets: [],
+      cults: [],
+      holidayTempleIds: [],
+    },
   };
 }
 

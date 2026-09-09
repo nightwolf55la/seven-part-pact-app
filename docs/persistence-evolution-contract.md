@@ -62,6 +62,37 @@ Rules:
 When in doubt, increment `stateSchemaVersion` and add an explicit, tested
 migration. See [architecture/state-model.md](architecture/state-model.md)
 sections 18 and 28.
+
+### Pre-activation in-place evolution
+
+A CampaignState schema version becomes an immutable compatibility contract once
+activated by persisted artifacts that must be preserved. Before activation,
+while all artifacts of that version are explicitly disposable, its
+representation may evolve in place without incrementing the schema version.
+
+Schema versions identify persisted compatibility boundaries, not commits,
+branches, milestone substages, or individual field additions.
+
+Once activated, incompatible evolution requires an explicit compatibility
+decision and may require a new schema version and migration.
+
+This pre-activation policy does not weaken the activated schema-evolution
+contract:
+
+- No silent migration.
+- Fail closed on incompatible persisted state.
+- Destructive pre-activation cleanup requires explicit confirmation for the
+  exact target.
+- Valuable persisted data is never implicitly disposable.
+
+At the time the M5.2C-H Hierophant structural work was approved, Master/human
+explicitly designated existing V5 artifacts as disposable and V5 as
+pre-activation. That explicit decision allowed the Hierophant shape to be
+added in place. This historical exception is not evidence that V5 remains
+pre-activation or that any current deployment's data is disposable. Before
+any destructive cleanup or later incompatible V5 change, obtain fresh
+confirmation for the exact target.
+
 ### M4 V3 Boundary Exception
 
 M4 introduces V3 and retires V1/V2 as a one-time pre-release compatibility

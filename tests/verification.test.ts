@@ -48,6 +48,7 @@ function makeState(monthOrdinal: number): CurrentCampaignState {
     },
     wizardmootHistory: [],
     world: { denizens: [], isles: [], places: [], companionRelationships: [] },
+    hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] },
   };
 }
 
@@ -153,6 +154,7 @@ describe("verifyBackupImportRevisionStructure with V1 historical snapshot", () =
       lifecycle: { kind: "setup" as const, orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } },
       wizardmootHistory: [],
       world: { denizens: [], isles: [], places: [], companionRelationships: [] },
+    hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] },
     };
 
     const payloadDigest = "a".repeat(64);

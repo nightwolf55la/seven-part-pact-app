@@ -112,6 +112,16 @@ describe("assertPortableCampaignState: validates without transforming", () => {
       places: [],
       companionRelationships: [],
     },
+    hierophant: {
+      selectedFlameLawIds: [],
+      campaignClasses: [],
+      campaignDoctrines: [],
+      temples: [],
+      supplicants: [],
+      prophets: [],
+      cults: [],
+      holidayTempleIds: [],
+    },
   } as unknown as CampaignStateV5;
 
   it("returns the same object reference (no copy/transform)", () => {
@@ -268,6 +278,16 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
         places: [],
         companionRelationships: [],
       },
+      hierophant: {
+        selectedFlameLawIds: [],
+        campaignClasses: [],
+        campaignDoctrines: [],
+        temples: [],
+        supplicants: [],
+        prophets: [],
+        cults: [],
+        holidayTempleIds: [],
+      },
     };
     expect(ps.calendar.monthOrdinal).toBe(5);
     expect(typeof ps.calendar.monthOrdinal).toBe("number");
@@ -297,6 +317,16 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
         isles: [],
         places: [],
         companionRelationships: [],
+      },
+      hierophant: {
+        selectedFlameLawIds: [],
+        campaignClasses: [],
+        campaignDoctrines: [],
+        temples: [],
+        supplicants: [],
+        prophets: [],
+        cults: [],
+        holidayTempleIds: [],
       },
     };
     const ps: PersistableCampaignState = state;

@@ -40,6 +40,19 @@ The serialized schema version of the complete logical `CampaignState`.
 
 This changes when the representation of campaign state changes.
 
+Schema versions identify persisted compatibility boundaries, not commits,
+branches, milestone substages, or individual field additions. A version becomes
+an immutable compatibility contract once activated by persisted artifacts that
+must be preserved. Before activation, while all artifacts of that version are
+explicitly disposable, the representation may evolve in place without
+incrementing the schema version. See
+[persistence-evolution-contract.md](../persistence-evolution-contract.md)
+section B.
+
+Once activated, incompatible evolution requires an explicit compatibility
+decision and may require a new schema version and migration. Do not treat
+valuable persisted data as implicitly disposable.
+
 ### `ruleset.id` and `ruleset.version`
 
 Identify the game rules under which the campaign operates.

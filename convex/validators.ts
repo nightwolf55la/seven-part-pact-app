@@ -766,6 +766,314 @@ const sharedWorldStateValidator = v.object({
   companionRelationships: v.array(companionRelationshipValidator),
 });
 
+const ordinaryTempleDoctrineValidator = v.union(
+  v.object({ kind: v.literal("unset") }),
+  v.object({ kind: v.literal("doctrine"), doctrineId: v.string() }),
+  v.object({ kind: v.literal("blasphemy"), blasphemyId: v.string() }),
+);
+
+const ordinaryTempleValidator = v.object({
+  templeId: v.string(),
+  kind: v.literal("ordinary"),
+  placeId: v.string(),
+  hostSeatId: v.string(),
+  status: v.union(v.literal("active"), v.literal("collapsed")),
+  abundance: v.number(),
+  conviction: v.number(),
+  doctrine: ordinaryTempleDoctrineValidator,
+});
+
+const hestarTempleValidator = v.object({
+  templeId: v.literal("hestar"),
+  kind: v.literal("hestar"),
+  placeId: v.string(),
+  hostSeatId: v.string(),
+  status: v.union(v.literal("active"), v.literal("collapsed")),
+  abundance: v.number(),
+  conviction: v.number(),
+});
+
+const hierophantInitializedEventV1Validator = v.object({
+  type: v.literal("hierophant_initialized"),
+  version: v.literal(1),
+  data: v.object({
+    selectedFlameLawIds: v.array(v.string()),
+    temples: v.array(v.union(ordinaryTempleValidator, hestarTempleValidator)),
+  }),
+});
+
+const templeResourcesAdjustedEventV1Validator = v.object({
+  type: v.literal("temple_resources_adjusted"),
+  version: v.literal(1),
+  data: v.object({
+    templeId: v.string(),
+    previousAbundance: v.number(),
+    newAbundance: v.number(),
+    previousConviction: v.number(),
+    newConviction: v.number(),
+  }),
+});
+
+const hierophantTempleAreaValidator = v.union(
+  v.literal("courtyard"),
+  v.literal("agiary"),
+  v.null(),
+);
+
+const supplicantHostValidator = v.union(
+  v.object({
+    kind: v.literal("temple"),
+    templeId: v.string(),
+    area: hierophantTempleAreaValidator,
+  }),
+  v.object({
+    kind: v.literal("cult"),
+    cultDenizenId: v.string(),
+  }),
+);
+
+const prophetHostValidator = v.union(
+  v.object({
+    kind: v.literal("temple"),
+    templeId: v.string(),
+  }),
+  v.object({
+    kind: v.literal("cult"),
+    cultDenizenId: v.string(),
+  }),
+);
+
+const hierophantSupplicantValidator = v.object({
+  denizenId: v.string(),
+  classId: v.string(),
+  woe: v.number(),
+  host: supplicantHostValidator,
+});
+
+const hierophantProphetValidator = v.object({
+  denizenId: v.string(),
+  disposition: v.union(v.literal("reliable"), v.literal("disruptive")),
+  host: prophetHostValidator,
+});
+
+const hierophantCultDogmaValidator = v.union(
+  v.object({
+    dogmaEntryId: v.string(),
+    kind: v.literal("builtin"),
+    dogmaId: v.string(),
+  }),
+  v.object({
+    dogmaEntryId: v.string(),
+    kind: v.literal("custom"),
+    category: v.union(
+      v.literal("apocalyptic"),
+      v.literal("ascetic"),
+      v.literal("delirious"),
+      v.literal("perverse"),
+      v.literal("vain"),
+      v.literal("custom"),
+    ),
+    text: v.string(),
+  }),
+);
+
+const hierophantCultValidator = v.object({
+  cultDenizenId: v.string(),
+  hostSeatId: v.string(),
+  anchorPlaceId: v.union(v.string(), v.null()),
+  leaderDenizenId: v.union(v.string(), v.null()),
+  blasphemyId: v.string(),
+  abundance: v.number(),
+  conviction: v.number(),
+  dogmas: v.array(hierophantCultDogmaValidator),
+});
+
+const campaignBlasphemyValidator = v.object({
+  blasphemyId: v.string(),
+  text: v.string(),
+});
+
+const hierophantStateValidator = v.object({
+  selectedFlameLawIds: v.array(v.string()),
+  campaignClasses: v.array(v.object({
+    classId: v.string(),
+    name: v.string(),
+  })),
+  campaignDoctrines: v.array(v.object({
+    doctrineId: v.string(),
+    orthodoxText: v.union(v.string(), v.null()),
+    blasphemy: v.union(campaignBlasphemyValidator, v.null()),
+    supportedClassIds: v.array(v.string()),
+  })),
+  temples: v.array(v.union(ordinaryTempleValidator, hestarTempleValidator)),
+  supplicants: v.array(hierophantSupplicantValidator),
+  prophets: v.array(hierophantProphetValidator),
+  cults: v.array(hierophantCultValidator),
+  holidayTempleIds: v.array(v.string()),
+});
+
+const templeCreatedEventV1Validator = v.object({
+  type: v.literal("temple_created"),
+  version: v.literal(1),
+  data: v.object({ temple: ordinaryTempleValidator }),
+});
+
+const templeUpdatedEventV1Validator = v.object({
+  type: v.literal("temple_updated"),
+  version: v.literal(1),
+  data: v.object({
+    previous: v.union(ordinaryTempleValidator, hestarTempleValidator),
+    updated: v.union(ordinaryTempleValidator, hestarTempleValidator),
+  }),
+});
+
+const templeHolidayChangedEventV1Validator = v.object({
+  type: v.literal("temple_holiday_changed"),
+  version: v.literal(1),
+  data: v.object({
+    templeId: v.string(),
+    previousMarked: v.boolean(),
+    newMarked: v.boolean(),
+  }),
+});
+
+const flameLawsChangedEventV1Validator = v.object({
+  type: v.literal("flame_laws_changed"),
+  version: v.literal(1),
+  data: v.object({
+    previousSelectedFlameLawIds: v.array(v.string()),
+    newSelectedFlameLawIds: v.array(v.string()),
+  }),
+});
+
+const supplicantAddedEventV1Validator = v.object({
+  type: v.literal("supplicant_added"),
+  version: v.literal(1),
+  data: v.object({ supplicant: hierophantSupplicantValidator }),
+});
+
+const supplicantUpdatedEventV1Validator = v.object({
+  type: v.literal("supplicant_updated"),
+  version: v.literal(1),
+  data: v.object({
+    previous: hierophantSupplicantValidator,
+    updated: hierophantSupplicantValidator,
+  }),
+});
+
+const supplicantRemovedEventV1Validator = v.object({
+  type: v.literal("supplicant_removed"),
+  version: v.literal(1),
+  data: v.object({ denizenId: v.string() }),
+});
+
+const prophetAddedEventV1Validator = v.object({
+  type: v.literal("prophet_added"),
+  version: v.literal(1),
+  data: v.object({ prophet: hierophantProphetValidator }),
+});
+
+const prophetUpdatedEventV1Validator = v.object({
+  type: v.literal("prophet_updated"),
+  version: v.literal(1),
+  data: v.object({
+    previous: hierophantProphetValidator,
+    updated: hierophantProphetValidator,
+  }),
+});
+
+const prophetRemovedEventV1Validator = v.object({
+  type: v.literal("prophet_removed"),
+  version: v.literal(1),
+  data: v.object({ denizenId: v.string() }),
+});
+
+const cultEstablishedEventV1Validator = v.object({
+  type: v.literal("cult_established"),
+  version: v.literal(1),
+  data: v.object({ cult: hierophantCultValidator }),
+});
+
+const cultUpdatedEventV1Validator = v.object({
+  type: v.literal("cult_updated"),
+  version: v.literal(1),
+  data: v.object({
+    previous: hierophantCultValidator,
+    updated: hierophantCultValidator,
+  }),
+});
+
+const cultRemovedEventV1Validator = v.object({
+  type: v.literal("cult_removed"),
+  version: v.literal(1),
+  data: v.object({ cultDenizenId: v.string() }),
+});
+
+const cultDogmaAddedEventV1Validator = v.object({
+  type: v.literal("cult_dogma_added"),
+  version: v.literal(1),
+  data: v.object({
+    cultDenizenId: v.string(),
+    dogma: hierophantCultDogmaValidator,
+  }),
+});
+
+const cultDogmaUpdatedEventV1Validator = v.object({
+  type: v.literal("cult_dogma_updated"),
+  version: v.literal(1),
+  data: v.object({
+    cultDenizenId: v.string(),
+    previous: hierophantCultDogmaValidator,
+    updated: hierophantCultDogmaValidator,
+  }),
+});
+
+const cultDogmaRemovedEventV1Validator = v.object({
+  type: v.literal("cult_dogma_removed"),
+  version: v.literal(1),
+  data: v.object({
+    cultDenizenId: v.string(),
+    dogmaEntryId: v.string(),
+  }),
+});
+
+const campaignClassCreatedEventV1Validator = v.object({
+  type: v.literal("campaign_class_created"),
+  version: v.literal(1),
+  data: v.object({ campaignClass: v.object({ classId: v.string(), name: v.string() }) }),
+});
+
+const campaignClassUpdatedEventV1Validator = v.object({
+  type: v.literal("campaign_class_updated"),
+  version: v.literal(1),
+  data: v.object({
+    previous: v.object({ classId: v.string(), name: v.string() }),
+    updated: v.object({ classId: v.string(), name: v.string() }),
+  }),
+});
+
+const campaignDoctrineRecordValidator = v.object({
+  doctrineId: v.string(),
+  orthodoxText: v.union(v.string(), v.null()),
+  blasphemy: v.union(campaignBlasphemyValidator, v.null()),
+  supportedClassIds: v.array(v.string()),
+});
+
+const campaignDoctrineCreatedEventV1Validator = v.object({
+  type: v.literal("campaign_doctrine_created"),
+  version: v.literal(1),
+  data: v.object({ campaignDoctrine: campaignDoctrineRecordValidator }),
+});
+
+const campaignDoctrineUpdatedEventV1Validator = v.object({
+  type: v.literal("campaign_doctrine_updated"),
+  version: v.literal(1),
+  data: v.object({
+    previous: campaignDoctrineRecordValidator,
+    updated: campaignDoctrineRecordValidator,
+  }),
+});
+
 export const campaignStateV5Validator = v.object({
   schemaVersion: v.literal(5),
   ruleset: v.object({
@@ -785,6 +1093,7 @@ export const campaignStateV5Validator = v.object({
   lifecycle: lifecycleV5Validator,
   wizardmootHistory: v.array(wizardmootHistoryEntryValidator),
   world: sharedWorldStateValidator,
+  hierophant: hierophantStateValidator,
 });
 
 export const wizardCharacterUpdatedEventV2Validator = v.object({
@@ -868,6 +1177,28 @@ export const campaignEventValidator = v.union(
   wizardSanctumChangedEventV1Validator,
   wizardCompanionChangedEventV1Validator,
   companionDescriptionChangedEventV1Validator,
+  hierophantInitializedEventV1Validator,
+  templeResourcesAdjustedEventV1Validator,
+  templeCreatedEventV1Validator,
+  templeUpdatedEventV1Validator,
+  templeHolidayChangedEventV1Validator,
+  flameLawsChangedEventV1Validator,
+  supplicantAddedEventV1Validator,
+  supplicantUpdatedEventV1Validator,
+  supplicantRemovedEventV1Validator,
+  prophetAddedEventV1Validator,
+  prophetUpdatedEventV1Validator,
+  prophetRemovedEventV1Validator,
+  cultEstablishedEventV1Validator,
+  cultUpdatedEventV1Validator,
+  cultRemovedEventV1Validator,
+  cultDogmaAddedEventV1Validator,
+  cultDogmaUpdatedEventV1Validator,
+  cultDogmaRemovedEventV1Validator,
+  campaignClassCreatedEventV1Validator,
+  campaignClassUpdatedEventV1Validator,
+  campaignDoctrineCreatedEventV1Validator,
+  campaignDoctrineUpdatedEventV1Validator,
 );
 
 export const anyCampaignStateValidator = campaignStateV5Validator;

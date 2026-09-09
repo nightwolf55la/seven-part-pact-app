@@ -45,6 +45,7 @@ function makeState(monthOrdinal: number): CurrentCampaignState {
     },
     wizardmootHistory: [],
     world: { denizens: [], isles: [], places: [], companionRelationships: [] },
+    hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] },
   };
 }
 

@@ -73,6 +73,7 @@ vi.mock("../convex/_generated/api.js", () => ({
     m3Queries: {
       getPlayReference: "m3Queries.getPlayReference",
       getWorldReference: "m3Queries.getWorldReference",
+      getHierophantReference: "m3Queries.getHierophantReference",
     },
     m3Commands: {
       createDenizen: "m3Commands.createDenizen",
@@ -90,6 +91,9 @@ vi.mock("convex/react", () => ({
   useQuery: (queryRef: string) => {
     if (queryRef === "m3Queries.getPlayReference") return mockPlayRef;
     if (queryRef === "m3Queries.getWorldReference") return mockWorldRef;
+    if (queryRef === "m3Queries.getHierophantReference") {
+      return { campaignId: "camp_1", campaignRevision: 1, hierophant: { temples: [], selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] } };
+    }
     return undefined;
   },
   useMutation: () => vi.fn(async () => {}),

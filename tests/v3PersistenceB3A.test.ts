@@ -53,6 +53,7 @@ function baseV3Setup(overrides?: Partial<CampaignStateV5>): CampaignStateV5 {
     lifecycle: { kind: "setup", orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } },
     wizardmootHistory: [],
     world: { denizens: [], isles: [], places: [], companionRelationships: [] },
+    hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] },
     ...overrides,
   };
 }
@@ -114,6 +115,7 @@ function richPlayState(): CampaignStateV5 {
       { monthOrdinal: 4 as MonthOrdinal, attendance: [{ wizardId, attended: false }] },
     ],
     world: { denizens: [], isles: [], places: [], companionRelationships: [] },
+    hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] },
   };
 }
 

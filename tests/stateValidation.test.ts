@@ -35,6 +35,16 @@ function validState(monthOrdinal: number = 0) {
       places: [],
       companionRelationships: [],
     },
+    hierophant: {
+      selectedFlameLawIds: [],
+      campaignClasses: [],
+      campaignDoctrines: [],
+      temples: [],
+      supplicants: [],
+      prophets: [],
+      cults: [],
+      holidayTempleIds: [],
+    },
   };
 }
 
