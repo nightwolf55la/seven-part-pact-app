@@ -130,6 +130,17 @@ describe("assertPortableCampaignState: validates without transforming", () => {
       seaRegions: [],
       beasts: [],
     },
+    necromancer: {
+      gates: [],
+      pathSpaces: [],
+      steps: [],
+      souls: [],
+      foes: [],
+      allies: [],
+      ghoulCallers: [],
+      selectedLaws: [],
+      depth: null,
+    },
   } as unknown as CampaignStateV5;
 
   it("returns the same object reference (no copy/transform)", () => {
@@ -304,6 +315,17 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
         seaRegions: [],
         beasts: [],
       },
+      necromancer: {
+        gates: [],
+        pathSpaces: [],
+        steps: [],
+        souls: [],
+        foes: [],
+        allies: [],
+        ghoulCallers: [],
+        selectedLaws: [],
+        depth: null,
+      },
     };
     expect(ps.calendar.monthOrdinal).toBe(5);
     expect(typeof ps.calendar.monthOrdinal).toBe("number");
@@ -351,6 +373,17 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
         routes: [],
         seaRegions: [],
         beasts: [],
+      },
+      necromancer: {
+        gates: [],
+        pathSpaces: [],
+        steps: [],
+        souls: [],
+        foes: [],
+        allies: [],
+        ghoulCallers: [],
+        selectedLaws: [],
+        depth: null,
       },
     };
     const ps: PersistableCampaignState = state;

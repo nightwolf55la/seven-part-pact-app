@@ -53,6 +53,17 @@ function validState(monthOrdinal: number = 0) {
       seaRegions: [],
       beasts: [],
     },
+    necromancer: {
+      gates: [],
+      pathSpaces: [],
+      steps: [],
+      souls: [],
+      foes: [],
+      allies: [],
+      ghoulCallers: [],
+      selectedLaws: [],
+      depth: null,
+    },
   };
 }
 

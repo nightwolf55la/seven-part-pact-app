@@ -107,6 +107,17 @@ function makeInitialState(): SerializableCampaignState {
       seaRegions: [],
       beasts: [],
     },
+    necromancer: {
+      gates: [],
+      pathSpaces: [],
+      steps: [],
+      souls: [],
+      foes: [],
+      allies: [],
+      ghoulCallers: [],
+      selectedLaws: [],
+      depth: null,
+    },
   };
 }
 

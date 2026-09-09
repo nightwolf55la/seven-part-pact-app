@@ -174,6 +174,17 @@ function minimalV5State(): CampaignStateV5 {
       seaRegions: [],
       beasts: [],
     },
+    necromancer: {
+      gates: [],
+      pathSpaces: [],
+      steps: [],
+      souls: [],
+      foes: [],
+      allies: [],
+      ghoulCallers: [],
+      selectedLaws: [],
+      depth: null,
+    },
   };
 }
 

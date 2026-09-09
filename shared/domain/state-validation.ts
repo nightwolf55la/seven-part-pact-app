@@ -38,6 +38,7 @@ import { DomainError } from "./errors";
 import { validateV5WorldReferenceIntegrity } from "./v5-reference-validation";
 import { validateHierophantReferenceIntegrity } from "./hierophant-validation";
 import { validateMarinerReferenceIntegrity } from "./mariner-validation";
+import { validateNecromancerReferenceIntegrity } from "./necromancer-validation";
 
 const VALID_PACT_SEAT_STATUSES: readonly (PactSeatStatus | null)[] = [
   "present",
@@ -1003,6 +1004,7 @@ export function validateCampaignStateV5Candidate(state: unknown): CampaignStateV
   validateV5WorldReferenceIntegrity(state as CampaignStateV5);
   validateHierophantReferenceIntegrity(state as CampaignStateV5);
   validateMarinerReferenceIntegrity(state as CampaignStateV5);
+  validateNecromancerReferenceIntegrity(state as CampaignStateV5);
 
   return state as CampaignStateV5;
 }

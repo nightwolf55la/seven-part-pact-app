@@ -984,6 +984,102 @@ const marinerStateValidator = v.object({
   beasts: v.array(marinerBeastStateValidator),
 });
 
+const necromancerOccupiableSpaceRefValidator = v.union(
+  v.object({
+    kind: v.literal("gate"),
+    gateId: v.string(),
+  }),
+  v.object({
+    kind: v.literal("path"),
+    pathSpaceId: v.string(),
+  }),
+);
+
+const necromancerStepTargetValidator = v.union(
+  necromancerOccupiableSpaceRefValidator,
+  v.object({
+    kind: v.literal("terminal"),
+    terminalId: v.string(),
+  }),
+);
+
+const necromancerGateStateValidator = v.union(
+  v.object({
+    origin: v.literal("builtin"),
+    gateId: v.string(),
+    status: v.string(),
+  }),
+  v.object({
+    origin: v.literal("campaign"),
+    gateId: v.string(),
+    name: v.string(),
+    band: v.string(),
+    status: v.string(),
+  }),
+);
+
+const necromancerPathSpaceStateValidator = v.union(
+  v.object({
+    origin: v.literal("builtin"),
+    pathSpaceId: v.string(),
+  }),
+  v.object({
+    origin: v.literal("campaign"),
+    pathSpaceId: v.string(),
+    region: v.string(),
+  }),
+);
+
+const necromancerFoeLocationValidator = v.union(
+  necromancerOccupiableSpaceRefValidator,
+  v.object({
+    kind: v.literal("escaped"),
+    seatId: v.union(...PACT_SEAT_IDS.map((id) => v.literal(id))),
+    abominationKind: v.string(),
+  }),
+);
+
+const necromancerStateValidator = v.object({
+  gates: v.array(necromancerGateStateValidator),
+  pathSpaces: v.array(necromancerPathSpaceStateValidator),
+  steps: v.array(v.object({
+    from: necromancerOccupiableSpaceRefValidator,
+    to: necromancerStepTargetValidator,
+  })),
+  souls: v.array(v.object({
+    location: necromancerOccupiableSpaceRefValidator,
+    count: v.number(),
+  })),
+  foes: v.array(v.object({
+    denizenId: v.string(),
+    location: necromancerFoeLocationValidator,
+  })),
+  allies: v.array(v.object({
+    denizenId: v.string(),
+    location: necromancerOccupiableSpaceRefValidator,
+  })),
+  ghoulCallers: v.array(v.object({
+    denizenId: v.string(),
+    disposition: v.string(),
+    location: v.object({
+      kind: v.literal("path"),
+      pathSpaceId: v.string(),
+    }),
+    pettyDeadCount: v.number(),
+  })),
+  selectedLaws: v.array(v.object({
+    lawId: v.string(),
+    visibility: v.string(),
+  })),
+  depth: v.union(
+    v.null(),
+    v.object({
+      wizardId: v.string(),
+      value: v.number(),
+    }),
+  ),
+});
+
 const marinerIsleBindingValidator = v.object({
   boardIsleId: v.string(),
   worldIsleId: v.string(),
@@ -1270,6 +1366,7 @@ export const campaignStateV5Validator = v.object({
   world: sharedWorldStateValidator,
   hierophant: hierophantStateValidator,
   mariner: marinerStateValidator,
+  necromancer: necromancerStateValidator,
 });
 
 export const wizardCharacterUpdatedEventV2Validator = v.object({
