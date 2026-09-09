@@ -18,6 +18,7 @@ import {
   BLANK_WIZARD_CHARACTER_V5,
   EMPTY_SHARED_WORLD_STATE,
   EMPTY_HIEROPHANT_STATE,
+  EMPTY_MARINER_STATE,
   isValidDenizenId,
   isValidWizardId,
   createDenizenFingerprint,
@@ -85,6 +86,7 @@ function baseV5(world?: Partial<CampaignStateV5["world"]>): CampaignStateV5 {
     wizardmootHistory: [],
     world: { ...EMPTY_SHARED_WORLD_STATE, ...world },
     hierophant: { ...EMPTY_HIEROPHANT_STATE },
+    mariner: { ...EMPTY_MARINER_STATE },
   };
 }
 

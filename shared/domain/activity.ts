@@ -175,6 +175,26 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Created campaign Doctrine";
     case "campaign_doctrine_updated":
       return "Updated campaign Doctrine";
+    case "mariner_initialized":
+      return "Initialized Mariner";
+    case "mariner_ship_changed":
+      return "Changed Mariner ship Place";
+    case "mariner_sea_laws_changed":
+      return "Changed selected Laws of the Sea";
+    case "mariner_route_occupancy_changed":
+      return "Changed Mariner Route occupancy";
+    case "mariner_sea_storm_count_changed":
+      return "Changed Mariner sea Storm count";
+    case "mariner_isle_market_changed":
+      return "Changed Mariner Isle Market";
+    case "mariner_isle_ravage_changed":
+      return "Changed Mariner Isle Ravage";
+    case "mariner_beast_added":
+      return "Added Mariner Beast";
+    case "mariner_beast_updated":
+      return "Updated Mariner Beast";
+    case "mariner_beast_removed":
+      return "Removed Mariner Beast";
     default:
       return "Campaign configuration changed";
   }
@@ -324,7 +344,17 @@ export function mapEventToActivityEntry(
     case "campaign_class_created":
     case "campaign_class_updated":
     case "campaign_doctrine_created":
-    case "campaign_doctrine_updated": {
+    case "campaign_doctrine_updated":
+    case "mariner_initialized":
+    case "mariner_ship_changed":
+    case "mariner_sea_laws_changed":
+    case "mariner_route_occupancy_changed":
+    case "mariner_sea_storm_count_changed":
+    case "mariner_isle_market_changed":
+    case "mariner_isle_ravage_changed":
+    case "mariner_beast_added":
+    case "mariner_beast_updated":
+    case "mariner_beast_removed": {
       return {
         id,
         revision,

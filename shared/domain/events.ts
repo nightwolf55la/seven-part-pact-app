@@ -17,6 +17,19 @@ import type {
   HierophantSupplicant,
   HierophantTemple,
 } from "./hierophant-state";
+import type {
+  MarinerArrangementId,
+  MarinerBoardIsleId,
+  MarinerLawOfSeaId,
+  MarinerRouteId,
+  MarinerSeaRegionId,
+} from "./mariner-catalogs";
+import type {
+  MarinerBeastState,
+  MarinerIsleMarket,
+  MarinerRouteOccupancy,
+  MarinerState,
+} from "./mariner-state";
 
 export interface UndoAppliedDataV1 {
   readonly fromRevision: number;
@@ -856,12 +869,142 @@ export type HierophantEvent =
   | CampaignDoctrineCreatedEventV1
   | CampaignDoctrineUpdatedEventV1;
 
+export interface MarinerIsleBindingDataV1 {
+  readonly boardIsleId: MarinerBoardIsleId;
+  readonly worldIsleId: IsleId;
+}
+
+export interface MarinerRarityDescriptionDataV1 {
+  readonly boardIsleId: MarinerBoardIsleId;
+  readonly description: string;
+}
+
+export interface MarinerInitializedDataV1 {
+  readonly arrangementId: MarinerArrangementId;
+  readonly shipPlaceId: PlaceId;
+  readonly selectedLawOfSeaIds: readonly MarinerLawOfSeaId[];
+  readonly isleBindings: readonly MarinerIsleBindingDataV1[];
+  readonly arrangementBeasts: readonly MarinerBeastState[];
+  readonly rarityDescriptions: readonly MarinerRarityDescriptionDataV1[];
+  readonly mariner: MarinerState;
+}
+export interface MarinerInitializedEventV1 {
+  readonly type: "mariner_initialized";
+  readonly version: 1;
+  readonly data: MarinerInitializedDataV1;
+}
+
+export interface MarinerShipChangedDataV1 {
+  readonly previousShipPlaceId: PlaceId;
+  readonly newShipPlaceId: PlaceId;
+}
+export interface MarinerShipChangedEventV1 {
+  readonly type: "mariner_ship_changed";
+  readonly version: 1;
+  readonly data: MarinerShipChangedDataV1;
+}
+
+export interface MarinerSeaLawsChangedDataV1 {
+  readonly previousSelectedLawOfSeaIds: readonly MarinerLawOfSeaId[];
+  readonly newSelectedLawOfSeaIds: readonly MarinerLawOfSeaId[];
+}
+export interface MarinerSeaLawsChangedEventV1 {
+  readonly type: "mariner_sea_laws_changed";
+  readonly version: 1;
+  readonly data: MarinerSeaLawsChangedDataV1;
+}
+
+export interface MarinerRouteOccupancyChangedDataV1 {
+  readonly routeId: MarinerRouteId;
+  readonly previousOccupancy: MarinerRouteOccupancy;
+  readonly newOccupancy: MarinerRouteOccupancy;
+}
+export interface MarinerRouteOccupancyChangedEventV1 {
+  readonly type: "mariner_route_occupancy_changed";
+  readonly version: 1;
+  readonly data: MarinerRouteOccupancyChangedDataV1;
+}
+
+export interface MarinerSeaStormCountChangedDataV1 {
+  readonly regionId: MarinerSeaRegionId;
+  readonly previousStormCount: number;
+  readonly newStormCount: number;
+}
+export interface MarinerSeaStormCountChangedEventV1 {
+  readonly type: "mariner_sea_storm_count_changed";
+  readonly version: 1;
+  readonly data: MarinerSeaStormCountChangedDataV1;
+}
+
+export interface MarinerIsleMarketChangedDataV1 {
+  readonly boardIsleId: MarinerBoardIsleId;
+  readonly previousMarket: MarinerIsleMarket;
+  readonly newMarket: MarinerIsleMarket;
+}
+export interface MarinerIsleMarketChangedEventV1 {
+  readonly type: "mariner_isle_market_changed";
+  readonly version: 1;
+  readonly data: MarinerIsleMarketChangedDataV1;
+}
+
+export interface MarinerIsleRavageChangedDataV1 {
+  readonly boardIsleId: MarinerBoardIsleId;
+  readonly previousRavageStormCount: number;
+  readonly newRavageStormCount: number;
+}
+export interface MarinerIsleRavageChangedEventV1 {
+  readonly type: "mariner_isle_ravage_changed";
+  readonly version: 1;
+  readonly data: MarinerIsleRavageChangedDataV1;
+}
+
+export interface MarinerBeastAddedDataV1 {
+  readonly beast: MarinerBeastState;
+}
+export interface MarinerBeastAddedEventV1 {
+  readonly type: "mariner_beast_added";
+  readonly version: 1;
+  readonly data: MarinerBeastAddedDataV1;
+}
+
+export interface MarinerBeastUpdatedDataV1 {
+  readonly previous: MarinerBeastState;
+  readonly updated: MarinerBeastState;
+}
+export interface MarinerBeastUpdatedEventV1 {
+  readonly type: "mariner_beast_updated";
+  readonly version: 1;
+  readonly data: MarinerBeastUpdatedDataV1;
+}
+
+export interface MarinerBeastRemovedDataV1 {
+  readonly beast: MarinerBeastState;
+}
+export interface MarinerBeastRemovedEventV1 {
+  readonly type: "mariner_beast_removed";
+  readonly version: 1;
+  readonly data: MarinerBeastRemovedDataV1;
+}
+
+export type MarinerEvent =
+  | MarinerInitializedEventV1
+  | MarinerShipChangedEventV1
+  | MarinerSeaLawsChangedEventV1
+  | MarinerRouteOccupancyChangedEventV1
+  | MarinerSeaStormCountChangedEventV1
+  | MarinerIsleMarketChangedEventV1
+  | MarinerIsleRavageChangedEventV1
+  | MarinerBeastAddedEventV1
+  | MarinerBeastUpdatedEventV1
+  | MarinerBeastRemovedEventV1;
+
 export type CampaignEvent =
   | InfrastructureEvent
   | SetupEvent
   | PlayEvent
   | WorldEvent
-  | HierophantEvent;
+  | HierophantEvent
+  | MarinerEvent;
 
 export type PhaseAdvancedEvent = PhaseAdvancedEventV1 | PhaseAdvancedEventV2;
 

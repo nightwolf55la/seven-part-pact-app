@@ -456,6 +456,114 @@ export function updateCampaignDoctrineFingerprint(
   return `update_campaign_doctrine:v1:${canonicalJsonStringify({ expectedCampaignId, doctrineId, fields })}`;
 }
 
+export function initializeMarinerFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `initialize_mariner:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function setMarinerShipFingerprint(
+  expectedCampaignId: string,
+  expectedShipPlaceId: string,
+  shipPlaceId: string,
+): string {
+  return `set_mariner_ship:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    expectedShipPlaceId,
+    shipPlaceId,
+  })}`;
+}
+
+export function setSelectedSeaLawsFingerprint(
+  expectedCampaignId: string,
+  expectedSelectedLawOfSeaIds: readonly string[],
+  selectedLawOfSeaIds: readonly string[],
+): string {
+  return `set_selected_sea_laws:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    expectedSelectedLawOfSeaIds,
+    selectedLawOfSeaIds,
+  })}`;
+}
+
+export function setMarinerRouteOccupancyFingerprint(
+  expectedCampaignId: string,
+  routeId: string,
+  expectedOccupancy: unknown,
+  occupancy: unknown,
+): string {
+  return `set_mariner_route_occupancy:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    routeId,
+    expectedOccupancy,
+    occupancy,
+  })}`;
+}
+
+export function setMarinerSeaStormCountFingerprint(
+  expectedCampaignId: string,
+  regionId: string,
+  expectedStormCount: number,
+  stormCount: number,
+): string {
+  return `set_mariner_sea_storm_count:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    regionId,
+    expectedStormCount,
+    stormCount,
+  })}`;
+}
+
+export function setMarinerIsleMarketFingerprint(
+  expectedCampaignId: string,
+  boardIsleId: string,
+  expectedMarket: unknown,
+  market: unknown,
+): string {
+  return `set_mariner_isle_market:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    boardIsleId,
+    expectedMarket,
+    market,
+  })}`;
+}
+
+export function setMarinerIsleRavageFingerprint(
+  expectedCampaignId: string,
+  boardIsleId: string,
+  expectedRavageStormCount: number,
+  ravageStormCount: number,
+): string {
+  return `set_mariner_isle_ravage:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    boardIsleId,
+    expectedRavageStormCount,
+    ravageStormCount,
+  })}`;
+}
+
+export function addMarinerBeastFingerprint(expectedCampaignId: string, beast: unknown): string {
+  return `add_mariner_beast:v1:${canonicalJsonStringify({ expectedCampaignId, beast })}`;
+}
+
+export function updateMarinerBeastFingerprint(
+  expectedCampaignId: string,
+  denizenId: string,
+  fields: unknown,
+): string {
+  return `update_mariner_beast:v1:${canonicalJsonStringify({ expectedCampaignId, denizenId, fields })}`;
+}
+
+export function removeMarinerBeastFingerprint(
+  expectedCampaignId: string,
+  denizenId: string,
+  expectedBeast: unknown,
+): string {
+  return `remove_mariner_beast:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    denizenId,
+    expectedBeast,
+  })}`;
+}
+
 /**
  * Pure deterministic idempotency match for command replay.
  * Given a previously committed command record and an incoming attempt,
