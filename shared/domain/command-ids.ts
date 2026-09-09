@@ -564,6 +564,184 @@ export function removeMarinerBeastFingerprint(
   })}`;
 }
 
+export function initializeNecromancerFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `initialize_necromancer:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function setNecromancerDepthFingerprint(
+  expectedCampaignId: string,
+  expectedDepth: unknown,
+  depth: unknown,
+): string {
+  return `set_necromancer_depth:v1:${canonicalJsonStringify({ expectedCampaignId, expectedDepth, depth })}`;
+}
+
+export function setSelectedDeathLawsFingerprint(
+  expectedCampaignId: string,
+  expectedSelectedLaws: unknown,
+  selectedLaws: unknown,
+): string {
+  return `set_selected_death_laws:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    expectedSelectedLaws,
+    selectedLaws,
+  })}`;
+}
+
+export function setNecromancerGateStatusFingerprint(
+  expectedCampaignId: string,
+  gateId: string,
+  expectedStatus: string,
+  status: string,
+): string {
+  return `set_necromancer_gate_status:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    gateId,
+    expectedStatus,
+    status,
+  })}`;
+}
+
+export function setNecromancerSoulCountFingerprint(
+  expectedCampaignId: string,
+  location: unknown,
+  expectedCount: number,
+  count: number,
+): string {
+  return `set_necromancer_soul_count:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    location,
+    expectedCount,
+    count,
+  })}`;
+}
+
+export function moveNecromancerSoulsFingerprint(
+  expectedCampaignId: string,
+  from: unknown,
+  to: unknown,
+  amount: number,
+  expectedFromCount: number,
+  expectedToCount: number,
+): string {
+  return `move_necromancer_souls:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    from,
+    to,
+    amount,
+    expectedFromCount,
+    expectedToCount,
+  })}`;
+}
+
+export function addNecromancerFoeFingerprint(expectedCampaignId: string, foe: unknown): string {
+  return `add_necromancer_foe:v1:${canonicalJsonStringify({ expectedCampaignId, foe })}`;
+}
+
+export function updateNecromancerFoeFingerprint(
+  expectedCampaignId: string,
+  denizenId: string,
+  fields: unknown,
+): string {
+  return `update_necromancer_foe:v1:${canonicalJsonStringify({ expectedCampaignId, denizenId, fields })}`;
+}
+
+export function removeNecromancerFoeFingerprint(
+  expectedCampaignId: string,
+  denizenId: string,
+  expectedFoe: unknown,
+): string {
+  return `remove_necromancer_foe:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    denizenId,
+    expectedFoe,
+  })}`;
+}
+
+export function addNecromancerAllyFingerprint(expectedCampaignId: string, ally: unknown): string {
+  return `add_necromancer_ally:v1:${canonicalJsonStringify({ expectedCampaignId, ally })}`;
+}
+
+export function updateNecromancerAllyFingerprint(
+  expectedCampaignId: string,
+  denizenId: string,
+  fields: unknown,
+): string {
+  return `update_necromancer_ally:v1:${canonicalJsonStringify({ expectedCampaignId, denizenId, fields })}`;
+}
+
+export function removeNecromancerAllyFingerprint(
+  expectedCampaignId: string,
+  denizenId: string,
+  expectedAlly: unknown,
+): string {
+  return `remove_necromancer_ally:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    denizenId,
+    expectedAlly,
+  })}`;
+}
+
+export function addNecromancerGhoulCallerFingerprint(expectedCampaignId: string, ghoulCaller: unknown): string {
+  return `add_necromancer_ghoul_caller:v1:${canonicalJsonStringify({ expectedCampaignId, ghoulCaller })}`;
+}
+
+export function updateNecromancerGhoulCallerFingerprint(
+  expectedCampaignId: string,
+  denizenId: string,
+  fields: unknown,
+): string {
+  return `update_necromancer_ghoul_caller:v1:${canonicalJsonStringify({ expectedCampaignId, denizenId, fields })}`;
+}
+
+export function removeNecromancerGhoulCallerFingerprint(
+  expectedCampaignId: string,
+  denizenId: string,
+  expectedGhoulCaller: unknown,
+): string {
+  return `remove_necromancer_ghoul_caller:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    denizenId,
+    expectedGhoulCaller,
+  })}`;
+}
+
+export function createNecromancerCampaignGateFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `create_necromancer_campaign_gate:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function updateNecromancerCampaignGateFingerprint(
+  expectedCampaignId: string,
+  gateId: string,
+  fields: unknown,
+): string {
+  return `update_necromancer_campaign_gate:v1:${canonicalJsonStringify({ expectedCampaignId, gateId, fields })}`;
+}
+
+export function createNecromancerCampaignPathSpaceFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `create_necromancer_campaign_path_space:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function removeNecromancerCampaignPathSpaceFingerprint(
+  expectedCampaignId: string,
+  pathSpaceId: string,
+  expectedPathSpace: unknown,
+): string {
+  return `remove_necromancer_campaign_path_space:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    pathSpaceId,
+    expectedPathSpace,
+  })}`;
+}
+
+export function addNecromancerStepFingerprint(expectedCampaignId: string, step: unknown): string {
+  return `add_necromancer_step:v1:${canonicalJsonStringify({ expectedCampaignId, step })}`;
+}
+
+export function removeNecromancerStepFingerprint(expectedCampaignId: string, expectedStep: unknown): string {
+  return `remove_necromancer_step:v1:${canonicalJsonStringify({ expectedCampaignId, expectedStep })}`;
+}
+
 /**
  * Pure deterministic idempotency match for command replay.
  * Given a previously committed command record and an incoming attempt,

@@ -1270,7 +1270,8 @@ export type CampaignEvent =
   | PlayEvent
   | WorldEvent
   | HierophantEvent
-  | MarinerEvent;
+  | MarinerEvent
+  | NecromancerEvent;
 
 export type PhaseAdvancedEvent = PhaseAdvancedEventV1 | PhaseAdvancedEventV2;
 

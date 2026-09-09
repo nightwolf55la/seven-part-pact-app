@@ -1175,6 +1175,243 @@ const marinerBeastRemovedEventV1Validator = v.object({
   data: v.object({ beast: marinerBeastStateValidator }),
 });
 
+const necromancerDepthValidator = v.union(
+  v.null(),
+  v.object({
+    wizardId: v.string(),
+    value: v.number(),
+  }),
+);
+
+const necromancerSelectedLawValidator = v.object({
+  lawId: v.string(),
+  visibility: v.string(),
+});
+
+const necromancerFoeValidator = v.object({
+  denizenId: v.string(),
+  location: necromancerFoeLocationValidator,
+});
+
+const necromancerAllyValidator = v.object({
+  denizenId: v.string(),
+  location: necromancerOccupiableSpaceRefValidator,
+});
+
+const necromancerGhoulCallerValidator = v.object({
+  denizenId: v.string(),
+  disposition: v.string(),
+  location: v.object({
+    kind: v.literal("path"),
+    pathSpaceId: v.string(),
+  }),
+  pettyDeadCount: v.number(),
+});
+
+const necromancerCampaignGateValidator = v.object({
+  origin: v.literal("campaign"),
+  gateId: v.string(),
+  name: v.string(),
+  band: v.string(),
+  status: v.string(),
+});
+
+const necromancerCampaignPathSpaceValidator = v.object({
+  origin: v.literal("campaign"),
+  pathSpaceId: v.string(),
+  region: v.string(),
+});
+
+const necromancerDirectedStepValidator = v.object({
+  from: necromancerOccupiableSpaceRefValidator,
+  to: necromancerOccupiableSpaceRefValidator,
+});
+
+const necromancerArrangementFoeBindingValidator = v.object({
+  denizenId: v.string(),
+  gateId: v.string(),
+});
+
+const necromancerArrangementAllyBindingValidator = v.object({
+  denizenId: v.string(),
+  gateId: v.string(),
+});
+
+const necromancerArrangementGhoulCallerBindingValidator = v.union(
+  v.null(),
+  v.object({
+    denizenId: v.string(),
+    pathSpaceId: v.string(),
+  }),
+);
+
+const necromancerInitializedEventV1Validator = v.object({
+  type: v.literal("necromancer_initialized"),
+  version: v.literal(1),
+  data: v.object({
+    arrangementId: v.string(),
+    selectedLawIds: v.array(v.string()),
+    arrangementFoes: v.array(necromancerArrangementFoeBindingValidator),
+    arrangementAlly: necromancerArrangementAllyBindingValidator,
+    arrangementGhoulCaller: necromancerArrangementGhoulCallerBindingValidator,
+    necromancer: necromancerStateValidator,
+  }),
+});
+
+const necromancerDepthChangedEventV1Validator = v.object({
+  type: v.literal("necromancer_depth_changed"),
+  version: v.literal(1),
+  data: v.object({
+    previousDepth: necromancerDepthValidator,
+    newDepth: necromancerDepthValidator,
+  }),
+});
+
+const necromancerLawsChangedEventV1Validator = v.object({
+  type: v.literal("necromancer_laws_changed"),
+  version: v.literal(1),
+  data: v.object({
+    previousSelectedLaws: v.array(necromancerSelectedLawValidator),
+    newSelectedLaws: v.array(necromancerSelectedLawValidator),
+  }),
+});
+
+const necromancerGateStatusChangedEventV1Validator = v.object({
+  type: v.literal("necromancer_gate_status_changed"),
+  version: v.literal(1),
+  data: v.object({
+    gateId: v.string(),
+    previousStatus: v.string(),
+    newStatus: v.string(),
+  }),
+});
+
+const necromancerSoulCountChangedEventV1Validator = v.object({
+  type: v.literal("necromancer_soul_count_changed"),
+  version: v.literal(1),
+  data: v.object({
+    location: necromancerOccupiableSpaceRefValidator,
+    previousCount: v.number(),
+    newCount: v.number(),
+  }),
+});
+
+const necromancerSoulsMovedEventV1Validator = v.object({
+  type: v.literal("necromancer_souls_moved"),
+  version: v.literal(1),
+  data: v.object({
+    from: necromancerOccupiableSpaceRefValidator,
+    to: necromancerOccupiableSpaceRefValidator,
+    amount: v.number(),
+    previousFromCount: v.number(),
+    newFromCount: v.number(),
+    previousToCount: v.number(),
+    newToCount: v.number(),
+  }),
+});
+
+const necromancerFoeAddedEventV1Validator = v.object({
+  type: v.literal("necromancer_foe_added"),
+  version: v.literal(1),
+  data: v.object({ foe: necromancerFoeValidator }),
+});
+
+const necromancerFoeUpdatedEventV1Validator = v.object({
+  type: v.literal("necromancer_foe_updated"),
+  version: v.literal(1),
+  data: v.object({
+    previous: necromancerFoeValidator,
+    updated: necromancerFoeValidator,
+  }),
+});
+
+const necromancerFoeRemovedEventV1Validator = v.object({
+  type: v.literal("necromancer_foe_removed"),
+  version: v.literal(1),
+  data: v.object({ foe: necromancerFoeValidator }),
+});
+
+const necromancerAllyAddedEventV1Validator = v.object({
+  type: v.literal("necromancer_ally_added"),
+  version: v.literal(1),
+  data: v.object({ ally: necromancerAllyValidator }),
+});
+
+const necromancerAllyUpdatedEventV1Validator = v.object({
+  type: v.literal("necromancer_ally_updated"),
+  version: v.literal(1),
+  data: v.object({
+    previous: necromancerAllyValidator,
+    updated: necromancerAllyValidator,
+  }),
+});
+
+const necromancerAllyRemovedEventV1Validator = v.object({
+  type: v.literal("necromancer_ally_removed"),
+  version: v.literal(1),
+  data: v.object({ ally: necromancerAllyValidator }),
+});
+
+const necromancerGhoulCallerAddedEventV1Validator = v.object({
+  type: v.literal("necromancer_ghoul_caller_added"),
+  version: v.literal(1),
+  data: v.object({ ghoulCaller: necromancerGhoulCallerValidator }),
+});
+
+const necromancerGhoulCallerUpdatedEventV1Validator = v.object({
+  type: v.literal("necromancer_ghoul_caller_updated"),
+  version: v.literal(1),
+  data: v.object({
+    previous: necromancerGhoulCallerValidator,
+    updated: necromancerGhoulCallerValidator,
+  }),
+});
+
+const necromancerGhoulCallerRemovedEventV1Validator = v.object({
+  type: v.literal("necromancer_ghoul_caller_removed"),
+  version: v.literal(1),
+  data: v.object({ ghoulCaller: necromancerGhoulCallerValidator }),
+});
+
+const necromancerCampaignGateCreatedEventV1Validator = v.object({
+  type: v.literal("necromancer_campaign_gate_created"),
+  version: v.literal(1),
+  data: v.object({ gate: necromancerCampaignGateValidator }),
+});
+
+const necromancerCampaignGateUpdatedEventV1Validator = v.object({
+  type: v.literal("necromancer_campaign_gate_updated"),
+  version: v.literal(1),
+  data: v.object({
+    previous: necromancerCampaignGateValidator,
+    updated: necromancerCampaignGateValidator,
+  }),
+});
+
+const necromancerCampaignPathSpaceCreatedEventV1Validator = v.object({
+  type: v.literal("necromancer_campaign_path_space_created"),
+  version: v.literal(1),
+  data: v.object({ pathSpace: necromancerCampaignPathSpaceValidator }),
+});
+
+const necromancerCampaignPathSpaceRemovedEventV1Validator = v.object({
+  type: v.literal("necromancer_campaign_path_space_removed"),
+  version: v.literal(1),
+  data: v.object({ pathSpace: necromancerCampaignPathSpaceValidator }),
+});
+
+const necromancerStepAddedEventV1Validator = v.object({
+  type: v.literal("necromancer_step_added"),
+  version: v.literal(1),
+  data: v.object({ step: necromancerDirectedStepValidator }),
+});
+
+const necromancerStepRemovedEventV1Validator = v.object({
+  type: v.literal("necromancer_step_removed"),
+  version: v.literal(1),
+  data: v.object({ step: necromancerDirectedStepValidator }),
+});
+
 const templeCreatedEventV1Validator = v.object({
   type: v.literal("temple_created"),
   version: v.literal(1),
@@ -1474,6 +1711,27 @@ export const campaignEventValidator = v.union(
   marinerBeastAddedEventV1Validator,
   marinerBeastUpdatedEventV1Validator,
   marinerBeastRemovedEventV1Validator,
+  necromancerInitializedEventV1Validator,
+  necromancerDepthChangedEventV1Validator,
+  necromancerLawsChangedEventV1Validator,
+  necromancerGateStatusChangedEventV1Validator,
+  necromancerSoulCountChangedEventV1Validator,
+  necromancerSoulsMovedEventV1Validator,
+  necromancerFoeAddedEventV1Validator,
+  necromancerFoeUpdatedEventV1Validator,
+  necromancerFoeRemovedEventV1Validator,
+  necromancerAllyAddedEventV1Validator,
+  necromancerAllyUpdatedEventV1Validator,
+  necromancerAllyRemovedEventV1Validator,
+  necromancerGhoulCallerAddedEventV1Validator,
+  necromancerGhoulCallerUpdatedEventV1Validator,
+  necromancerGhoulCallerRemovedEventV1Validator,
+  necromancerCampaignGateCreatedEventV1Validator,
+  necromancerCampaignGateUpdatedEventV1Validator,
+  necromancerCampaignPathSpaceCreatedEventV1Validator,
+  necromancerCampaignPathSpaceRemovedEventV1Validator,
+  necromancerStepAddedEventV1Validator,
+  necromancerStepRemovedEventV1Validator,
 );
 
 export const anyCampaignStateValidator = campaignStateV5Validator;

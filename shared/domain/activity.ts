@@ -195,6 +195,48 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Updated Mariner Beast";
     case "mariner_beast_removed":
       return "Removed Mariner Beast";
+    case "necromancer_initialized":
+      return "Initialized Necromancer";
+    case "necromancer_depth_changed":
+      return "Changed Necromancer Depth";
+    case "necromancer_laws_changed":
+      return "Changed selected Laws of Death";
+    case "necromancer_gate_status_changed":
+      return "Changed Necromancer Gate status";
+    case "necromancer_soul_count_changed":
+      return "Changed Necromancer Soul count";
+    case "necromancer_souls_moved":
+      return "Moved Necromancer Souls";
+    case "necromancer_foe_added":
+      return "Added Necromancer Foe";
+    case "necromancer_foe_updated":
+      return "Updated Necromancer Foe";
+    case "necromancer_foe_removed":
+      return "Removed Necromancer Foe";
+    case "necromancer_ally_added":
+      return "Added Necromancer Ally";
+    case "necromancer_ally_updated":
+      return "Updated Necromancer Ally";
+    case "necromancer_ally_removed":
+      return "Removed Necromancer Ally";
+    case "necromancer_ghoul_caller_added":
+      return "Added Necromancer Ghoul-Caller";
+    case "necromancer_ghoul_caller_updated":
+      return "Updated Necromancer Ghoul-Caller";
+    case "necromancer_ghoul_caller_removed":
+      return "Removed Necromancer Ghoul-Caller";
+    case "necromancer_campaign_gate_created":
+      return "Created Necromancer campaign Gate";
+    case "necromancer_campaign_gate_updated":
+      return "Updated Necromancer campaign Gate";
+    case "necromancer_campaign_path_space_created":
+      return "Created Necromancer campaign path space";
+    case "necromancer_campaign_path_space_removed":
+      return "Removed Necromancer campaign path space";
+    case "necromancer_step_added":
+      return "Added Necromancer step";
+    case "necromancer_step_removed":
+      return "Removed Necromancer step";
     default:
       return "Campaign configuration changed";
   }
@@ -354,7 +396,28 @@ export function mapEventToActivityEntry(
     case "mariner_isle_ravage_changed":
     case "mariner_beast_added":
     case "mariner_beast_updated":
-    case "mariner_beast_removed": {
+    case "mariner_beast_removed":
+    case "necromancer_initialized":
+    case "necromancer_depth_changed":
+    case "necromancer_laws_changed":
+    case "necromancer_gate_status_changed":
+    case "necromancer_soul_count_changed":
+    case "necromancer_souls_moved":
+    case "necromancer_foe_added":
+    case "necromancer_foe_updated":
+    case "necromancer_foe_removed":
+    case "necromancer_ally_added":
+    case "necromancer_ally_updated":
+    case "necromancer_ally_removed":
+    case "necromancer_ghoul_caller_added":
+    case "necromancer_ghoul_caller_updated":
+    case "necromancer_ghoul_caller_removed":
+    case "necromancer_campaign_gate_created":
+    case "necromancer_campaign_gate_updated":
+    case "necromancer_campaign_path_space_created":
+    case "necromancer_campaign_path_space_removed":
+    case "necromancer_step_added":
+    case "necromancer_step_removed": {
       return {
         id,
         revision,

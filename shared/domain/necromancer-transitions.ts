@@ -201,6 +201,36 @@ function normalizeName(raw: string): string {
   return trimmed;
 }
 
+export function canonicalizeNecromancerCampaignGateName(raw: string): string {
+  return normalizeName(raw);
+}
+
+export function canonicalizeCreateNecromancerCampaignGateInput(
+  input: CreateNecromancerCampaignGateInput,
+): CreateNecromancerCampaignGateInput {
+  return {
+    gateId: input.gateId,
+    name: canonicalizeNecromancerCampaignGateName(input.name),
+    band: input.band,
+  };
+}
+
+export function canonicalizeUpdateNecromancerCampaignGateFields(
+  fields: UpdateNecromancerCampaignGateFields,
+): UpdateNecromancerCampaignGateFields {
+  return {
+    ...(fields.name === undefined
+      ? {}
+      : {
+          name: {
+            expected: fields.name.expected,
+            value: canonicalizeNecromancerCampaignGateName(fields.name.value),
+          },
+        }),
+    ...(fields.band === undefined ? {} : { band: fields.band }),
+  };
+}
+
 function soulCountAt(souls: readonly NecromancerSoulCount[], location: NecromancerOccupiableSpaceRef): number {
   const found = souls.find((soul) => necromancerOccupiableSpaceRefsEqual(soul.location, location));
   return found?.count ?? 0;

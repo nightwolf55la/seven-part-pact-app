@@ -13,7 +13,6 @@ import type {
   WizardId,
 } from "../shared/domain";
 import {
-  CAMPAIGN_COMMAND_TYPES,
   DomainError,
   EMPTY_HIEROPHANT_STATE,
   EMPTY_MARINER_STATE,
@@ -685,10 +684,9 @@ describe("Necromancer Phase 2A transitions", () => {
       expect(flipped.wizardmootHistory).toEqual([]);
     });
 
-    it("does not add Necromancer command types or a remove-Gate operation in Phase 2A", () => {
-      expect(CAMPAIGN_COMMAND_TYPES as readonly string[]).not.toContain("initialize_necromancer");
-      expect(CAMPAIGN_COMMAND_TYPES as readonly string[]).not.toContain("set_necromancer_depth");
+    it("does not add a remove-Gate operation", () => {
       expect(Domain).not.toHaveProperty("applyRemoveNecromancerCampaignGate");
+      expect(Domain).not.toHaveProperty("applyRemoveNecromancerGate");
     });
   });
 
