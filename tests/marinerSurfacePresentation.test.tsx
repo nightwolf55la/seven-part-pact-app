@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createElement } from "react";
+import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import {
@@ -10,7 +10,9 @@ import {
   marinerRouteId,
   type DenizenId,
   type IsleId,
+  type MarinerBeastState,
   type MarinerBoardIsleId,
+  type MarinerState,
   type PlaceId,
 } from "../shared/domain";
 import MarinerSurface from "../src/MarinerSurface";
@@ -19,6 +21,7 @@ import type { WorldReference } from "../src/WorldSurface";
 const CAMPAIGN_ID = "cmp_00000000-0000-0000-0000-000000000001";
 const SHIP = "plc_00000000-0000-0000-0000-0000000000aa";
 const OTHER_SHIP = "plc_00000000-0000-0000-0000-0000000000bb";
+const THIRD_SHIP = "plc_00000000-0000-0000-0000-0000000000dd";
 const FIXED = "plc_00000000-0000-0000-0000-0000000000cc";
 const DEN_A = "den_00000000-0000-0000-0000-000000000001";
 const DEN_B = "den_00000000-0000-0000-0000-000000000002";
@@ -49,6 +52,7 @@ const WORLD: WorldReference = {
   places: [
     { placeId: SHIP, name: "The Wave", description: null, placement: { kind: "mobile", associatedIsleId: null } },
     { placeId: OTHER_SHIP, name: "Second Hull", description: null, placement: { kind: "mobile", associatedIsleId: null } },
+    { placeId: THIRD_SHIP, name: "Third Hull", description: null, placement: { kind: "mobile", associatedIsleId: null } },
     { placeId: FIXED, name: "Stone Hall", description: null, placement: { kind: "on_isle", isleId: isleId(1) } },
   ],
 };
@@ -154,6 +158,50 @@ function setSelect(el: HTMLSelectElement, value: string): void {
     el.value = value;
     el.dispatchEvent(new Event("change", { bubbles: true }));
   });
+}
+
+function rerenderSurface(
+  root: ReturnType<typeof createRoot>,
+  mariner: MarinerState,
+  wizard: typeof WIZARD | null = WIZARD,
+): void {
+  flushSync(() => {
+    root.render(createElement(MarinerSurface, {
+      mariner,
+      world: WORLD,
+      campaignId: CAMPAIGN_ID,
+      marinerWizard: wizard,
+    }));
+  });
+}
+
+function lawCheckbox(container: HTMLElement, title: string): HTMLInputElement {
+  const found = Array.from(container.querySelectorAll("label")).find((label) =>
+    (label.textContent ?? "").includes(title),
+  );
+  const input = found?.querySelector("input[type=\"checkbox\"]") as HTMLInputElement | null;
+  if (input === null) throw new Error(`Missing law checkbox: ${title}`);
+  return input;
+}
+
+function withStormCount(mariner: MarinerState, stormCount: number): MarinerState {
+  return {
+    ...mariner,
+    seaRegions: mariner.seaRegions.map((region) =>
+      region.regionId === "sidereal_sea" ? { ...region, stormCount } : region,
+    ),
+  };
+}
+
+function withBeast(mariner: MarinerState, beast: MarinerBeastState): MarinerState {
+  return {
+    ...mariner,
+    beasts: mariner.beasts.map((existing) => existing.denizenId === beast.denizenId ? beast : existing),
+  };
+}
+
+function baselineBeast(mariner: MarinerState): MarinerBeastState {
+  return mariner.beasts[0];
 }
 
 beforeEach(() => {
@@ -300,6 +348,118 @@ describe("Mariner representative mutations", () => {
     });
     expect(Object.keys(mockMutations).some((key) => key.toLowerCase().includes("sanctum"))).toBe(false);
     expect(mockMutations["m3Commands.setMarinerShip"].mock.calls[0][0].sanctumPlaceId).toBeUndefined();
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("Mariner realtime draft synchronization", () => {
+  it("hydrates ship and Laws when the same instance goes from empty to initialized", () => {
+    const { container, root } = renderSurface(EMPTY_MARINER_STATE, WIZARD);
+    expect(container.innerHTML).toContain("Initialize Mariner");
+    rerenderSurface(root, initializedMariner());
+    expect(container.querySelector('[aria-label="Mariner schematic map"]')).not.toBeNull();
+    expect(select(container, "Change Mariner ship").value).toBe(SHIP);
+    expect(lawCheckbox(container, "First Law of the Sea").checked).toBe(true);
+    expect(lawCheckbox(container, "Second Law of the Sea").checked).toBe(true);
+    expect(lawCheckbox(container, "Third Law of the Sea").checked).toBe(false);
+    expect(lawCheckbox(container, "Seventh Law of the Sea").checked).toBe(false);
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps local Ship and Law drafts across unrelated updates and refreshes them on authoritative change", () => {
+    const initial = initializedMariner();
+    const { container, root } = renderSurface(initial, WIZARD);
+    setSelect(select(container, "Change Mariner ship"), OTHER_SHIP);
+    flushSync(() => { lawCheckbox(container, "Second Law of the Sea").click(); });
+    flushSync(() => { lawCheckbox(container, "Third Law of the Sea").click(); });
+    expect(select(container, "Change Mariner ship").value).toBe(OTHER_SHIP);
+    expect(lawCheckbox(container, "First Law of the Sea").checked).toBe(true);
+    expect(lawCheckbox(container, "Second Law of the Sea").checked).toBe(false);
+    expect(lawCheckbox(container, "Third Law of the Sea").checked).toBe(true);
+
+    rerenderSurface(root, withStormCount(initial, 9));
+    expect(select(container, "Change Mariner ship").value).toBe(OTHER_SHIP);
+    expect(lawCheckbox(container, "First Law of the Sea").checked).toBe(true);
+    expect(lawCheckbox(container, "Second Law of the Sea").checked).toBe(false);
+    expect(lawCheckbox(container, "Third Law of the Sea").checked).toBe(true);
+
+    rerenderSurface(root, {
+      ...withStormCount(initial, 9),
+      shipPlaceId: THIRD_SHIP as PlaceId,
+      selectedLawOfSeaIds: ["seventh", "first"],
+    });
+    expect(select(container, "Change Mariner ship").value).toBe(THIRD_SHIP);
+    expect(lawCheckbox(container, "Seventh Law of the Sea").checked).toBe(true);
+    expect(lawCheckbox(container, "First Law of the Sea").checked).toBe(true);
+    expect(lawCheckbox(container, "Second Law of the Sea").checked).toBe(false);
+    expect(lawCheckbox(container, "Third Law of the Sea").checked).toBe(false);
+    flushSync(() => { button(container, "Save Laws").click(); });
+    expect(mockMutations["m3Commands.setSelectedSeaLaws"].mock.calls[0][0].selectedLawOfSeaIds).toEqual([
+      "seventh",
+      "first",
+    ]);
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("Mariner Beast baseline concurrency", () => {
+  it("builds an edit against the captured baseline and omits an untouched concurrent field", () => {
+    const initial = initializedMariner();
+    const a = baselineBeast(initial);
+    const { container, root } = renderSurface(initial, WIZARD);
+    flushSync(() => { button(container, "Edit Beast").click(); });
+    rerenderSurface(root, withBeast(initial, { ...a, element: "air" }));
+    setSelect(select(container, "Beast condition"), "rampaging");
+    flushSync(() => { button(container, "Save Beast").click(); });
+    const fields = mockMutations["m3Commands.updateMarinerBeast"].mock.calls[0][0].fields;
+    expect(fields).toEqual({
+      condition: { expected: "distrusting", value: "rampaging" },
+    });
+    expect(fields.element).toBeUndefined();
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps the captured expected value when the user edits a concurrently changed field", () => {
+    const initial = initializedMariner();
+    const a = baselineBeast(initial);
+    const { container, root } = renderSurface(initial, WIZARD);
+    flushSync(() => { button(container, "Edit Beast").click(); });
+    rerenderSurface(root, withBeast(initial, { ...a, condition: "friendly_nesting" }));
+    setSelect(select(container, "Beast condition"), "rampaging");
+    flushSync(() => { button(container, "Save Beast").click(); });
+    expect(mockMutations["m3Commands.updateMarinerBeast"].mock.calls[0][0].fields).toEqual({
+      condition: { expected: "distrusting", value: "rampaging" },
+    });
+    root.unmount();
+    container.remove();
+  });
+
+  it("submits the Beast snapshot captured when remove confirmation began", () => {
+    const initial = initializedMariner();
+    const a = baselineBeast(initial);
+    const { container, root } = renderSurface(initial, WIZARD);
+    flushSync(() => { button(container, "Remove Beast").click(); });
+    rerenderSurface(root, withBeast(initial, { ...a, element: "air", condition: "rampaging" }));
+    flushSync(() => { button(container, "Confirm remove").click(); });
+    expect(mockMutations["m3Commands.removeMarinerBeast"].mock.calls[0][0].expectedBeast).toEqual(a);
+    root.unmount();
+    container.remove();
+  });
+
+  it("closes the Beast editor after a successful update", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    flushSync(() => { button(container, "Edit Beast").click(); });
+    expect(container.innerHTML).toContain("Save Beast");
+    setSelect(select(container, "Beast condition"), "rampaging");
+    await act(async () => {
+      button(container, "Save Beast").click();
+    });
+    expect(container.innerHTML).not.toContain("Save Beast");
+    expect(button(container, "Edit Beast")).toBeDefined();
     root.unmount();
     container.remove();
   });

@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useState, type KeyboardEvent } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api.js";
 import {
@@ -109,6 +109,20 @@ function defaultBeastLocation(): MarinerBeastLocation {
   return { kind: "sea_region", regionId: "sunken_fleet" };
 }
 
+function snapshotBeast(beast: MarinerBeastState): MarinerBeastState {
+  return {
+    denizenId: beast.denizenId,
+    element: beast.element,
+    definitionId: beast.definitionId,
+    condition: beast.condition,
+    location: beast.location,
+  };
+}
+
+function selectedLawKey(ids: readonly string[]): string {
+  return JSON.stringify(ids);
+}
+
 export default function MarinerSurface({
   mariner,
   world,
@@ -126,7 +140,16 @@ export default function MarinerSurface({
   const [selection, setSelection] = useState<Selection | null>(null);
   const [lawDraft, setLawDraft] = useState<string[]>([...mariner.selectedLawOfSeaIds]);
   const [shipDraft, setShipDraft] = useState(mariner.shipPlaceId ?? "");
-  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<MarinerBeastState | null>(null);
+  const authoritativeLawKey = selectedLawKey(mariner.selectedLawOfSeaIds);
+
+  useLayoutEffect(() => {
+    setShipDraft(mariner.shipPlaceId ?? "");
+  }, [mariner.shipPlaceId]);
+
+  useLayoutEffect(() => {
+    setLawDraft(JSON.parse(authoritativeLawKey) as string[]);
+  }, [authoritativeLawKey]);
 
   const initializeMariner = useMutation(api.m3Commands.initializeMariner);
   const setMarinerShip = useMutation(api.m3Commands.setMarinerShip);
@@ -323,44 +346,41 @@ export default function MarinerSurface({
         pending={pending}
         confirmRemove={confirmRemove}
         setConfirmRemove={setConfirmRemove}
-        onAdd={(beast) => {
+        onAdd={async (beast) => {
           const payload = buildAddMarinerBeastPayload({
             commandId: newCommandId(),
             expectedCampaignId: campaignId,
             beast,
           });
-          void run(async () => {
+          return run(async () => {
             await addMarinerBeast(payload);
           });
         }}
-        onUpdate={(denizenId, next) => {
-          const current = mariner.beasts.find((beast) => beast.denizenId === denizenId);
-          if (current === undefined) return;
-          const fields = buildUpdateMarinerBeastFields(current, next);
-          if (fields === null) return;
+        onUpdate={async (baseline, next) => {
+          const fields = buildUpdateMarinerBeastFields(baseline, next);
+          if (fields === null) return false;
           const payload = buildUpdateMarinerBeastPayload({
             commandId: newCommandId(),
             expectedCampaignId: campaignId,
-            denizenId,
+            denizenId: baseline.denizenId,
             fields,
           });
-          void run(async () => {
+          return run(async () => {
             await updateMarinerBeast(payload);
           });
         }}
-        onRemove={(denizenId) => {
-          const current = mariner.beasts.find((beast) => beast.denizenId === denizenId);
-          if (current === undefined) return;
+        onRemove={async (expectedBeast) => {
           const payload = buildRemoveMarinerBeastPayload({
             commandId: newCommandId(),
             expectedCampaignId: campaignId,
-            denizenId,
-            expectedBeast: current,
+            denizenId: expectedBeast.denizenId,
+            expectedBeast,
           });
-          void run(async () => {
+          const ok = await run(async () => {
             await removeMarinerBeast(payload);
-            setConfirmRemove(null);
           });
+          if (ok) setConfirmRemove(null);
+          return ok;
         }}
       />
     </div>
@@ -1113,18 +1133,21 @@ function BeastPanel({
   world: WorldReference;
   unusedDenizens: ReturnType<typeof availableIndividualBeastDenizens>;
   pending: boolean;
-  confirmRemove: string | null;
-  setConfirmRemove: (id: string | null) => void;
-  onAdd: (beast: MarinerBeastState) => void;
-  onUpdate: (denizenId: string, next: Pick<MarinerBeastState, "element" | "definitionId" | "condition" | "location">) => void;
-  onRemove: (denizenId: string) => void;
+  confirmRemove: MarinerBeastState | null;
+  setConfirmRemove: (beast: MarinerBeastState | null) => void;
+  onAdd: (beast: MarinerBeastState) => Promise<boolean>;
+  onUpdate: (
+    baseline: MarinerBeastState,
+    next: Pick<MarinerBeastState, "element" | "definitionId" | "condition" | "location">,
+  ) => Promise<boolean>;
+  onRemove: (expectedBeast: MarinerBeastState) => Promise<boolean>;
 }) {
   const [addDenizenId, setAddDenizenId] = useState("");
   const [addElement, setAddElement] = useState<ElementId>("air");
   const [addDefinitionId, setAddDefinitionId] = useState("");
   const [addCondition, setAddCondition] = useState<MarinerBeastCondition>("distrusting");
   const [addLocation, setAddLocation] = useState<MarinerBeastLocation>(defaultBeastLocation());
-  const [editing, setEditing] = useState<string | null>(null);
+  const [beastEditor, setBeastEditor] = useState<MarinerBeastState | null>(null);
 
   return (
     <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
@@ -1142,23 +1165,26 @@ function BeastPanel({
                 {" · "}{conditionLabel(beast.condition)}
                 {" · "}{beastLocationLabel(beast.location, mariner, world.isles)}
               </div>
-              {editing === beast.denizenId ? (
+              {beastEditor !== null && beastEditor.denizenId === beast.denizenId ? (
                 <BeastEditor
-                  initial={beast}
+                  initial={beastEditor}
                   pending={pending}
-                  onCancel={() => setEditing(null)}
-                  onSave={(next) => onUpdate(beast.denizenId, next)}
+                  onCancel={() => setBeastEditor(null)}
+                  onSave={async (next) => {
+                    const ok = await onUpdate(beastEditor, next);
+                    if (ok) setBeastEditor(null);
+                  }}
                 />
               ) : (
                 <div className="flex gap-2">
-                  <button className={ghostBtn} onClick={() => setEditing(beast.denizenId)}>Edit Beast</button>
-                  {confirmRemove === beast.denizenId ? (
+                  <button className={ghostBtn} onClick={() => setBeastEditor(snapshotBeast(beast))}>Edit Beast</button>
+                  {confirmRemove !== null && confirmRemove.denizenId === beast.denizenId ? (
                     <>
-                      <button className={btnClass} disabled={pending} onClick={() => onRemove(beast.denizenId)}>Confirm remove</button>
+                      <button className={btnClass} disabled={pending} onClick={() => void onRemove(confirmRemove)}>Confirm remove</button>
                       <button className={ghostBtn} onClick={() => setConfirmRemove(null)}>Cancel</button>
                     </>
                   ) : (
-                    <button className={ghostBtn} onClick={() => setConfirmRemove(beast.denizenId)}>Remove Beast</button>
+                    <button className={ghostBtn} onClick={() => setConfirmRemove(snapshotBeast(beast))}>Remove Beast</button>
                   )}
                 </div>
               )}
@@ -1192,13 +1218,16 @@ function BeastPanel({
           className={btnClass}
           disabled={pending || addDenizenId === ""}
           onClick={() => {
-            onAdd({
-              denizenId: addDenizenId as MarinerBeastState["denizenId"],
-              element: addElement,
-              definitionId: addDefinitionId === "" ? null : addDefinitionId as NonNullable<MarinerBeastState["definitionId"]>,
-              condition: addCondition,
-              location: addLocation,
-            });
+            void (async () => {
+              const ok = await onAdd({
+                denizenId: addDenizenId as MarinerBeastState["denizenId"],
+                element: addElement,
+                definitionId: addDefinitionId === "" ? null : addDefinitionId as NonNullable<MarinerBeastState["definitionId"]>,
+                condition: addCondition,
+                location: addLocation,
+              });
+              if (ok) setAddDenizenId("");
+            })();
           }}
         >
           Add Beast
@@ -1217,7 +1246,7 @@ function BeastEditor({
   initial: MarinerBeastState;
   pending: boolean;
   onCancel: () => void;
-  onSave: (next: Pick<MarinerBeastState, "element" | "definitionId" | "condition" | "location">) => void;
+  onSave: (next: Pick<MarinerBeastState, "element" | "definitionId" | "condition" | "location">) => void | Promise<void>;
 }) {
   const [element, setElement] = useState<ElementId>(initial.element);
   const [definitionId, setDefinitionId] = useState(initial.definitionId ?? "");
@@ -1239,12 +1268,14 @@ function BeastEditor({
         <button
           className={btnClass}
           disabled={pending}
-          onClick={() => onSave({
-            element,
-            definitionId: definitionId === "" ? null : definitionId as NonNullable<MarinerBeastState["definitionId"]>,
-            condition,
-            location,
-          })}
+          onClick={() => {
+            void onSave({
+              element,
+              definitionId: definitionId === "" ? null : definitionId as NonNullable<MarinerBeastState["definitionId"]>,
+              condition,
+              location,
+            });
+          }}
         >
           Save Beast
         </button>
