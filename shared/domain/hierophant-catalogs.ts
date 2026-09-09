@@ -1,4 +1,5 @@
 import type { Brand } from "./brand";
+import type { MonthId } from "./calendar";
 
 export const HIEROPHANT_FLAME_LAW_IDS = [
   "first",
@@ -558,3 +559,189 @@ export const HIEROPHANT_CLASS_ENJOYED_DOGMA_CATEGORIES: Record<
   peasant: ["apocalyptic", "ascetic"],
   pariah: ["ascetic", "perverse"],
 };
+
+export type HierophantOrdinaryStartingTempleId = Exclude<HierophantStartingTempleId, "hestar">;
+
+export type HierophantLiturgicalObservance =
+  | { readonly kind: "temple"; readonly templeId: HierophantOrdinaryStartingTempleId }
+  | { readonly kind: "feast_day" };
+
+/** Application identifiers for Draft-4 Liturgical Calendar Holidays; not source terminology. */
+export const HIEROPHANT_LITURGICAL_HOLIDAY_IDS = [
+  "week_of_lights",
+  "the_serpents_parade",
+  "endnight",
+  "saint_innocents_day",
+  "galetide",
+  "hangmans_day",
+  "triumpart",
+  "old_apis_fair",
+  "ambolas",
+  "goblin_night",
+  "mournival",
+  "debutante",
+  "brothers_day",
+  "midsummer_festival",
+  "harvest_end",
+  "midwinter_banquet",
+] as const;
+
+export type HierophantLiturgicalHolidayId = (typeof HIEROPHANT_LITURGICAL_HOLIDAY_IDS)[number];
+
+export interface HierophantLiturgicalHolidayDefinition {
+  /** Application identifier; not source terminology. */
+  readonly id: HierophantLiturgicalHolidayId;
+  readonly monthId: MonthId;
+  /** Draft-4 source Holiday name. */
+  readonly name: string;
+  /** Draft-4 source description text. */
+  readonly description: string;
+  readonly observance: HierophantLiturgicalObservance;
+}
+
+export const HIEROPHANT_LITURGICAL_HOLIDAY_DEFINITIONS: readonly HierophantLiturgicalHolidayDefinition[] = [
+  {
+    id: "week_of_lights",
+    monthId: "january",
+    name: "Week of Lights",
+    description:
+      "Week of ten thousand candles, parties in the street across Ishana. Considered the start of the new year by the common folk of Isha.",
+    observance: { kind: "temple", templeId: "krolis" },
+  },
+  {
+    id: "the_serpents_parade",
+    monthId: "february",
+    name: "The Serpent's Parade",
+    description:
+      "Celebrate the gods' slaying of Ymos, with giant snake floats paraded through the slums.",
+    observance: { kind: "temple", templeId: "notor" },
+  },
+  {
+    id: "endnight",
+    monthId: "february",
+    name: "Endnight",
+    description:
+      "The coldest night of the year, stories of the end of the world, many climb up to the Chalk Cliffs to watch the night sky.",
+    observance: { kind: "temple", templeId: "zephon" },
+  },
+  {
+    id: "saint_innocents_day",
+    monthId: "april",
+    name: "Saint Innocent's Day",
+    description:
+      "The first prophet's death-day, honored with bouquets of flowers, lapel pins, and extravagant ceremonies reaffirming the King's divine mandate.",
+    observance: { kind: "temple", templeId: "ushin" },
+  },
+  {
+    id: "galetide",
+    monthId: "may",
+    name: "Galetide",
+    description:
+      "Honoring the four winds, giant woodwind instruments built to play music through nature.",
+    observance: { kind: "temple", templeId: "zephon" },
+  },
+  {
+    id: "hangmans_day",
+    monthId: "may",
+    name: "Hangman's Day",
+    description:
+      "Venerating the patron prophet of thieves and gamblers with fake gold coins, miscreancy, and carousing.",
+    observance: { kind: "temple", templeId: "notor" },
+  },
+  {
+    id: "triumpart",
+    monthId: "july",
+    name: "Triumpart",
+    description:
+      'The clans each race their finest ship through the bay, the winner ceremonially "marries" the prophet Cassine.',
+    observance: { kind: "temple", templeId: "ushin" },
+  },
+  {
+    id: "old_apis_fair",
+    monthId: "august",
+    name: "Old Api's Fair",
+    description:
+      "Sheep-worshiping festival, mutton, wool, and fine wine across Ishana.",
+    observance: { kind: "temple", templeId: "krolis" },
+  },
+  {
+    id: "ambolas",
+    monthId: "august",
+    name: "Ambolas",
+    description:
+      "Pilgrims traverse the Chalk Cliffs to honor the path walked by the Teacher Edon in his quest to keep the Orthodoxy safe from the violence of the Tragedies.",
+    observance: { kind: "temple", templeId: "zephon" },
+  },
+  {
+    id: "goblin_night",
+    monthId: "october",
+    name: "Goblin Night",
+    description:
+      "Scarecrows are dressed up as goblins and demons to scare off the unwelcome dead.",
+    observance: { kind: "temple", templeId: "krolis" },
+  },
+  {
+    id: "mournival",
+    monthId: "november",
+    name: "Mournival",
+    description:
+      "Grieving for the Tragedies and those who have died, families going on pilgrimages to the Graven Isle to leave offerings there.",
+    observance: { kind: "temple", templeId: "notor" },
+  },
+  {
+    id: "debutante",
+    monthId: "november",
+    name: "Debutante",
+    description:
+      "Fancy masquerades, bonfires, and elaborate balls held amongst the noble Clans.",
+    observance: { kind: "temple", templeId: "ushin" },
+  },
+  {
+    id: "brothers_day",
+    monthId: "march",
+    name: "Brother's Day",
+    description:
+      "Commemorates the discovery of Ithax upon the iceberg by his brother Ephris. Celebrated with lots of alcohol, elaborate costumes, and wrestling and duels amongst men.",
+    observance: { kind: "feast_day" },
+  },
+  {
+    id: "midsummer_festival",
+    monthId: "june",
+    name: "Midsummer Festival",
+    description:
+      "Commemorates the creation of life by the two brother-gods. Celebrated with various animal costumes, pageantry, and parades through the streets.",
+    observance: { kind: "feast_day" },
+  },
+  {
+    id: "harvest_end",
+    monthId: "september",
+    name: "Harvest-End",
+    description:
+      "Commemorates Ithax's ascent to the heavens to steal fire for mankind, and the shooting star he rode back down to earth. Celebrated with bonfires, picnics, and fire-tossing.",
+    observance: { kind: "feast_day" },
+  },
+  {
+    id: "midwinter_banquet",
+    monthId: "december",
+    name: "Midwinter Banquet",
+    description:
+      "Commemorates the gifts of fire, magic, and invention brought to mankind by Ithax. Celebrated with candles, lots of feasting, and ice-skating across the Bay of Ishana.",
+    observance: { kind: "feast_day" },
+  },
+];
+
+export function isValidHierophantLiturgicalHolidayId(
+  value: string,
+): value is HierophantLiturgicalHolidayId {
+  return (HIEROPHANT_LITURGICAL_HOLIDAY_IDS as readonly string[]).includes(value);
+}
+
+export function hierophantLiturgicalHolidayDefinition(
+  id: HierophantLiturgicalHolidayId,
+): HierophantLiturgicalHolidayDefinition {
+  const found = HIEROPHANT_LITURGICAL_HOLIDAY_DEFINITIONS.find((d) => d.id === id);
+  if (found === undefined) {
+    throw new Error(`Unknown Liturgical Calendar Holiday id: ${id}`);
+  }
+  return found;
+}

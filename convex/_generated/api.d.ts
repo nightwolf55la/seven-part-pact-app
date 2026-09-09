@@ -20,6 +20,7 @@ import type * as lifecycleQueries from "../lifecycleQueries.js";
 import type * as m3Commands from "../m3Commands.js";
 import type * as m3Queries from "../m3Queries.js";
 import type * as migration from "../migration.js";
+import type * as ordinaryLogicalCommand from "../ordinaryLogicalCommand.js";
 import type * as persistence from "../persistence.js";
 import type * as validators from "../validators.js";
 import type * as verifyMigration from "../verifyMigration.js";
@@ -43,6 +44,7 @@ declare const fullApi: ApiFromModules<{
   m3Commands: typeof m3Commands;
   m3Queries: typeof m3Queries;
   migration: typeof migration;
+  ordinaryLogicalCommand: typeof ordinaryLogicalCommand;
   persistence: typeof persistence;
   validators: typeof validators;
   verifyMigration: typeof verifyMigration;

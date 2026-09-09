@@ -634,6 +634,10 @@ export type {
   HierophantBuiltinDogmaCategory,
   HierophantBuiltinDogmaId,
   HierophantBuiltinDogmaDefinition,
+  HierophantLiturgicalHolidayId,
+  HierophantLiturgicalObservance,
+  HierophantLiturgicalHolidayDefinition,
+  HierophantOrdinaryStartingTempleId,
 } from "./hierophant-catalogs";
 export {
   HIEROPHANT_FLAME_LAW_IDS,
@@ -668,6 +672,10 @@ export {
   HIEROPHANT_BUILTIN_DOGMA_DEFINITIONS,
   isValidHierophantBuiltinDogmaId,
   HIEROPHANT_CLASS_ENJOYED_DOGMA_CATEGORIES,
+  HIEROPHANT_LITURGICAL_HOLIDAY_IDS,
+  HIEROPHANT_LITURGICAL_HOLIDAY_DEFINITIONS,
+  isValidHierophantLiturgicalHolidayId,
+  hierophantLiturgicalHolidayDefinition,
 } from "./hierophant-catalogs";
 
 export type {
