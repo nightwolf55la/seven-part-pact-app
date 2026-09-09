@@ -46,7 +46,10 @@ import {
   applyUpdateNecromancerFoe,
   applyUpdateNecromancerGhoulCaller,
   canonicalizeCreateNecromancerCampaignGateInput,
+  canonicalizeInitializeNecromancerInput,
+  canonicalizeNecromancerGhoulCaller,
   canonicalizeUpdateNecromancerCampaignGateFields,
+  canonicalizeUpdateNecromancerGhoulCallerFields,
   createNecromancerCampaignGateFingerprint,
   createNecromancerCampaignPathSpaceFingerprint,
   initializeNecromancerFingerprint,
@@ -389,6 +392,10 @@ function collectRealNecromancerEvents(): NecromancerEvent[] {
     disposition: "disruptive",
     location: { kind: "path", pathSpaceId: "edge_mariner" },
     pettyDeadCount: 0,
+    primaryElement: "air",
+    aesthetic: "pale linen",
+    strangeQuirk: "never blinks",
+    ageYears: 33,
   });
   state = addedGhoul.nextState;
   events.push(...addedGhoul.events);
@@ -553,15 +560,24 @@ describe("Necromancer Phase 2B persistence contracts", () => {
           disposition: "disruptive",
           location: { kind: "path", pathSpaceId: "edge_sage" },
           pettyDeadCount: 0,
+          primaryElement: "fire",
+          aesthetic: "ash-stained funeral silks",
+          strangeQuirk: "counts backwards from thirteen",
+          ageYears: 47,
         }),
         update_necromancer_ghoul_caller: updateNecromancerGhoulCallerFingerprint(CAMPAIGN_A, DEN_6, {
           pettyDeadCount: { expected: 0, value: 1 },
+          primaryElement: { expected: "fire", value: "water" },
         }),
         remove_necromancer_ghoul_caller: removeNecromancerGhoulCallerFingerprint(CAMPAIGN_A, DEN_6, {
           denizenId: DEN_6,
           disposition: "disruptive",
           location: { kind: "path", pathSpaceId: "edge_sage" },
           pettyDeadCount: 0,
+          primaryElement: "fire",
+          aesthetic: "ash-stained funeral silks",
+          strangeQuirk: "counts backwards from thirteen",
+          ageYears: 47,
         }),
         create_necromancer_campaign_gate: createNecromancerCampaignGateFingerprint(CAMPAIGN_A, {
           gateId: CAMPAIGN_GATE,
@@ -637,6 +653,105 @@ describe("Necromancer Phase 2B persistence contracts", () => {
       expect(updateNecromancerCampaignGateFingerprint(CAMPAIGN_A, CAMPAIGN_GATE, {
         name: { expected: "  Ossuary  ", value: "Black Ossuary" },
       })).not.toBe(updateNecromancerCampaignGateFingerprint(CAMPAIGN_A, CAMPAIGN_GATE, fieldsTrimmed));
+    });
+
+    it("fingerprints canonical Ghoul-Caller profile text for initialize, add, update, and remove", () => {
+      const paddedBinding = {
+        denizenId: DEN_6,
+        pathSpaceId: "edge_sage" as const,
+        primaryElement: "fire" as const,
+        aesthetic: "  ash-stained funeral silks  ",
+        strangeQuirk: "  counts backwards from thirteen  ",
+        ageYears: 47,
+      };
+      const trimmedBinding = {
+        ...paddedBinding,
+        aesthetic: "ash-stained funeral silks",
+        strangeQuirk: "counts backwards from thirteen",
+      };
+      const explosivePadded = canonicalizeInitializeNecromancerInput({
+        arrangementId: "explosive",
+        selectedLawIds: ["fifth", "sixth"],
+        arrangementFoes: [
+          { denizenId: DEN_1, gateId: "deep" },
+          { denizenId: DEN_2, gateId: "terminus" },
+          { denizenId: DEN_3, gateId: "marching" },
+          { denizenId: DEN_4, gateId: "churning" },
+        ],
+        arrangementAlly: { denizenId: DEN_5, gateId: "amber" },
+        arrangementGhoulCaller: paddedBinding,
+      });
+      const explosiveTrimmed = canonicalizeInitializeNecromancerInput({
+        arrangementId: "explosive",
+        selectedLawIds: ["fifth", "sixth"],
+        arrangementFoes: [
+          { denizenId: DEN_1, gateId: "deep" },
+          { denizenId: DEN_2, gateId: "terminus" },
+          { denizenId: DEN_3, gateId: "marching" },
+          { denizenId: DEN_4, gateId: "churning" },
+        ],
+        arrangementAlly: { denizenId: DEN_5, gateId: "amber" },
+        arrangementGhoulCaller: trimmedBinding,
+      });
+      expect(initializeNecromancerFingerprint(CAMPAIGN_A, explosivePadded))
+        .toBe(initializeNecromancerFingerprint(CAMPAIGN_A, explosiveTrimmed));
+      expect(initializeNecromancerFingerprint(CAMPAIGN_A, {
+        ...explosiveTrimmed,
+        arrangementGhoulCaller: { ...trimmedBinding, ageYears: 48 },
+      })).not.toBe(initializeNecromancerFingerprint(CAMPAIGN_A, explosiveTrimmed));
+
+      const paddedGhoul = canonicalizeNecromancerGhoulCaller({
+        denizenId: DEN_6,
+        disposition: "disruptive",
+        location: { kind: "path", pathSpaceId: "edge_sage" },
+        pettyDeadCount: 0,
+        primaryElement: "air",
+        aesthetic: "  pale linen  ",
+        strangeQuirk: "  never blinks  ",
+        ageYears: 33,
+      });
+      const trimmedGhoul = canonicalizeNecromancerGhoulCaller({
+        denizenId: DEN_6,
+        disposition: "disruptive",
+        location: { kind: "path", pathSpaceId: "edge_sage" },
+        pettyDeadCount: 0,
+        primaryElement: "air",
+        aesthetic: "pale linen",
+        strangeQuirk: "never blinks",
+        ageYears: 33,
+      });
+      expect(addNecromancerGhoulCallerFingerprint(CAMPAIGN_A, paddedGhoul))
+        .toBe(addNecromancerGhoulCallerFingerprint(CAMPAIGN_A, trimmedGhoul));
+      expect(removeNecromancerGhoulCallerFingerprint(CAMPAIGN_A, DEN_6, paddedGhoul))
+        .toBe(removeNecromancerGhoulCallerFingerprint(CAMPAIGN_A, DEN_6, trimmedGhoul));
+      const fieldsPadded = canonicalizeUpdateNecromancerGhoulCallerFields({
+        aesthetic: { expected: "pale linen", value: "  river silt  " },
+      });
+      const fieldsTrimmed = canonicalizeUpdateNecromancerGhoulCallerFields({
+        aesthetic: { expected: "pale linen", value: "river silt" },
+      });
+      expect(updateNecromancerGhoulCallerFingerprint(CAMPAIGN_A, DEN_6, fieldsPadded))
+        .toBe(updateNecromancerGhoulCallerFingerprint(CAMPAIGN_A, DEN_6, fieldsTrimmed));
+    });
+
+    it("rejects a malformed Ghoul-Caller Primary Element on campaignEventValidator", () => {
+      const malformed = {
+        type: "necromancer_ghoul_caller_added",
+        version: 1,
+        data: {
+          ghoulCaller: {
+            denizenId: DEN_6,
+            disposition: "disruptive",
+            location: { kind: "path", pathSpaceId: "edge_sage" },
+            pettyDeadCount: 0,
+            primaryElement: "void",
+            aesthetic: "pale linen",
+            strangeQuirk: "never blinks",
+            ageYears: 33,
+          },
+        },
+      };
+      expect(matchesValidator(campaignEventValidator, malformed)).toBe(false);
     });
   });
 

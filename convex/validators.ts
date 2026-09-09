@@ -716,12 +716,17 @@ const wizardSanctumChangedEventV1Validator = v.object({
   }),
 });
 
+const elementIdValidator = v.union(
+  v.literal("air"),
+  v.literal("fire"),
+  v.literal("earth"),
+  v.literal("water"),
+);
+
 const companionRelationshipValidator = v.object({
   companionRelationshipId: v.string(),
   wizardId: v.string(),
-  element: v.union(
-    v.literal("air"), v.literal("fire"), v.literal("earth"), v.literal("water"),
-  ),
+  element: elementIdValidator,
   denizenId: v.string(),
   description: v.union(v.string(), v.null()),
   status: v.union(v.literal("current"), v.literal("ended")),
@@ -1058,6 +1063,10 @@ const necromancerStateValidator = v.object({
       pathSpaceId: v.string(),
     }),
     pettyDeadCount: v.number(),
+    primaryElement: elementIdValidator,
+    aesthetic: v.string(),
+    strangeQuirk: v.string(),
+    ageYears: v.number(),
   })),
   selectedLaws: v.array(v.object({
     lawId: v.string(),
@@ -1206,6 +1215,10 @@ const necromancerGhoulCallerValidator = v.object({
     pathSpaceId: v.string(),
   }),
   pettyDeadCount: v.number(),
+  primaryElement: elementIdValidator,
+  aesthetic: v.string(),
+  strangeQuirk: v.string(),
+  ageYears: v.number(),
 });
 
 const necromancerCampaignGateValidator = v.object({
@@ -1242,6 +1255,10 @@ const necromancerArrangementGhoulCallerBindingValidator = v.union(
   v.object({
     denizenId: v.string(),
     pathSpaceId: v.string(),
+    primaryElement: elementIdValidator,
+    aesthetic: v.string(),
+    strangeQuirk: v.string(),
+    ageYears: v.number(),
   }),
 );
 

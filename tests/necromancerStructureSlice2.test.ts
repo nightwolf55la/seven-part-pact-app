@@ -42,6 +42,9 @@ import {
   applyUpdateNecromancerCampaignGate,
   applyUpdateNecromancerFoe,
   applyUpdateNecromancerGhoulCaller,
+  canonicalizeInitializeNecromancerInput,
+  canonicalizeNecromancerGhoulCaller,
+  canonicalizeUpdateNecromancerGhoulCallerFields,
   necromancerDefaultInternalOutgoingTarget,
   validateCampaignStateV5Candidate,
 } from "../shared/domain";
@@ -196,7 +199,14 @@ function explosiveInput(overrides?: Partial<InitializeNecromancerInput>): Initia
       { denizenId: DEN_4, gateId: "churning" },
     ],
     arrangementAlly: { denizenId: DEN_5, gateId: "amber" },
-    arrangementGhoulCaller: { denizenId: DEN_6, pathSpaceId: "edge_sage" },
+    arrangementGhoulCaller: {
+      denizenId: DEN_6,
+      pathSpaceId: "edge_sage",
+      primaryElement: "fire",
+      aesthetic: "ash-stained funeral silks",
+      strangeQuirk: "counts backwards from thirteen",
+      ageYears: 47,
+    },
     ...overrides,
   };
 }
@@ -324,6 +334,10 @@ describe("Necromancer Phase 2A transitions", () => {
         disposition: "disruptive",
         location: { kind: "path", pathSpaceId: "edge_sage" },
         pettyDeadCount: 0,
+        primaryElement: "fire",
+        aesthetic: "ash-stained funeral silks",
+        strangeQuirk: "counts backwards from thirteen",
+        ageYears: 47,
       }]);
       expect(soulAt(result.nextState, { kind: "path", pathSpaceId: "howling" as never })).toBe(0);
       expect(necromancerDefaultInternalOutgoingTarget("howling")).toBeUndefined();
@@ -358,11 +372,25 @@ describe("Necromancer Phase 2A transitions", () => {
         arrangementAlly: { denizenId: DEN_5, gateId: "marching" },
       })), "INVALID_CAMPAIGN_STATE");
       expectCode(() => applyInitializeNecromancer(baseV5(), quietInput({
-        arrangementGhoulCaller: { denizenId: DEN_6, pathSpaceId: "edge_sage" },
+        arrangementGhoulCaller: {
+          denizenId: DEN_6,
+          pathSpaceId: "edge_sage",
+          primaryElement: "fire",
+          aesthetic: "ash-stained funeral silks",
+          strangeQuirk: "counts backwards from thirteen",
+          ageYears: 47,
+        },
       })), "INVALID_CAMPAIGN_STATE");
       expectCode(() => applyInitializeNecromancer(baseV5(), explosiveInput({ arrangementGhoulCaller: null })), "INVALID_CAMPAIGN_STATE");
       expectCode(() => applyInitializeNecromancer(baseV5(), explosiveInput({
-        arrangementGhoulCaller: { denizenId: DEN_COLLECTIVE, pathSpaceId: "edge_sage" },
+        arrangementGhoulCaller: {
+          denizenId: DEN_COLLECTIVE,
+          pathSpaceId: "edge_sage",
+          primaryElement: "fire",
+          aesthetic: "ash-stained funeral silks",
+          strangeQuirk: "counts backwards from thirteen",
+          ageYears: 47,
+        },
       })), "INVALID_CAMPAIGN_STATE");
       expectCode(() => applyInitializeNecromancer(baseV5(), quietInput({
         arrangementFoes: [
@@ -702,6 +730,10 @@ describe("Necromancer Phase 2A transitions", () => {
         disposition: "reliable",
         location: { kind: "path", pathSpaceId: "edge_mariner" },
         pettyDeadCount: 0,
+        primaryElement: "water",
+        aesthetic: "salt-crusted shroud",
+        strangeQuirk: "hums at graves",
+        ageYears: 19,
       }).nextState;
       expect(withGhoul.necromancer.allies).toHaveLength(2);
       expect(withGhoul.necromancer.ghoulCallers).toHaveLength(1);
@@ -711,6 +743,194 @@ describe("Necromancer Phase 2A transitions", () => {
         withGhoul.necromancer.ghoulCallers[0],
       ).nextState;
       expect(removedGhoul.world.denizens.some((denizen) => denizen.denizenId === DEN_6)).toBe(true);
+    });
+  });
+
+  describe("Ghoul-Caller durable profile", () => {
+    const profile = {
+      primaryElement: "earth" as const,
+      aesthetic: "  moss-eaten vestments  ",
+      strangeQuirk: "  speaks only at dusk  ",
+      ageYears: 120,
+    };
+
+    it("Explosive requires and persists the canonical profile while remaining Disruptive with petty dead 0", () => {
+      const padded = explosiveInput({
+        arrangementGhoulCaller: {
+          denizenId: DEN_6,
+          pathSpaceId: "edge_sage",
+          ...profile,
+        },
+      });
+      const result = applyInitializeNecromancer(baseV5(), padded);
+      const ghoul = result.nextState.necromancer.ghoulCallers[0];
+      expect(ghoul).toEqual({
+        denizenId: DEN_6,
+        disposition: "disruptive",
+        location: { kind: "path", pathSpaceId: "edge_sage" },
+        pettyDeadCount: 0,
+        primaryElement: "earth",
+        aesthetic: "moss-eaten vestments",
+        strangeQuirk: "speaks only at dusk",
+        ageYears: 120,
+      });
+      const event = result.events[0];
+      expect(event.type).toBe("necromancer_initialized");
+      if (event.type === "necromancer_initialized") {
+        expect(event.data.arrangementGhoulCaller).toEqual({
+          denizenId: DEN_6,
+          pathSpaceId: "edge_sage",
+          primaryElement: "earth",
+          aesthetic: "moss-eaten vestments",
+          strangeQuirk: "speaks only at dusk",
+          ageYears: 120,
+        });
+      }
+      expect(result.nextState.necromancer).not.toHaveProperty("wards");
+      expect(ghoul).not.toHaveProperty("wards");
+      expect(ghoul).not.toHaveProperty("changesOfMagic");
+    });
+
+    it("rejects Explosive profile blanks and invalid Primary Element or age", () => {
+      expectCode(() => applyInitializeNecromancer(baseV5(), explosiveInput({
+        arrangementGhoulCaller: {
+          denizenId: DEN_6,
+          pathSpaceId: "edge_sage",
+          primaryElement: "void" as never,
+          aesthetic: "ok",
+          strangeQuirk: "ok",
+          ageYears: 12,
+        },
+      })), "INVALID_CAMPAIGN_STATE");
+      expectCode(() => applyInitializeNecromancer(baseV5(), explosiveInput({
+        arrangementGhoulCaller: {
+          denizenId: DEN_6,
+          pathSpaceId: "edge_sage",
+          primaryElement: "air",
+          aesthetic: "   ",
+          strangeQuirk: "ok",
+          ageYears: 12,
+        },
+      })), "INVALID_CAMPAIGN_STATE");
+      expectCode(() => applyInitializeNecromancer(baseV5(), explosiveInput({
+        arrangementGhoulCaller: {
+          denizenId: DEN_6,
+          pathSpaceId: "edge_sage",
+          primaryElement: "air",
+          aesthetic: "ok",
+          strangeQuirk: "ok",
+          ageYears: -3,
+        },
+      })), "INVALID_CAMPAIGN_STATE");
+    });
+
+    it("adds, updates, and removes a profile-bearing Ghoul-Caller with expected-current semantics", () => {
+      const quiet = applyInitializeNecromancer(baseV5(), quietInput()).nextState;
+      const added = applyAddNecromancerGhoulCaller(quiet, {
+        denizenId: DEN_6,
+        disposition: "disruptive",
+        location: { kind: "path", pathSpaceId: "edge_sage" },
+        pettyDeadCount: 0,
+        primaryElement: "air",
+        aesthetic: "  pale linen  ",
+        strangeQuirk: "  never blinks  ",
+        ageYears: 33,
+      });
+      const ghoul = added.nextState.necromancer.ghoulCallers[0];
+      expect(ghoul?.aesthetic).toBe("pale linen");
+      expect(ghoul?.strangeQuirk).toBe("never blinks");
+      expect(added.events[0]).toMatchObject({
+        type: "necromancer_ghoul_caller_added",
+        data: { ghoulCaller: ghoul },
+      });
+      expect(added.nextState.necromancer.souls).toEqual(quiet.necromancer.souls);
+      expect(added.nextState.necromancer.foes).toEqual(quiet.necromancer.foes);
+      expect(added.nextState.necromancer.gates).toEqual(quiet.necromancer.gates);
+
+      const updated = applyUpdateNecromancerGhoulCaller(added.nextState, DEN_6, {
+        primaryElement: { expected: "air", value: "water" },
+        aesthetic: { expected: "pale linen", value: "  river silt  " },
+        strangeQuirk: { expected: "never blinks", value: "collects moths" },
+        ageYears: { expected: 33, value: 900 },
+      });
+      expect(updated.nextState.necromancer.ghoulCallers[0]).toMatchObject({
+        primaryElement: "water",
+        aesthetic: "river silt",
+        strangeQuirk: "collects moths",
+        ageYears: 900,
+        location: ghoul?.location,
+        disposition: "disruptive",
+        pettyDeadCount: 0,
+      });
+      expect(updated.nextState.necromancer.souls).toEqual(added.nextState.necromancer.souls);
+
+      expectCode(() => applyUpdateNecromancerGhoulCaller(updated.nextState, DEN_6, {
+        primaryElement: { expected: "air", value: "fire" },
+      }), "STALE_COMMAND_PRECONDITION");
+      expectCode(() => applyUpdateNecromancerGhoulCaller(updated.nextState, DEN_6, {
+        aesthetic: { expected: "pale linen", value: "new" },
+      }), "STALE_COMMAND_PRECONDITION");
+      expectCode(() => applyUpdateNecromancerGhoulCaller(updated.nextState, DEN_6, {
+        aesthetic: { expected: "river silt", value: "   " },
+      }), "INVALID_CAMPAIGN_STATE");
+      expectCode(() => applyUpdateNecromancerGhoulCaller(updated.nextState, DEN_6, {
+        ageYears: { expected: 900, value: 1.2 },
+      }), "INVALID_CAMPAIGN_STATE");
+      expectCode(() => applyUpdateNecromancerGhoulCaller(updated.nextState, DEN_6, {
+        primaryElement: { expected: "water", value: "water" },
+      }), "INVALID_CAMPAIGN_STATE");
+
+      const profileOnly = applyUpdateNecromancerGhoulCaller(updated.nextState, DEN_6, {
+        strangeQuirk: { expected: "collects moths", value: "whispers to keys" },
+      });
+      expect(profileOnly.nextState.necromancer.ghoulCallers[0]?.strangeQuirk).toBe("whispers to keys");
+
+      expectCode(() => applyRemoveNecromancerGhoulCaller(profileOnly.nextState, DEN_6, {
+        ...profileOnly.nextState.necromancer.ghoulCallers[0]!,
+        aesthetic: "wrong",
+      }), "STALE_COMMAND_PRECONDITION");
+      const removed = applyRemoveNecromancerGhoulCaller(
+        profileOnly.nextState,
+        DEN_6,
+        profileOnly.nextState.necromancer.ghoulCallers[0]!,
+      );
+      expect(removed.nextState.necromancer.ghoulCallers).toEqual([]);
+      expect(removed.nextState.world.denizens.some((denizen) => denizen.denizenId === DEN_6)).toBe(true);
+    });
+
+    it("canonicalizes initialize and add fingerprints to the applied profile text", () => {
+      const padded = canonicalizeInitializeNecromancerInput(explosiveInput({
+        arrangementGhoulCaller: {
+          denizenId: DEN_6,
+          pathSpaceId: "edge_sage",
+          ...profile,
+        },
+      }));
+      const trimmed = canonicalizeInitializeNecromancerInput(explosiveInput({
+        arrangementGhoulCaller: {
+          denizenId: DEN_6,
+          pathSpaceId: "edge_sage",
+          primaryElement: "earth",
+          aesthetic: "moss-eaten vestments",
+          strangeQuirk: "speaks only at dusk",
+          ageYears: 120,
+        },
+      }));
+      expect(padded.arrangementGhoulCaller).toEqual(trimmed.arrangementGhoulCaller);
+      expect(canonicalizeNecromancerGhoulCaller({
+        denizenId: DEN_6,
+        disposition: "reliable",
+        location: { kind: "path", pathSpaceId: "edge_sage" },
+        pettyDeadCount: 0,
+        primaryElement: "air",
+        aesthetic: "  pale linen  ",
+        strangeQuirk: "  never blinks  ",
+        ageYears: 33,
+      }).aesthetic).toBe("pale linen");
+      const fields = canonicalizeUpdateNecromancerGhoulCallerFields({
+        aesthetic: { expected: "pale linen", value: "  river silt  " },
+      });
+      expect(fields.aesthetic).toEqual({ expected: "pale linen", value: "river silt" });
     });
   });
 });

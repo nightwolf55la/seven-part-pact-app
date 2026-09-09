@@ -15,6 +15,11 @@ import {
   NECROMANCER_LAW_VISIBILITIES,
   NECROMANCER_PATH_REGIONS,
   PACT_SEAT_IDS,
+  ELEMENT_IDS,
+  canonicalizeInitializeNecromancerInput,
+  canonicalizeNecromancerGhoulCaller,
+  canonicalizeNecromancerGhoulCallerProfileText,
+  canonicalizeUpdateNecromancerGhoulCallerFields,
   isBuiltinEdgeOfLifePathSpaceId,
   isValidNecromancerAbominationKind,
   isValidNecromancerArrangementId,
@@ -45,6 +50,7 @@ import {
   type NecromancerCampaignPathSpaceState,
   type NecromancerDepthState,
   type NecromancerDirectedStep,
+  type ElementId,
   type NecromancerFoeLocation,
   type NecromancerFoeState,
   type NecromancerGateBand,
@@ -202,6 +208,24 @@ export function parseNonNegInt(raw: string): number | null {
   if (!/^\d+$/.test(raw.trim())) return null;
   const n = Number(raw);
   return Number.isSafeInteger(n) ? n : null;
+}
+
+export const NECROMANCER_PRIMARY_ELEMENT_OPTIONS = ELEMENT_IDS;
+
+export function elementDisplayName(element: ElementId): string {
+  if (element === "air") return "Air";
+  if (element === "fire") return "Fire";
+  if (element === "earth") return "Earth";
+  return "Water";
+}
+
+export function ghoulCallerProfileLines(ghoul: NecromancerGhoulCallerState): readonly string[] {
+  return [
+    `Primary Element ${elementDisplayName(ghoul.primaryElement)}`,
+    `Aesthetic ${ghoul.aesthetic}`,
+    `Strange Quirk ${ghoul.strangeQuirk}`,
+    `Age ${ghoul.ageYears}`,
+  ];
 }
 
 export function denizenName(denizens: readonly DenizenRef[], denizenId: string): string {
@@ -592,6 +616,10 @@ export interface NecromancerSetupDraft {
   readonly allyGateId: string;
   readonly ghoulCallerDenizenId: string;
   readonly ghoulCallerPathSpaceId: string;
+  readonly ghoulCallerPrimaryElement: string;
+  readonly ghoulCallerAesthetic: string;
+  readonly ghoulCallerStrangeQuirk: string;
+  readonly ghoulCallerAgeYears: string;
 }
 
 export function emptyNecromancerSetupDraft(): NecromancerSetupDraft {
@@ -605,6 +633,10 @@ export function emptyNecromancerSetupDraft(): NecromancerSetupDraft {
     allyGateId: "",
     ghoulCallerDenizenId: "",
     ghoulCallerPathSpaceId: "",
+    ghoulCallerPrimaryElement: "",
+    ghoulCallerAesthetic: "",
+    ghoulCallerStrangeQuirk: "",
+    ghoulCallerAgeYears: "",
   };
 }
 
@@ -618,6 +650,10 @@ export function withSetupArrangement(draft: NecromancerSetupDraft, arrangementId
     farFoes,
     ghoulCallerDenizenId: definition?.ghoulCaller === null ? "" : draft.ghoulCallerDenizenId,
     ghoulCallerPathSpaceId: definition?.ghoulCaller === null ? "" : draft.ghoulCallerPathSpaceId,
+    ghoulCallerPrimaryElement: definition?.ghoulCaller === null ? "" : draft.ghoulCallerPrimaryElement,
+    ghoulCallerAesthetic: definition?.ghoulCaller === null ? "" : draft.ghoulCallerAesthetic,
+    ghoulCallerStrangeQuirk: definition?.ghoulCaller === null ? "" : draft.ghoulCallerStrangeQuirk,
+    ghoulCallerAgeYears: definition?.ghoulCaller === null ? "" : draft.ghoulCallerAgeYears,
   };
 }
 
@@ -693,6 +729,10 @@ export function necromancerSetupReady(
     const ghoul = denizenById(denizens, draft.ghoulCallerDenizenId);
     if (ghoul === undefined || ghoul.representation !== "individual") return false;
     if (!isBuiltinEdgeOfLifePathSpaceId(draft.ghoulCallerPathSpaceId)) return false;
+    if (!(ELEMENT_IDS as readonly string[]).includes(draft.ghoulCallerPrimaryElement)) return false;
+    if (draft.ghoulCallerAesthetic.trim() === "") return false;
+    if (draft.ghoulCallerStrangeQuirk.trim() === "") return false;
+    if (parseNonNegInt(draft.ghoulCallerAgeYears) === null) return false;
   }
   if (duplicateStartingSetupDenizenIds(draft).length > 0) return false;
   return true;
@@ -710,31 +750,62 @@ export function buildInitializeNecromancerPayload(args: {
   readonly selectedLawIds: NecromancerLawOfDeathId[];
   readonly arrangementFoes: { readonly denizenId: string; readonly gateId: string }[];
   readonly arrangementAlly: { readonly denizenId: string; readonly gateId: string };
-  readonly arrangementGhoulCaller: { readonly denizenId: string; readonly pathSpaceId: string } | null;
+  readonly arrangementGhoulCaller: {
+    readonly denizenId: string;
+    readonly pathSpaceId: string;
+    readonly primaryElement: ElementId;
+    readonly aesthetic: string;
+    readonly strangeQuirk: string;
+    readonly ageYears: number;
+  } | null;
 } | null {
   if (!necromancerSetupReady(args.draft, args.denizens)) return null;
   const arrangementId = args.draft.arrangementId as NecromancerArrangementId;
   const definition = necromancerArrangementDefinition(arrangementId);
   if (definition === undefined) return null;
-  return {
-    commandId: args.commandId,
-    expectedCampaignId: args.expectedCampaignId,
+  const ageYears = parseNonNegInt(args.draft.ghoulCallerAgeYears);
+  const canonical = canonicalizeInitializeNecromancerInput({
     arrangementId,
     selectedLawIds: uniqueSelectedSetupLawIds(args.draft.selectedLawIds),
     arrangementFoes: [
-      { denizenId: args.draft.deepFoeDenizenId, gateId: "deep" },
-      { denizenId: args.draft.terminusFoeDenizenId, gateId: "terminus" },
-      ...args.draft.farFoes.map((foe) => ({ denizenId: foe.denizenId, gateId: foe.gateId })),
+      { denizenId: args.draft.deepFoeDenizenId as never, gateId: "deep" },
+      { denizenId: args.draft.terminusFoeDenizenId as never, gateId: "terminus" },
+      ...args.draft.farFoes.map((foe) => ({ denizenId: foe.denizenId as never, gateId: foe.gateId as never })),
     ],
     arrangementAlly: {
-      denizenId: args.draft.allyDenizenId,
-      gateId: args.draft.allyGateId,
+      denizenId: args.draft.allyDenizenId as never,
+      gateId: args.draft.allyGateId as never,
     },
-    arrangementGhoulCaller: definition.ghoulCaller === null
+    arrangementGhoulCaller: definition.ghoulCaller === null || ageYears === null
       ? null
       : {
-          denizenId: args.draft.ghoulCallerDenizenId,
-          pathSpaceId: args.draft.ghoulCallerPathSpaceId,
+          denizenId: args.draft.ghoulCallerDenizenId as never,
+          pathSpaceId: args.draft.ghoulCallerPathSpaceId as NecromancerBuiltinPathSpaceId,
+          primaryElement: args.draft.ghoulCallerPrimaryElement as ElementId,
+          aesthetic: args.draft.ghoulCallerAesthetic,
+          strangeQuirk: args.draft.ghoulCallerStrangeQuirk,
+          ageYears,
+        },
+  });
+  return {
+    commandId: args.commandId,
+    expectedCampaignId: args.expectedCampaignId,
+    arrangementId: canonical.arrangementId,
+    selectedLawIds: [...canonical.selectedLawIds],
+    arrangementFoes: canonical.arrangementFoes.map((foe) => ({ denizenId: foe.denizenId, gateId: foe.gateId })),
+    arrangementAlly: {
+      denizenId: canonical.arrangementAlly.denizenId,
+      gateId: canonical.arrangementAlly.gateId,
+    },
+    arrangementGhoulCaller: canonical.arrangementGhoulCaller === null
+      ? null
+      : {
+          denizenId: canonical.arrangementGhoulCaller.denizenId,
+          pathSpaceId: canonical.arrangementGhoulCaller.pathSpaceId,
+          primaryElement: canonical.arrangementGhoulCaller.primaryElement,
+          aesthetic: canonical.arrangementGhoulCaller.aesthetic,
+          strangeQuirk: canonical.arrangementGhoulCaller.strangeQuirk,
+          ageYears: canonical.arrangementGhoulCaller.ageYears,
         },
   };
 }
@@ -1033,11 +1104,16 @@ export function buildAddNecromancerGhoulCallerPayload(args: {
 } | null {
   if (!isValidNecromancerGhoulCallerDisposition(args.ghoulCaller.disposition)) return null;
   if (!Number.isSafeInteger(args.ghoulCaller.pettyDeadCount) || args.ghoulCaller.pettyDeadCount < 0) return null;
-  return {
-    commandId: args.commandId,
-    expectedCampaignId: args.expectedCampaignId,
-    ghoulCaller: args.ghoulCaller,
-  };
+  if (!Number.isSafeInteger(args.ghoulCaller.ageYears) || args.ghoulCaller.ageYears < 0) return null;
+  try {
+    return {
+      commandId: args.commandId,
+      expectedCampaignId: args.expectedCampaignId,
+      ghoulCaller: canonicalizeNecromancerGhoulCaller(args.ghoulCaller),
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function buildUpdateNecromancerGhoulCallerPayload(args: {
@@ -1048,6 +1124,10 @@ export function buildUpdateNecromancerGhoulCallerPayload(args: {
   readonly location: NecromancerGhoulCallerState["location"];
   readonly disposition: NecromancerGhoulCallerDisposition;
   readonly pettyDeadCount: number;
+  readonly primaryElement: ElementId;
+  readonly aesthetic: string;
+  readonly strangeQuirk: string;
+  readonly ageYears: number;
 }): {
   readonly commandId: string;
   readonly expectedCampaignId: string;
@@ -1056,21 +1136,50 @@ export function buildUpdateNecromancerGhoulCallerPayload(args: {
 } | null {
   if (!isValidNecromancerGhoulCallerDisposition(args.disposition)) return null;
   if (!Number.isSafeInteger(args.pettyDeadCount) || args.pettyDeadCount < 0) return null;
-  const fields: {
-    location?: UpdateNecromancerGhoulCallerFields["location"];
-    disposition?: UpdateNecromancerGhoulCallerFields["disposition"];
-    pettyDeadCount?: UpdateNecromancerGhoulCallerFields["pettyDeadCount"];
-  } = {};
-  if (!necromancerOccupiableSpaceRefsEqual(args.expected.location, args.location)) {
-    fields.location = { expected: args.expected.location, value: args.location };
+  if (!Number.isSafeInteger(args.ageYears) || args.ageYears < 0) return null;
+  if (!(ELEMENT_IDS as readonly string[]).includes(args.primaryElement)) return null;
+  let nextAesthetic: string;
+  let nextQuirk: string;
+  try {
+    nextAesthetic = canonicalizeNecromancerGhoulCallerProfileText(args.aesthetic, "Aesthetic");
+    nextQuirk = canonicalizeNecromancerGhoulCallerProfileText(args.strangeQuirk, "Strange Quirk");
+  } catch {
+    return null;
   }
-  if (args.expected.disposition !== args.disposition) {
-    fields.disposition = { expected: args.expected.disposition, value: args.disposition };
+  const fields = canonicalizeUpdateNecromancerGhoulCallerFields({
+    ...(!necromancerOccupiableSpaceRefsEqual(args.expected.location, args.location)
+      ? { location: { expected: args.expected.location, value: args.location } }
+      : {}),
+    ...(args.expected.disposition !== args.disposition
+      ? { disposition: { expected: args.expected.disposition, value: args.disposition } }
+      : {}),
+    ...(args.expected.pettyDeadCount !== args.pettyDeadCount
+      ? { pettyDeadCount: { expected: args.expected.pettyDeadCount, value: args.pettyDeadCount } }
+      : {}),
+    ...(args.expected.primaryElement !== args.primaryElement
+      ? { primaryElement: { expected: args.expected.primaryElement, value: args.primaryElement } }
+      : {}),
+    ...(args.expected.aesthetic !== nextAesthetic
+      ? { aesthetic: { expected: args.expected.aesthetic, value: nextAesthetic } }
+      : {}),
+    ...(args.expected.strangeQuirk !== nextQuirk
+      ? { strangeQuirk: { expected: args.expected.strangeQuirk, value: nextQuirk } }
+      : {}),
+    ...(args.expected.ageYears !== args.ageYears
+      ? { ageYears: { expected: args.expected.ageYears, value: args.ageYears } }
+      : {}),
+  });
+  if (
+    fields.location === undefined &&
+    fields.disposition === undefined &&
+    fields.pettyDeadCount === undefined &&
+    fields.primaryElement === undefined &&
+    fields.aesthetic === undefined &&
+    fields.strangeQuirk === undefined &&
+    fields.ageYears === undefined
+  ) {
+    return null;
   }
-  if (args.expected.pettyDeadCount !== args.pettyDeadCount) {
-    fields.pettyDeadCount = { expected: args.expected.pettyDeadCount, value: args.pettyDeadCount };
-  }
-  if (Object.keys(fields).length === 0) return null;
   return {
     commandId: args.commandId,
     expectedCampaignId: args.expectedCampaignId,

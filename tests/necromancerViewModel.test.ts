@@ -18,11 +18,15 @@ import {
   NECROMANCER_BUILTIN_PATH_MAP_POINTS,
   NECROMANCER_FAR_BUILTIN_GATE_IDS,
   NECROMANCER_NEAR_BUILTIN_GATE_IDS,
+  NECROMANCER_PRIMARY_ELEMENT_OPTIONS,
   NECROMANCER_STATIC_TERMINAL_PRESENTATIONS,
   NECROMANCER_TERMINAL_MAP_POINTS,
   arrangementSetupSlots,
   buildBindCurrentNecromancerAtDepthZeroPayload,
   buildInitializeNecromancerPayload,
+  buildAddNecromancerGhoulCallerPayload,
+  buildUpdateNecromancerGhoulCallerPayload,
+  buildRemoveNecromancerGhoulCallerPayload,
   buildMoveNecromancerSoulsPayload,
   buildRemoveNecromancerAllyPayload,
   buildRemoveNecromancerStepPayload,
@@ -37,6 +41,7 @@ import {
   duplicateStartingSetupDenizenIds,
   emptyNecromancerSetupDraft,
   escapedFoesGroupedBySeat,
+  ghoulCallerProfileLines,
   foesAtSpace,
   hasFixedBoardPresentationPoint,
   isNecromancerInitialized,
@@ -102,6 +107,10 @@ function explosiveDraft(overrides: Partial<NecromancerSetupDraft> = {}): Necroma
     allyGateId: "lead",
     ghoulCallerDenizenId: "den_ghoul",
     ghoulCallerPathSpaceId: "edge_sage",
+    ghoulCallerPrimaryElement: "fire",
+    ghoulCallerAesthetic: "ash-stained funeral silks",
+    ghoulCallerStrangeQuirk: "counts backwards from thirteen",
+    ghoulCallerAgeYears: "47",
     ...overrides,
   };
 }
@@ -146,6 +155,16 @@ describe("setup readiness", () => {
     ).toBe(false);
   });
 
+  it("Explosive setup readiness requires each durable Ghoul-Caller profile field", () => {
+    expect(necromancerSetupReady(explosiveDraft({ ghoulCallerPrimaryElement: "" }), denizens)).toBe(false);
+    expect(necromancerSetupReady(explosiveDraft({ ghoulCallerPrimaryElement: "void" }), denizens)).toBe(false);
+    expect(necromancerSetupReady(explosiveDraft({ ghoulCallerAesthetic: "   " }), denizens)).toBe(false);
+    expect(necromancerSetupReady(explosiveDraft({ ghoulCallerStrangeQuirk: "" }), denizens)).toBe(false);
+    expect(necromancerSetupReady(explosiveDraft({ ghoulCallerAgeYears: "" }), denizens)).toBe(false);
+    expect(necromancerSetupReady(explosiveDraft({ ghoulCallerAgeYears: "-1" }), denizens)).toBe(false);
+    expect(NECROMANCER_PRIMARY_ELEMENT_OPTIONS).toEqual(["air", "fire", "earth", "water"]);
+  });
+
   it("duplicate starting Denizen binding makes setup unready", () => {
     expect(duplicateStartingSetupDenizenIds(quietDraft({ allyDenizenId: "den_deep" }))).toEqual(["den_deep"]);
     expect(necromancerSetupReady(quietDraft({ allyDenizenId: "den_deep" }), denizens)).toBe(false);
@@ -181,7 +200,14 @@ describe("setup readiness", () => {
         { denizenId: "den_far_2", gateId: "weeping" },
       ],
       arrangementAlly: { denizenId: "den_ally", gateId: "lead" },
-      arrangementGhoulCaller: { denizenId: "den_ghoul", pathSpaceId: "edge_sage" },
+      arrangementGhoulCaller: {
+        denizenId: "den_ghoul",
+        pathSpaceId: "edge_sage",
+        primaryElement: "fire",
+        aesthetic: "ash-stained funeral silks",
+        strangeQuirk: "counts backwards from thirteen",
+        ageYears: 47,
+      },
     });
     expect(buildInitializeNecromancerPayload({
       commandId: "cmd_x",
@@ -189,6 +215,20 @@ describe("setup readiness", () => {
       draft: dynamicDraft(),
       denizens,
     })?.arrangementGhoulCaller).toBeNull();
+  });
+
+  it("canonicalizes Explosive Ghoul-Caller profile text in the initialize payload", () => {
+    const payload = buildInitializeNecromancerPayload({
+      commandId: "cmd_y",
+      expectedCampaignId: "camp_1",
+      draft: explosiveDraft({
+        ghoulCallerAesthetic: "  ash-stained funeral silks  ",
+        ghoulCallerStrangeQuirk: "  counts backwards from thirteen  ",
+      }),
+      denizens,
+    });
+    expect(payload?.arrangementGhoulCaller?.aesthetic).toBe("ash-stained funeral silks");
+    expect(payload?.arrangementGhoulCaller?.strangeQuirk).toBe("counts backwards from thirteen");
   });
 });
 
@@ -277,6 +317,10 @@ describe("labels and pieces", () => {
       disposition: "disruptive",
       location: { kind: "path", pathSpaceId: "edge_sage" },
       pettyDeadCount: 2,
+      primaryElement: "fire",
+      aesthetic: "ash-stained funeral silks",
+      strangeQuirk: "counts backwards from thirteen",
+      ageYears: 47,
     }],
   });
 
@@ -557,5 +601,65 @@ describe("campaign structure inspector selection", () => {
       kind: "gate",
       gateId: "amber",
     });
+  });
+});
+
+describe("Ghoul-Caller profile payloads and presentation", () => {
+  const ghoul = {
+    denizenId: "den_ghoul" as DenizenId,
+    disposition: "disruptive" as const,
+    location: { kind: "path" as const, pathSpaceId: "edge_sage" as const },
+    pettyDeadCount: 0,
+    primaryElement: "fire" as const,
+    aesthetic: "ash-stained funeral silks",
+    strangeQuirk: "counts backwards from thirteen",
+    ageYears: 47,
+  };
+
+  it("add payload includes the canonical durable profile", () => {
+    const payload = buildAddNecromancerGhoulCallerPayload({
+      commandId: "cmd_1",
+      expectedCampaignId: "camp_1",
+      ghoulCaller: { ...ghoul, aesthetic: "  ash-stained funeral silks  " },
+    });
+    expect(payload?.ghoulCaller).toEqual(ghoul);
+  });
+
+  it("update payload carries expected/value pairs for profile edits", () => {
+    const payload = buildUpdateNecromancerGhoulCallerPayload({
+      commandId: "cmd_1",
+      expectedCampaignId: "camp_1",
+      denizenId: ghoul.denizenId,
+      expected: ghoul,
+      location: ghoul.location,
+      disposition: ghoul.disposition,
+      pettyDeadCount: ghoul.pettyDeadCount,
+      primaryElement: "water",
+      aesthetic: "  river silt  ",
+      strangeQuirk: ghoul.strangeQuirk,
+      ageYears: 48,
+    });
+    expect(payload?.fields).toEqual({
+      primaryElement: { expected: "fire", value: "water" },
+      aesthetic: { expected: "ash-stained funeral silks", value: "river silt" },
+      ageYears: { expected: 47, value: 48 },
+    });
+  });
+
+  it("remove payload carries the full current profile-bearing Ghoul record", () => {
+    expect(buildRemoveNecromancerGhoulCallerPayload({
+      commandId: "cmd_1",
+      expectedCampaignId: "camp_1",
+      expectedGhoulCaller: ghoul,
+    }).expectedGhoulCaller).toEqual(ghoul);
+  });
+
+  it("ordinary presentation includes Primary Element, Aesthetic, Strange Quirk, and Age", () => {
+    expect(ghoulCallerProfileLines(ghoul)).toEqual([
+      "Primary Element Fire",
+      "Aesthetic ash-stained funeral silks",
+      "Strange Quirk counts backwards from thirteen",
+      "Age 47",
+    ]);
   });
 });

@@ -13,6 +13,7 @@ import {
   type NecromancerGateStatus,
   type NecromancerGhoulCallerDisposition,
   type NecromancerGhoulCallerState,
+  type ElementId,
   type NecromancerOccupiableSpaceRef,
   type NecromancerPathRegion,
   type NecromancerPathSpaceId,
@@ -42,6 +43,7 @@ import {
   NECROMANCER_LAW_VISIBILITIES,
   NECROMANCER_NEAR_BUILTIN_GATE_IDS,
   NECROMANCER_PATH_REGIONS,
+  NECROMANCER_PRIMARY_ELEMENT_OPTIONS,
   NECROMANCER_STATIC_TERMINAL_PRESENTATIONS,
   activeEdgeOfLifePathSpaces,
   activeOccupiableSpaces,
@@ -77,7 +79,9 @@ import {
   campaignStructureInspectTargets,
   denizenName,
   emptyNecromancerSetupDraft,
+  elementDisplayName,
   escapedFoesGroupedBySeat,
+  ghoulCallerProfileLines,
   foeLocationLabel,
   gateBandLabel,
   gateBandOf,
@@ -752,6 +756,48 @@ function SetupPanel({
                 ))}
               </select>
             </label>
+            <label className="text-sm">
+              <span className="block font-medium mb-1">Primary Element</span>
+              <select
+                aria-label="Ghoul-Caller Primary Element"
+                className={fieldClass}
+                value={setup.ghoulCallerPrimaryElement}
+                onChange={(event) => setSetup((current) => ({ ...current, ghoulCallerPrimaryElement: event.target.value }))}
+              >
+                <option value="">Select Primary Element…</option>
+                {NECROMANCER_PRIMARY_ELEMENT_OPTIONS.map((element) => (
+                  <option key={element} value={element}>{elementDisplayName(element)}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm">
+              <span className="block font-medium mb-1">Aesthetic</span>
+              <input
+                aria-label="Ghoul-Caller Aesthetic"
+                className={fieldClass}
+                value={setup.ghoulCallerAesthetic}
+                onChange={(event) => setSetup((current) => ({ ...current, ghoulCallerAesthetic: event.target.value }))}
+              />
+            </label>
+            <label className="text-sm">
+              <span className="block font-medium mb-1">Strange Quirk</span>
+              <input
+                aria-label="Ghoul-Caller Strange Quirk"
+                className={fieldClass}
+                value={setup.ghoulCallerStrangeQuirk}
+                onChange={(event) => setSetup((current) => ({ ...current, ghoulCallerStrangeQuirk: event.target.value }))}
+              />
+            </label>
+            <label className="text-sm">
+              <span className="block font-medium mb-1">Age</span>
+              <input
+                aria-label="Ghoul-Caller Age"
+                className={fieldClass}
+                inputMode="numeric"
+                value={setup.ghoulCallerAgeYears}
+                onChange={(event) => setSetup((current) => ({ ...current, ghoulCallerAgeYears: event.target.value }))}
+              />
+            </label>
           </div>
         </section>
       )}
@@ -1138,7 +1184,12 @@ function Inspector({
       <p className="text-sm">Souls: <strong>{pieces.souls}</strong></p>
       <PieceList label="Foes" items={pieces.foes.map((foe) => denizenName(world.denizens, foe.denizenId))} />
       <PieceList label="Allies" items={pieces.allies.map((ally) => denizenName(world.denizens, ally.denizenId))} />
-      <PieceList label="Ghoul-Callers" items={pieces.ghoulCallers.map((ghoul) => denizenName(world.denizens, ghoul.denizenId))} />
+      <PieceList
+        label="Ghoul-Callers"
+        items={pieces.ghoulCallers.map((ghoul) => (
+          `${denizenName(world.denizens, ghoul.denizenId)} · ${ghoulCallerProfileLines(ghoul).join(" · ")}`
+        ))}
+      />
       {selectedGate !== undefined && (
         <div className="space-y-1">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Gate status</h4>
@@ -1284,6 +1335,10 @@ function RoleManagement({
   const [ghoulPathId, setGhoulPathId] = useState("");
   const [ghoulDisposition, setGhoulDisposition] = useState<NecromancerGhoulCallerDisposition>("disruptive");
   const [ghoulPetty, setGhoulPetty] = useState("0");
+  const [ghoulPrimaryElement, setGhoulPrimaryElement] = useState<ElementId | "">("");
+  const [ghoulAesthetic, setGhoulAesthetic] = useState("");
+  const [ghoulStrangeQuirk, setGhoulStrangeQuirk] = useState("");
+  const [ghoulAge, setGhoulAge] = useState("");
 
   return (
     <div className="grid gap-3 lg:grid-cols-3">
@@ -1463,7 +1518,7 @@ function RoleManagement({
             world={world}
             edgePaths={edgePaths}
             pending={pending}
-            onUpdate={async (location, disposition, pettyDeadCount) => {
+            onUpdate={async (location, disposition, pettyDeadCount, primaryElement, aesthetic, strangeQuirk, ageYears) => {
               const payload = buildUpdateNecromancerGhoulCallerPayload({
                 commandId: newCommandId(),
                 expectedCampaignId: campaignId,
@@ -1472,6 +1527,10 @@ function RoleManagement({
                 location,
                 disposition,
                 pettyDeadCount,
+                primaryElement,
+                aesthetic,
+                strangeQuirk,
+                ageYears,
               });
               if (payload === null) return;
               await run(async () => {
@@ -1515,13 +1574,53 @@ function RoleManagement({
             value={ghoulPetty}
             onChange={(event) => setGhoulPetty(event.target.value)}
           />
+          <select
+            aria-label="Add Ghoul-Caller Primary Element"
+            className={fieldClass}
+            value={ghoulPrimaryElement}
+            onChange={(event) => setGhoulPrimaryElement(event.target.value as ElementId | "")}
+          >
+            <option value="">Primary Element…</option>
+            {NECROMANCER_PRIMARY_ELEMENT_OPTIONS.map((element) => (
+              <option key={element} value={element}>{elementDisplayName(element)}</option>
+            ))}
+          </select>
+          <input
+            aria-label="Add Ghoul-Caller Aesthetic"
+            className={fieldClass}
+            placeholder="Aesthetic"
+            value={ghoulAesthetic}
+            onChange={(event) => setGhoulAesthetic(event.target.value)}
+          />
+          <input
+            aria-label="Add Ghoul-Caller Strange Quirk"
+            className={fieldClass}
+            placeholder="Strange Quirk"
+            value={ghoulStrangeQuirk}
+            onChange={(event) => setGhoulStrangeQuirk(event.target.value)}
+          />
+          <input
+            aria-label="Add Ghoul-Caller Age"
+            className={fieldClass}
+            placeholder="Age"
+            inputMode="numeric"
+            value={ghoulAge}
+            onChange={(event) => setGhoulAge(event.target.value)}
+          />
           <button
             className={btnClass}
             disabled={pending}
             onClick={() => {
               void (async () => {
                 const pettyDeadCount = parseNonNegInt(ghoulPetty);
-                if (ghoulDenizenId === "" || ghoulPathId === "" || pettyDeadCount === null) return;
+                const ageYears = parseNonNegInt(ghoulAge);
+                if (
+                  ghoulDenizenId === "" ||
+                  ghoulPathId === "" ||
+                  ghoulPrimaryElement === "" ||
+                  pettyDeadCount === null ||
+                  ageYears === null
+                ) return;
                 const payload = buildAddNecromancerGhoulCallerPayload({
                   commandId: newCommandId(),
                   expectedCampaignId: campaignId,
@@ -1530,6 +1629,10 @@ function RoleManagement({
                     disposition: ghoulDisposition,
                     location: { kind: "path", pathSpaceId: ghoulPathId as NecromancerGhoulCallerState["location"]["pathSpaceId"] },
                     pettyDeadCount,
+                    primaryElement: ghoulPrimaryElement,
+                    aesthetic: ghoulAesthetic,
+                    strangeQuirk: ghoulStrangeQuirk,
+                    ageYears,
                   },
                 });
                 if (payload === null) return;
@@ -1701,24 +1804,39 @@ function GhoulRow({
     location: NecromancerGhoulCallerState["location"],
     disposition: NecromancerGhoulCallerDisposition,
     pettyDeadCount: number,
+    primaryElement: ElementId,
+    aesthetic: string,
+    strangeQuirk: string,
+    ageYears: number,
   ) => Promise<void>;
   onRemove: () => Promise<void>;
 }) {
   const [pathId, setPathId] = useState<string>(ghoul.location.pathSpaceId);
   const [disposition, setDisposition] = useState(ghoul.disposition);
   const [petty, setPetty] = useState(String(ghoul.pettyDeadCount));
-  const expectedKey = `${ghoul.location.pathSpaceId}:${ghoul.disposition}:${ghoul.pettyDeadCount}`;
+  const [primaryElement, setPrimaryElement] = useState<ElementId>(ghoul.primaryElement);
+  const [aesthetic, setAesthetic] = useState(ghoul.aesthetic);
+  const [strangeQuirk, setStrangeQuirk] = useState(ghoul.strangeQuirk);
+  const [age, setAge] = useState(String(ghoul.ageYears));
+  const expectedKey = `${ghoul.location.pathSpaceId}:${ghoul.disposition}:${ghoul.pettyDeadCount}:${ghoul.primaryElement}:${ghoul.aesthetic}:${ghoul.strangeQuirk}:${ghoul.ageYears}`;
   useLayoutEffect(() => {
     setPathId(ghoul.location.pathSpaceId);
     setDisposition(ghoul.disposition);
     setPetty(String(ghoul.pettyDeadCount));
-  }, [expectedKey, ghoul.location.pathSpaceId, ghoul.disposition, ghoul.pettyDeadCount]);
+    setPrimaryElement(ghoul.primaryElement);
+    setAesthetic(ghoul.aesthetic);
+    setStrangeQuirk(ghoul.strangeQuirk);
+    setAge(String(ghoul.ageYears));
+  }, [expectedKey, ghoul.location.pathSpaceId, ghoul.disposition, ghoul.pettyDeadCount, ghoul.primaryElement, ghoul.aesthetic, ghoul.strangeQuirk, ghoul.ageYears]);
   return (
     <div className="rounded border border-slate-200 dark:border-slate-700 p-2 space-y-1">
       <p className="text-sm font-medium">{denizenName(world.denizens, ghoul.denizenId)}</p>
       <p className="text-xs text-slate-500">
         {occupiableSpaceLabel(ghoul.location, necromancer)} · {ghoul.disposition} · petty dead {ghoul.pettyDeadCount}
       </p>
+      {ghoulCallerProfileLines(ghoul).map((line) => (
+        <p key={line} className="text-xs text-slate-500">{line}</p>
+      ))}
       <select className={fieldClass} value={pathId} onChange={(event) => setPathId(event.target.value)}>
         {edgePaths.map((path) => (
           <option key={path.pathSpaceId} value={path.pathSpaceId}>{pathSpaceDisplayName(path)}</option>
@@ -1730,17 +1848,35 @@ function GhoulRow({
         ))}
       </select>
       <input className={fieldClass} value={petty} onChange={(event) => setPetty(event.target.value)} aria-label="Petty dead count" />
+      <select
+        className={fieldClass}
+        aria-label="Primary Element"
+        value={primaryElement}
+        onChange={(event) => setPrimaryElement(event.target.value as ElementId)}
+      >
+        {NECROMANCER_PRIMARY_ELEMENT_OPTIONS.map((element) => (
+          <option key={element} value={element}>{elementDisplayName(element)}</option>
+        ))}
+      </select>
+      <input className={fieldClass} value={aesthetic} onChange={(event) => setAesthetic(event.target.value)} aria-label="Aesthetic" />
+      <input className={fieldClass} value={strangeQuirk} onChange={(event) => setStrangeQuirk(event.target.value)} aria-label="Strange Quirk" />
+      <input className={fieldClass} value={age} onChange={(event) => setAge(event.target.value)} aria-label="Age" inputMode="numeric" />
       <div className="flex gap-2">
         <button
           className={btnClass}
           disabled={pending}
           onClick={() => {
             const pettyDeadCount = parseNonNegInt(petty);
-            if (pettyDeadCount === null) return;
+            const ageYears = parseNonNegInt(age);
+            if (pettyDeadCount === null || ageYears === null) return;
             void onUpdate(
               { kind: "path", pathSpaceId: pathId as NecromancerGhoulCallerState["location"]["pathSpaceId"] },
               disposition,
               pettyDeadCount,
+              primaryElement,
+              aesthetic,
+              strangeQuirk,
+              ageYears,
             );
           }}
         >

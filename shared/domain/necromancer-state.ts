@@ -1,5 +1,6 @@
 import type { DenizenId, WizardId } from "./ids";
 import type { PactSeatId } from "./pact-seats";
+import type { ElementId } from "./shared-world";
 import type {
   NecromancerAbominationKind,
   NecromancerBuiltinGateId,
@@ -102,6 +103,10 @@ export interface NecromancerGhoulCallerState {
   readonly disposition: NecromancerGhoulCallerDisposition;
   readonly location: { readonly kind: "path"; readonly pathSpaceId: NecromancerPathSpaceId };
   readonly pettyDeadCount: number;
+  readonly primaryElement: ElementId;
+  readonly aesthetic: string;
+  readonly strangeQuirk: string;
+  readonly ageYears: number;
 }
 
 export interface NecromancerState {

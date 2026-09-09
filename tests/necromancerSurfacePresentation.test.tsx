@@ -73,6 +73,16 @@ function initializedWithCampaignStructure() {
       { origin: "campaign", pathSpaceId: CAMPAIGN_PATH_A, region: "edge_of_life" },
       { origin: "campaign", pathSpaceId: CAMPAIGN_PATH_B, region: "edge_of_life" },
     ],
+    ghoulCallers: [{
+      denizenId: "den_00000000-0000-0000-0000-000000000006" as never,
+      disposition: "disruptive",
+      location: { kind: "path", pathSpaceId: "edge_sage" },
+      pettyDeadCount: 0,
+      primaryElement: "fire",
+      aesthetic: "ash-stained funeral silks",
+      strangeQuirk: "counts backwards from thirteen",
+      ageYears: 47,
+    }],
   });
 }
 
@@ -156,6 +166,22 @@ describe("campaign structure inspect controls", () => {
     });
     const inspectButtons = Array.from(container.querySelectorAll("button")).filter((el) => el.textContent === "Inspect");
     expect(inspectButtons).toHaveLength(3);
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("Ghoul-Caller durable profile presentation", () => {
+  it("shows Primary Element, Aesthetic, Strange Quirk, and Age in ordinary Ghoul-Caller management", () => {
+    const { container, root } = renderSurface();
+    expect(container.textContent).toContain("Primary Element Fire");
+    expect(container.textContent).toContain("Aesthetic ash-stained funeral silks");
+    expect(container.textContent).toContain("Strange Quirk counts backwards from thirteen");
+    expect(container.textContent).toContain("Age 47");
+    expect(container.querySelector(`[aria-label="Add Ghoul-Caller Primary Element"]`)).not.toBeNull();
+    expect(container.querySelector(`[aria-label="Add Ghoul-Caller Aesthetic"]`)).not.toBeNull();
+    expect(container.querySelector(`[aria-label="Add Ghoul-Caller Strange Quirk"]`)).not.toBeNull();
+    expect(container.querySelector(`[aria-label="Add Ghoul-Caller Age"]`)).not.toBeNull();
     root.unmount();
     container.remove();
   });

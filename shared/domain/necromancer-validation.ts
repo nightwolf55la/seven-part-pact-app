@@ -26,7 +26,10 @@ import {
   necromancerDirectedStepKey,
   necromancerOccupiableSpaceRefsEqual,
 } from "./necromancer-catalogs";
+import { ELEMENT_IDS } from "./shared-world";
 import type { NecromancerState } from "./necromancer-state";
+
+const MAX_GHOUL_CALLER_PROFILE_TEXT_LENGTH = 8000;
 
 function assertNonNegativeSafeInteger(path: string, value: unknown): asserts value is number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
@@ -37,6 +40,16 @@ function assertNonNegativeSafeInteger(path: string, value: unknown): asserts val
 function assertPositiveSafeInteger(path: string, value: unknown): asserts value is number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be a positive safe integer`);
+  }
+}
+
+function assertCanonicalGhoulCallerProfileText(path: string, value: unknown): asserts value is string {
+  if (typeof value !== "string") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be canonical nonblank text`);
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed !== value || trimmed.length > MAX_GHOUL_CALLER_PROFILE_TEXT_LENGTH) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be canonical nonblank text`);
   }
 }
 
@@ -434,6 +447,15 @@ function validateOccupants(
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.location must be an Edge-of-Life path space`);
     }
     assertNonNegativeSafeInteger(`${path}.pettyDeadCount`, ghoul.pettyDeadCount);
+    if (typeof ghoul.primaryElement !== "string" || !(ELEMENT_IDS as readonly string[]).includes(ghoul.primaryElement)) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path}.primaryElement is invalid: ${JSON.stringify(ghoul.primaryElement)}`,
+      );
+    }
+    assertCanonicalGhoulCallerProfileText(`${path}.aesthetic`, ghoul.aesthetic);
+    assertCanonicalGhoulCallerProfileText(`${path}.strangeQuirk`, ghoul.strangeQuirk);
+    assertNonNegativeSafeInteger(`${path}.ageYears`, ghoul.ageYears);
   }
   uniqueIds(ghoulIds, "necromancer ghoul-caller denizenId");
 }

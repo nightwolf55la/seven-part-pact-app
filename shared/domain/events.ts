@@ -1029,6 +1029,10 @@ export interface NecromancerArrangementAllyBindingDataV1 {
 export interface NecromancerArrangementGhoulCallerBindingDataV1 {
   readonly denizenId: DenizenId;
   readonly pathSpaceId: NecromancerBuiltinPathSpaceId;
+  readonly primaryElement: ElementId;
+  readonly aesthetic: string;
+  readonly strangeQuirk: string;
+  readonly ageYears: number;
 }
 
 export interface NecromancerInitializedDataV1 {

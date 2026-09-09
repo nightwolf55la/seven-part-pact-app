@@ -236,6 +236,10 @@ function ghoul(overrides?: Partial<NecromancerGhoulCallerState>): NecromancerGho
     disposition: "reliable",
     location: { kind: "path", pathSpaceId: "edge_sage" },
     pettyDeadCount: 0,
+    primaryElement: "fire",
+    aesthetic: "ash-stained funeral silks",
+    strangeQuirk: "counts backwards from thirteen",
+    ageYears: 47,
     ...overrides,
   };
 }
@@ -556,6 +560,64 @@ describe("Necromancer Laws, Foes, and Ghoul-Callers", () => {
   it("rejects a Ghoul-Caller that is not on an Edge-of-Life path space", () => {
     expect(() => validateNecromancerStructure(initialized({
       ghoulCallers: [ghoul({ location: { kind: "path", pathSpaceId: "far_amber" } })],
+    }))).toThrow(DomainError);
+  });
+});
+
+function ghoulOmitting(field: string): NecromancerGhoulCallerState {
+  const record = { ...ghoul() } as Record<string, unknown>;
+  delete record[field];
+  return record as unknown as NecromancerGhoulCallerState;
+}
+
+describe("Necromancer Ghoul-Caller durable profile", () => {
+  it("requires Primary Element, aesthetic, strange quirk, and age on every persisted Ghoul-Caller", () => {
+    expect(() => validateNecromancerStructure(initialized({
+      ghoulCallers: [ghoulOmitting("primaryElement")],
+    }))).toThrow(DomainError);
+    expect(() => validateNecromancerStructure(initialized({
+      ghoulCallers: [ghoulOmitting("aesthetic")],
+    }))).toThrow(DomainError);
+    expect(() => validateNecromancerStructure(initialized({
+      ghoulCallers: [ghoulOmitting("strangeQuirk")],
+    }))).toThrow(DomainError);
+    expect(() => validateNecromancerStructure(initialized({
+      ghoulCallers: [ghoulOmitting("ageYears")],
+    }))).toThrow(DomainError);
+  });
+
+  it("accepts each existing Primary Element and rejects values outside air/fire/earth/water", () => {
+    for (const primaryElement of ["air", "fire", "earth", "water"] as const) {
+      expect(() => validateNecromancerStructure(initialized({
+        ghoulCallers: [ghoul({ primaryElement })],
+      }))).not.toThrow();
+    }
+    expect(() => validateNecromancerStructure(initialized({
+      ghoulCallers: [ghoul({ primaryElement: "void" as never })],
+    }))).toThrow(DomainError);
+  });
+
+  it("rejects negative, non-integer, and non-safe ageYears without imposing an upper bound", () => {
+    expect(() => validateNecromancerStructure(initialized({
+      ghoulCallers: [ghoul({ ageYears: -1 })],
+    }))).toThrow(DomainError);
+    expect(() => validateNecromancerStructure(initialized({
+      ghoulCallers: [ghoul({ ageYears: 1.5 })],
+    }))).toThrow(DomainError);
+    expect(() => validateNecromancerStructure(initialized({
+      ghoulCallers: [ghoul({ ageYears: Number.MAX_SAFE_INTEGER + 1 })],
+    }))).toThrow(DomainError);
+    expect(() => validateNecromancerStructure(initialized({
+      ghoulCallers: [ghoul({ ageYears: 900 })],
+    }))).not.toThrow();
+  });
+
+  it("rejects blank aesthetic and strange quirk", () => {
+    expect(() => validateNecromancerStructure(initialized({
+      ghoulCallers: [ghoul({ aesthetic: "   " })],
+    }))).toThrow(DomainError);
+    expect(() => validateNecromancerStructure(initialized({
+      ghoulCallers: [ghoul({ strangeQuirk: "" })],
     }))).toThrow(DomainError);
   });
 });
