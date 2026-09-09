@@ -132,6 +132,29 @@ export type {
   MarinerBeastAddedEventV1,
   MarinerBeastUpdatedEventV1,
   MarinerBeastRemovedEventV1,
+  NecromancerEvent,
+  NecromancerInitializedDataV1,
+  NecromancerInitializedEventV1,
+  NecromancerDepthChangedEventV1,
+  NecromancerLawsChangedEventV1,
+  NecromancerGateStatusChangedEventV1,
+  NecromancerSoulCountChangedEventV1,
+  NecromancerSoulsMovedEventV1,
+  NecromancerFoeAddedEventV1,
+  NecromancerFoeUpdatedEventV1,
+  NecromancerFoeRemovedEventV1,
+  NecromancerAllyAddedEventV1,
+  NecromancerAllyUpdatedEventV1,
+  NecromancerAllyRemovedEventV1,
+  NecromancerGhoulCallerAddedEventV1,
+  NecromancerGhoulCallerUpdatedEventV1,
+  NecromancerGhoulCallerRemovedEventV1,
+  NecromancerCampaignGateCreatedEventV1,
+  NecromancerCampaignGateUpdatedEventV1,
+  NecromancerCampaignPathSpaceCreatedEventV1,
+  NecromancerCampaignPathSpaceRemovedEventV1,
+  NecromancerStepAddedEventV1,
+  NecromancerStepRemovedEventV1,
   CampaignEvent,
 } from "./events";
 
@@ -857,6 +880,7 @@ export {
   NECROMANCER_LAW_OF_DEATH_DEFINITIONS,
   NECROMANCER_DEFAULT_INTERNAL_STEPS,
   NECROMANCER_DEFAULT_TERMINAL_EXITS,
+  NECROMANCER_QUIET_ARRANGEMENT_SOUL_LOCATIONS,
   NECROMANCER_ARRANGEMENT_DEFINITIONS,
   isValidNecromancerBuiltinGateId,
   isValidNecromancerCampaignGateId,
@@ -880,6 +904,7 @@ export {
   necromancerOccupiableSpaceRefsEqual,
   necromancerDirectedStepsEqual,
   necromancerDirectedStepKey,
+  necromancerDefaultInternalOutgoingTarget,
 } from "./necromancer-catalogs";
 
 export type {
@@ -905,6 +930,43 @@ export {
 } from "./necromancer-state";
 
 export { validateNecromancerStructure, validateNecromancerReferenceIntegrity } from "./necromancer-validation";
+
+export type {
+  NecromancerTransitionResult,
+  NecromancerArrangementFoeBinding,
+  NecromancerArrangementAllyBinding,
+  NecromancerArrangementGhoulCallerBinding,
+  InitializeNecromancerInput,
+  CreateNecromancerCampaignGateInput,
+  UpdateNecromancerCampaignGateFields,
+  CreateNecromancerCampaignPathSpaceInput,
+  UpdateNecromancerFoeFields,
+  UpdateNecromancerAllyFields,
+  UpdateNecromancerGhoulCallerFields,
+} from "./necromancer-transitions";
+export {
+  applyInitializeNecromancer,
+  applySetNecromancerDepth,
+  applySetNecromancerSelectedLaws,
+  applySetNecromancerGateStatus,
+  applySetNecromancerSoulCount,
+  applyMoveNecromancerSouls,
+  applyAddNecromancerFoe,
+  applyUpdateNecromancerFoe,
+  applyRemoveNecromancerFoe,
+  applyAddNecromancerAlly,
+  applyUpdateNecromancerAlly,
+  applyRemoveNecromancerAlly,
+  applyAddNecromancerGhoulCaller,
+  applyUpdateNecromancerGhoulCaller,
+  applyRemoveNecromancerGhoulCaller,
+  applyCreateNecromancerCampaignGate,
+  applyUpdateNecromancerCampaignGate,
+  applyCreateNecromancerCampaignPathSpace,
+  applyRemoveNecromancerCampaignPathSpace,
+  applyAddNecromancerStep,
+  applyRemoveNecromancerStep,
+} from "./necromancer-transitions";
 
 export type {
   MarinerTransitionResult,

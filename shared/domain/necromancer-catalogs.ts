@@ -321,6 +321,34 @@ export const NECROMANCER_DEFAULT_TERMINAL_EXITS: readonly NecromancerStaticTermi
   staticTerminalExit(gateRef("terminus"), "final_death"),
 ];
 
+/**
+ * APPLICATION TRANSCRIPTION OF THE SOURCE ILLUSTRATION:
+ * Quiet prose names Gates while the physical path spaces are unnamed.
+ * The Draft-4 arrangement diagram places those "above Gate" Souls as:
+ * Amber -> edge_sage, Bronze -> edge_hierophant, Lead -> edge_warlock,
+ * Ivory -> edge_mariner, Marching -> far_amber, Churning -> far_bronze,
+ * Deep -> abyss_marching.
+ */
+export const NECROMANCER_QUIET_ARRANGEMENT_SOUL_LOCATIONS: readonly NecromancerOccupiableSpaceRef[] = [
+  pathRef("edge_sage"),
+  pathRef("edge_hierophant"),
+  pathRef("edge_warlock"),
+  pathRef("edge_mariner"),
+  pathRef("far_amber"),
+  pathRef("far_bronze"),
+  pathRef("abyss_marching"),
+];
+
+/** Default internal occupiable outgoing target of a built-in Gate, if any. */
+export function necromancerDefaultInternalOutgoingTarget(
+  gateId: NecromancerBuiltinGateId,
+): NecromancerOccupiableSpaceRef | undefined {
+  const step = NECROMANCER_DEFAULT_INTERNAL_STEPS.find(
+    (candidate) => candidate.from.kind === "gate" && candidate.from.gateId === gateId,
+  );
+  return step?.to;
+}
+
 export const NECROMANCER_ARRANGEMENT_DEFINITIONS: readonly NecromancerArrangementDefinition[] = [
   {
     arrangementId: "quiet",

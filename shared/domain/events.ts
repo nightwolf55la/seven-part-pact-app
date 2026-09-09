@@ -30,6 +30,26 @@ import type {
   MarinerRouteOccupancy,
   MarinerState,
 } from "./mariner-state";
+import type {
+  NecromancerArrangementId,
+  NecromancerBuiltinGateId,
+  NecromancerBuiltinPathSpaceId,
+  NecromancerDirectedStep,
+  NecromancerGateId,
+  NecromancerGateStatus,
+  NecromancerLawOfDeathId,
+  NecromancerOccupiableSpaceRef,
+} from "./necromancer-catalogs";
+import type {
+  NecromancerAllyState,
+  NecromancerCampaignGateState,
+  NecromancerCampaignPathSpaceState,
+  NecromancerDepthState,
+  NecromancerFoeState,
+  NecromancerGhoulCallerState,
+  NecromancerSelectedLaw,
+  NecromancerState,
+} from "./necromancer-state";
 
 export interface UndoAppliedDataV1 {
   readonly fromRevision: number;
@@ -997,6 +1017,252 @@ export type MarinerEvent =
   | MarinerBeastAddedEventV1
   | MarinerBeastUpdatedEventV1
   | MarinerBeastRemovedEventV1;
+
+export interface NecromancerArrangementFoeBindingDataV1 {
+  readonly denizenId: DenizenId;
+  readonly gateId: NecromancerBuiltinGateId;
+}
+export interface NecromancerArrangementAllyBindingDataV1 {
+  readonly denizenId: DenizenId;
+  readonly gateId: NecromancerBuiltinGateId;
+}
+export interface NecromancerArrangementGhoulCallerBindingDataV1 {
+  readonly denizenId: DenizenId;
+  readonly pathSpaceId: NecromancerBuiltinPathSpaceId;
+}
+
+export interface NecromancerInitializedDataV1 {
+  readonly arrangementId: NecromancerArrangementId;
+  readonly selectedLawIds: readonly NecromancerLawOfDeathId[];
+  readonly arrangementFoes: readonly NecromancerArrangementFoeBindingDataV1[];
+  readonly arrangementAlly: NecromancerArrangementAllyBindingDataV1;
+  readonly arrangementGhoulCaller: NecromancerArrangementGhoulCallerBindingDataV1 | null;
+  readonly necromancer: NecromancerState;
+}
+export interface NecromancerInitializedEventV1 {
+  readonly type: "necromancer_initialized";
+  readonly version: 1;
+  readonly data: NecromancerInitializedDataV1;
+}
+
+export interface NecromancerDepthChangedDataV1 {
+  readonly previousDepth: NecromancerDepthState | null;
+  readonly newDepth: NecromancerDepthState | null;
+}
+export interface NecromancerDepthChangedEventV1 {
+  readonly type: "necromancer_depth_changed";
+  readonly version: 1;
+  readonly data: NecromancerDepthChangedDataV1;
+}
+
+export interface NecromancerLawsChangedDataV1 {
+  readonly previousSelectedLaws: readonly NecromancerSelectedLaw[];
+  readonly newSelectedLaws: readonly NecromancerSelectedLaw[];
+}
+export interface NecromancerLawsChangedEventV1 {
+  readonly type: "necromancer_laws_changed";
+  readonly version: 1;
+  readonly data: NecromancerLawsChangedDataV1;
+}
+
+export interface NecromancerGateStatusChangedDataV1 {
+  readonly gateId: NecromancerGateId;
+  readonly previousStatus: NecromancerGateStatus;
+  readonly newStatus: NecromancerGateStatus;
+}
+export interface NecromancerGateStatusChangedEventV1 {
+  readonly type: "necromancer_gate_status_changed";
+  readonly version: 1;
+  readonly data: NecromancerGateStatusChangedDataV1;
+}
+
+export interface NecromancerSoulCountChangedDataV1 {
+  readonly location: NecromancerOccupiableSpaceRef;
+  readonly previousCount: number;
+  readonly newCount: number;
+}
+export interface NecromancerSoulCountChangedEventV1 {
+  readonly type: "necromancer_soul_count_changed";
+  readonly version: 1;
+  readonly data: NecromancerSoulCountChangedDataV1;
+}
+
+export interface NecromancerSoulsMovedDataV1 {
+  readonly from: NecromancerOccupiableSpaceRef;
+  readonly to: NecromancerOccupiableSpaceRef;
+  readonly amount: number;
+  readonly previousFromCount: number;
+  readonly newFromCount: number;
+  readonly previousToCount: number;
+  readonly newToCount: number;
+}
+export interface NecromancerSoulsMovedEventV1 {
+  readonly type: "necromancer_souls_moved";
+  readonly version: 1;
+  readonly data: NecromancerSoulsMovedDataV1;
+}
+
+export interface NecromancerFoeAddedDataV1 {
+  readonly foe: NecromancerFoeState;
+}
+export interface NecromancerFoeAddedEventV1 {
+  readonly type: "necromancer_foe_added";
+  readonly version: 1;
+  readonly data: NecromancerFoeAddedDataV1;
+}
+
+export interface NecromancerFoeUpdatedDataV1 {
+  readonly previous: NecromancerFoeState;
+  readonly updated: NecromancerFoeState;
+}
+export interface NecromancerFoeUpdatedEventV1 {
+  readonly type: "necromancer_foe_updated";
+  readonly version: 1;
+  readonly data: NecromancerFoeUpdatedDataV1;
+}
+
+export interface NecromancerFoeRemovedDataV1 {
+  readonly foe: NecromancerFoeState;
+}
+export interface NecromancerFoeRemovedEventV1 {
+  readonly type: "necromancer_foe_removed";
+  readonly version: 1;
+  readonly data: NecromancerFoeRemovedDataV1;
+}
+
+export interface NecromancerAllyAddedDataV1 {
+  readonly ally: NecromancerAllyState;
+}
+export interface NecromancerAllyAddedEventV1 {
+  readonly type: "necromancer_ally_added";
+  readonly version: 1;
+  readonly data: NecromancerAllyAddedDataV1;
+}
+
+export interface NecromancerAllyUpdatedDataV1 {
+  readonly previous: NecromancerAllyState;
+  readonly updated: NecromancerAllyState;
+}
+export interface NecromancerAllyUpdatedEventV1 {
+  readonly type: "necromancer_ally_updated";
+  readonly version: 1;
+  readonly data: NecromancerAllyUpdatedDataV1;
+}
+
+export interface NecromancerAllyRemovedDataV1 {
+  readonly ally: NecromancerAllyState;
+}
+export interface NecromancerAllyRemovedEventV1 {
+  readonly type: "necromancer_ally_removed";
+  readonly version: 1;
+  readonly data: NecromancerAllyRemovedDataV1;
+}
+
+export interface NecromancerGhoulCallerAddedDataV1 {
+  readonly ghoulCaller: NecromancerGhoulCallerState;
+}
+export interface NecromancerGhoulCallerAddedEventV1 {
+  readonly type: "necromancer_ghoul_caller_added";
+  readonly version: 1;
+  readonly data: NecromancerGhoulCallerAddedDataV1;
+}
+
+export interface NecromancerGhoulCallerUpdatedDataV1 {
+  readonly previous: NecromancerGhoulCallerState;
+  readonly updated: NecromancerGhoulCallerState;
+}
+export interface NecromancerGhoulCallerUpdatedEventV1 {
+  readonly type: "necromancer_ghoul_caller_updated";
+  readonly version: 1;
+  readonly data: NecromancerGhoulCallerUpdatedDataV1;
+}
+
+export interface NecromancerGhoulCallerRemovedDataV1 {
+  readonly ghoulCaller: NecromancerGhoulCallerState;
+}
+export interface NecromancerGhoulCallerRemovedEventV1 {
+  readonly type: "necromancer_ghoul_caller_removed";
+  readonly version: 1;
+  readonly data: NecromancerGhoulCallerRemovedDataV1;
+}
+
+export interface NecromancerCampaignGateCreatedDataV1 {
+  readonly gate: NecromancerCampaignGateState;
+}
+export interface NecromancerCampaignGateCreatedEventV1 {
+  readonly type: "necromancer_campaign_gate_created";
+  readonly version: 1;
+  readonly data: NecromancerCampaignGateCreatedDataV1;
+}
+
+export interface NecromancerCampaignGateUpdatedDataV1 {
+  readonly previous: NecromancerCampaignGateState;
+  readonly updated: NecromancerCampaignGateState;
+}
+export interface NecromancerCampaignGateUpdatedEventV1 {
+  readonly type: "necromancer_campaign_gate_updated";
+  readonly version: 1;
+  readonly data: NecromancerCampaignGateUpdatedDataV1;
+}
+
+export interface NecromancerCampaignPathSpaceCreatedDataV1 {
+  readonly pathSpace: NecromancerCampaignPathSpaceState;
+}
+export interface NecromancerCampaignPathSpaceCreatedEventV1 {
+  readonly type: "necromancer_campaign_path_space_created";
+  readonly version: 1;
+  readonly data: NecromancerCampaignPathSpaceCreatedDataV1;
+}
+
+export interface NecromancerCampaignPathSpaceRemovedDataV1 {
+  readonly pathSpace: NecromancerCampaignPathSpaceState;
+}
+export interface NecromancerCampaignPathSpaceRemovedEventV1 {
+  readonly type: "necromancer_campaign_path_space_removed";
+  readonly version: 1;
+  readonly data: NecromancerCampaignPathSpaceRemovedDataV1;
+}
+
+export interface NecromancerStepAddedDataV1 {
+  readonly step: NecromancerDirectedStep;
+}
+export interface NecromancerStepAddedEventV1 {
+  readonly type: "necromancer_step_added";
+  readonly version: 1;
+  readonly data: NecromancerStepAddedDataV1;
+}
+
+export interface NecromancerStepRemovedDataV1 {
+  readonly step: NecromancerDirectedStep;
+}
+export interface NecromancerStepRemovedEventV1 {
+  readonly type: "necromancer_step_removed";
+  readonly version: 1;
+  readonly data: NecromancerStepRemovedDataV1;
+}
+
+export type NecromancerEvent =
+  | NecromancerInitializedEventV1
+  | NecromancerDepthChangedEventV1
+  | NecromancerLawsChangedEventV1
+  | NecromancerGateStatusChangedEventV1
+  | NecromancerSoulCountChangedEventV1
+  | NecromancerSoulsMovedEventV1
+  | NecromancerFoeAddedEventV1
+  | NecromancerFoeUpdatedEventV1
+  | NecromancerFoeRemovedEventV1
+  | NecromancerAllyAddedEventV1
+  | NecromancerAllyUpdatedEventV1
+  | NecromancerAllyRemovedEventV1
+  | NecromancerGhoulCallerAddedEventV1
+  | NecromancerGhoulCallerUpdatedEventV1
+  | NecromancerGhoulCallerRemovedEventV1
+  | NecromancerCampaignGateCreatedEventV1
+  | NecromancerCampaignGateUpdatedEventV1
+  | NecromancerCampaignPathSpaceCreatedEventV1
+  | NecromancerCampaignPathSpaceRemovedEventV1
+  | NecromancerStepAddedEventV1
+  | NecromancerStepRemovedEventV1;
 
 export type CampaignEvent =
   | InfrastructureEvent
