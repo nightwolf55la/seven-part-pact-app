@@ -16,6 +16,7 @@ import {
   DomainError,
   EMPTY_HIEROPHANT_STATE,
   EMPTY_MARINER_STATE,
+  EMPTY_NECROMANCER_STATE,
   EMPTY_SHARED_WORLD_STATE,
   MARINER_ARRANGEMENT_DEFINITIONS,
   MARINER_BOARD_ISLE_IDS,
@@ -174,6 +175,7 @@ function baseV5(world = defaultWorld()): CampaignStateV5 {
     world,
     hierophant: { ...EMPTY_HIEROPHANT_STATE },
     mariner: { ...EMPTY_MARINER_STATE },
+    necromancer: { ...EMPTY_NECROMANCER_STATE },
   };
 }
 

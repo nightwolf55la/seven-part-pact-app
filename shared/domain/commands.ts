@@ -73,6 +73,27 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "add_mariner_beast",
   "update_mariner_beast",
   "remove_mariner_beast",
+  "initialize_necromancer",
+  "set_necromancer_depth",
+  "set_selected_death_laws",
+  "set_necromancer_gate_status",
+  "set_necromancer_soul_count",
+  "move_necromancer_souls",
+  "add_necromancer_foe",
+  "update_necromancer_foe",
+  "remove_necromancer_foe",
+  "add_necromancer_ally",
+  "update_necromancer_ally",
+  "remove_necromancer_ally",
+  "add_necromancer_ghoul_caller",
+  "update_necromancer_ghoul_caller",
+  "remove_necromancer_ghoul_caller",
+  "create_necromancer_campaign_gate",
+  "update_necromancer_campaign_gate",
+  "create_necromancer_campaign_path_space",
+  "remove_necromancer_campaign_path_space",
+  "add_necromancer_step",
+  "remove_necromancer_step",
 ] as const;
 
 // Historical command types that may appear in persisted revision records but
@@ -160,6 +181,27 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "add_mariner_beast":
     case "update_mariner_beast":
     case "remove_mariner_beast":
+    case "initialize_necromancer":
+    case "set_necromancer_depth":
+    case "set_selected_death_laws":
+    case "set_necromancer_gate_status":
+    case "set_necromancer_soul_count":
+    case "move_necromancer_souls":
+    case "add_necromancer_foe":
+    case "update_necromancer_foe":
+    case "remove_necromancer_foe":
+    case "add_necromancer_ally":
+    case "update_necromancer_ally":
+    case "remove_necromancer_ally":
+    case "add_necromancer_ghoul_caller":
+    case "update_necromancer_ghoul_caller":
+    case "remove_necromancer_ghoul_caller":
+    case "create_necromancer_campaign_gate":
+    case "update_necromancer_campaign_gate":
+    case "create_necromancer_campaign_path_space":
+    case "remove_necromancer_campaign_path_space":
+    case "add_necromancer_step":
+    case "remove_necromancer_step":
     case "move_month":
     case "legacy_month_change":
       return true;

@@ -9,6 +9,8 @@ import WorldSurface from "./WorldSurface";
 import HierophantSurface from "./HierophantSurface";
 import MarinerSurface from "./MarinerSurface";
 import type { MarinerWizardRef } from "./MarinerSurface";
+import NecromancerSurface from "./NecromancerSurface";
+import type { NecromancerWizardRef } from "./NecromancerSurface";
 import {
   initPlaySurface,
   navigateSurface,
@@ -39,6 +41,7 @@ const SURFACE_LABELS: Record<SurfaceId, string> = {
   world: "World",
   hierophant: "Hierophant",
   mariner: "Mariner",
+  necromancer: "Necromancer",
 };
 
 function renderSurface(
@@ -68,6 +71,7 @@ function renderSurface(
     case "world":
     case "hierophant":
     case "mariner":
+    case "necromancer":
       return null;
   }
 }
@@ -88,11 +92,13 @@ function paneBody(
   worldRef: ReturnType<typeof useQuery<typeof api.m3Queries.getWorldReference>>,
   hierRef: ReturnType<typeof useQuery<typeof api.m3Queries.getHierophantReference>>,
   marinerRef: ReturnType<typeof useQuery<typeof api.m3Queries.getMarinerReference>>,
+  necromancerRef: ReturnType<typeof useQuery<typeof api.m3Queries.getNecromancerReference>>,
   campaignId: string,
 ) {
   if (surface === "world") return renderWorld(worldRef, campaignId);
   if (surface === "hierophant") return renderHierophant(hierRef, worldRef, campaignId);
   if (surface === "mariner") return renderMariner(marinerRef, worldRef, ref, campaignId);
+  if (surface === "necromancer") return renderNecromancer(necromancerRef, worldRef, ref, campaignId);
   return renderSurface(surface, ref, worldRef);
 }
 
@@ -147,6 +153,43 @@ function renderMariner(
   );
 }
 
+function necromancerWizardFromPlayRef(
+  ref: Parameters<typeof renderSurface>[1],
+): NecromancerWizardRef | null {
+  const wizardId = ref.pactSeats.necromancer?.wizardId ?? null;
+  if (wizardId === null) return null;
+  const wizard = ref.wizards.find((w) => w.wizardId === wizardId);
+  if (wizard === undefined) return null;
+  return {
+    wizardId: wizard.wizardId,
+    name: wizard.name,
+    homeIsleId: wizard.homeIsleId,
+    sanctumPlaceId: wizard.sanctumPlaceId,
+  };
+}
+
+function renderNecromancer(
+  necromancerRef: ReturnType<typeof useQuery<typeof api.m3Queries.getNecromancerReference>>,
+  worldRef: ReturnType<typeof useQuery<typeof api.m3Queries.getWorldReference>>,
+  playRef: Parameters<typeof renderSurface>[1],
+  campaignId: string,
+) {
+  if (necromancerRef === undefined || worldRef === undefined) {
+    return <div className="py-12 text-center text-sm text-slate-400">Loading Necromancer…</div>;
+  }
+  if (necromancerRef === null || worldRef === null) {
+    return <div className="py-12 text-center text-sm text-slate-400">Necromancer unavailable.</div>;
+  }
+  return (
+    <NecromancerSurface
+      necromancer={necromancerRef.necromancer}
+      world={worldRef}
+      campaignId={campaignId}
+      necromancerWizard={necromancerWizardFromPlayRef(playRef)}
+    />
+  );
+}
+
 export default function PlayShell({
   campaignId,
   campaignRevision,
@@ -167,6 +210,7 @@ export default function PlayShell({
   const worldRef = useQuery(api.m3Queries.getWorldReference, {});
   const hierRef = useQuery(api.m3Queries.getHierophantReference, {});
   const marinerRef = useQuery(api.m3Queries.getMarinerReference, {});
+  const necromancerRef = useQuery(api.m3Queries.getNecromancerReference, {});
 
   const nav = useMemo(() => ({
     navigate: (pane: PaneLabel, target: SurfaceId) => setSurfaceState((s) => navigateSurface(s, pane, target)),
@@ -266,7 +310,7 @@ export default function PlayShell({
         ) : showSecondary && surfaceState.secondary ? (
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 min-w-0">
-              {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, campaignId)}
+              {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, campaignId)}
             </div>
             <div className="hidden md:block md:w-80 lg:w-96 flex-shrink-0">
               <div className="flex items-center gap-1 mb-2">
@@ -298,12 +342,12 @@ export default function PlayShell({
                   Fwd
                 </button>
               </div>
-              {paneBody(surfaceState.secondary.current, playRef, worldRef, hierRef, marinerRef, campaignId)}
+              {paneBody(surfaceState.secondary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, campaignId)}
             </div>
           </div>
         ) : (
           <div className="w-full">
-            {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, campaignId)}
+            {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, campaignId)}
           </div>
         )}
       </div>

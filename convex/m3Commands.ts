@@ -157,11 +157,58 @@ import {
   applyAddMarinerBeast,
   applyUpdateMarinerBeast,
   applyRemoveMarinerBeast,
+  initializeNecromancerFingerprint,
+  setNecromancerDepthFingerprint,
+  setSelectedDeathLawsFingerprint,
+  setNecromancerGateStatusFingerprint,
+  setNecromancerSoulCountFingerprint,
+  moveNecromancerSoulsFingerprint,
+  addNecromancerFoeFingerprint,
+  updateNecromancerFoeFingerprint,
+  removeNecromancerFoeFingerprint,
+  addNecromancerAllyFingerprint,
+  updateNecromancerAllyFingerprint,
+  removeNecromancerAllyFingerprint,
+  addNecromancerGhoulCallerFingerprint,
+  updateNecromancerGhoulCallerFingerprint,
+  removeNecromancerGhoulCallerFingerprint,
+  createNecromancerCampaignGateFingerprint,
+  updateNecromancerCampaignGateFingerprint,
+  createNecromancerCampaignPathSpaceFingerprint,
+  removeNecromancerCampaignPathSpaceFingerprint,
+  addNecromancerStepFingerprint,
+  removeNecromancerStepFingerprint,
+  canonicalizeCreateNecromancerCampaignGateInput,
+  canonicalizeUpdateNecromancerCampaignGateFields,
+  canonicalizeInitializeNecromancerInput,
+  canonicalizeNecromancerGhoulCaller,
+  canonicalizeUpdateNecromancerGhoulCallerFields,
+  applyInitializeNecromancer,
+  applySetNecromancerDepth,
+  applySetNecromancerSelectedLaws,
+  applySetNecromancerGateStatus,
+  applySetNecromancerSoulCount,
+  applyMoveNecromancerSouls,
+  applyAddNecromancerFoe,
+  applyUpdateNecromancerFoe,
+  applyRemoveNecromancerFoe,
+  applyAddNecromancerAlly,
+  applyUpdateNecromancerAlly,
+  applyRemoveNecromancerAlly,
+  applyAddNecromancerGhoulCaller,
+  applyUpdateNecromancerGhoulCaller,
+  applyRemoveNecromancerGhoulCaller,
+  applyCreateNecromancerCampaignGate,
+  applyUpdateNecromancerCampaignGate,
+  applyCreateNecromancerCampaignPathSpace,
+  applyRemoveNecromancerCampaignPathSpace,
+  applyAddNecromancerStep,
+  applyRemoveNecromancerStep,
   isValidHierophantFlameLawId,
   isValidHierophantStartingTempleId,
   isValidHierophantTempleId,
 } from "../shared/domain";
-import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange, CompanionRelationshipId, HierophantFlameLawId, HierophantStartingTempleId, HierophantTempleId, HierophantCampaignClassId, HierophantCampaignDoctrineId, HierophantDogmaEntryId, HierophantSupplicant, HierophantProphet, HierophantCult, HierophantCultDogma, HierophantCampaignClass, HierophantCampaignDoctrine, CreateTempleInput, OrdinaryTempleDoctrineState, InitializeMarinerInput, MarinerBeastState, MarinerIsleMarket, MarinerRouteOccupancy, MarinerBoardIsleId, MarinerLawOfSeaId, MarinerRouteId, MarinerSeaRegionId, MarinerArrangementId, UpdateMarinerBeastFields } from "../shared/domain";
+import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange, CompanionRelationshipId, HierophantFlameLawId, HierophantStartingTempleId, HierophantTempleId, HierophantCampaignClassId, HierophantCampaignDoctrineId, HierophantDogmaEntryId, HierophantSupplicant, HierophantProphet, HierophantCult, HierophantCultDogma, HierophantCampaignClass, HierophantCampaignDoctrine, CreateTempleInput, OrdinaryTempleDoctrineState, InitializeMarinerInput, MarinerBeastState, MarinerIsleMarket, MarinerRouteOccupancy, MarinerBoardIsleId, MarinerLawOfSeaId, MarinerRouteId, MarinerSeaRegionId, MarinerArrangementId, UpdateMarinerBeastFields, InitializeNecromancerInput, NecromancerArrangementId, NecromancerLawOfDeathId, NecromancerBuiltinGateId, NecromancerBuiltinPathSpaceId, NecromancerDepthState, NecromancerSelectedLaw, NecromancerGateId, NecromancerGateStatus, NecromancerOccupiableSpaceRef, NecromancerFoeState, NecromancerAllyState, NecromancerGhoulCallerState, UpdateNecromancerFoeFields, UpdateNecromancerAllyFields, UpdateNecromancerGhoulCallerFields, NecromancerCampaignGateId, NecromancerGateBand, UpdateNecromancerCampaignGateFields, NecromancerCampaignPathSpaceId, NecromancerPathRegion, NecromancerCampaignPathSpaceState, NecromancerDirectedStep } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
 import type { WizardInitIds } from "../shared/domain/begin-play";
 import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
@@ -2650,6 +2697,761 @@ export const removeMarinerBeast = mutation({
           state,
           args.denizenId as DenizenId,
           args.expectedBeast as MarinerBeastState,
+        ),
+      }),
+    );
+  },
+});
+
+const necromancerOccupiableArg = v.union(
+  v.object({
+    kind: v.literal("gate"),
+    gateId: v.string(),
+  }),
+  v.object({
+    kind: v.literal("path"),
+    pathSpaceId: v.string(),
+  }),
+);
+
+const necromancerFoeLocationArg = v.union(
+  necromancerOccupiableArg,
+  v.object({
+    kind: v.literal("escaped"),
+    seatId: v.string(),
+    abominationKind: v.string(),
+  }),
+);
+
+const necromancerDepthArg = v.union(
+  v.null(),
+  v.object({
+    wizardId: v.string(),
+    value: v.number(),
+  }),
+);
+
+const necromancerSelectedLawArg = v.object({
+  lawId: v.string(),
+  visibility: v.string(),
+});
+
+const necromancerPathLocationArg = v.object({
+  kind: v.literal("path"),
+  pathSpaceId: v.string(),
+});
+
+const necromancerFoeArg = v.object({
+  denizenId: v.string(),
+  location: necromancerFoeLocationArg,
+});
+
+const necromancerAllyArg = v.object({
+  denizenId: v.string(),
+  location: necromancerOccupiableArg,
+});
+
+const necromancerGhoulCallerArg = v.object({
+  denizenId: v.string(),
+  disposition: v.string(),
+  location: necromancerPathLocationArg,
+  pettyDeadCount: v.number(),
+  primaryElement: v.union(
+    v.literal("air"),
+    v.literal("fire"),
+    v.literal("earth"),
+    v.literal("water"),
+  ),
+  aesthetic: v.string(),
+  strangeQuirk: v.string(),
+  ageYears: v.number(),
+});
+
+const necromancerDirectedStepArg = v.object({
+  from: necromancerOccupiableArg,
+  to: necromancerOccupiableArg,
+});
+
+const necromancerCampaignPathSpaceArg = v.object({
+  origin: v.literal("campaign"),
+  pathSpaceId: v.string(),
+  region: v.string(),
+});
+
+export const initializeNecromancer = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    arrangementId: v.string(),
+    selectedLawIds: v.array(v.string()),
+    arrangementFoes: v.array(v.object({
+      denizenId: v.string(),
+      gateId: v.string(),
+    })),
+    arrangementAlly: v.object({
+      denizenId: v.string(),
+      gateId: v.string(),
+    }),
+    arrangementGhoulCaller: v.union(
+      v.null(),
+      v.object({
+        denizenId: v.string(),
+        pathSpaceId: v.string(),
+        primaryElement: v.union(
+          v.literal("air"),
+          v.literal("fire"),
+          v.literal("earth"),
+          v.literal("water"),
+        ),
+        aesthetic: v.string(),
+        strangeQuirk: v.string(),
+        ageYears: v.number(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeInitializeNecromancerInput({
+          arrangementId: args.arrangementId as NecromancerArrangementId,
+          selectedLawIds: args.selectedLawIds as NecromancerLawOfDeathId[],
+          arrangementFoes: args.arrangementFoes.map((foe) => ({
+            denizenId: foe.denizenId as DenizenId,
+            gateId: foe.gateId as NecromancerBuiltinGateId,
+          })),
+          arrangementAlly: {
+            denizenId: args.arrangementAlly.denizenId as DenizenId,
+            gateId: args.arrangementAlly.gateId as NecromancerBuiltinGateId,
+          },
+          arrangementGhoulCaller: args.arrangementGhoulCaller === null
+            ? null
+            : {
+                denizenId: args.arrangementGhoulCaller.denizenId as DenizenId,
+                pathSpaceId: args.arrangementGhoulCaller.pathSpaceId as NecromancerBuiltinPathSpaceId,
+                primaryElement: args.arrangementGhoulCaller.primaryElement,
+                aesthetic: args.arrangementGhoulCaller.aesthetic,
+                strangeQuirk: args.arrangementGhoulCaller.strangeQuirk,
+                ageYears: args.arrangementGhoulCaller.ageYears,
+              },
+        });
+        return {
+          commandType: "initialize_necromancer",
+          commandFingerprint: initializeNecromancerFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyInitializeNecromancer(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const setNecromancerDepth = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    expectedDepth: necromancerDepthArg,
+    depth: necromancerDepthArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "set_necromancer_depth",
+        commandFingerprint: setNecromancerDepthFingerprint(
+          args.expectedCampaignId,
+          args.expectedDepth,
+          args.depth,
+        ),
+        apply: (state) => applySetNecromancerDepth(
+          state,
+          args.expectedDepth as NecromancerDepthState | null,
+          args.depth as NecromancerDepthState | null,
+        ),
+      }),
+    );
+  },
+});
+
+export const setSelectedDeathLaws = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    expectedSelectedLaws: v.array(necromancerSelectedLawArg),
+    selectedLaws: v.array(necromancerSelectedLawArg),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "set_selected_death_laws",
+        commandFingerprint: setSelectedDeathLawsFingerprint(
+          args.expectedCampaignId,
+          args.expectedSelectedLaws,
+          args.selectedLaws,
+        ),
+        apply: (state) => applySetNecromancerSelectedLaws(
+          state,
+          args.expectedSelectedLaws as NecromancerSelectedLaw[],
+          args.selectedLaws as NecromancerSelectedLaw[],
+        ),
+      }),
+    );
+  },
+});
+
+export const setNecromancerGateStatus = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    gateId: v.string(),
+    expectedStatus: v.string(),
+    status: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "set_necromancer_gate_status",
+        commandFingerprint: setNecromancerGateStatusFingerprint(
+          args.expectedCampaignId,
+          args.gateId,
+          args.expectedStatus,
+          args.status,
+        ),
+        apply: (state) => applySetNecromancerGateStatus(
+          state,
+          args.gateId as NecromancerGateId,
+          args.expectedStatus as NecromancerGateStatus,
+          args.status as NecromancerGateStatus,
+        ),
+      }),
+    );
+  },
+});
+
+export const setNecromancerSoulCount = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    location: necromancerOccupiableArg,
+    expectedCount: v.number(),
+    count: v.number(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "set_necromancer_soul_count",
+        commandFingerprint: setNecromancerSoulCountFingerprint(
+          args.expectedCampaignId,
+          args.location,
+          args.expectedCount,
+          args.count,
+        ),
+        apply: (state) => applySetNecromancerSoulCount(
+          state,
+          args.location as NecromancerOccupiableSpaceRef,
+          args.expectedCount,
+          args.count,
+        ),
+      }),
+    );
+  },
+});
+
+export const moveNecromancerSouls = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    from: necromancerOccupiableArg,
+    to: necromancerOccupiableArg,
+    amount: v.number(),
+    expectedFromCount: v.number(),
+    expectedToCount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "move_necromancer_souls",
+        commandFingerprint: moveNecromancerSoulsFingerprint(
+          args.expectedCampaignId,
+          args.from,
+          args.to,
+          args.amount,
+          args.expectedFromCount,
+          args.expectedToCount,
+        ),
+        apply: (state) => applyMoveNecromancerSouls(
+          state,
+          args.from as NecromancerOccupiableSpaceRef,
+          args.to as NecromancerOccupiableSpaceRef,
+          args.amount,
+          args.expectedFromCount,
+          args.expectedToCount,
+        ),
+      }),
+    );
+  },
+});
+
+export const addNecromancerFoe = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    foe: necromancerFoeArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const foe = args.foe as NecromancerFoeState;
+        return {
+          commandType: "add_necromancer_foe",
+          commandFingerprint: addNecromancerFoeFingerprint(args.expectedCampaignId, foe),
+          apply: (state) => applyAddNecromancerFoe(state, foe),
+        };
+      },
+    );
+  },
+});
+
+export const updateNecromancerFoe = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    fields: v.object({
+      location: v.optional(v.object({
+        expected: necromancerFoeLocationArg,
+        value: necromancerFoeLocationArg,
+      })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "update_necromancer_foe",
+        commandFingerprint: updateNecromancerFoeFingerprint(
+          args.expectedCampaignId,
+          args.denizenId,
+          args.fields,
+        ),
+        apply: (state) => applyUpdateNecromancerFoe(
+          state,
+          args.denizenId as DenizenId,
+          args.fields as UpdateNecromancerFoeFields,
+        ),
+      }),
+    );
+  },
+});
+
+export const removeNecromancerFoe = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    expectedFoe: necromancerFoeArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "remove_necromancer_foe",
+        commandFingerprint: removeNecromancerFoeFingerprint(
+          args.expectedCampaignId,
+          args.denizenId,
+          args.expectedFoe,
+        ),
+        apply: (state) => applyRemoveNecromancerFoe(
+          state,
+          args.denizenId as DenizenId,
+          args.expectedFoe as NecromancerFoeState,
+        ),
+      }),
+    );
+  },
+});
+
+export const addNecromancerAlly = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    ally: necromancerAllyArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const ally = args.ally as NecromancerAllyState;
+        return {
+          commandType: "add_necromancer_ally",
+          commandFingerprint: addNecromancerAllyFingerprint(args.expectedCampaignId, ally),
+          apply: (state) => applyAddNecromancerAlly(state, ally),
+        };
+      },
+    );
+  },
+});
+
+export const updateNecromancerAlly = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    fields: v.object({
+      location: v.optional(v.object({
+        expected: necromancerOccupiableArg,
+        value: necromancerOccupiableArg,
+      })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "update_necromancer_ally",
+        commandFingerprint: updateNecromancerAllyFingerprint(
+          args.expectedCampaignId,
+          args.denizenId,
+          args.fields,
+        ),
+        apply: (state) => applyUpdateNecromancerAlly(
+          state,
+          args.denizenId as DenizenId,
+          args.fields as UpdateNecromancerAllyFields,
+        ),
+      }),
+    );
+  },
+});
+
+export const removeNecromancerAlly = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    expectedAlly: necromancerAllyArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "remove_necromancer_ally",
+        commandFingerprint: removeNecromancerAllyFingerprint(
+          args.expectedCampaignId,
+          args.denizenId,
+          args.expectedAlly,
+        ),
+        apply: (state) => applyRemoveNecromancerAlly(
+          state,
+          args.denizenId as DenizenId,
+          args.expectedAlly as NecromancerAllyState,
+        ),
+      }),
+    );
+  },
+});
+
+export const addNecromancerGhoulCaller = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    ghoulCaller: necromancerGhoulCallerArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const ghoulCaller = canonicalizeNecromancerGhoulCaller(args.ghoulCaller as NecromancerGhoulCallerState);
+        return {
+          commandType: "add_necromancer_ghoul_caller",
+          commandFingerprint: addNecromancerGhoulCallerFingerprint(args.expectedCampaignId, ghoulCaller),
+          apply: (state) => applyAddNecromancerGhoulCaller(state, ghoulCaller),
+        };
+      },
+    );
+  },
+});
+
+export const updateNecromancerGhoulCaller = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    fields: v.object({
+      location: v.optional(v.object({
+        expected: necromancerPathLocationArg,
+        value: necromancerPathLocationArg,
+      })),
+      disposition: v.optional(v.object({
+        expected: v.string(),
+        value: v.string(),
+      })),
+      pettyDeadCount: v.optional(v.object({
+        expected: v.number(),
+        value: v.number(),
+      })),
+      primaryElement: v.optional(v.object({
+        expected: v.union(
+          v.literal("air"),
+          v.literal("fire"),
+          v.literal("earth"),
+          v.literal("water"),
+        ),
+        value: v.union(
+          v.literal("air"),
+          v.literal("fire"),
+          v.literal("earth"),
+          v.literal("water"),
+        ),
+      })),
+      aesthetic: v.optional(v.object({
+        expected: v.string(),
+        value: v.string(),
+      })),
+      strangeQuirk: v.optional(v.object({
+        expected: v.string(),
+        value: v.string(),
+      })),
+      ageYears: v.optional(v.object({
+        expected: v.number(),
+        value: v.number(),
+      })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const fields = canonicalizeUpdateNecromancerGhoulCallerFields(args.fields as UpdateNecromancerGhoulCallerFields);
+        return {
+          commandType: "update_necromancer_ghoul_caller",
+          commandFingerprint: updateNecromancerGhoulCallerFingerprint(
+            args.expectedCampaignId,
+            args.denizenId,
+            fields,
+          ),
+          apply: (state) => applyUpdateNecromancerGhoulCaller(
+            state,
+            args.denizenId as DenizenId,
+            fields,
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const removeNecromancerGhoulCaller = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    expectedGhoulCaller: necromancerGhoulCallerArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "remove_necromancer_ghoul_caller",
+        commandFingerprint: removeNecromancerGhoulCallerFingerprint(
+          args.expectedCampaignId,
+          args.denizenId,
+          args.expectedGhoulCaller,
+        ),
+        apply: (state) => applyRemoveNecromancerGhoulCaller(
+          state,
+          args.denizenId as DenizenId,
+          args.expectedGhoulCaller as NecromancerGhoulCallerState,
+        ),
+      }),
+    );
+  },
+});
+
+export const createNecromancerCampaignGate = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    gateId: v.string(),
+    name: v.string(),
+    band: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeCreateNecromancerCampaignGateInput({
+          gateId: args.gateId as NecromancerCampaignGateId,
+          name: args.name,
+          band: args.band as NecromancerGateBand,
+        });
+        return {
+          commandType: "create_necromancer_campaign_gate",
+          commandFingerprint: createNecromancerCampaignGateFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyCreateNecromancerCampaignGate(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const updateNecromancerCampaignGate = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    gateId: v.string(),
+    fields: v.object({
+      name: v.optional(v.object({
+        expected: v.string(),
+        value: v.string(),
+      })),
+      band: v.optional(v.object({
+        expected: v.string(),
+        value: v.string(),
+      })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const fields = canonicalizeUpdateNecromancerCampaignGateFields(
+          args.fields as UpdateNecromancerCampaignGateFields,
+        );
+        return {
+          commandType: "update_necromancer_campaign_gate",
+          commandFingerprint: updateNecromancerCampaignGateFingerprint(
+            args.expectedCampaignId,
+            args.gateId,
+            fields,
+          ),
+          apply: (state) => applyUpdateNecromancerCampaignGate(
+            state,
+            args.gateId as NecromancerCampaignGateId,
+            fields,
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const createNecromancerCampaignPathSpace = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    pathSpaceId: v.string(),
+    region: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = {
+          pathSpaceId: args.pathSpaceId as NecromancerCampaignPathSpaceId,
+          region: args.region as NecromancerPathRegion,
+        };
+        return {
+          commandType: "create_necromancer_campaign_path_space",
+          commandFingerprint: createNecromancerCampaignPathSpaceFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyCreateNecromancerCampaignPathSpace(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const removeNecromancerCampaignPathSpace = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    pathSpaceId: v.string(),
+    expectedPathSpace: necromancerCampaignPathSpaceArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "remove_necromancer_campaign_path_space",
+        commandFingerprint: removeNecromancerCampaignPathSpaceFingerprint(
+          args.expectedCampaignId,
+          args.pathSpaceId,
+          args.expectedPathSpace,
+        ),
+        apply: (state) => applyRemoveNecromancerCampaignPathSpace(
+          state,
+          args.pathSpaceId as NecromancerCampaignPathSpaceId,
+          args.expectedPathSpace as NecromancerCampaignPathSpaceState,
+        ),
+      }),
+    );
+  },
+});
+
+export const addNecromancerStep = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    step: necromancerDirectedStepArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const step = args.step as NecromancerDirectedStep;
+        return {
+          commandType: "add_necromancer_step",
+          commandFingerprint: addNecromancerStepFingerprint(args.expectedCampaignId, step),
+          apply: (state) => applyAddNecromancerStep(state, step),
+        };
+      },
+    );
+  },
+});
+
+export const removeNecromancerStep = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    expectedStep: necromancerDirectedStepArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "remove_necromancer_step",
+        commandFingerprint: removeNecromancerStepFingerprint(
+          args.expectedCampaignId,
+          args.expectedStep,
+        ),
+        apply: (state) => applyRemoveNecromancerStep(
+          state,
+          args.expectedStep as NecromancerDirectedStep,
         ),
       }),
     );

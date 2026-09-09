@@ -13,6 +13,7 @@ import {
   DomainError,
   EMPTY_HIEROPHANT_STATE,
   EMPTY_MARINER_STATE,
+  EMPTY_NECROMANCER_STATE,
   EMPTY_SHARED_WORLD_STATE,
   MARINER_ARRANGEMENT_DEFINITIONS,
   MARINER_BOARD_ISLE_DEFINITIONS,
@@ -152,6 +153,7 @@ function baseV5(mariner: MarinerState = EMPTY_MARINER_STATE, world = { ...EMPTY_
     world,
     hierophant: { ...EMPTY_HIEROPHANT_STATE },
     mariner,
+    necromancer: { ...EMPTY_NECROMANCER_STATE },
   };
 }
 

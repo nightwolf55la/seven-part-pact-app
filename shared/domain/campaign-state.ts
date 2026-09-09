@@ -9,6 +9,7 @@ import type { EngagementRecordV4, EngagementRecordV5 } from "./engagement";
 import type { SharedWorldState } from "./shared-world";
 import type { HierophantState } from "./hierophant-state";
 import type { MarinerState } from "./mariner-state";
+import type { NecromancerState } from "./necromancer-state";
 import type { WizardmootAttendance, WizardmootHistoryEntry } from "./wizardmoot";
 import {
   SEVEN_PART_PACT_DRAFT4_ID,
@@ -255,4 +256,5 @@ export interface CampaignStateV5 {
   readonly world: SharedWorldState;
   readonly hierophant: HierophantState;
   readonly mariner: MarinerState;
+  readonly necromancer: NecromancerState;
 }
