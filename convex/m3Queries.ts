@@ -586,3 +586,30 @@ export const getMarinerReference = query({
     };
   },
 });
+
+export const getNecromancerReference = query({
+  args: {},
+  handler: async (ctx) => {
+    const maybeCanonical = await ctx.db
+      .query("campaigns")
+      .withIndex("by_campaignKey", (q) => q.eq("campaignKey", "default"))
+      .unique();
+
+    if (
+      maybeCanonical === null ||
+      !("campaignKey" in maybeCanonical) ||
+      (maybeCanonical as any).campaignKey !== "default"
+    ) {
+      return null;
+    }
+
+    const doc = maybeCanonical as any;
+    const current = validateCampaignState(doc.state);
+
+    return {
+      campaignId: doc.campaignId as string,
+      campaignRevision: doc.campaignRevision as number,
+      necromancer: current.necromancer,
+    };
+  },
+});

@@ -75,6 +75,7 @@ vi.mock("../convex/_generated/api.js", () => ({
       getWorldReference: "m3Queries.getWorldReference",
       getHierophantReference: "m3Queries.getHierophantReference",
       getMarinerReference: "m3Queries.getMarinerReference",
+      getNecromancerReference: "m3Queries.getNecromancerReference",
     },
     m3Commands: {
       createDenizen: "m3Commands.createDenizen",
@@ -106,6 +107,23 @@ vi.mock("convex/react", () => ({
           routes: [],
           seaRegions: [],
           beasts: [],
+        },
+      };
+    }
+    if (queryRef === "m3Queries.getNecromancerReference") {
+      return {
+        campaignId: "camp_1",
+        campaignRevision: 1,
+        necromancer: {
+          gates: [],
+          pathSpaces: [],
+          steps: [],
+          souls: [],
+          foes: [],
+          allies: [],
+          ghoulCallers: [],
+          selectedLaws: [],
+          depth: null,
         },
       };
     }
@@ -296,6 +314,15 @@ describe("Mariner surface navigation", () => {
       marinerButton!.click();
     });
     expect(container.innerHTML).toContain("Initialize Mariner");
+
+    const necromancerButton = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent === "Necromancer",
+    );
+    expect(necromancerButton).toBeDefined();
+    flushSync(() => {
+      necromancerButton!.click();
+    });
+    expect(container.innerHTML).toContain("Initialize Necromancer");
 
     root.unmount();
     container.remove();
