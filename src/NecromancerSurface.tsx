@@ -74,6 +74,7 @@ import {
   builtinInternalStepPresentation,
   campaignGates,
   campaignPathSpaces,
+  campaignStructureInspectTargets,
   denizenName,
   emptyNecromancerSetupDraft,
   escapedFoesGroupedBySeat,
@@ -98,6 +99,7 @@ import {
   pathSpaceDisplayName,
   piecesAtSpace,
   placeName,
+  resolveOccupiableSelection,
   stepsInvolvingCustomNodes,
   unusedAllyDenizens,
   unusedFoeDenizens,
@@ -248,6 +250,13 @@ export default function NecromancerSurface({
   useLayoutEffect(() => {
     setDepthDraft(necromancer.depth !== null ? String(necromancer.depth.value) : "0");
   }, [depthOwnerKey, necromancer.depth]);
+
+  useLayoutEffect(() => {
+    if (selection === null) return;
+    if (resolveOccupiableSelection(selectionRef(selection), necromancer) === null) {
+      setSelection(null);
+    }
+  }, [necromancer, selection]);
 
   useLayoutEffect(() => {
     if (selection === null) return;
@@ -488,6 +497,7 @@ export default function NecromancerSurface({
         campaignId={campaignId}
         pending={pending}
         run={run}
+        onSelectSpace={(ref) => setSelection(selectionOf(ref))}
         createNecromancerCampaignGate={createNecromancerCampaignGate}
         updateNecromancerCampaignGate={updateNecromancerCampaignGate}
         createNecromancerCampaignPathSpace={createNecromancerCampaignPathSpace}
@@ -1101,7 +1111,7 @@ function Inspector({
 }) {
   if (selection === null || selectedLocation === null) {
     return (
-      <aside className="rounded-xl border border-slate-200 dark:border-slate-800 p-3 text-sm text-slate-500">
+      <aside aria-label="Selected space" className="rounded-xl border border-slate-200 dark:border-slate-800 p-3 text-sm text-slate-500">
         Select a Gate or path space to inspect and edit it.
       </aside>
     );
@@ -1112,7 +1122,7 @@ function Inspector({
   );
   const statusOptions = selectedGate === undefined ? [] : availableGateStatusTransitions(selectedGate.status);
   return (
-    <aside className="rounded-xl border border-slate-200 dark:border-slate-800 p-3 space-y-3">
+    <aside aria-label="Selected space" className="rounded-xl border border-slate-200 dark:border-slate-800 p-3 space-y-3">
       <div>
         <h3 className="text-sm font-semibold">
           {selectedGate !== undefined ? gateDisplayName(selectedGate) : selectedPath !== undefined ? pathSpaceDisplayName(selectedPath) : "Space"}
@@ -1747,6 +1757,7 @@ function AdvancedStructure({
   campaignId,
   pending,
   run,
+  onSelectSpace,
   createNecromancerCampaignGate,
   updateNecromancerCampaignGate,
   createNecromancerCampaignPathSpace,
@@ -1758,6 +1769,7 @@ function AdvancedStructure({
   campaignId: string;
   pending: boolean;
   run: (action: () => Promise<void>) => Promise<boolean>;
+  onSelectSpace: (ref: NecromancerOccupiableSpaceRef) => void;
   createNecromancerCampaignGate: (args: { commandId: string; expectedCampaignId: string; gateId: string; name: string; band: string }) => Promise<unknown>;
   updateNecromancerCampaignGate: (args: NonNullable<ReturnType<typeof buildUpdateNecromancerCampaignGatePayload>>) => Promise<unknown>;
   createNecromancerCampaignPathSpace: (args: { commandId: string; expectedCampaignId: string; pathSpaceId: string; region: string }) => Promise<unknown>;
@@ -1769,6 +1781,7 @@ function AdvancedStructure({
   const customGates = campaignGates(necromancer);
   const customPaths = campaignPathSpaces(necromancer);
   const customSteps = stepsInvolvingCustomNodes(necromancer);
+  const inspectTargets = campaignStructureInspectTargets(necromancer);
   const [gateName, setGateName] = useState("");
   const [gateBand, setGateBand] = useState<NecromancerGateBand>("near");
   const [pathRegion, setPathRegion] = useState<NecromancerPathRegion>("edge_of_life");
@@ -1791,6 +1804,12 @@ function AdvancedStructure({
               key={gate.gateId}
               gate={gate}
               pending={pending}
+              onInspect={() => {
+                const target = inspectTargets.find((entry) =>
+                  entry.kind === "gate" && entry.selection.kind === "gate" && entry.selection.gateId === gate.gateId,
+                );
+                if (target !== undefined) onSelectSpace(target.selection);
+              }}
               onUpdate={async (name, band) => {
                 const payload = buildUpdateNecromancerCampaignGatePayload({
                   commandId: newCommandId(),
@@ -1808,7 +1827,19 @@ function AdvancedStructure({
           ))}
           {customPaths.map((path) => (
             <div key={path.pathSpaceId} className="flex flex-wrap gap-2 items-center text-sm">
-              <span>{pathSpaceDisplayName(path)} · {pathRegionLabel(path.region)}</span>
+              <span>{pathSpaceDisplayName(path)}</span>
+              <button
+                className={ghostBtn}
+                aria-label={`Inspect ${pathSpaceDisplayName(path)}`}
+                onClick={() => {
+                  const target = inspectTargets.find((entry) =>
+                    entry.kind === "path" && entry.selection.kind === "path" && entry.selection.pathSpaceId === path.pathSpaceId,
+                  );
+                  if (target !== undefined) onSelectSpace(target.selection);
+                }}
+              >
+                Inspect
+              </button>
               <button
                 className={ghostBtn}
                 disabled={pending}
@@ -1948,10 +1979,12 @@ function AdvancedStructure({
 function CampaignGateRow({
   gate,
   pending,
+  onInspect,
   onUpdate,
 }: {
   gate: NecromancerCampaignGateState;
   pending: boolean;
+  onInspect: () => void;
   onUpdate: (name: string, band: NecromancerGateBand) => Promise<void>;
 }) {
   const [name, setName] = useState(gate.name);
@@ -1963,6 +1996,7 @@ function CampaignGateRow({
   return (
     <div className="rounded border border-slate-200 dark:border-slate-700 p-2 space-y-1">
       <p className="text-sm">{gate.name} · {gateBandLabel(gate.band)} · {gate.status}</p>
+      <button className={ghostBtn} aria-label={`Inspect ${gate.name}`} onClick={onInspect}>Inspect</button>
       <input className={fieldClass} value={name} onChange={(event) => setName(event.target.value)} aria-label={`Update ${gate.name}`} />
       <select className={fieldClass} value={band} onChange={(event) => setBand(event.target.value as NecromancerGateBand)}>
         {NECROMANCER_GATE_BANDS.map((option) => (

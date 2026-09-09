@@ -255,7 +255,7 @@ export function pathSpaceDisplayName(path: NecromancerPathSpaceState): string {
   if (path.origin === "builtin") {
     return necromancerBuiltinPathSpaceDefinition(path.pathSpaceId).applicationLabel;
   }
-  return `Campaign ${pathRegionLabel(path.region)}`;
+  return `Campaign ${pathRegionLabel(path.region)} · ${path.pathSpaceId}`;
 }
 
 export function occupiableSpaceLabel(
@@ -449,14 +449,48 @@ export function gateBandOf(gate: NecromancerGateState): NecromancerGateBand {
   return necromancerBuiltinGateDefinition(gate.gateId).band;
 }
 
-export function campaignGates(necromancer: NecromancerState): NecromancerCampaignGateState[] {
+export function campaignGates(necromancer: Pick<NecromancerState, "gates">): NecromancerCampaignGateState[] {
   return necromancer.gates.filter((gate): gate is NecromancerCampaignGateState => gate.origin === "campaign");
 }
 
-export function campaignPathSpaces(necromancer: NecromancerState): NecromancerCampaignPathSpaceState[] {
+export function campaignPathSpaces(necromancer: Pick<NecromancerState, "pathSpaces">): NecromancerCampaignPathSpaceState[] {
   return necromancer.pathSpaces.filter(
     (path): path is NecromancerCampaignPathSpaceState => path.origin === "campaign",
   );
+}
+
+export interface CampaignStructureInspectTarget {
+  readonly kind: "gate" | "path";
+  readonly selection: NecromancerOccupiableSpaceRef;
+  readonly label: string;
+}
+
+export function campaignStructureInspectTargets(
+  necromancer: Pick<NecromancerState, "gates" | "pathSpaces">,
+): CampaignStructureInspectTarget[] {
+  return [
+    ...campaignGates(necromancer).map((gate) => ({
+      kind: "gate" as const,
+      selection: { kind: "gate" as const, gateId: gate.gateId },
+      label: gateDisplayName(gate),
+    })),
+    ...campaignPathSpaces(necromancer).map((path) => ({
+      kind: "path" as const,
+      selection: { kind: "path" as const, pathSpaceId: path.pathSpaceId },
+      label: pathSpaceDisplayName(path),
+    })),
+  ];
+}
+
+export function resolveOccupiableSelection(
+  selection: NecromancerOccupiableSpaceRef | null,
+  necromancer: Pick<NecromancerState, "gates" | "pathSpaces">,
+): NecromancerOccupiableSpaceRef | null {
+  if (selection === null) return null;
+  if (selection.kind === "gate") {
+    return necromancer.gates.some((gate) => gate.gateId === selection.gateId) ? selection : null;
+  }
+  return necromancer.pathSpaces.some((path) => path.pathSpaceId === selection.pathSpaceId) ? selection : null;
 }
 
 export function stepsInvolvingCustomNodes(necromancer: NecromancerState): NecromancerDirectedStep[] {

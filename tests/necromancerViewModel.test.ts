@@ -32,6 +32,7 @@ import {
   buildUpdateNecromancerCampaignGatePayload,
   buildUpdateNecromancerFoePayload,
   builtinInternalStepPresentation,
+  campaignStructureInspectTargets,
   denizenName,
   duplicateStartingSetupDenizenIds,
   emptyNecromancerSetupDraft,
@@ -41,9 +42,12 @@ import {
   isNecromancerInitialized,
   necromancerSetupReady,
   newCommandId,
+  occupiableRefKey,
   ordinaryLawReadView,
+  pathSpaceDisplayName,
   piecesAtSpace,
   presentationPointForOccupiable,
+  resolveOccupiableSelection,
   soulCountAt,
   withSetupArrangement,
   type NecromancerSetupDraft,
@@ -480,5 +484,78 @@ describe("catalog option helpers used by setup", () => {
   it("Near and Far built-in Gate lists match the source bands", () => {
     expect(NECROMANCER_NEAR_BUILTIN_GATE_IDS).toEqual(["amber", "bronze", "lead", "ivory", "antimony"]);
     expect(NECROMANCER_FAR_BUILTIN_GATE_IDS).toEqual(["marching", "churning", "weeping", "howling"]);
+  });
+});
+
+const CAMPAIGN_GATE_ID = "ngt_00000000-0000-0000-0000-000000000010" as NecromancerCampaignGateId;
+const CAMPAIGN_PATH_A = "nps_00000000-0000-0000-0000-000000000098" as NecromancerCampaignPathSpaceId;
+const CAMPAIGN_PATH_B = "nps_00000000-0000-0000-0000-000000000099" as NecromancerCampaignPathSpaceId;
+
+function stateWithCampaignStructure(): NecromancerState {
+  return buildInitializedDefaultNecromancerState({
+    campaignGates: [{
+      origin: "campaign",
+      gateId: CAMPAIGN_GATE_ID,
+      name: "Nightwell",
+      band: "near",
+      status: "ordinary",
+    }],
+    campaignPathSpaces: [
+      { origin: "campaign", pathSpaceId: CAMPAIGN_PATH_A, region: "edge_of_life" },
+      { origin: "campaign", pathSpaceId: CAMPAIGN_PATH_B, region: "edge_of_life" },
+    ],
+  });
+}
+
+describe("campaign path labels", () => {
+  it("keeps built-in path labels unchanged", () => {
+    expect(pathSpaceDisplayName({ origin: "builtin", pathSpaceId: "edge_sage" })).toBe("Sage Edge of Life");
+    expect(pathSpaceDisplayName({ origin: "builtin", pathSpaceId: "far_amber" })).toBe("Amber Far Lands");
+  });
+
+  it("gives two campaign path spaces in the same region distinct human-readable labels", () => {
+    const a = pathSpaceDisplayName({ origin: "campaign", pathSpaceId: CAMPAIGN_PATH_A, region: "edge_of_life" });
+    const b = pathSpaceDisplayName({ origin: "campaign", pathSpaceId: CAMPAIGN_PATH_B, region: "edge_of_life" });
+    expect(a).toContain("Edge of Life");
+    expect(b).toContain("Edge of Life");
+    expect(a).toContain(CAMPAIGN_PATH_A);
+    expect(b).toContain(CAMPAIGN_PATH_B);
+    expect(a).not.toBe(b);
+  });
+});
+
+describe("campaign structure inspector selection", () => {
+  it("exposes campaign Gates as the same occupiable Gate refs used by built-in nodes", () => {
+    const state = stateWithCampaignStructure();
+    const gateTarget = campaignStructureInspectTargets(state).find((target) => target.kind === "gate");
+    expect(gateTarget?.selection).toEqual({ kind: "gate", gateId: CAMPAIGN_GATE_ID });
+    expect(occupiableRefKey(gateTarget!.selection)).toBe(`gate:${CAMPAIGN_GATE_ID}`);
+    expect(hasFixedBoardPresentationPoint(gateTarget!.selection)).toBe(false);
+  });
+
+  it("exposes campaign path spaces as the same occupiable path refs used by built-in nodes", () => {
+    const state = stateWithCampaignStructure();
+    const pathTargets = campaignStructureInspectTargets(state).filter((target) => target.kind === "path");
+    expect(pathTargets.map((target) => target.selection)).toEqual([
+      { kind: "path", pathSpaceId: CAMPAIGN_PATH_A },
+      { kind: "path", pathSpaceId: CAMPAIGN_PATH_B },
+    ]);
+    expect(occupiableRefKey(pathTargets[0]!.selection)).toBe(`path:${CAMPAIGN_PATH_A}`);
+    expect(pathTargets[0]!.label).not.toBe(pathTargets[1]!.label);
+  });
+
+  it("clears occupiable selection when the referenced campaign path no longer exists", () => {
+    const state = stateWithCampaignStructure();
+    const pathRef = { kind: "path" as const, pathSpaceId: CAMPAIGN_PATH_A };
+    expect(resolveOccupiableSelection(pathRef, state)).toEqual(pathRef);
+    const withoutPath = {
+      ...state,
+      pathSpaces: state.pathSpaces.filter((path) => path.pathSpaceId !== CAMPAIGN_PATH_A),
+    };
+    expect(resolveOccupiableSelection(pathRef, withoutPath)).toBeNull();
+    expect(resolveOccupiableSelection({ kind: "gate", gateId: "amber" }, withoutPath)).toEqual({
+      kind: "gate",
+      gateId: "amber",
+    });
   });
 });
