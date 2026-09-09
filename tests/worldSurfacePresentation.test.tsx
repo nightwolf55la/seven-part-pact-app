@@ -74,6 +74,7 @@ vi.mock("../convex/_generated/api.js", () => ({
       getPlayReference: "m3Queries.getPlayReference",
       getWorldReference: "m3Queries.getWorldReference",
       getHierophantReference: "m3Queries.getHierophantReference",
+      getMarinerReference: "m3Queries.getMarinerReference",
     },
     m3Commands: {
       createDenizen: "m3Commands.createDenizen",
@@ -93,6 +94,20 @@ vi.mock("convex/react", () => ({
     if (queryRef === "m3Queries.getWorldReference") return mockWorldRef;
     if (queryRef === "m3Queries.getHierophantReference") {
       return { campaignId: "camp_1", campaignRevision: 1, hierophant: { temples: [], selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] } };
+    }
+    if (queryRef === "m3Queries.getMarinerReference") {
+      return {
+        campaignId: "camp_1",
+        campaignRevision: 1,
+        mariner: {
+          shipPlaceId: null,
+          selectedLawOfSeaIds: [],
+          boardIsles: [],
+          routes: [],
+          seaRegions: [],
+          beasts: [],
+        },
+      };
     }
     return undefined;
   },
@@ -248,6 +263,39 @@ describe("World surface presentation", () => {
     const htmlAfter = container.innerHTML;
     expect(htmlAfter).toContain("The Lantern Choir");
     expect(htmlAfter).not.toContain("Elder Thorn");
+
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("Mariner surface navigation", () => {
+  it("shows Mariner in PlayShell navigation and opens the Mariner surface", () => {
+    mockPlayRef = PLAY_REF;
+    mockWorldRef = WORLD_REF;
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    flushSync(() => {
+      root.render(
+        createElement(PlayShell, {
+          campaignId: "camp_1",
+          campaignRevision: 1,
+          monthDisplayName: "Month 1",
+          phase: "planning" as const,
+        }),
+      );
+    });
+
+    const marinerButton = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent === "Mariner",
+    );
+    expect(marinerButton).toBeDefined();
+    flushSync(() => {
+      marinerButton!.click();
+    });
+    expect(container.innerHTML).toContain("Initialize Mariner");
 
     root.unmount();
     container.remove();

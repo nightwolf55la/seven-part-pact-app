@@ -121,6 +121,28 @@ describe("hierophant surface navigation", () => {
   });
 });
 
+describe("mariner surface navigation", () => {
+  it("accepts Mariner as a navigable surface without changing phase defaults", () => {
+    const planning = phaseDefaultLayout("planning");
+    expect(planning.primary).toBe("current_phase");
+    expect(planning.secondary).toBe("orrery");
+    const story = phaseDefaultLayout("story");
+    expect(story.primary).toBe("current_phase");
+    expect(story.secondary).toBe("table_wizards");
+    const quiet = phaseDefaultLayout("quiet");
+    expect(quiet.primary).toBe("current_phase");
+    expect(quiet.secondary).toBe("orrery");
+    let s = initPlaySurface("planning");
+    s = navigateSurface(s, "primary", "mariner");
+    expect(s.primary.current).toBe("mariner");
+    s = navigateSurface(s, "secondary", "mariner");
+    expect(s.secondary!.current).toBe("mariner");
+    s = goBack(s, "primary");
+    expect(s.primary.current).toBe("current_phase");
+    expect(s.secondary!.current).toBe("mariner");
+  });
+});
+
 describe("no campaign state in model", () => {
   it("PlaySurfaceState contains only surface IDs and history", () => {
     const s = initPlaySurface("story");
