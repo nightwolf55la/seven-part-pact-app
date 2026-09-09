@@ -63,6 +63,16 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "update_campaign_class",
   "create_campaign_doctrine",
   "update_campaign_doctrine",
+  "initialize_mariner",
+  "set_mariner_ship",
+  "set_selected_sea_laws",
+  "set_mariner_route_occupancy",
+  "set_mariner_sea_storm_count",
+  "set_mariner_isle_market",
+  "set_mariner_isle_ravage",
+  "add_mariner_beast",
+  "update_mariner_beast",
+  "remove_mariner_beast",
 ] as const;
 
 // Historical command types that may appear in persisted revision records but
@@ -140,6 +150,16 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "update_campaign_class":
     case "create_campaign_doctrine":
     case "update_campaign_doctrine":
+    case "initialize_mariner":
+    case "set_mariner_ship":
+    case "set_selected_sea_laws":
+    case "set_mariner_route_occupancy":
+    case "set_mariner_sea_storm_count":
+    case "set_mariner_isle_market":
+    case "set_mariner_isle_ravage":
+    case "add_mariner_beast":
+    case "update_mariner_beast":
+    case "remove_mariner_beast":
     case "move_month":
     case "legacy_month_change":
       return true;

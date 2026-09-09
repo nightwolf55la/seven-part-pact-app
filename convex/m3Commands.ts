@@ -103,6 +103,16 @@ import {
   updateCampaignClassFingerprint,
   createCampaignDoctrineFingerprint,
   updateCampaignDoctrineFingerprint,
+  initializeMarinerFingerprint,
+  setMarinerShipFingerprint,
+  setSelectedSeaLawsFingerprint,
+  setMarinerRouteOccupancyFingerprint,
+  setMarinerSeaStormCountFingerprint,
+  setMarinerIsleMarketFingerprint,
+  setMarinerIsleRavageFingerprint,
+  addMarinerBeastFingerprint,
+  updateMarinerBeastFingerprint,
+  removeMarinerBeastFingerprint,
   applyCreateDenizenV5Candidate,
   applyUpdateDenizenV5Candidate,
   applyCreateIsleV5Candidate,
@@ -135,11 +145,21 @@ import {
   applyUpdateCampaignClass,
   applyCreateCampaignDoctrine,
   applyUpdateCampaignDoctrine,
+  applyInitializeMariner,
+  applySetMarinerShip,
+  applySetSelectedSeaLaws,
+  applySetMarinerRouteOccupancy,
+  applySetMarinerSeaStormCount,
+  applySetMarinerIsleMarket,
+  applySetMarinerIsleRavage,
+  applyAddMarinerBeast,
+  applyUpdateMarinerBeast,
+  applyRemoveMarinerBeast,
   isValidHierophantFlameLawId,
   isValidHierophantStartingTempleId,
   isValidHierophantTempleId,
 } from "../shared/domain";
-import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange, CompanionRelationshipId, HierophantFlameLawId, HierophantStartingTempleId, HierophantTempleId, HierophantCampaignClassId, HierophantCampaignDoctrineId, HierophantDogmaEntryId, HierophantSupplicant, HierophantProphet, HierophantCult, HierophantCultDogma, HierophantCampaignClass, HierophantCampaignDoctrine, CreateTempleInput, OrdinaryTempleDoctrineState } from "../shared/domain";
+import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange, CompanionRelationshipId, HierophantFlameLawId, HierophantStartingTempleId, HierophantTempleId, HierophantCampaignClassId, HierophantCampaignDoctrineId, HierophantDogmaEntryId, HierophantSupplicant, HierophantProphet, HierophantCult, HierophantCultDogma, HierophantCampaignClass, HierophantCampaignDoctrine, CreateTempleInput, OrdinaryTempleDoctrineState, InitializeMarinerInput, MarinerBeastState, MarinerIsleMarket, MarinerRouteOccupancy, MarinerBoardIsleId, MarinerLawOfSeaId, MarinerRouteId, MarinerSeaRegionId, MarinerArrangementId, UpdateMarinerBeastFields } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
 import type { WizardInitIds } from "../shared/domain/begin-play";
 import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
@@ -2248,6 +2268,383 @@ export const updateCampaignDoctrine = mutation({
           state,
           args.doctrineId as HierophantCampaignDoctrineId,
           args.fields as never,
+        ),
+      }),
+    );
+  },
+});
+
+const marinerRouteEndpointArg = v.union(
+  v.object({
+    kind: v.literal("board_isle"),
+    boardIsleId: v.string(),
+  }),
+  v.object({
+    kind: v.literal("external_land"),
+    externalLandId: v.string(),
+  }),
+);
+
+const marinerRouteOccupancyArg = v.union(
+  v.object({ kind: v.literal("empty") }),
+  v.object({ kind: v.literal("ship") }),
+  v.object({
+    kind: v.literal("raider"),
+    toward: marinerRouteEndpointArg,
+  }),
+);
+
+const marinerIsleMarketArg = v.union(
+  v.object({ present: v.literal(false) }),
+  v.object({
+    present: v.literal(true),
+    rarity: v.union(v.string(), v.null()),
+  }),
+);
+
+const marinerBeastLocationArg = v.union(
+  v.object({
+    kind: v.literal("sea_region"),
+    regionId: v.string(),
+  }),
+  v.object({
+    kind: v.literal("board_isle"),
+    boardIsleId: v.string(),
+  }),
+  v.object({ kind: v.literal("off_map") }),
+  v.object({
+    kind: v.literal("other_domain"),
+    seatId: v.string(),
+  }),
+);
+
+const marinerBeastArg = v.object({
+  denizenId: v.string(),
+  element: v.string(),
+  definitionId: v.union(v.string(), v.null()),
+  condition: v.string(),
+  location: marinerBeastLocationArg,
+});
+
+export const initializeMariner = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    arrangementId: v.string(),
+    shipPlaceId: v.string(),
+    selectedLawOfSeaIds: v.array(v.string()),
+    isleBindings: v.array(v.object({
+      boardIsleId: v.string(),
+      worldIsleId: v.string(),
+    })),
+    arrangementBeasts: v.array(marinerBeastArg),
+    rarityDescriptions: v.array(v.object({
+      boardIsleId: v.string(),
+      description: v.string(),
+    })),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input: InitializeMarinerInput = {
+          arrangementId: args.arrangementId as MarinerArrangementId,
+          shipPlaceId: args.shipPlaceId as PlaceId,
+          selectedLawOfSeaIds: args.selectedLawOfSeaIds as MarinerLawOfSeaId[],
+          isleBindings: args.isleBindings.map((binding) => ({
+            boardIsleId: binding.boardIsleId as MarinerBoardIsleId,
+            worldIsleId: binding.worldIsleId as IsleId,
+          })),
+          arrangementBeasts: args.arrangementBeasts as MarinerBeastState[],
+          rarityDescriptions: args.rarityDescriptions.map((entry) => ({
+            boardIsleId: entry.boardIsleId as MarinerBoardIsleId,
+            description: entry.description,
+          })),
+        };
+        return {
+          commandType: "initialize_mariner",
+          commandFingerprint: initializeMarinerFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyInitializeMariner(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const setMarinerShip = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    expectedShipPlaceId: v.string(),
+    shipPlaceId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "set_mariner_ship",
+        commandFingerprint: setMarinerShipFingerprint(
+          args.expectedCampaignId,
+          args.expectedShipPlaceId,
+          args.shipPlaceId,
+        ),
+        apply: (state) => applySetMarinerShip(
+          state,
+          args.expectedShipPlaceId as PlaceId,
+          args.shipPlaceId as PlaceId,
+        ),
+      }),
+    );
+  },
+});
+
+export const setSelectedSeaLaws = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    expectedSelectedLawOfSeaIds: v.array(v.string()),
+    selectedLawOfSeaIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "set_selected_sea_laws",
+        commandFingerprint: setSelectedSeaLawsFingerprint(
+          args.expectedCampaignId,
+          args.expectedSelectedLawOfSeaIds,
+          args.selectedLawOfSeaIds,
+        ),
+        apply: (state) => applySetSelectedSeaLaws(
+          state,
+          args.expectedSelectedLawOfSeaIds as MarinerLawOfSeaId[],
+          args.selectedLawOfSeaIds as MarinerLawOfSeaId[],
+        ),
+      }),
+    );
+  },
+});
+
+export const setMarinerRouteOccupancy = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    routeId: v.string(),
+    expectedOccupancy: marinerRouteOccupancyArg,
+    occupancy: marinerRouteOccupancyArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "set_mariner_route_occupancy",
+        commandFingerprint: setMarinerRouteOccupancyFingerprint(
+          args.expectedCampaignId,
+          args.routeId,
+          args.expectedOccupancy,
+          args.occupancy,
+        ),
+        apply: (state) => applySetMarinerRouteOccupancy(
+          state,
+          args.routeId as MarinerRouteId,
+          args.expectedOccupancy as MarinerRouteOccupancy,
+          args.occupancy as MarinerRouteOccupancy,
+        ),
+      }),
+    );
+  },
+});
+
+export const setMarinerSeaStormCount = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    regionId: v.string(),
+    expectedStormCount: v.number(),
+    stormCount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "set_mariner_sea_storm_count",
+        commandFingerprint: setMarinerSeaStormCountFingerprint(
+          args.expectedCampaignId,
+          args.regionId,
+          args.expectedStormCount,
+          args.stormCount,
+        ),
+        apply: (state) => applySetMarinerSeaStormCount(
+          state,
+          args.regionId as MarinerSeaRegionId,
+          args.expectedStormCount,
+          args.stormCount,
+        ),
+      }),
+    );
+  },
+});
+
+export const setMarinerIsleMarket = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    boardIsleId: v.string(),
+    expectedMarket: marinerIsleMarketArg,
+    market: marinerIsleMarketArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "set_mariner_isle_market",
+        commandFingerprint: setMarinerIsleMarketFingerprint(
+          args.expectedCampaignId,
+          args.boardIsleId,
+          args.expectedMarket,
+          args.market,
+        ),
+        apply: (state) => applySetMarinerIsleMarket(
+          state,
+          args.boardIsleId as MarinerBoardIsleId,
+          args.expectedMarket as MarinerIsleMarket,
+          args.market as MarinerIsleMarket,
+        ),
+      }),
+    );
+  },
+});
+
+export const setMarinerIsleRavage = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    boardIsleId: v.string(),
+    expectedRavageStormCount: v.number(),
+    ravageStormCount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "set_mariner_isle_ravage",
+        commandFingerprint: setMarinerIsleRavageFingerprint(
+          args.expectedCampaignId,
+          args.boardIsleId,
+          args.expectedRavageStormCount,
+          args.ravageStormCount,
+        ),
+        apply: (state) => applySetMarinerIsleRavage(
+          state,
+          args.boardIsleId as MarinerBoardIsleId,
+          args.expectedRavageStormCount,
+          args.ravageStormCount,
+        ),
+      }),
+    );
+  },
+});
+
+export const addMarinerBeast = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    element: v.string(),
+    definitionId: v.union(v.string(), v.null()),
+    condition: v.string(),
+    location: marinerBeastLocationArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const beast = {
+          denizenId: args.denizenId,
+          element: args.element,
+          definitionId: args.definitionId,
+          condition: args.condition,
+          location: args.location,
+        } as MarinerBeastState;
+        return {
+          commandType: "add_mariner_beast",
+          commandFingerprint: addMarinerBeastFingerprint(args.expectedCampaignId, beast),
+          apply: (state) => applyAddMarinerBeast(state, beast),
+        };
+      },
+    );
+  },
+});
+
+export const updateMarinerBeast = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    fields: v.object({
+      element: v.optional(v.object({ expected: v.string(), value: v.string() })),
+      definitionId: v.optional(v.object({
+        expected: v.union(v.string(), v.null()),
+        value: v.union(v.string(), v.null()),
+      })),
+      condition: v.optional(v.object({ expected: v.string(), value: v.string() })),
+      location: v.optional(v.object({
+        expected: marinerBeastLocationArg,
+        value: marinerBeastLocationArg,
+      })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "update_mariner_beast",
+        commandFingerprint: updateMarinerBeastFingerprint(
+          args.expectedCampaignId,
+          args.denizenId,
+          args.fields,
+        ),
+        apply: (state) => applyUpdateMarinerBeast(
+          state,
+          args.denizenId as DenizenId,
+          args.fields as UpdateMarinerBeastFields,
+        ),
+      }),
+    );
+  },
+});
+
+export const removeMarinerBeast = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    expectedBeast: marinerBeastArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "remove_mariner_beast",
+        commandFingerprint: removeMarinerBeastFingerprint(
+          args.expectedCampaignId,
+          args.denizenId,
+          args.expectedBeast,
+        ),
+        apply: (state) => applyRemoveMarinerBeast(
+          state,
+          args.denizenId as DenizenId,
+          args.expectedBeast as MarinerBeastState,
         ),
       }),
     );

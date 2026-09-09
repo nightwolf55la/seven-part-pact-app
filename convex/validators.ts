@@ -956,6 +956,14 @@ const marinerBeastLocationValidator = v.union(
   }),
 );
 
+const marinerBeastStateValidator = v.object({
+  denizenId: v.string(),
+  element: v.string(),
+  definitionId: v.union(v.string(), v.null()),
+  condition: v.string(),
+  location: marinerBeastLocationValidator,
+});
+
 const marinerStateValidator = v.object({
   shipPlaceId: v.union(v.string(), v.null()),
   selectedLawOfSeaIds: v.array(v.string()),
@@ -973,13 +981,110 @@ const marinerStateValidator = v.object({
     regionId: v.string(),
     stormCount: v.number(),
   })),
-  beasts: v.array(v.object({
-    denizenId: v.string(),
-    element: v.string(),
-    definitionId: v.union(v.string(), v.null()),
-    condition: v.string(),
-    location: marinerBeastLocationValidator,
-  })),
+  beasts: v.array(marinerBeastStateValidator),
+});
+
+const marinerIsleBindingValidator = v.object({
+  boardIsleId: v.string(),
+  worldIsleId: v.string(),
+});
+
+const marinerRarityDescriptionValidator = v.object({
+  boardIsleId: v.string(),
+  description: v.string(),
+});
+
+const marinerInitializedEventV1Validator = v.object({
+  type: v.literal("mariner_initialized"),
+  version: v.literal(1),
+  data: v.object({
+    arrangementId: v.string(),
+    shipPlaceId: v.string(),
+    selectedLawOfSeaIds: v.array(v.string()),
+    isleBindings: v.array(marinerIsleBindingValidator),
+    arrangementBeasts: v.array(marinerBeastStateValidator),
+    rarityDescriptions: v.array(marinerRarityDescriptionValidator),
+    mariner: marinerStateValidator,
+  }),
+});
+
+const marinerShipChangedEventV1Validator = v.object({
+  type: v.literal("mariner_ship_changed"),
+  version: v.literal(1),
+  data: v.object({
+    previousShipPlaceId: v.string(),
+    newShipPlaceId: v.string(),
+  }),
+});
+
+const marinerSeaLawsChangedEventV1Validator = v.object({
+  type: v.literal("mariner_sea_laws_changed"),
+  version: v.literal(1),
+  data: v.object({
+    previousSelectedLawOfSeaIds: v.array(v.string()),
+    newSelectedLawOfSeaIds: v.array(v.string()),
+  }),
+});
+
+const marinerRouteOccupancyChangedEventV1Validator = v.object({
+  type: v.literal("mariner_route_occupancy_changed"),
+  version: v.literal(1),
+  data: v.object({
+    routeId: v.string(),
+    previousOccupancy: marinerRouteOccupancyValidator,
+    newOccupancy: marinerRouteOccupancyValidator,
+  }),
+});
+
+const marinerSeaStormCountChangedEventV1Validator = v.object({
+  type: v.literal("mariner_sea_storm_count_changed"),
+  version: v.literal(1),
+  data: v.object({
+    regionId: v.string(),
+    previousStormCount: v.number(),
+    newStormCount: v.number(),
+  }),
+});
+
+const marinerIsleMarketChangedEventV1Validator = v.object({
+  type: v.literal("mariner_isle_market_changed"),
+  version: v.literal(1),
+  data: v.object({
+    boardIsleId: v.string(),
+    previousMarket: marinerIsleMarketValidator,
+    newMarket: marinerIsleMarketValidator,
+  }),
+});
+
+const marinerIsleRavageChangedEventV1Validator = v.object({
+  type: v.literal("mariner_isle_ravage_changed"),
+  version: v.literal(1),
+  data: v.object({
+    boardIsleId: v.string(),
+    previousRavageStormCount: v.number(),
+    newRavageStormCount: v.number(),
+  }),
+});
+
+const marinerBeastAddedEventV1Validator = v.object({
+  type: v.literal("mariner_beast_added"),
+  version: v.literal(1),
+  data: v.object({ beast: marinerBeastStateValidator }),
+});
+
+const marinerBeastUpdatedEventV1Validator = v.object({
+  type: v.literal("mariner_beast_updated"),
+  version: v.literal(1),
+  data: v.object({
+    previous: marinerBeastStateValidator,
+    updated: marinerBeastStateValidator,
+  }),
+});
+
+const marinerBeastRemovedEventV1Validator = v.object({
+  type: v.literal("mariner_beast_removed"),
+  version: v.literal(1),
+  data: v.object({ beast: marinerBeastStateValidator }),
 });
 
 const templeCreatedEventV1Validator = v.object({
@@ -1270,6 +1375,16 @@ export const campaignEventValidator = v.union(
   campaignClassUpdatedEventV1Validator,
   campaignDoctrineCreatedEventV1Validator,
   campaignDoctrineUpdatedEventV1Validator,
+  marinerInitializedEventV1Validator,
+  marinerShipChangedEventV1Validator,
+  marinerSeaLawsChangedEventV1Validator,
+  marinerRouteOccupancyChangedEventV1Validator,
+  marinerSeaStormCountChangedEventV1Validator,
+  marinerIsleMarketChangedEventV1Validator,
+  marinerIsleRavageChangedEventV1Validator,
+  marinerBeastAddedEventV1Validator,
+  marinerBeastUpdatedEventV1Validator,
+  marinerBeastRemovedEventV1Validator,
 );
 
 export const anyCampaignStateValidator = campaignStateV5Validator;

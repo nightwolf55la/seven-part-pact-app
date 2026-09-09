@@ -120,6 +120,18 @@ export type {
   TempleResourcesAdjustedDataV1,
   TempleResourcesAdjustedEventV1,
   HierophantEvent,
+  MarinerEvent,
+  MarinerInitializedDataV1,
+  MarinerInitializedEventV1,
+  MarinerShipChangedEventV1,
+  MarinerSeaLawsChangedEventV1,
+  MarinerRouteOccupancyChangedEventV1,
+  MarinerSeaStormCountChangedEventV1,
+  MarinerIsleMarketChangedEventV1,
+  MarinerIsleRavageChangedEventV1,
+  MarinerBeastAddedEventV1,
+  MarinerBeastUpdatedEventV1,
+  MarinerBeastRemovedEventV1,
   CampaignEvent,
 } from "./events";
 
@@ -286,6 +298,16 @@ export {
   updateCampaignClassFingerprint,
   createCampaignDoctrineFingerprint,
   updateCampaignDoctrineFingerprint,
+  initializeMarinerFingerprint,
+  setMarinerShipFingerprint,
+  setSelectedSeaLawsFingerprint,
+  setMarinerRouteOccupancyFingerprint,
+  setMarinerSeaStormCountFingerprint,
+  setMarinerIsleMarketFingerprint,
+  setMarinerIsleRavageFingerprint,
+  addMarinerBeastFingerprint,
+  updateMarinerBeastFingerprint,
+  removeMarinerBeastFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
@@ -762,6 +784,8 @@ export {
   isValidMarinerRouteId,
   marinerRouteEndpointsEqual,
   marinerRouteHasEndpoint,
+  isValidMarinerArrangementId,
+  marinerArrangementDefinition,
 } from "./mariner-catalogs";
 
 export type {
@@ -782,6 +806,26 @@ export {
 } from "./mariner-state";
 
 export { validateMarinerStructure, validateMarinerReferenceIntegrity } from "./mariner-validation";
+
+export type {
+  MarinerTransitionResult,
+  MarinerIsleBinding,
+  MarinerRarityDescription,
+  InitializeMarinerInput,
+  UpdateMarinerBeastFields,
+} from "./mariner-transitions";
+export {
+  applyInitializeMariner,
+  applySetMarinerShip,
+  applySetSelectedSeaLaws,
+  applySetMarinerRouteOccupancy,
+  applySetMarinerSeaStormCount,
+  applySetMarinerIsleMarket,
+  applySetMarinerIsleRavage,
+  applyAddMarinerBeast,
+  applyUpdateMarinerBeast,
+  applyRemoveMarinerBeast,
+} from "./mariner-transitions";
 
 export type {
   HierophantTransitionResult,

@@ -802,6 +802,16 @@ export function isValidMarinerBuiltinBeastId(value: string): value is MarinerBui
   return (MARINER_BUILTIN_BEAST_IDS as readonly string[]).includes(value);
 }
 
+export function isValidMarinerArrangementId(value: string): value is MarinerArrangementId {
+  return (MARINER_ARRANGEMENT_IDS as readonly string[]).includes(value);
+}
+
+export function marinerArrangementDefinition(
+  arrangementId: string,
+): MarinerArrangementDefinition | undefined {
+  return MARINER_ARRANGEMENT_DEFINITIONS.find((d) => d.arrangementId === arrangementId);
+}
+
 export function isValidMarinerRouteId(value: string): value is MarinerRouteId {
   return ROUTE_BY_ID.has(value as MarinerRouteId);
 }

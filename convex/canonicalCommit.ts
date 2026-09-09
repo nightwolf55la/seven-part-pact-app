@@ -186,6 +186,16 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   update_campaign_class: { required: ["campaign_class_updated"] },
   create_campaign_doctrine: { required: ["campaign_doctrine_created"] },
   update_campaign_doctrine: { required: ["campaign_doctrine_updated"] },
+  initialize_mariner: { required: ["mariner_initialized"] },
+  set_mariner_ship: { required: ["mariner_ship_changed"] },
+  set_selected_sea_laws: { required: ["mariner_sea_laws_changed"] },
+  set_mariner_route_occupancy: { required: ["mariner_route_occupancy_changed"] },
+  set_mariner_sea_storm_count: { required: ["mariner_sea_storm_count_changed"] },
+  set_mariner_isle_market: { required: ["mariner_isle_market_changed"] },
+  set_mariner_isle_ravage: { required: ["mariner_isle_ravage_changed"] },
+  add_mariner_beast: { required: ["mariner_beast_added"] },
+  update_mariner_beast: { required: ["mariner_beast_updated"] },
+  remove_mariner_beast: { required: ["mariner_beast_removed"] },
 };
 
 const CURRENT_V5_EVENT_VERSION_REQUIREMENTS: Record<string, { type: string; version: number }> = {
