@@ -267,7 +267,7 @@ describe("Necromancer path-space catalog fidelity", () => {
 });
 
 describe("Necromancer topology fidelity", () => {
-  it("defines exactly 31 internal directed steps, the expected connectivity, and two terminal exits", () => {
+  it("defines exactly 31 internal directed steps, the expected connectivity, and two static terminal exits", () => {
     expect(NECROMANCER_DEFAULT_INTERNAL_STEPS).toHaveLength(31);
     expect(NECROMANCER_DEFAULT_TERMINAL_EXITS).toHaveLength(2);
     expect(NECROMANCER_TERMINAL_EXIT_IDS).toEqual(["void_beyond", "final_death"]);
@@ -302,11 +302,12 @@ describe("Necromancer empty-or-complete validation", () => {
     expect(() => validateCampaignStateV5Candidate(state)).not.toThrow();
   });
 
-  it("accepts a complete initialized default topology", () => {
+  it("accepts a complete initialized default topology with exactly 31 persisted internal steps", () => {
     const necromancer = initialized();
     expect(necromancer.gates).toHaveLength(11);
     expect(necromancer.pathSpaces).toHaveLength(15);
-    expect(necromancer.steps).toHaveLength(33);
+    expect(necromancer.steps).toHaveLength(31);
+    expect(necromancer.steps.every((step) => step.to.kind === "gate" || step.to.kind === "path")).toBe(true);
     expect(() => validateNecromancerStructure(necromancer)).not.toThrow();
     expect(() => validateCampaignStateV5Candidate(baseV5(necromancer))).not.toThrow();
   });
@@ -346,7 +347,7 @@ describe("Necromancer empty-or-complete validation", () => {
 });
 
 describe("Necromancer topology validation", () => {
-  it("rejects an unresolved step endpoint", () => {
+  it("rejects an unresolved internal step endpoint", () => {
     const extra: NecromancerDirectedStep = {
       from: gateRef("terminus"),
       to: { kind: "path", pathSpaceId: CAMPAIGN_PATH as never },
@@ -354,7 +355,7 @@ describe("Necromancer topology validation", () => {
     expect(() => validateNecromancerStructure(initialized({ extraSteps: [extra] }))).toThrow(DomainError);
   });
 
-  it("rejects a duplicate directed step", () => {
+  it("rejects a duplicate internal directed step", () => {
     const duplicate: NecromancerDirectedStep = {
       from: pathRef("edge_sage"),
       to: gateRef("amber"),
@@ -370,7 +371,7 @@ describe("Necromancer topology validation", () => {
     expect(() => validateNecromancerStructure(initialized({ extraSteps: [loop] }))).toThrow(DomainError);
   });
 
-  it("accepts a valid cyclic custom topology", () => {
+  it("accepts a valid cyclic internal topology", () => {
     const cyclic = initialized({
       extraSteps: [
         { from: gateRef("terminus"), to: gateRef("deep") },
@@ -380,6 +381,30 @@ describe("Necromancer topology validation", () => {
     });
     expect(() => validateNecromancerStructure(cyclic)).not.toThrow();
     expect(() => validateCampaignStateV5Candidate(baseV5(cyclic))).not.toThrow();
+  });
+
+  it("rejects a terminal target as a persisted Necromancer step", () => {
+    const withStaticExit = {
+      ...initialized(),
+      steps: [
+        ...initialized().steps,
+        { from: gateRef("howling"), to: { kind: "terminal", terminalId: "void_beyond" } },
+      ],
+    };
+    expect(() => validateNecromancerStructure(withStaticExit)).toThrow(DomainError);
+    expect(() => validateCampaignStateV5Candidate(baseV5(withStaticExit as NecromancerState))).toThrow(DomainError);
+  });
+
+  it("rejects arbitrary boundary-exit semantics in persisted steps", () => {
+    const amberToFinalDeath = {
+      ...initialized(),
+      steps: [
+        ...initialized().steps,
+        { from: gateRef("amber"), to: { kind: "terminal", terminalId: "final_death" } },
+      ],
+    };
+    expect(() => validateNecromancerStructure(amberToFinalDeath)).toThrow(DomainError);
+    expect(() => validateCampaignStateV5Candidate(baseV5(amberToFinalDeath as NecromancerState))).toThrow(DomainError);
   });
 
   it("accepts a destroyed Gate status without removing the identity", () => {

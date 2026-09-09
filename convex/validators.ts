@@ -995,14 +995,6 @@ const necromancerOccupiableSpaceRefValidator = v.union(
   }),
 );
 
-const necromancerStepTargetValidator = v.union(
-  necromancerOccupiableSpaceRefValidator,
-  v.object({
-    kind: v.literal("terminal"),
-    terminalId: v.string(),
-  }),
-);
-
 const necromancerGateStateValidator = v.union(
   v.object({
     origin: v.literal("builtin"),
@@ -1044,7 +1036,7 @@ const necromancerStateValidator = v.object({
   pathSpaces: v.array(necromancerPathSpaceStateValidator),
   steps: v.array(v.object({
     from: necromancerOccupiableSpaceRefValidator,
-    to: necromancerStepTargetValidator,
+    to: necromancerOccupiableSpaceRefValidator,
   })),
   souls: v.array(v.object({
     location: necromancerOccupiableSpaceRefValidator,

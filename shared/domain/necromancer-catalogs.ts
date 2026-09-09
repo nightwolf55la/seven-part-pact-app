@@ -113,13 +113,24 @@ export type NecromancerOccupiableSpaceRef =
   | { readonly kind: "gate"; readonly gateId: NecromancerGateId }
   | { readonly kind: "path"; readonly pathSpaceId: NecromancerPathSpaceId };
 
-export type NecromancerStepTarget =
-  | NecromancerOccupiableSpaceRef
-  | { readonly kind: "terminal"; readonly terminalId: NecromancerTerminalExitId };
-
+/** Persisted internal Death topology: occupiable space -> occupiable space. */
 export interface NecromancerDirectedStep {
   readonly from: NecromancerOccupiableSpaceRef;
-  readonly to: NecromancerStepTarget;
+  readonly to: NecromancerOccupiableSpaceRef;
+}
+
+/**
+ * Static Draft-4 boundary exits. Not CampaignState topology and not a
+ * persisted step target.
+ */
+export type NecromancerTerminalTarget = {
+  readonly kind: "terminal";
+  readonly terminalId: NecromancerTerminalExitId;
+};
+
+export interface NecromancerStaticTerminalExit {
+  readonly from: NecromancerOccupiableSpaceRef;
+  readonly to: NecromancerTerminalTarget;
 }
 
 export interface NecromancerBuiltinGateDefinition {
@@ -259,14 +270,14 @@ function internalStep(
   return { from, to };
 }
 
-function terminalStep(
+function staticTerminalExit(
   from: NecromancerOccupiableSpaceRef,
   terminalId: NecromancerTerminalExitId,
-): NecromancerDirectedStep {
+): NecromancerStaticTerminalExit {
   return { from, to: { kind: "terminal", terminalId } };
 }
 
-/** Default closer -> further occupiable connectivity. Count: 31. */
+/** Default persisted closer -> further occupiable connectivity. Count: 31. */
 export const NECROMANCER_DEFAULT_INTERNAL_STEPS: readonly NecromancerDirectedStep[] = [
   internalStep(pathRef("edge_sage"), gateRef("amber")),
   internalStep(pathRef("edge_hierophant"), gateRef("amber")),
@@ -301,15 +312,13 @@ export const NECROMANCER_DEFAULT_INTERNAL_STEPS: readonly NecromancerDirectedSte
   internalStep(gateRef("deep"), gateRef("terminus")),
 ];
 
-/** Terminal exits are not occupiable spaces. Count: 2. */
-export const NECROMANCER_DEFAULT_TERMINAL_EXITS: readonly NecromancerDirectedStep[] = [
-  terminalStep(gateRef("howling"), "void_beyond"),
-  terminalStep(gateRef("terminus"), "final_death"),
-];
-
-export const NECROMANCER_DEFAULT_DIRECTED_STEPS: readonly NecromancerDirectedStep[] = [
-  ...NECROMANCER_DEFAULT_INTERNAL_STEPS,
-  ...NECROMANCER_DEFAULT_TERMINAL_EXITS,
+/**
+ * Fixed Draft-4 boundary exits. Static catalog only; never copied into
+ * CampaignState.steps.
+ */
+export const NECROMANCER_DEFAULT_TERMINAL_EXITS: readonly NecromancerStaticTerminalExit[] = [
+  staticTerminalExit(gateRef("howling"), "void_beyond"),
+  staticTerminalExit(gateRef("terminus"), "final_death"),
 ];
 
 export const NECROMANCER_ARRANGEMENT_DEFINITIONS: readonly NecromancerArrangementDefinition[] = [
@@ -484,24 +493,12 @@ export function necromancerOccupiableSpaceRefsEqual(
   return false;
 }
 
-export function necromancerStepTargetsEqual(a: NecromancerStepTarget, b: NecromancerStepTarget): boolean {
-  if (a.kind === "terminal" || b.kind === "terminal") {
-    return a.kind === "terminal" && b.kind === "terminal" && a.terminalId === b.terminalId;
-  }
-  return necromancerOccupiableSpaceRefsEqual(a, b);
-}
-
 export function necromancerDirectedStepsEqual(a: NecromancerDirectedStep, b: NecromancerDirectedStep): boolean {
-  return necromancerOccupiableSpaceRefsEqual(a.from, b.from) && necromancerStepTargetsEqual(a.to, b.to);
+  return necromancerOccupiableSpaceRefsEqual(a.from, b.from) && necromancerOccupiableSpaceRefsEqual(a.to, b.to);
 }
 
 export function necromancerDirectedStepKey(step: NecromancerDirectedStep): string {
   const fromKey = step.from.kind === "gate" ? `gate:${step.from.gateId}` : `path:${step.from.pathSpaceId}`;
-  const toKey =
-    step.to.kind === "terminal"
-      ? `terminal:${step.to.terminalId}`
-      : step.to.kind === "gate"
-        ? `gate:${step.to.gateId}`
-        : `path:${step.to.pathSpaceId}`;
+  const toKey = step.to.kind === "gate" ? `gate:${step.to.gateId}` : `path:${step.to.pathSpaceId}`;
   return `${fromKey}->${toKey}`;
 }

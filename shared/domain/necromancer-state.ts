@@ -20,7 +20,7 @@ import type {
 import {
   NECROMANCER_BUILTIN_GATE_IDS,
   NECROMANCER_BUILTIN_PATH_SPACE_IDS,
-  NECROMANCER_DEFAULT_DIRECTED_STEPS,
+  NECROMANCER_DEFAULT_INTERNAL_STEPS,
 } from "./necromancer-catalogs";
 
 /**
@@ -159,7 +159,7 @@ export function buildInitializedDefaultNecromancerState(
   return {
     gates: [...builtinGates, ...(input.campaignGates ?? [])],
     pathSpaces: [...builtinPathSpaces, ...(input.campaignPathSpaces ?? [])],
-    steps: input.steps ?? [...NECROMANCER_DEFAULT_DIRECTED_STEPS, ...(input.extraSteps ?? [])],
+    steps: input.steps ?? [...NECROMANCER_DEFAULT_INTERNAL_STEPS, ...(input.extraSteps ?? [])],
     souls: input.souls ?? [],
     foes: input.foes ?? [],
     allies: input.allies ?? [],

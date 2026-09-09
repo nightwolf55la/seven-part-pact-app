@@ -6,7 +6,6 @@ import type {
   NecromancerDirectedStep,
   NecromancerOccupiableSpaceRef,
   NecromancerPathRegion,
-  NecromancerStepTarget,
 } from "./necromancer-catalogs";
 import {
   NECROMANCER_BUILTIN_GATE_IDS,
@@ -23,7 +22,6 @@ import {
   isValidNecromancerLawOfDeathId,
   isValidNecromancerLawVisibility,
   isValidNecromancerPathRegion,
-  isValidNecromancerTerminalExitId,
   necromancerBuiltinPathSpaceDefinition,
   necromancerDirectedStepKey,
   necromancerOccupiableSpaceRefsEqual,
@@ -85,6 +83,12 @@ function validateOccupiableSpaceRef(path: string, value: unknown): NecromancerOc
     throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be an object`);
   }
   const ref = value as Record<string, unknown>;
+  if (ref.kind === "terminal") {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `${path} must be an occupiable Gate or path space, not a terminal exit`,
+    );
+  }
   if (ref.kind === "gate") {
     if (typeof ref.gateId !== "string") {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.gateId is invalid: ${JSON.stringify(ref.gateId)}`);
@@ -110,23 +114,6 @@ function validateOccupiableSpaceRef(path: string, value: unknown): NecromancerOc
     return { kind: "path", pathSpaceId: ref.pathSpaceId };
   }
   throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.kind is invalid: ${JSON.stringify(ref.kind)}`);
-}
-
-function validateStepTarget(path: string, value: unknown): NecromancerStepTarget {
-  if (value === null || value === undefined || typeof value !== "object") {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be an object`);
-  }
-  const target = value as Record<string, unknown>;
-  if (target.kind === "terminal") {
-    if (typeof target.terminalId !== "string" || !isValidNecromancerTerminalExitId(target.terminalId)) {
-      throw new DomainError(
-        "INVALID_CAMPAIGN_STATE",
-        `${path}.terminalId is invalid: ${JSON.stringify(target.terminalId)}`,
-      );
-    }
-    return { kind: "terminal", terminalId: target.terminalId };
-  }
-  return validateOccupiableSpaceRef(path, value);
 }
 
 function pathSpaceRegion(
@@ -279,8 +266,8 @@ function validateInitializedTopology(n: Record<string, unknown>): {
     }
     const raw = entry as Record<string, unknown>;
     const from = validateOccupiableSpaceRef(`${path}.from`, raw.from);
-    const to = validateStepTarget(`${path}.to`, raw.to);
-    if (to.kind !== "terminal" && necromancerOccupiableSpaceRefsEqual(from, to)) {
+    const to = validateOccupiableSpaceRef(`${path}.to`, raw.to);
+    if (necromancerOccupiableSpaceRefsEqual(from, to)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must not be a self-loop`);
     }
     if (from.kind === "gate" && !gateIdSet.has(from.gateId as string)) {
