@@ -1,6 +1,7 @@
 import type { CampaignStateV5 } from "./campaign-state";
 import { DomainError } from "./errors";
 import { isValidDenizenId, isValidIsleId, isValidPlaceId } from "./ids";
+import { isValidPactSeatId } from "./pact-seats";
 import { ELEMENT_IDS } from "./shared-world";
 import type {
   MarinerBoardIsleId,
@@ -158,6 +159,18 @@ function validateBeastLocation(path: string, value: unknown): MarinerBeastLocati
   }
   if (location.kind === "off_map") {
     return { kind: "off_map" };
+  }
+  if (location.kind === "other_domain") {
+    if (typeof location.seatId !== "string" || !isValidPactSeatId(location.seatId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.seatId is invalid: ${JSON.stringify(location.seatId)}`);
+    }
+    if (location.seatId === "mariner") {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path}.seatId must be another Wizard's Domain, not Mariner`,
+      );
+    }
+    return { kind: "other_domain", seatId: location.seatId };
   }
   throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.kind is invalid: ${JSON.stringify(location.kind)}`);
 }
@@ -317,6 +330,12 @@ function validateBeastsAndLaws(m: Record<string, unknown>, initialized: boolean)
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.condition is invalid: ${JSON.stringify(beast.condition)}`);
     }
     const location = validateBeastLocation(`${path}.location`, beast.location);
+    if (location.kind === "other_domain" && beast.condition !== "rampaging") {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path} other-Domain location is permitted only for a Rampaging Beast`,
+      );
+    }
     if (beast.condition === "friendly_nesting") {
       if (location.kind !== "board_isle") {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} Friendly/Nesting Beast must occupy a board Isle`);

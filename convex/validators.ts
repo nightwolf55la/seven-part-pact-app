@@ -950,6 +950,10 @@ const marinerBeastLocationValidator = v.union(
     boardIsleId: v.string(),
   }),
   v.object({ kind: v.literal("off_map") }),
+  v.object({
+    kind: v.literal("other_domain"),
+    seatId: v.union(...PACT_SEAT_IDS.map((id) => v.literal(id))),
+  }),
 );
 
 const marinerStateValidator = v.object({

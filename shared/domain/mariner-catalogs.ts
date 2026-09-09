@@ -192,10 +192,11 @@ export interface MarinerBuiltinBeastDefinition {
 export interface MarinerArrangementRaider {
   readonly routeId: MarinerRouteId;
   /**
-   * SOURCE Dynamic/Explosive specify "raiding Ishana" or invasion from the North.
-   * Quiet names the Route but not a direction; `toward` is then null.
+   * SOURCE: Quiet, Dynamic, and Explosive place a Scuttleport–Ishana Raider
+   * raiding Ishana. Quiet prose omits the verb; matching setup-diagram arrows
+   * and Dynamic's explicit "raiding Ishana" fix the direction.
    */
-  readonly toward: MarinerRouteEndpoint | null;
+  readonly toward: MarinerRouteEndpoint;
 }
 
 export interface MarinerArrangementDefinition {
@@ -710,7 +711,7 @@ export const MARINER_ARRANGEMENT_DEFINITIONS: readonly MarinerArrangementDefinit
       rid(board("scuttleport"), board("druntyr")),
       rid(board("scuttleport"), board("izor")),
     ],
-    raiders: [{ routeId: rid(board("scuttleport"), board("ishana")), toward: null }],
+    raiders: [{ routeId: rid(board("scuttleport"), board("ishana")), toward: board("ishana") }],
     marketBoardIsleIds: ["scuttleport"],
     rarityBoardIsleIds: [],
     seaStormCounts: { sidereal_sea: 1, bay_of_ishana: 1 },

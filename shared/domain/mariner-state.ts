@@ -1,4 +1,5 @@
 import type { DenizenId, IsleId, PlaceId } from "./ids";
+import type { PactSeatId } from "./pact-seats";
 import type { ElementId } from "./shared-world";
 import type {
   MarinerBoardIsleId,
@@ -48,12 +49,16 @@ export type MarinerBeastCondition = "distrusting" | "friendly_nesting" | "rampag
 
 /**
  * Location is separate from condition. Sea-map Beast locations use the same
- * region identity as Storm state. Off-map / other-Domain location is permitted.
+ * region identity as Storm state.
+ *
+ * SOURCE: `off_map` is a Beast that left Isha over a Horizon into distant lands.
+ * SOURCE: `other_domain` is a Rampaging Beast in another Wizard's Domain.
  */
 export type MarinerBeastLocation =
   | { readonly kind: "sea_region"; readonly regionId: MarinerSeaRegionId }
   | { readonly kind: "board_isle"; readonly boardIsleId: MarinerBoardIsleId }
-  | { readonly kind: "off_map" };
+  | { readonly kind: "off_map" }
+  | { readonly kind: "other_domain"; readonly seatId: PactSeatId };
 
 export interface MarinerBeastState {
   readonly denizenId: DenizenId;

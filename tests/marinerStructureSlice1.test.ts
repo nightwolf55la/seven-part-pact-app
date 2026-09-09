@@ -35,7 +35,14 @@ import {
   validateCampaignStateV5Candidate,
   validateMarinerStructure,
 } from "../shared/domain";
-import type { MarinerBoardIsleId, MarinerBeastState, MarinerState } from "../shared/domain";
+import type {
+  MarinerBoardIsleId,
+  MarinerBeastState,
+  MarinerExternalLandId,
+  MarinerRouteEndpoint,
+  MarinerSeaRegionId,
+  MarinerState,
+} from "../shared/domain";
 
 const CAMPAIGN_A = "cmp_00000000-0000-0000-0000-000000000001";
 const PLR_A = "plr_00000000-0000-0000-0000-00000000000a" as PlayerId;
@@ -156,6 +163,222 @@ function initializedMariner(overrides?: Partial<Parameters<typeof buildInitializ
   });
 }
 
+function boardEndpoint(boardIsleId: MarinerBoardIsleId): MarinerRouteEndpoint {
+  return { kind: "board_isle", boardIsleId };
+}
+
+function landEndpoint(externalLandId: MarinerExternalLandId): MarinerRouteEndpoint {
+  return { kind: "external_land", externalLandId };
+}
+
+function expectedRouteId(a: MarinerRouteEndpoint, b: MarinerRouteEndpoint) {
+  return marinerRouteId(a, b);
+}
+
+function sortedCopy<T extends string>(values: readonly T[]): T[] {
+  return [...values].sort();
+}
+
+/** Independently transcribed Draft-4 Route endpoint pairs. Do not read MARINER_ROUTE_DEFINITIONS. */
+const EXPECTED_SOURCE_ROUTE_PAIRS: ReadonlyArray<readonly [MarinerRouteEndpoint, MarinerRouteEndpoint]> = [
+  [boardEndpoint("thyras"), landEndpoint("nebelheim")],
+  [boardEndpoint("thyras"), boardEndpoint("far_reach")],
+  [boardEndpoint("thyras"), boardEndpoint("druntyr")],
+  [boardEndpoint("thyras"), boardEndpoint("scuttleport")],
+  [boardEndpoint("far_reach"), boardEndpoint("orrery")],
+  [boardEndpoint("far_reach"), boardEndpoint("koire")],
+  [boardEndpoint("far_reach"), boardEndpoint("caravesse")],
+  [boardEndpoint("koire"), landEndpoint("druj_lands")],
+  [boardEndpoint("koire"), boardEndpoint("spyrholm")],
+  [boardEndpoint("orrery"), boardEndpoint("spyrholm")],
+  [boardEndpoint("orrery"), boardEndpoint("caravesse")],
+  [boardEndpoint("spyrholm"), boardEndpoint("sage_atoll")],
+  [boardEndpoint("spyrholm"), boardEndpoint("halcyon_isles")],
+  [boardEndpoint("sage_atoll"), boardEndpoint("yeraine")],
+  [boardEndpoint("yeraine"), landEndpoint("hecares")],
+  [boardEndpoint("yeraine"), boardEndpoint("tahv")],
+  [boardEndpoint("yeraine"), boardEndpoint("graven_isle")],
+  [boardEndpoint("tahv"), boardEndpoint("ishana")],
+  [boardEndpoint("tahv"), boardEndpoint("halcyon_isles")],
+  [boardEndpoint("graven_isle"), boardEndpoint("ishana")],
+  [boardEndpoint("graven_isle"), boardEndpoint("izor")],
+  [boardEndpoint("izor"), landEndpoint("ur")],
+  [boardEndpoint("izor"), boardEndpoint("ishana")],
+  [boardEndpoint("izor"), boardEndpoint("scuttleport")],
+  [boardEndpoint("ishana"), boardEndpoint("scuttleport")],
+  [boardEndpoint("ishana"), boardEndpoint("halcyon_isles")],
+  [boardEndpoint("ishana"), boardEndpoint("druntyr")],
+  [boardEndpoint("scuttleport"), boardEndpoint("druntyr")],
+  [boardEndpoint("druntyr"), boardEndpoint("caravesse")],
+  [boardEndpoint("caravesse"), boardEndpoint("halcyon_isles")],
+];
+
+interface ExpectedSeaRegionTopology {
+  readonly adjacentBoardIsleIds: readonly MarinerBoardIsleId[];
+  readonly adjacentRegionIds: readonly MarinerSeaRegionId[];
+  readonly boundingRoutePairs: ReadonlyArray<readonly [MarinerRouteEndpoint, MarinerRouteEndpoint]>;
+}
+
+/** Independently transcribed Draft-4 sea/Horizon faces. Do not read MARINER_SEA_REGION_DEFINITIONS. */
+const EXPECTED_SOURCE_SEA_REGIONS: Record<MarinerSeaRegionId, ExpectedSeaRegionTopology> = {
+  thyrian_sea: {
+    adjacentBoardIsleIds: ["far_reach", "thyras", "druntyr", "caravesse"],
+    adjacentRegionIds: ["ruins_of_old_ishana", "sunken_fleet", "bay_of_ishana", "northwest_horizon"],
+    boundingRoutePairs: [
+      [boardEndpoint("far_reach"), boardEndpoint("thyras")],
+      [boardEndpoint("thyras"), boardEndpoint("druntyr")],
+      [boardEndpoint("druntyr"), boardEndpoint("caravesse")],
+      [boardEndpoint("caravesse"), boardEndpoint("far_reach")],
+    ],
+  },
+  ruins_of_old_ishana: {
+    adjacentBoardIsleIds: ["druntyr", "thyras", "scuttleport"],
+    adjacentRegionIds: ["thyrian_sea", "scuttle_channel", "northeast_horizon"],
+    boundingRoutePairs: [
+      [boardEndpoint("druntyr"), boardEndpoint("thyras")],
+      [boardEndpoint("thyras"), boardEndpoint("scuttleport")],
+      [boardEndpoint("scuttleport"), boardEndpoint("druntyr")],
+    ],
+  },
+  scuttle_channel: {
+    adjacentBoardIsleIds: ["scuttleport", "ishana", "druntyr"],
+    adjacentRegionIds: ["ruins_of_old_ishana", "bay_of_ishana", "devil_sea"],
+    boundingRoutePairs: [
+      [boardEndpoint("scuttleport"), boardEndpoint("ishana")],
+      [boardEndpoint("ishana"), boardEndpoint("druntyr")],
+      [boardEndpoint("druntyr"), boardEndpoint("scuttleport")],
+    ],
+  },
+  sunken_fleet: {
+    adjacentBoardIsleIds: ["orrery", "far_reach", "caravesse"],
+    adjacentRegionIds: ["thyrian_sea", "koiran_reef", "wizard_strait"],
+    boundingRoutePairs: [
+      [boardEndpoint("orrery"), boardEndpoint("far_reach")],
+      [boardEndpoint("far_reach"), boardEndpoint("caravesse")],
+      [boardEndpoint("caravesse"), boardEndpoint("orrery")],
+    ],
+  },
+  koiran_reef: {
+    adjacentBoardIsleIds: ["far_reach", "orrery", "spyrholm", "koire"],
+    adjacentRegionIds: ["sunken_fleet", "wizard_strait", "northwest_horizon", "southwest_horizon"],
+    boundingRoutePairs: [
+      [boardEndpoint("far_reach"), boardEndpoint("orrery")],
+      [boardEndpoint("orrery"), boardEndpoint("spyrholm")],
+      [boardEndpoint("spyrholm"), boardEndpoint("koire")],
+      [boardEndpoint("koire"), boardEndpoint("far_reach")],
+    ],
+  },
+  wizard_strait: {
+    adjacentBoardIsleIds: ["spyrholm", "orrery", "caravesse", "halcyon_isles"],
+    adjacentRegionIds: ["sunken_fleet", "koiran_reef", "bay_of_ishana", "sidereal_sea"],
+    boundingRoutePairs: [
+      [boardEndpoint("spyrholm"), boardEndpoint("orrery")],
+      [boardEndpoint("orrery"), boardEndpoint("caravesse")],
+      [boardEndpoint("caravesse"), boardEndpoint("halcyon_isles")],
+      [boardEndpoint("halcyon_isles"), boardEndpoint("spyrholm")],
+    ],
+  },
+  bay_of_ishana: {
+    adjacentBoardIsleIds: ["ishana", "halcyon_isles", "caravesse", "druntyr"],
+    adjacentRegionIds: ["thyrian_sea", "scuttle_channel", "wizard_strait", "kings_gulf"],
+    boundingRoutePairs: [
+      [boardEndpoint("ishana"), boardEndpoint("halcyon_isles")],
+      [boardEndpoint("halcyon_isles"), boardEndpoint("caravesse")],
+      [boardEndpoint("caravesse"), boardEndpoint("druntyr")],
+      [boardEndpoint("druntyr"), boardEndpoint("ishana")],
+    ],
+  },
+  kings_gulf: {
+    adjacentBoardIsleIds: ["ishana", "tahv", "halcyon_isles"],
+    adjacentRegionIds: ["bay_of_ishana", "sidereal_sea", "wainways"],
+    boundingRoutePairs: [
+      [boardEndpoint("ishana"), boardEndpoint("tahv")],
+      [boardEndpoint("tahv"), boardEndpoint("halcyon_isles")],
+      [boardEndpoint("halcyon_isles"), boardEndpoint("ishana")],
+    ],
+  },
+  sidereal_sea: {
+    adjacentBoardIsleIds: ["sage_atoll", "spyrholm", "halcyon_isles", "tahv", "yeraine"],
+    adjacentRegionIds: ["wizard_strait", "kings_gulf", "wainways", "southwest_horizon"],
+    boundingRoutePairs: [
+      [boardEndpoint("sage_atoll"), boardEndpoint("spyrholm")],
+      [boardEndpoint("spyrholm"), boardEndpoint("halcyon_isles")],
+      [boardEndpoint("halcyon_isles"), boardEndpoint("tahv")],
+      [boardEndpoint("tahv"), boardEndpoint("yeraine")],
+      [boardEndpoint("yeraine"), boardEndpoint("sage_atoll")],
+    ],
+  },
+  wainways: {
+    adjacentBoardIsleIds: ["yeraine", "tahv", "ishana", "graven_isle"],
+    adjacentRegionIds: ["kings_gulf", "sidereal_sea", "chalk_cliffs", "southeast_horizon"],
+    boundingRoutePairs: [
+      [boardEndpoint("yeraine"), boardEndpoint("tahv")],
+      [boardEndpoint("tahv"), boardEndpoint("ishana")],
+      [boardEndpoint("ishana"), boardEndpoint("graven_isle")],
+      [boardEndpoint("graven_isle"), boardEndpoint("yeraine")],
+    ],
+  },
+  chalk_cliffs: {
+    adjacentBoardIsleIds: ["graven_isle", "ishana", "izor"],
+    adjacentRegionIds: ["wainways", "devil_sea", "southeast_horizon"],
+    boundingRoutePairs: [
+      [boardEndpoint("graven_isle"), boardEndpoint("ishana")],
+      [boardEndpoint("ishana"), boardEndpoint("izor")],
+      [boardEndpoint("izor"), boardEndpoint("graven_isle")],
+    ],
+  },
+  devil_sea: {
+    adjacentBoardIsleIds: ["izor", "ishana", "scuttleport"],
+    adjacentRegionIds: ["scuttle_channel", "chalk_cliffs", "northeast_horizon"],
+    boundingRoutePairs: [
+      [boardEndpoint("izor"), boardEndpoint("ishana")],
+      [boardEndpoint("ishana"), boardEndpoint("scuttleport")],
+      [boardEndpoint("scuttleport"), boardEndpoint("izor")],
+    ],
+  },
+  northwest_horizon: {
+    adjacentBoardIsleIds: ["thyras", "far_reach", "koire"],
+    adjacentRegionIds: ["northeast_horizon", "southwest_horizon", "thyrian_sea", "koiran_reef"],
+    boundingRoutePairs: [
+      [boardEndpoint("thyras"), landEndpoint("nebelheim")],
+      [boardEndpoint("thyras"), boardEndpoint("far_reach")],
+      [boardEndpoint("far_reach"), boardEndpoint("koire")],
+      [boardEndpoint("koire"), landEndpoint("druj_lands")],
+    ],
+  },
+  northeast_horizon: {
+    adjacentBoardIsleIds: ["thyras", "scuttleport", "izor"],
+    adjacentRegionIds: ["northwest_horizon", "southeast_horizon", "ruins_of_old_ishana", "devil_sea"],
+    boundingRoutePairs: [
+      [boardEndpoint("thyras"), landEndpoint("nebelheim")],
+      [boardEndpoint("thyras"), boardEndpoint("scuttleport")],
+      [boardEndpoint("scuttleport"), boardEndpoint("izor")],
+      [boardEndpoint("izor"), landEndpoint("ur")],
+    ],
+  },
+  southeast_horizon: {
+    adjacentBoardIsleIds: ["yeraine", "graven_isle", "izor"],
+    adjacentRegionIds: ["northeast_horizon", "southwest_horizon", "wainways", "chalk_cliffs"],
+    boundingRoutePairs: [
+      [boardEndpoint("izor"), landEndpoint("ur")],
+      [boardEndpoint("izor"), boardEndpoint("graven_isle")],
+      [boardEndpoint("graven_isle"), boardEndpoint("yeraine")],
+      [boardEndpoint("yeraine"), landEndpoint("hecares")],
+    ],
+  },
+  southwest_horizon: {
+    adjacentBoardIsleIds: ["koire", "spyrholm", "sage_atoll", "yeraine"],
+    adjacentRegionIds: ["northwest_horizon", "southeast_horizon", "koiran_reef", "sidereal_sea"],
+    boundingRoutePairs: [
+      [boardEndpoint("koire"), landEndpoint("druj_lands")],
+      [boardEndpoint("koire"), boardEndpoint("spyrholm")],
+      [boardEndpoint("spyrholm"), boardEndpoint("sage_atoll")],
+      [boardEndpoint("sage_atoll"), boardEndpoint("yeraine")],
+      [boardEndpoint("yeraine"), landEndpoint("hecares")],
+    ],
+  },
+};
+
 describe("Mariner catalog fidelity", () => {
   it("catalogs exactly the 15 default board Isle identities", () => {
     expect(MARINER_BOARD_ISLE_IDS).toHaveLength(15);
@@ -245,12 +468,20 @@ describe("Mariner catalog fidelity", () => {
     ].sort());
   });
 
-  it("keeps Horizon cardinal groupings on the four quadrant regions", () => {
+  it("keeps Horizon cardinal groupings and the four external crossings", () => {
     const byId = Object.fromEntries(MARINER_HORIZON_CARDINAL_GROUPS.map((g) => [g.groupId, g]));
     expect(byId.north.regionIds).toEqual(["northwest_horizon", "northeast_horizon"]);
     expect(byId.east.regionIds).toEqual(["northeast_horizon", "southeast_horizon"]);
     expect(byId.south.regionIds).toEqual(["southeast_horizon", "southwest_horizon"]);
     expect(byId.west.regionIds).toEqual(["northwest_horizon", "southwest_horizon"]);
+    expect(byId.north.associatedBoardIsleId).toBe("thyras");
+    expect(byId.east.associatedBoardIsleId).toBe("izor");
+    expect(byId.south.associatedBoardIsleId).toBe("yeraine");
+    expect(byId.west.associatedBoardIsleId).toBe("koire");
+    expect(byId.north.crossingRouteId).toBe(expectedRouteId(boardEndpoint("thyras"), landEndpoint("nebelheim")));
+    expect(byId.east.crossingRouteId).toBe(expectedRouteId(boardEndpoint("izor"), landEndpoint("ur")));
+    expect(byId.south.crossingRouteId).toBe(expectedRouteId(boardEndpoint("yeraine"), landEndpoint("hecares")));
+    expect(byId.west.crossingRouteId).toBe(expectedRouteId(boardEndpoint("koire"), landEndpoint("druj_lands")));
     const horizons = Object.fromEntries(
       MARINER_SEA_REGION_DEFINITIONS.filter((d) => d.kind === "horizon").map((d) => [d.regionId, d.cardinalGroupIds]),
     );
@@ -260,27 +491,71 @@ describe("Mariner catalog fidelity", () => {
     expect(horizons.southwest_horizon).toEqual(["south", "west"]);
   });
 
-  it("transcribes the complete primary-source Route topology", () => {
-    expect(MARINER_ROUTE_DEFINITIONS).toHaveLength(30);
-    const ids = new Set(MARINER_ROUTE_DEFINITIONS.map((d) => d.routeId));
-    expect(ids.size).toBe(30);
-    expect(ids.has(marinerRouteId({ kind: "board_isle", boardIsleId: "thyras" }, { kind: "external_land", externalLandId: "nebelheim" }))).toBe(true);
-    expect(ids.has(marinerRouteId({ kind: "board_isle", boardIsleId: "koire" }, { kind: "external_land", externalLandId: "druj_lands" }))).toBe(true);
-    expect(ids.has(marinerRouteId({ kind: "board_isle", boardIsleId: "yeraine" }, { kind: "external_land", externalLandId: "hecares" }))).toBe(true);
-    expect(ids.has(marinerRouteId({ kind: "board_isle", boardIsleId: "izor" }, { kind: "external_land", externalLandId: "ur" }))).toBe(true);
-    expect(ids.has(marinerRouteId({ kind: "board_isle", boardIsleId: "spyrholm" }, { kind: "board_isle", boardIsleId: "orrery" }))).toBe(true);
-    expect(ids.has(marinerRouteId({ kind: "board_isle", boardIsleId: "ishana" }, { kind: "board_isle", boardIsleId: "scuttleport" }))).toBe(true);
-    expect(ids.has(marinerRouteId({ kind: "board_isle", boardIsleId: "halcyon_isles" }, { kind: "board_isle", boardIsleId: "tahv" }))).toBe(true);
+  it("locks the exact independent 30-Route source topology", () => {
+    expect(EXPECTED_SOURCE_ROUTE_PAIRS).toHaveLength(30);
+    const expectedIds = EXPECTED_SOURCE_ROUTE_PAIRS.map(([a, b]) => expectedRouteId(a, b));
+    expect(new Set(expectedIds).size).toBe(30);
+    expect(sortedCopy(MARINER_ROUTE_DEFINITIONS.map((d) => d.routeId))).toEqual(sortedCopy(expectedIds));
+  });
+
+  it("locks exact independent sea/Horizon faces for all 16 regions", () => {
+    expect(Object.keys(EXPECTED_SOURCE_SEA_REGIONS).sort()).toEqual(sortedCopy(MARINER_SEA_REGION_IDS));
+    const byId = Object.fromEntries(MARINER_SEA_REGION_DEFINITIONS.map((d) => [d.regionId, d]));
+    for (const regionId of MARINER_SEA_REGION_IDS) {
+      const actual = byId[regionId];
+      const expected = EXPECTED_SOURCE_SEA_REGIONS[regionId];
+      expect(sortedCopy(actual.adjacentBoardIsleIds)).toEqual(sortedCopy(expected.adjacentBoardIsleIds));
+      expect(sortedCopy(actual.adjacentRegionIds)).toEqual(sortedCopy(expected.adjacentRegionIds));
+      expect(sortedCopy(actual.boundingRouteIds)).toEqual(
+        sortedCopy(expected.boundingRoutePairs.map(([a, b]) => expectedRouteId(a, b))),
+      );
+    }
+
+    for (const region of MARINER_SEA_REGION_DEFINITIONS) {
+      for (const neighborId of region.adjacentRegionIds) {
+        const neighbor = byId[neighborId];
+        expect(neighbor.adjacentRegionIds).toContain(region.regionId);
+      }
+    }
   });
 
   it("catalogs Quiet, Dynamic, and Explosive source arrangements", () => {
     expect(MARINER_ARRANGEMENT_DEFINITIONS.map((d) => d.arrangementId)).toEqual(["quiet", "dynamic", "explosive"]);
     const quiet = MARINER_ARRANGEMENT_DEFINITIONS[0];
     expect(quiet.raiders).toEqual([
-      { routeId: marinerRouteId({ kind: "board_isle", boardIsleId: "scuttleport" }, { kind: "board_isle", boardIsleId: "ishana" }), toward: null },
+      {
+        routeId: expectedRouteId(boardEndpoint("scuttleport"), boardEndpoint("ishana")),
+        toward: boardEndpoint("ishana"),
+      },
     ]);
     expect(quiet.marketBoardIsleIds).toEqual(["scuttleport"]);
+    const dynamic = MARINER_ARRANGEMENT_DEFINITIONS[1];
+    expect(dynamic.raiders).toEqual([
+      {
+        routeId: expectedRouteId(boardEndpoint("scuttleport"), boardEndpoint("ishana")),
+        toward: boardEndpoint("ishana"),
+      },
+      {
+        routeId: expectedRouteId(boardEndpoint("halcyon_isles"), boardEndpoint("ishana")),
+        toward: boardEndpoint("ishana"),
+      },
+    ]);
+    expect(dynamic.distrustingBeastRegionIds).toEqual(["sunken_fleet"]);
     const explosive = MARINER_ARRANGEMENT_DEFINITIONS[2];
+    expect(explosive.raiders).toEqual([
+      {
+        routeId: expectedRouteId(boardEndpoint("scuttleport"), boardEndpoint("ishana")),
+        toward: boardEndpoint("ishana"),
+      },
+      {
+        routeId: expectedRouteId(boardEndpoint("halcyon_isles"), boardEndpoint("ishana")),
+        toward: boardEndpoint("ishana"),
+      },
+      {
+        routeId: expectedRouteId(boardEndpoint("thyras"), landEndpoint("nebelheim")),
+        toward: boardEndpoint("thyras"),
+      },
+    ]);
     expect(explosive.isleRavageStormCounts).toEqual({ druntyr: 6 });
     expect(explosive.rarityBoardIsleIds).toEqual(["scuttleport"]);
   });
@@ -370,6 +645,61 @@ describe("Mariner shared references", () => {
       initializedMariner({ beasts: [beast(DEN_1), beast(DEN_1)] }),
       defaultWorld(),
     ))).toThrow(DomainError);
+  });
+});
+
+describe("Mariner other-Domain Rampaging location", () => {
+  function rampagingBeast(location: MarinerBeastState["location"]): MarinerBeastState {
+    return {
+      denizenId: DEN_1,
+      element: "air",
+      definitionId: "griffin",
+      condition: "rampaging",
+      location,
+    };
+  }
+
+  it("accepts a Rampaging Beast in another Wizard's Domain even when that seat is empty", () => {
+    const mariner = initializedMariner({
+      beasts: [rampagingBeast({ kind: "other_domain", seatId: "hierophant" })],
+    });
+    expect(() => validateMarinerStructure(mariner)).not.toThrow();
+    const state = baseV5(mariner, defaultWorld());
+    expect(state.pactSeats.hierophant.wizardId).toBeNull();
+    expect(() => validateCampaignStateV5Candidate(state)).not.toThrow();
+  });
+
+  it("rejects other-Domain location on the Mariner seat", () => {
+    expect(() => validateMarinerStructure(initializedMariner({
+      beasts: [rampagingBeast({ kind: "other_domain", seatId: "mariner" })],
+    }))).toThrow(DomainError);
+  });
+
+  it("rejects an invalid Pact seat identity", () => {
+    expect(() => validateMarinerStructure(initializedMariner({
+      beasts: [rampagingBeast({ kind: "other_domain", seatId: "not_a_seat" } as unknown as MarinerBeastState["location"])],
+    }))).toThrow(DomainError);
+  });
+
+  it("permits other-Domain location only for Rampaging Beasts", () => {
+    expect(() => validateMarinerStructure(initializedMariner({
+      beasts: [{
+        denizenId: DEN_1,
+        element: "air",
+        definitionId: "griffin",
+        condition: "distrusting",
+        location: { kind: "other_domain", seatId: "warlock" },
+      }],
+    }))).toThrow(DomainError);
+  });
+
+  it("still allows a Rampaging Beast on the Mariner map or off-map after leaving a Horizon", () => {
+    expect(() => validateMarinerStructure(initializedMariner({
+      beasts: [rampagingBeast({ kind: "sea_region", regionId: "sunken_fleet" })],
+    }))).not.toThrow();
+    expect(() => validateMarinerStructure(initializedMariner({
+      beasts: [rampagingBeast({ kind: "off_map" })],
+    }))).not.toThrow();
   });
 });
 
