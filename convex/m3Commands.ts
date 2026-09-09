@@ -146,6 +146,8 @@ import {
   applyCreateCampaignDoctrine,
   applyUpdateCampaignDoctrine,
   applyInitializeMariner,
+  canonicalizeInitializeMarinerInput,
+  normalizeMarinerIsleMarket,
   applySetMarinerShip,
   applySetSelectedSeaLaws,
   applySetMarinerRouteOccupancy,
@@ -2348,7 +2350,7 @@ export const initializeMariner = mutation({
       ctx,
       { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
       () => {
-        const input: InitializeMarinerInput = {
+        const input = canonicalizeInitializeMarinerInput({
           arrangementId: args.arrangementId as MarinerArrangementId,
           shipPlaceId: args.shipPlaceId as PlaceId,
           selectedLawOfSeaIds: args.selectedLawOfSeaIds as MarinerLawOfSeaId[],
@@ -2361,7 +2363,7 @@ export const initializeMariner = mutation({
             boardIsleId: entry.boardIsleId as MarinerBoardIsleId,
             description: entry.description,
           })),
-        };
+        });
         return {
           commandType: "initialize_mariner",
           commandFingerprint: initializeMarinerFingerprint(args.expectedCampaignId, input),
@@ -2502,21 +2504,24 @@ export const setMarinerIsleMarket = mutation({
     return executeConvexOrdinaryLogicalCommand(
       ctx,
       { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
-      () => ({
-        commandType: "set_mariner_isle_market",
-        commandFingerprint: setMarinerIsleMarketFingerprint(
-          args.expectedCampaignId,
-          args.boardIsleId,
-          args.expectedMarket,
-          args.market,
-        ),
-        apply: (state) => applySetMarinerIsleMarket(
-          state,
-          args.boardIsleId as MarinerBoardIsleId,
-          args.expectedMarket as MarinerIsleMarket,
-          args.market as MarinerIsleMarket,
-        ),
-      }),
+      () => {
+        const market = normalizeMarinerIsleMarket(args.market as MarinerIsleMarket);
+        return {
+          commandType: "set_mariner_isle_market",
+          commandFingerprint: setMarinerIsleMarketFingerprint(
+            args.expectedCampaignId,
+            args.boardIsleId,
+            args.expectedMarket,
+            market,
+          ),
+          apply: (state) => applySetMarinerIsleMarket(
+            state,
+            args.boardIsleId as MarinerBoardIsleId,
+            args.expectedMarket as MarinerIsleMarket,
+            market,
+          ),
+        };
+      },
     );
   },
 });

@@ -815,6 +815,8 @@ export type {
   UpdateMarinerBeastFields,
 } from "./mariner-transitions";
 export {
+  canonicalizeInitializeMarinerInput,
+  normalizeMarinerIsleMarket,
   applyInitializeMariner,
   applySetMarinerShip,
   applySetSelectedSeaLaws,

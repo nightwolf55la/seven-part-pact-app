@@ -35,7 +35,10 @@ import {
   initializeMarinerFingerprint,
   isLogicalStateCommandType,
   marinerRouteId,
+  canonicalizeInitializeMarinerInput,
+  normalizeMarinerIsleMarket,
   removeMarinerBeastFingerprint,
+  setMarinerIsleMarketFingerprint,
   setMarinerRouteOccupancyFingerprint,
   setMarinerShipFingerprint,
   setSelectedSeaLawsFingerprint,
@@ -549,6 +552,84 @@ describe("Mariner command registration and fingerprints", () => {
     expect(removeMarinerBeastFingerprint(CAMPAIGN_A, DEN_1, beast))
       .not.toBe(removeMarinerBeastFingerprint(CAMPAIGN_A, DEN_1, { ...beast, condition: "rampaging" }));
   });
+
+  it("canonicalizes initialize_mariner Rarity whitespace and binding order before fingerprinting", () => {
+    const pearl = explosiveInput({
+      rarityDescriptions: [{ boardIsleId: "scuttleport", description: "pearl" }],
+    });
+    const padded = explosiveInput({
+      rarityDescriptions: [{ boardIsleId: "scuttleport", description: "  pearl  " }],
+    });
+    expect(initializeMarinerFingerprint(CAMPAIGN_A, canonicalizeInitializeMarinerInput(pearl)))
+      .toBe(initializeMarinerFingerprint(CAMPAIGN_A, canonicalizeInitializeMarinerInput(padded)));
+
+    const reversedBindings = quietInput({ isleBindings: [...isleBindings()].reverse() });
+    expect(initializeMarinerFingerprint(CAMPAIGN_A, canonicalizeInitializeMarinerInput(quietInput())))
+      .toBe(initializeMarinerFingerprint(CAMPAIGN_A, canonicalizeInitializeMarinerInput(reversedBindings)));
+
+    const rarityOrderA = canonicalizeInitializeMarinerInput(quietInput({
+      rarityDescriptions: [
+        { boardIsleId: "scuttleport", description: "crown" },
+        { boardIsleId: "halcyon_isles", description: "pearl" },
+      ],
+    }));
+    const rarityOrderB = canonicalizeInitializeMarinerInput(quietInput({
+      rarityDescriptions: [
+        { boardIsleId: "halcyon_isles", description: "pearl" },
+        { boardIsleId: "scuttleport", description: "crown" },
+      ],
+    }));
+    expect(rarityOrderA.rarityDescriptions.map((entry) => entry.boardIsleId))
+      .toEqual(["halcyon_isles", "scuttleport"]);
+    expect(rarityOrderA.rarityDescriptions).toEqual(rarityOrderB.rarityDescriptions);
+    expect(initializeMarinerFingerprint(CAMPAIGN_A, rarityOrderA))
+      .toBe(initializeMarinerFingerprint(CAMPAIGN_A, rarityOrderB));
+
+    expect(initializeMarinerFingerprint(
+      CAMPAIGN_A,
+      canonicalizeInitializeMarinerInput(quietInput({ selectedLawOfSeaIds: ["first", "seventh"] })),
+    )).not.toBe(initializeMarinerFingerprint(
+      CAMPAIGN_A,
+      canonicalizeInitializeMarinerInput(quietInput({ selectedLawOfSeaIds: ["seventh", "first"] })),
+    ));
+
+    const fromPadded = applyInitializeMariner(baseV5(), padded);
+    const fromPearl = applyInitializeMariner(baseV5(), pearl);
+    expect(fromPadded.nextState.mariner).toEqual(fromPearl.nextState.mariner);
+    expect(fromPadded.events[0]).toMatchObject({
+      type: "mariner_initialized",
+      data: {
+        rarityDescriptions: [{ boardIsleId: "scuttleport", description: "pearl" }],
+      },
+    });
+    expect(fromPadded.events[0]?.type === "mariner_initialized"
+      ? fromPadded.events[0].data.isleBindings
+      : undefined)
+      .toEqual(canonicalizeInitializeMarinerInput(padded).isleBindings);
+    expect(fromPearl.nextState.mariner.boardIsles.find((isle) => isle.boardIsleId === "scuttleport")?.market)
+      .toEqual({ present: true, rarity: "pearl" });
+  });
+
+  it("canonicalizes set_mariner_isle_market target rarity before fingerprinting", () => {
+    const expectedMarket = { present: true as const, rarity: null };
+    const boardIsleId = "scuttleport";
+    const fp = (market: Parameters<typeof normalizeMarinerIsleMarket>[0]) =>
+      setMarinerIsleMarketFingerprint(
+        CAMPAIGN_A,
+        boardIsleId,
+        expectedMarket,
+        normalizeMarinerIsleMarket(market),
+      );
+    expect(fp({ present: true, rarity: "  pearl  " })).toBe(fp({ present: true, rarity: "pearl" }));
+    expect(fp({ present: true, rarity: "   " })).toBe(fp({ present: true, rarity: null }));
+    expect(fp({ present: true, rarity: "pearl" })).not.toBe(fp({ present: true, rarity: "amber" }));
+    expect(setMarinerIsleMarketFingerprint(
+      CAMPAIGN_A,
+      boardIsleId,
+      { present: true, rarity: "pearl" },
+      normalizeMarinerIsleMarket({ present: true, rarity: "pearl" }),
+    )).not.toBe(fp({ present: true, rarity: "pearl" }));
+  });
 });
 
 describe("Mariner ordinary command path", () => {
@@ -593,7 +674,7 @@ describe("Mariner ordinary command path", () => {
 
   it("initializes Mariner through the ordinary executor with campaign protection, snapshot, events, and idempotency", async () => {
     const state = baseV5();
-    const input = quietInput();
+    const input = canonicalizeInitializeMarinerInput(quietInput());
     const fingerprint = initializeMarinerFingerprint(CAMPAIGN_A, input);
     const prepare: () => OrdinaryLogicalCommandPreparation = () => ({
       commandType: "initialize_mariner",
@@ -642,7 +723,10 @@ describe("Mariner ordinary command path", () => {
       { commandId: COMMAND_1, expectedCampaignId: CAMPAIGN_A },
       () => ({
         commandType: "initialize_mariner",
-        commandFingerprint: initializeMarinerFingerprint(CAMPAIGN_A, quietInput({ selectedLawOfSeaIds: ["second", "third"] })),
+        commandFingerprint: initializeMarinerFingerprint(
+          CAMPAIGN_A,
+          canonicalizeInitializeMarinerInput(quietInput({ selectedLawOfSeaIds: ["second", "third"] })),
+        ),
         apply: (current) => applyInitializeMariner(current, quietInput({ selectedLawOfSeaIds: ["second", "third"] })),
       }),
     )).rejects.toMatchObject({ code: "COMMAND_ID_REUSED" });

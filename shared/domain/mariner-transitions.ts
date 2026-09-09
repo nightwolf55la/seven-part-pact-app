@@ -205,6 +205,46 @@ function optionalText(raw: string | null, label: string): string | null {
   return trimmed;
 }
 
+export function canonicalizeInitializeMarinerInput(
+  input: InitializeMarinerInput,
+): InitializeMarinerInput {
+  return {
+    arrangementId: input.arrangementId,
+    shipPlaceId: input.shipPlaceId,
+    selectedLawOfSeaIds: [...input.selectedLawOfSeaIds],
+    isleBindings: [...input.isleBindings]
+      .map((binding) => ({ ...binding }))
+      .sort(compareBoardIsleId),
+    arrangementBeasts: input.arrangementBeasts.map((beast) => ({ ...beast })),
+    rarityDescriptions: [...input.rarityDescriptions]
+      .map((entry) => ({
+        boardIsleId: entry.boardIsleId,
+        description: normalizeText(entry.description, "Rarity"),
+      }))
+      .sort(compareBoardIsleId),
+  };
+}
+
+export function normalizeMarinerIsleMarket(market: MarinerIsleMarket): MarinerIsleMarket {
+  if (market.present === false) {
+    if ("rarity" in market && market.rarity !== undefined) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", "Market cannot include rarity without a Market");
+    }
+    return { present: false };
+  }
+  return { present: true, rarity: optionalText(market.rarity, "Rarity") };
+}
+
+function compareBoardIsleId(a: { boardIsleId: string }, b: { boardIsleId: string }): number {
+  if (a.boardIsleId < b.boardIsleId) {
+    return -1;
+  }
+  if (a.boardIsleId > b.boardIsleId) {
+    return 1;
+  }
+  return 0;
+}
+
 function requireMobilePlace(state: CampaignStateV5, placeId: PlaceId, label: string): void {
   const place = state.world.places.find((p) => p.placeId === placeId);
   if (place === undefined) {
@@ -213,16 +253,6 @@ function requireMobilePlace(state: CampaignStateV5, placeId: PlaceId, label: str
   if (place.placement.kind !== "mobile") {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `${label} must reference a mobile Place`);
   }
-}
-
-function normalizeMarket(market: MarinerIsleMarket): MarinerIsleMarket {
-  if (market.present === false) {
-    if ("rarity" in market && market.rarity !== undefined) {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", "Market cannot include rarity without a Market");
-    }
-    return { present: false };
-  }
-  return { present: true, rarity: optionalText(market.rarity, "Rarity") };
 }
 
 function occupancyFromArrangement(
@@ -248,8 +278,9 @@ function occupancyFromArrangement(
 
 export function applyInitializeMariner(
   state: CampaignStateV5,
-  input: InitializeMarinerInput,
+  rawInput: InitializeMarinerInput,
 ): MarinerTransitionResult {
+  const input = canonicalizeInitializeMarinerInput(rawInput);
   if (!isExactEmptyMariner(state.mariner)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Mariner has already been initialized");
   }
@@ -368,7 +399,7 @@ export function applyInitializeMariner(
         `Arrangement ${arrangement.arrangementId} does not start with a Rarity on ${entry.boardIsleId}`,
       );
     }
-    rarityByIsle.set(entry.boardIsleId, normalizeText(entry.description, "Rarity"));
+    rarityByIsle.set(entry.boardIsleId, entry.description);
   }
   for (const boardIsleId of arrangement.rarityBoardIsleIds) {
     if (!rarityByIsle.has(boardIsleId)) {
@@ -399,11 +430,6 @@ export function applyInitializeMariner(
     seaStormCounts: arrangement.seaStormCounts,
   });
 
-  const normalizedRarityDescriptions = arrangement.rarityBoardIsleIds.map((boardIsleId) => ({
-    boardIsleId,
-    description: rarityByIsle.get(boardIsleId)!,
-  }));
-
   return commitMariner(state, mariner, [{
     type: "mariner_initialized",
     version: 1,
@@ -413,7 +439,7 @@ export function applyInitializeMariner(
       selectedLawOfSeaIds: [...input.selectedLawOfSeaIds],
       isleBindings: input.isleBindings.map((binding) => ({ ...binding })),
       arrangementBeasts: input.arrangementBeasts.map((beast) => ({ ...beast })),
-      rarityDescriptions: normalizedRarityDescriptions,
+      rarityDescriptions: input.rarityDescriptions.map((entry) => ({ ...entry })),
       mariner,
     },
   }]);
@@ -586,7 +612,7 @@ export function applySetMarinerIsleMarket(
       `market for ${boardIsleId} does not match the expected current value`,
     );
   }
-  const normalized = normalizeMarket(market);
+  const normalized = normalizeMarinerIsleMarket(market);
   if (marketEqual(isle.market, normalized)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Update produces no change");
   }
