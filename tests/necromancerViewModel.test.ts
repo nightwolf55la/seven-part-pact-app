@@ -165,6 +165,49 @@ describe("setup readiness", () => {
     expect(NECROMANCER_PRIMARY_ELEMENT_OPTIONS).toEqual(["air", "fire", "earth", "water"]);
   });
 
+  it("treats Explosive Ghoul-Caller aesthetic and strange quirk as unready when they cannot be canonicalized", () => {
+    const overLimit = "x".repeat(8001);
+    expect(necromancerSetupReady(explosiveDraft({ ghoulCallerAesthetic: overLimit }), denizens)).toBe(false);
+    expect(necromancerSetupReady(explosiveDraft({ ghoulCallerStrangeQuirk: overLimit }), denizens)).toBe(false);
+    expect(necromancerSetupReady(explosiveDraft({
+      ghoulCallerAesthetic: "x".repeat(8000),
+      ghoulCallerStrangeQuirk: "y".repeat(8000),
+    }), denizens)).toBe(true);
+  });
+
+  it("returns null instead of throwing when initialize payload canonicalization fails", () => {
+    const overLimit = "x".repeat(8001);
+    expect(() => buildInitializeNecromancerPayload({
+      commandId: "cmd_over_limit",
+      expectedCampaignId: "camp_1",
+      draft: explosiveDraft({ ghoulCallerAesthetic: overLimit }),
+      denizens,
+    })).not.toThrow();
+    expect(buildInitializeNecromancerPayload({
+      commandId: "cmd_over_limit",
+      expectedCampaignId: "camp_1",
+      draft: explosiveDraft({ ghoulCallerAesthetic: overLimit }),
+      denizens,
+    })).toBeNull();
+    expect(buildInitializeNecromancerPayload({
+      commandId: "cmd_over_limit",
+      expectedCampaignId: "camp_1",
+      draft: explosiveDraft({ ghoulCallerStrangeQuirk: overLimit }),
+      denizens,
+    })).toBeNull();
+    const accepted = buildInitializeNecromancerPayload({
+      commandId: "cmd_limit",
+      expectedCampaignId: "camp_1",
+      draft: explosiveDraft({
+        ghoulCallerAesthetic: "x".repeat(8000),
+        ghoulCallerStrangeQuirk: "y".repeat(8000),
+      }),
+      denizens,
+    });
+    expect(accepted?.arrangementGhoulCaller?.aesthetic).toBe("x".repeat(8000));
+    expect(accepted?.arrangementGhoulCaller?.strangeQuirk).toBe("y".repeat(8000));
+  });
+
   it("duplicate starting Denizen binding makes setup unready", () => {
     expect(duplicateStartingSetupDenizenIds(quietDraft({ allyDenizenId: "den_deep" }))).toEqual(["den_deep"]);
     expect(necromancerSetupReady(quietDraft({ allyDenizenId: "den_deep" }), denizens)).toBe(false);

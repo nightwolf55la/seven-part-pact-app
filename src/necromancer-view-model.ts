@@ -699,6 +699,15 @@ function denizenById(denizens: readonly DenizenRef[], denizenId: string): Denize
   return denizens.find((denizen) => denizen.denizenId === denizenId);
 }
 
+function ghoulCallerProfileTextReady(raw: string): boolean {
+  try {
+    canonicalizeNecromancerGhoulCallerProfileText(raw, "profile");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function necromancerSetupReady(
   draft: NecromancerSetupDraft,
   denizens: readonly DenizenRef[],
@@ -730,8 +739,8 @@ export function necromancerSetupReady(
     if (ghoul === undefined || ghoul.representation !== "individual") return false;
     if (!isBuiltinEdgeOfLifePathSpaceId(draft.ghoulCallerPathSpaceId)) return false;
     if (!(ELEMENT_IDS as readonly string[]).includes(draft.ghoulCallerPrimaryElement)) return false;
-    if (draft.ghoulCallerAesthetic.trim() === "") return false;
-    if (draft.ghoulCallerStrangeQuirk.trim() === "") return false;
+    if (!ghoulCallerProfileTextReady(draft.ghoulCallerAesthetic)) return false;
+    if (!ghoulCallerProfileTextReady(draft.ghoulCallerStrangeQuirk)) return false;
     if (parseNonNegInt(draft.ghoulCallerAgeYears) === null) return false;
   }
   if (duplicateStartingSetupDenizenIds(draft).length > 0) return false;
@@ -764,29 +773,34 @@ export function buildInitializeNecromancerPayload(args: {
   const definition = necromancerArrangementDefinition(arrangementId);
   if (definition === undefined) return null;
   const ageYears = parseNonNegInt(args.draft.ghoulCallerAgeYears);
-  const canonical = canonicalizeInitializeNecromancerInput({
-    arrangementId,
-    selectedLawIds: uniqueSelectedSetupLawIds(args.draft.selectedLawIds),
-    arrangementFoes: [
-      { denizenId: args.draft.deepFoeDenizenId as never, gateId: "deep" },
-      { denizenId: args.draft.terminusFoeDenizenId as never, gateId: "terminus" },
-      ...args.draft.farFoes.map((foe) => ({ denizenId: foe.denizenId as never, gateId: foe.gateId as never })),
-    ],
-    arrangementAlly: {
-      denizenId: args.draft.allyDenizenId as never,
-      gateId: args.draft.allyGateId as never,
-    },
-    arrangementGhoulCaller: definition.ghoulCaller === null || ageYears === null
-      ? null
-      : {
-          denizenId: args.draft.ghoulCallerDenizenId as never,
-          pathSpaceId: args.draft.ghoulCallerPathSpaceId as NecromancerBuiltinPathSpaceId,
-          primaryElement: args.draft.ghoulCallerPrimaryElement as ElementId,
-          aesthetic: args.draft.ghoulCallerAesthetic,
-          strangeQuirk: args.draft.ghoulCallerStrangeQuirk,
-          ageYears,
-        },
-  });
+  let canonical;
+  try {
+    canonical = canonicalizeInitializeNecromancerInput({
+      arrangementId,
+      selectedLawIds: uniqueSelectedSetupLawIds(args.draft.selectedLawIds),
+      arrangementFoes: [
+        { denizenId: args.draft.deepFoeDenizenId as never, gateId: "deep" },
+        { denizenId: args.draft.terminusFoeDenizenId as never, gateId: "terminus" },
+        ...args.draft.farFoes.map((foe) => ({ denizenId: foe.denizenId as never, gateId: foe.gateId as never })),
+      ],
+      arrangementAlly: {
+        denizenId: args.draft.allyDenizenId as never,
+        gateId: args.draft.allyGateId as never,
+      },
+      arrangementGhoulCaller: definition.ghoulCaller === null || ageYears === null
+        ? null
+        : {
+            denizenId: args.draft.ghoulCallerDenizenId as never,
+            pathSpaceId: args.draft.ghoulCallerPathSpaceId as NecromancerBuiltinPathSpaceId,
+            primaryElement: args.draft.ghoulCallerPrimaryElement as ElementId,
+            aesthetic: args.draft.ghoulCallerAesthetic,
+            strangeQuirk: args.draft.ghoulCallerStrangeQuirk,
+            ageYears,
+          },
+    });
+  } catch {
+    return null;
+  }
   return {
     commandId: args.commandId,
     expectedCampaignId: args.expectedCampaignId,
