@@ -705,8 +705,15 @@ export function validateFaustianReferenceIntegrity(state: CampaignStateV5): void
   for (let i = 0; i < faustian.domainSeizures.length; i++) {
     const path = `faustian.domainSeizures[${i}]`;
     const seizure = faustian.domainSeizures[i];
-    if (!denizenById.has(seizure.conduitDenizenId)) {
+    const conduit = denizenById.get(seizure.conduitDenizenId);
+    if (conduit === undefined) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.conduitDenizenId does not resolve: ${seizure.conduitDenizenId}`);
+    }
+    if (conduit.mortalityState === "deceased") {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path}.conduitDenizenId is deceased; an active Domain seizure cannot use a dead Devil conduit`,
+      );
     }
   }
 

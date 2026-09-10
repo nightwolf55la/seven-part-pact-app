@@ -71,6 +71,7 @@ import type {
 import { validateNecromancerReferenceIntegrity } from "./necromancer-validation";
 import { validateHierophantReferenceIntegrity } from "./hierophant-validation";
 import { validateMarinerReferenceIntegrity } from "./mariner-validation";
+import { validateFaustianReferenceIntegrity } from "./faustian-validation";
 import { isNecromancerWizardFoe } from "./necromancer-state";
 
 export type SharedStateTransitionResult = {
@@ -412,7 +413,9 @@ export function applySetDenizenMortalityState(
       newMortalityState: change.value,
     },
   };
-  return { nextState: replaceDenizen(state, index, updated), events: [event] };
+  const nextState = replaceDenizen(state, index, updated);
+  validateFaustianReferenceIntegrity(nextState);
+  return { nextState, events: [event] };
 }
 
 export interface CreatePowerfulDenizenProfileInput {

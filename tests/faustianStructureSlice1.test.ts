@@ -41,6 +41,7 @@ import {
   POWERFUL_DENIZEN_BUILTIN_TAXONOMY_IDS,
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
+  applySetDenizenMortalityState,
   buildInitializedDefaultFaustianState,
   devilWeeksOwedForMissingSuits,
   faustianCardId,
@@ -498,6 +499,58 @@ describe("Faustian reference integrity", () => {
       }),
       /another|faustian/i,
     );
+  });
+
+  it("rejects an active Domain seizure whose conduit Denizen is deceased", () => {
+    expectInvalid(
+      baseV5(
+        {
+          ...EMPTY_FAUSTIAN_STATE,
+          domainSeizures: [{ seatId: "hierophant", conduitDenizenId: DEN_2 }],
+        },
+        {
+          ...EMPTY_SHARED_WORLD_STATE,
+          denizens: [{
+            denizenId: DEN_2,
+            name: "Lord Ash",
+            representation: "individual",
+            description: null,
+            mortalityState: "deceased",
+            powerfulProfile: null,
+          }],
+        },
+      ),
+      /conduit.*deceased|deceased.*conduit/i,
+    );
+  });
+
+  it("fails closed when set_denizen_mortality_state would leave a deceased Devil conduit", () => {
+    const living = baseV5(
+      {
+        ...EMPTY_FAUSTIAN_STATE,
+        domainSeizures: [{ seatId: "hierophant", conduitDenizenId: DEN_2 }],
+      },
+      {
+        ...EMPTY_SHARED_WORLD_STATE,
+        denizens: [{
+          denizenId: DEN_2,
+          name: "Lord Ash",
+          representation: "individual",
+          description: null,
+          mortalityState: "not_deceased",
+          powerfulProfile: null,
+        }],
+      },
+    );
+    expect(() => validateCampaignStateV5Candidate(living)).not.toThrow();
+    expect(() => applySetDenizenMortalityState(living, DEN_2, {
+      expected: "not_deceased",
+      value: "deceased",
+    })).toThrow(DomainError);
+    expect(() => applySetDenizenMortalityState(living, DEN_2, {
+      expected: "not_deceased",
+      value: "deceased",
+    })).toThrow(/conduit.*deceased|deceased.*conduit/i);
   });
 
   it("accepts coherent Conspiracy, Antagonist, Demon, and Devil treasure custody", () => {
