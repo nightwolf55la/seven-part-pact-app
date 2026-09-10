@@ -268,9 +268,11 @@ import {
   investigateFaustianCommunityFingerprint,
   blackmailFaustianCommunityFingerprint,
   directFaustianAccompliceFingerprint,
+  disruptFaustianPawnFingerprint,
   applyInvestigateFaustianCommunity,
   applyBlackmailFaustianCommunity,
   applyDirectFaustianAccomplice,
+  applyDisruptFaustianPawn,
 } from "../shared/domain";
 import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange, CompanionRelationshipId, HierophantFlameLawId, HierophantStartingTempleId, HierophantTempleId, HierophantCampaignClassId, HierophantCampaignDoctrineId, HierophantDogmaEntryId, HierophantSupplicant, HierophantProphet, HierophantCult, HierophantCultDogma, HierophantCampaignClass, HierophantCampaignDoctrine, CreateTempleInput, OrdinaryTempleDoctrineState, InitializeMarinerInput, MarinerBeastState, MarinerIsleMarket, MarinerRouteOccupancy, MarinerBoardIsleId, MarinerLawOfSeaId, MarinerRouteId, MarinerSeaRegionId, MarinerArrangementId, UpdateMarinerBeastFields, InitializeNecromancerInput, NecromancerArrangementId, NecromancerLawOfDeathId, NecromancerBuiltinGateId, NecromancerBuiltinPathSpaceId, NecromancerDepthState, NecromancerSelectedLaw, NecromancerGateId, NecromancerGateStatus, NecromancerOccupiableSpaceRef, NecromancerFoeState, NecromancerFoeSubjectRef, NecromancerWizardFoeState, NecromancerWizardTraversalState, UpdateNecromancerWizardTraversalFields, NecromancerAllyState, NecromancerGhoulCallerState, UpdateNecromancerFoeFields, UpdateNecromancerAllyFields, UpdateNecromancerGhoulCallerFields, NecromancerCampaignGateId, NecromancerGateBand, UpdateNecromancerCampaignGateFields, NecromancerCampaignPathSpaceId, NecromancerPathRegion, NecromancerCampaignPathSpaceState, NecromancerDirectedStep, MortalityState, PowerfulDenizenTaxonomyRef, PowerfulDenizenStatus, PowerfulDenizenMethodDefinition, PowerfulDenizenMethodEntry, PowerfulDenizenTruthEntry, PowerfulDenizenProfile, CampaignPowerfulDenizenTaxonomy, CampaignPowerfulDenizenTaxonomyId, PowerfulDenizenMethodEntryId, PowerfulDenizenTruthId, TreasureId, TreasureCondition, TreasureCustody, PactFragmentOperationalState, FaustianCommunityId, FaustianCardId } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
@@ -4682,6 +4684,34 @@ export const directFaustianAccomplice = mutation({
           state,
           args.accompliceCardId as FaustianCardId,
           args.destinationCommunityId as FaustianCommunityId,
+        ),
+      }),
+    );
+  },
+});
+
+export const disruptFaustianPawn = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    communityId: v.string(),
+    accompliceCardId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "disrupt_faustian_pawn",
+        commandFingerprint: disruptFaustianPawnFingerprint(
+          args.expectedCampaignId,
+          args.communityId,
+          args.accompliceCardId,
+        ),
+        apply: (state) => applyDisruptFaustianPawn(
+          state,
+          args.communityId as FaustianCommunityId,
+          args.accompliceCardId as FaustianCardId,
         ),
       }),
     );

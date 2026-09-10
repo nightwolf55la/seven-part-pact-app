@@ -1644,10 +1644,21 @@ export interface FaustianAccompliceDirectedEventV1 {
   readonly data: FaustianAccompliceDirectedDataV1;
 }
 
+export interface FaustianPawnDisruptedDataV1 {
+  readonly communityId: FaustianCommunityId;
+  readonly accompliceCardId: FaustianCardId;
+}
+export interface FaustianPawnDisruptedEventV1 {
+  readonly type: "faustian_pawn_disrupted";
+  readonly version: 1;
+  readonly data: FaustianPawnDisruptedDataV1;
+}
+
 export type FaustianEvent =
   | FaustianCommunityInvestigatedEventV1
   | FaustianCommunityBlackmailedEventV1
-  | FaustianAccompliceDirectedEventV1;
+  | FaustianAccompliceDirectedEventV1
+  | FaustianPawnDisruptedEventV1;
 
 export type CampaignEvent =
   | InfrastructureEvent

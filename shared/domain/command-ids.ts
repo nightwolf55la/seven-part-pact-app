@@ -1043,6 +1043,18 @@ export function directFaustianAccompliceFingerprint(
   })}`;
 }
 
+export function disruptFaustianPawnFingerprint(
+  expectedCampaignId: string,
+  communityId: string,
+  accompliceCardId: string,
+): string {
+  return `disrupt_faustian_pawn:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    communityId,
+    accompliceCardId,
+  })}`;
+}
+
 /**
  * Pure deterministic idempotency match for command replay.
  * Given a previously committed command record and an incoming attempt,

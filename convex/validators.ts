@@ -2155,6 +2155,15 @@ const faustianAccompliceDirectedEventV1Validator = v.object({
   }),
 });
 
+const faustianPawnDisruptedEventV1Validator = v.object({
+  type: v.literal("faustian_pawn_disrupted"),
+  version: v.literal(1),
+  data: v.object({
+    communityId: v.string(),
+    accompliceCardId: v.string(),
+  }),
+});
+
 export const campaignEventValidator = v.union(
   historicalMonthChangedEventV1Validator,
   undoAppliedEventV1Validator,
@@ -2286,6 +2295,7 @@ export const campaignEventValidator = v.union(
   faustianCommunityInvestigatedEventV1Validator,
   faustianCommunityBlackmailedEventV1Validator,
   faustianAccompliceDirectedEventV1Validator,
+  faustianPawnDisruptedEventV1Validator,
 );
 
 export const anyCampaignStateValidator = campaignStateV5Validator;

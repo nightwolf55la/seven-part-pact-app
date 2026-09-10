@@ -46,6 +46,9 @@ function cardRank(cardId: FaustianCardId): FaustianRank {
   return cardId.slice(cardId.indexOf("_") + 1) as FaustianRank;
 }
 
+// Application canon: the detailed Accomplice rule removes Schemes of equal or
+// lower rank, despite shorter overview text that says only "lower". Ace
+// Accomplices override ordinary comparison and defeat every Scheme except a 2.
 function accompliceDefeatsScheme(accompliceCardId: FaustianCardId, schemeCardId: FaustianCardId): boolean {
   const accompliceRank = cardRank(accompliceCardId);
   const schemeRank = cardRank(schemeCardId);
@@ -190,6 +193,8 @@ export function applyDirectFaustianAccomplice(
     .filter((scheme) => !accompliceDefeatsScheme(accompliceCardId, scheme.cardId))
     .map((scheme) => ({ ...scheme, facing: "face_up" as const }));
 
+  // Application canon: returned Schemes append to the bottom of devilDeck in
+  // the destination Community's existing scheme order. Do not shuffle.
   const faustian: FaustianState = {
     ...state.faustian,
     devilDeck: [...state.faustian.devilDeck, ...returnedSchemeCardIds],
@@ -220,6 +225,56 @@ export function applyDirectFaustianAccomplice(
       destinationCommunityId,
       revealedSchemeCardIds,
       returnedSchemeCardIds,
+    },
+  }]);
+}
+
+export function applyDisruptFaustianPawn(
+  state: CampaignStateV5,
+  communityId: FaustianCommunityId,
+  accompliceCardId: FaustianCardId,
+): FaustianTransitionResult {
+  const communityIdx = requireCommunity(state, communityId);
+  if (!isValidFaustianCardId(accompliceCardId)) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Selected Accomplice is not a canonical Faustian card: ${accompliceCardId}`,
+    );
+  }
+  const community = state.faustian.communities[communityIdx];
+  if (community.pawnCount < 1) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Community ${communityId} has no Pawn to disrupt`,
+    );
+  }
+  if (!community.accompliceCardIds.includes(accompliceCardId)) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Selected card is not currently an Accomplice in Community ${communityId}: ${accompliceCardId}`,
+    );
+  }
+
+  const faustian: FaustianState = {
+    ...state.faustian,
+    faustianDeck: [...state.faustian.faustianDeck, accompliceCardId],
+    communities: state.faustian.communities.map((entry, i) => (
+      i === communityIdx
+        ? {
+          ...entry,
+          pawnCount: entry.pawnCount - 1,
+          accompliceCardIds: entry.accompliceCardIds.filter((cardId) => cardId !== accompliceCardId),
+        }
+        : entry
+    )),
+  };
+
+  return commitFaustian(state, faustian, [{
+    type: "faustian_pawn_disrupted",
+    version: 1,
+    data: {
+      communityId,
+      accompliceCardId,
     },
   }]);
 }

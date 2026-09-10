@@ -25,10 +25,12 @@ import {
   SEVEN_PART_PACT_DRAFT4_VERSION,
   applyBlackmailFaustianCommunity,
   applyDirectFaustianAccomplice,
+  applyDisruptFaustianPawn,
   applyInvestigateFaustianCommunity,
   blackmailFaustianCommunityFingerprint,
   buildInitializedDefaultFaustianState,
   directFaustianAccompliceFingerprint,
+  disruptFaustianPawnFingerprint,
   faustianCardId,
   investigateFaustianCommunityFingerprint,
   isLogicalStateCommandType,
@@ -127,6 +129,19 @@ function withCommunityAccomplice(
 function withDevilDeckBottom(faustian: FaustianState, cardId: FaustianCardId): FaustianState {
   const next = takeFromDeck(faustian, [cardId]);
   return { ...next, devilDeck: [...next.devilDeck, cardId] };
+}
+
+function withPawnCount(
+  faustian: FaustianState,
+  communityId: FaustianCommunityId,
+  pawnCount: number,
+): FaustianState {
+  return {
+    ...faustian,
+    communities: faustian.communities.map((community) =>
+      community.communityId === communityId ? { ...community, pawnCount } : community
+    ),
+  };
 }
 
 function baseV5(faustian: FaustianState = initializedFaustian()): CampaignStateV5 {
@@ -624,6 +639,116 @@ describe("directFaustianAccomplice mutation arg path", () => {
     expect(argsBlock).not.toContain("sourceCommunityId");
     expect(argsBlock).not.toContain("revealedSchemeCardIds");
     expect(argsBlock).not.toContain("returnedSchemeCardIds");
+    const handlerEnd = source.indexOf("\n  },\n});", handlerIdx);
+    expect(source.slice(handlerIdx, handlerEnd)).toContain("executeConvexOrdinaryLogicalCommand");
+  });
+});
+
+function disruptibleState(pawnCount = 2): CampaignStateV5 {
+  return baseV5(withCommunityAccomplice(
+    withCommunityAccomplice(
+      withPawnCount(
+        withCommunitySchemes(initializedFaustian(), LEO, [{ cardId: OTHER_COMMUNITY_SCHEME, facing: "face_down" }]),
+        ARIES,
+        pawnCount,
+      ),
+      ARIES,
+      SEVEN,
+    ),
+    ARIES,
+    EQUAL,
+  ));
+}
+
+describe("disrupt_faustian_pawn", () => {
+  it("is a registered logical command with a client-intent fingerprint", () => {
+    expect(CAMPAIGN_COMMAND_TYPES as readonly string[]).toContain("disrupt_faustian_pawn");
+    expect(isLogicalStateCommandType("disrupt_faustian_pawn")).toBe(true);
+    const fingerprint = disruptFaustianPawnFingerprint(CAMPAIGN_A, ARIES, SEVEN);
+    expect(fingerprint).toContain("disrupt_faustian_pawn:v1:");
+    expect(fingerprint).toContain(ARIES);
+    expect(fingerprint).toContain(SEVEN);
+    expect(fingerprint).toBe(disruptFaustianPawnFingerprint(CAMPAIGN_A, ARIES, SEVEN));
+    expect(fingerprint).not.toBe(disruptFaustianPawnFingerprint(CAMPAIGN_A, LEO, SEVEN));
+  });
+
+  it("destroys one Pawn and returns the selected Accomplice to the bottom of the Faustian Deck", () => {
+    const start = disruptibleState();
+    const deckTop = start.faustian.faustianDeck[0];
+    const result = applyDisruptFaustianPawn(start, ARIES, SEVEN);
+    const aries = result.nextState.faustian.communities.find((community) => community.communityId === ARIES);
+    const leo = result.nextState.faustian.communities.find((community) => community.communityId === LEO);
+
+    expect(aries?.pawnCount).toBe(1);
+    expect(aries?.accompliceCardIds).toEqual([EQUAL]);
+    expect(result.nextState.faustian.faustianDeck[0]).toBe(deckTop);
+    expect(result.nextState.faustian.faustianDeck[result.nextState.faustian.faustianDeck.length - 1]).toBe(SEVEN);
+    expect(result.nextState.faustian.faustianDeck).toHaveLength(start.faustian.faustianDeck.length + 1);
+    expect(leo?.schemes).toEqual([{ cardId: OTHER_COMMUNITY_SCHEME, facing: "face_down" }]);
+    expect(leo?.pawnCount).toBe(0);
+    expect(result.events).toEqual([{
+      type: "faustian_pawn_disrupted",
+      version: 1,
+      data: { communityId: ARIES, accompliceCardId: SEVEN },
+    }]);
+    expect(() => validateFaustianStructure(result.nextState.faustian)).not.toThrow();
+    expect(() => validateCampaignStateV5Candidate(result.nextState)).not.toThrow();
+  });
+
+  it("rejects a Community with no Pawn, and a card that is not an Accomplice in that Community", () => {
+    expectCode(() => applyDisruptFaustianPawn(disruptibleState(0), ARIES, SEVEN), "INVALID_CAMPAIGN_STATE");
+    expectCode(() => applyDisruptFaustianPawn(disruptibleState(), ARIES, OTHER_COMMUNITY_SCHEME), "INVALID_CAMPAIGN_STATE");
+    expectCode(() => applyDisruptFaustianPawn(disruptibleState(), LEO, SEVEN), "INVALID_CAMPAIGN_STATE");
+  });
+
+  it("commits through the ordinary executor with events and idempotency", async () => {
+    const state = disruptibleState();
+    const fingerprint = disruptFaustianPawnFingerprint(CAMPAIGN_A, ARIES, SEVEN);
+    const prepare: () => OrdinaryLogicalCommandPreparation = () => ({
+      commandType: "disrupt_faustian_pawn",
+      commandFingerprint: fingerprint,
+      apply: (current) => applyDisruptFaustianPawn(current, ARIES, SEVEN),
+    });
+
+    const accepted = recordingIo({ campaign: campaignOf(CAMPAIGN_A, state, 4) });
+    const receipt = await executeOrdinaryLogicalCommand(
+      accepted.io,
+      { commandId: COMMAND_1, expectedCampaignId: CAMPAIGN_A },
+      prepare,
+    );
+    expect(receipt).toEqual({ revision: 5 });
+    expect(accepted.commits[0]?.events[0]?.type).toBe("faustian_pawn_disrupted");
+    expect(() => validateEventCoherenceForTest(accepted.commits[0]!, 5)).not.toThrow();
+
+    const replay = recordingIo({
+      campaign: campaignOf(CAMPAIGN_A, accepted.commits[0]!.nextState, 5),
+      accepted: { commandType: "disrupt_faustian_pawn", commandFingerprint: fingerprint, campaignRevision: 5 },
+      snapshot: accepted.commits[0]!.nextState,
+    });
+    const replayReceipt = await executeOrdinaryLogicalCommand(
+      replay.io,
+      { commandId: COMMAND_1, expectedCampaignId: CAMPAIGN_A },
+      prepare,
+    );
+    expect(replayReceipt).toEqual({ revision: 5 });
+    expect(replay.commits).toHaveLength(0);
+  });
+});
+
+describe("disruptFaustianPawn mutation arg path", () => {
+  const source = readFileSync(join(__dirname, "..", "convex", "m3Commands.ts"), "utf8");
+
+  it("registers the mutation on the ordinary executor with community and Accomplice intent", () => {
+    const exportIdx = source.indexOf("export const disruptFaustianPawn = mutation({");
+    expect(exportIdx).toBeGreaterThan(-1);
+    const argsStart = source.indexOf("args: {", exportIdx);
+    const handlerIdx = source.indexOf("handler: async (ctx, args) => {", exportIdx);
+    const argsBlock = source.slice(argsStart, handlerIdx);
+    expect(argsBlock).toContain("commandId: v.string()");
+    expect(argsBlock).toContain("expectedCampaignId: v.string()");
+    expect(argsBlock).toContain("communityId: v.string()");
+    expect(argsBlock).toContain("accompliceCardId: v.string()");
+    expect(argsBlock).not.toContain("pawnId");
     const handlerEnd = source.indexOf("\n  },\n});", handlerIdx);
     expect(source.slice(handlerIdx, handlerEnd)).toContain("executeConvexOrdinaryLogicalCommand");
   });
