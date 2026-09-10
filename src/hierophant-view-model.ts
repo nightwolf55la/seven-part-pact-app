@@ -4,9 +4,11 @@ import {
   HIEROPHANT_BUILTIN_DOGMA_DEFINITIONS,
   HIEROPHANT_FLAME_LAW_IDS,
   HIEROPHANT_STARTING_TEMPLE_IDS,
+  denizenHasBuiltinTaxonomy,
   hierophantBuiltinDoctrineDefinition,
   hierophantFlameLawText,
   hierophantStartingTempleDisplayName,
+  isReliableOrDisruptiveStatus,
   isValidHierophantBuiltinClassId,
   isValidHierophantBuiltinDoctrineId,
   isValidHierophantFlameLawId,
@@ -22,12 +24,14 @@ import {
   type HierophantState,
   type HierophantSupplicant,
   type HierophantTemple,
+  type PowerfulDenizenProfile,
 } from "../shared/domain";
 
 export interface NamedDenizen {
   readonly denizenId: string;
   readonly name: string;
   readonly representation: "individual" | "collective";
+  readonly powerfulProfile?: PowerfulDenizenProfile | null;
 }
 
 export interface NamedPlace {
@@ -257,6 +261,26 @@ export function availableCollectiveDenizens(
 ): NamedDenizen[] {
   const used = new Set(usedCultIds);
   return collectiveDenizens(denizens).filter((d) => !used.has(d.denizenId));
+}
+
+export function availableProphetDenizens(
+  denizens: readonly NamedDenizen[],
+  usedProphetIds: readonly string[],
+): NamedDenizen[] {
+  return availableIndividualDenizens(denizens, usedProphetIds).filter((denizen) =>
+    denizenHasBuiltinTaxonomy(denizen, "prophet")
+    && denizen.powerfulProfile != null
+    && isReliableOrDisruptiveStatus(denizen.powerfulProfile.status),
+  );
+}
+
+export function availableCultCollectives(
+  denizens: readonly NamedDenizen[],
+  usedCultIds: readonly string[],
+): NamedDenizen[] {
+  return availableCollectiveDenizens(denizens, usedCultIds).filter((denizen) =>
+    denizenHasBuiltinTaxonomy(denizen, "cult") && denizen.powerfulProfile != null,
+  );
 }
 
 export function hostedSupplicants(

@@ -20,6 +20,7 @@ import {
   canonicalizeNecromancerGhoulCaller,
   canonicalizeNecromancerGhoulCallerProfileText,
   canonicalizeUpdateNecromancerGhoulCallerFields,
+  denizenHasBuiltinTaxonomy,
   isBuiltinEdgeOfLifePathSpaceId,
   isValidNecromancerAbominationKind,
   isValidNecromancerArrangementId,
@@ -29,7 +30,6 @@ import {
   isValidNecromancerCampaignPathSpaceId,
   isValidNecromancerGateBand,
   isValidNecromancerGateStatus,
-  isValidNecromancerGhoulCallerDisposition,
   isValidNecromancerLawOfDeathId,
   isValidNecromancerPathRegion,
   isValidPactSeatId,
@@ -41,6 +41,7 @@ import {
   necromancerFoeSubjectKey,
   isNecromancerWizardFoe,
   isNecromancerDenizenFoe,
+  isReliableOrDisruptiveStatus,
   pactSeatDisplayName,
   type NecromancerAbominationKind,
   type NecromancerAllyState,
@@ -64,8 +65,8 @@ import {
   type NecromancerGateId,
   type NecromancerGateState,
   type NecromancerGateStatus,
-  type NecromancerGhoulCallerDisposition,
   type NecromancerGhoulCallerState,
+  type PowerfulDenizenStatus,
   type NecromancerLawOfDeathId,
   type NecromancerLawVisibility,
   type NecromancerOccupiableSpaceRef,
@@ -756,6 +757,10 @@ export function necromancerSetupReady(
   if (definition.ghoulCaller !== null) {
     const ghoul = denizenById(denizens, draft.ghoulCallerDenizenId);
     if (ghoul === undefined || ghoul.representation !== "individual") return false;
+    if (!denizenHasBuiltinTaxonomy(ghoul, "ghoul_caller")) return false;
+    if (ghoul.powerfulProfile == null || ghoul.powerfulProfile.status.kind !== "standard" || ghoul.powerfulProfile.status.value !== "disruptive") {
+      return false;
+    }
     if (!isBuiltinEdgeOfLifePathSpaceId(draft.ghoulCallerPathSpaceId)) return false;
     if (!(ELEMENT_IDS as readonly string[]).includes(draft.ghoulCallerPrimaryElement)) return false;
     if (!ghoulCallerProfileTextReady(draft.ghoulCallerAesthetic)) return false;
@@ -928,7 +933,25 @@ export function unusedIndividualGhoulDenizens(
 ): DenizenRef[] {
   const taken = new Set<string>(ghoulCallers.map((ghoul) => ghoul.denizenId));
   return denizens.filter(
-    (denizen) => denizen.representation === "individual" && !taken.has(denizen.denizenId),
+    (denizen) =>
+      denizen.representation === "individual"
+      && !taken.has(denizen.denizenId)
+      && denizenHasBuiltinTaxonomy(denizen, "ghoul_caller")
+      && denizen.powerfulProfile != null
+      && isReliableOrDisruptiveStatus(denizen.powerfulProfile.status),
+  );
+}
+
+export function availableSetupGhoulCallerDenizens(
+  denizens: readonly DenizenRef[],
+  draft: NecromancerSetupDraft,
+  currentValue: string,
+): DenizenRef[] {
+  return availableSetupDenizens(denizens, draft, currentValue, true).filter((denizen) =>
+    denizenHasBuiltinTaxonomy(denizen, "ghoul_caller")
+    && denizen.powerfulProfile != null
+    && denizen.powerfulProfile.status.kind === "standard"
+    && denizen.powerfulProfile.status.value === "disruptive",
   );
 }
 
@@ -1061,6 +1084,35 @@ export function buildMoveNecromancerSoulsPayload(args: {
   };
 }
 
+export function toConvexNecromancerFoe(foe: NecromancerFoeState): ConvexNecromancerFoe {
+  if (isNecromancerWizardFoe(foe)) {
+    return {
+      subject: { kind: "wizard", wizardId: foe.subject.wizardId },
+      location: foe.location,
+      truths: foe.truths.map((truth) => ({
+        truthId: truth.truthId,
+        text: truth.text,
+        origin: truth.origin,
+      })),
+    };
+  }
+  return {
+    subject: { kind: "denizen", denizenId: foe.subject.denizenId },
+    location: foe.location,
+  };
+}
+
+export type ConvexNecromancerFoe =
+  | {
+      readonly subject: { readonly kind: "denizen"; readonly denizenId: string };
+      readonly location: NecromancerFoeLocation;
+    }
+  | {
+      readonly subject: { readonly kind: "wizard"; readonly wizardId: string };
+      readonly location: NecromancerFoeLocation;
+      readonly truths: Array<{ truthId: string; text: string; origin: "source" | "campaign" }>;
+    };
+
 export function buildAddNecromancerFoePayload(args: {
   readonly commandId: string;
   readonly expectedCampaignId: string;
@@ -1068,12 +1120,12 @@ export function buildAddNecromancerFoePayload(args: {
 }): {
   readonly commandId: string;
   readonly expectedCampaignId: string;
-  readonly foe: NecromancerFoeState;
+  readonly foe: ConvexNecromancerFoe;
 } {
   return {
     commandId: args.commandId,
     expectedCampaignId: args.expectedCampaignId,
-    foe: args.foe,
+    foe: toConvexNecromancerFoe(args.foe),
   };
 }
 
@@ -1107,13 +1159,13 @@ export function buildRemoveNecromancerFoePayload(args: {
   readonly commandId: string;
   readonly expectedCampaignId: string;
   readonly subject: NecromancerFoeSubjectRef;
-  readonly expectedFoe: NecromancerFoeState;
+  readonly expectedFoe: ConvexNecromancerFoe;
 } {
   return {
     commandId: args.commandId,
     expectedCampaignId: args.expectedCampaignId,
     subject: args.expectedFoe.subject,
-    expectedFoe: args.expectedFoe,
+    expectedFoe: toConvexNecromancerFoe(args.expectedFoe),
   };
 }
 
@@ -1128,7 +1180,7 @@ export function buildEscapeNecromancerWizardFoePayload(args: {
   readonly expectedCampaignId: string;
   readonly wizardId: string;
   readonly expectedMortalityState: "deceased";
-  readonly expectedFoe: NecromancerWizardFoeState;
+  readonly expectedFoe: ConvexNecromancerFoe;
   readonly destinationSeatId: PactSeatId;
 } {
   return {
@@ -1136,7 +1188,7 @@ export function buildEscapeNecromancerWizardFoePayload(args: {
     expectedCampaignId: args.expectedCampaignId,
     wizardId: args.wizardId,
     expectedMortalityState: "deceased",
-    expectedFoe: args.expectedFoe,
+    expectedFoe: toConvexNecromancerFoe(args.expectedFoe),
     destinationSeatId: args.destinationSeatId,
   };
 }
@@ -1267,7 +1319,6 @@ export function buildAddNecromancerGhoulCallerPayload(args: {
   readonly expectedCampaignId: string;
   readonly ghoulCaller: NecromancerGhoulCallerState;
 } | null {
-  if (!isValidNecromancerGhoulCallerDisposition(args.ghoulCaller.disposition)) return null;
   if (!Number.isSafeInteger(args.ghoulCaller.pettyDeadCount) || args.ghoulCaller.pettyDeadCount < 0) return null;
   if (!Number.isSafeInteger(args.ghoulCaller.ageYears) || args.ghoulCaller.ageYears < 0) return null;
   try {
@@ -1287,7 +1338,6 @@ export function buildUpdateNecromancerGhoulCallerPayload(args: {
   readonly denizenId: string;
   readonly expected: NecromancerGhoulCallerState;
   readonly location: NecromancerGhoulCallerState["location"];
-  readonly disposition: NecromancerGhoulCallerDisposition;
   readonly pettyDeadCount: number;
   readonly primaryElement: ElementId;
   readonly aesthetic: string;
@@ -1299,7 +1349,6 @@ export function buildUpdateNecromancerGhoulCallerPayload(args: {
   readonly denizenId: string;
   readonly fields: UpdateNecromancerGhoulCallerFields;
 } | null {
-  if (!isValidNecromancerGhoulCallerDisposition(args.disposition)) return null;
   if (!Number.isSafeInteger(args.pettyDeadCount) || args.pettyDeadCount < 0) return null;
   if (!Number.isSafeInteger(args.ageYears) || args.ageYears < 0) return null;
   if (!(ELEMENT_IDS as readonly string[]).includes(args.primaryElement)) return null;
@@ -1314,9 +1363,6 @@ export function buildUpdateNecromancerGhoulCallerPayload(args: {
   const fields = canonicalizeUpdateNecromancerGhoulCallerFields({
     ...(!necromancerOccupiableSpaceRefsEqual(args.expected.location, args.location)
       ? { location: { expected: args.expected.location, value: args.location } }
-      : {}),
-    ...(args.expected.disposition !== args.disposition
-      ? { disposition: { expected: args.expected.disposition, value: args.disposition } }
       : {}),
     ...(args.expected.pettyDeadCount !== args.pettyDeadCount
       ? { pettyDeadCount: { expected: args.expected.pettyDeadCount, value: args.pettyDeadCount } }
@@ -1336,7 +1382,6 @@ export function buildUpdateNecromancerGhoulCallerPayload(args: {
   });
   if (
     fields.location === undefined &&
-    fields.disposition === undefined &&
     fields.pettyDeadCount === undefined &&
     fields.primaryElement === undefined &&
     fields.aesthetic === undefined &&

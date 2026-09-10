@@ -228,6 +228,13 @@ const FOE_PROFILE = {
   methods: [],
   truths: [],
 };
+const GHOUL_PROFILE = {
+  taxonomies: [{ kind: "builtin" as const, taxonomyId: "ghoul_caller" as const }],
+  status: { kind: "standard" as const, value: "disruptive" as const },
+  goal: null,
+  methods: [],
+  truths: [],
+};
 const TRUTH_1 = "pdtru_00000000-0000-0000-0000-0000000000d2" as PowerfulDenizenTruthId;
 
 function wizard(wizardId: WizardId, name: string, mortalityState: "not_deceased" | "deceased" = "not_deceased") {
@@ -274,7 +281,7 @@ function baseV5(): CampaignStateV5 {
         { denizenId: DEN_3, name: "Far Foe One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: FOE_PROFILE },
         { denizenId: DEN_4, name: "Far Foe Two", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: FOE_PROFILE },
         { denizenId: DEN_5, name: "Near Ally", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
-        { denizenId: DEN_6, name: "Ghoul-Caller", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
+        { denizenId: DEN_6, name: "Ghoul-Caller", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: GHOUL_PROFILE },
         { denizenId: DEN_COLLECTIVE, name: "A Host of Dead", representation: "collective", description: null, mortalityState: null, powerfulProfile: FOE_PROFILE },
       ],
       isles: [],
@@ -441,7 +448,6 @@ function collectRealNecromancerEvents(): NecromancerEvent[] {
 
   const addedGhoul = applyAddNecromancerGhoulCaller(state, {
     denizenId: DEN_6,
-    disposition: "disruptive",
     location: { kind: "path", pathSpaceId: "edge_mariner" },
     pettyDeadCount: 0,
     primaryElement: "air",
@@ -453,7 +459,6 @@ function collectRealNecromancerEvents(): NecromancerEvent[] {
   events.push(...addedGhoul.events);
 
   const updatedGhoul = applyUpdateNecromancerGhoulCaller(state, DEN_6, {
-    disposition: { expected: "disruptive", value: "reliable" },
     pettyDeadCount: { expected: 0, value: 2 },
   });
   state = updatedGhoul.nextState;
@@ -715,7 +720,6 @@ describe("Necromancer Phase 2B persistence contracts", () => {
         }),
         add_necromancer_ghoul_caller: addNecromancerGhoulCallerFingerprint(CAMPAIGN_A, {
           denizenId: DEN_6,
-          disposition: "disruptive",
           location: { kind: "path", pathSpaceId: "edge_sage" },
           pettyDeadCount: 0,
           primaryElement: "fire",
@@ -729,7 +733,6 @@ describe("Necromancer Phase 2B persistence contracts", () => {
         }),
         remove_necromancer_ghoul_caller: removeNecromancerGhoulCallerFingerprint(CAMPAIGN_A, DEN_6, {
           denizenId: DEN_6,
-          disposition: "disruptive",
           location: { kind: "path", pathSpaceId: "edge_sage" },
           pettyDeadCount: 0,
           primaryElement: "fire",
@@ -860,7 +863,6 @@ describe("Necromancer Phase 2B persistence contracts", () => {
 
       const paddedGhoul = canonicalizeNecromancerGhoulCaller({
         denizenId: DEN_6,
-        disposition: "disruptive",
         location: { kind: "path", pathSpaceId: "edge_sage" },
         pettyDeadCount: 0,
         primaryElement: "air",
@@ -870,7 +872,6 @@ describe("Necromancer Phase 2B persistence contracts", () => {
       });
       const trimmedGhoul = canonicalizeNecromancerGhoulCaller({
         denizenId: DEN_6,
-        disposition: "disruptive",
         location: { kind: "path", pathSpaceId: "edge_sage" },
         pettyDeadCount: 0,
         primaryElement: "air",
@@ -899,7 +900,6 @@ describe("Necromancer Phase 2B persistence contracts", () => {
         data: {
           ghoulCaller: {
             denizenId: DEN_6,
-            disposition: "disruptive",
             location: { kind: "path", pathSpaceId: "edge_sage" },
             pettyDeadCount: 0,
             primaryElement: "void",

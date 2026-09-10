@@ -943,7 +943,6 @@ const hierophantSupplicantValidator = v.object({
 
 const hierophantProphetValidator = v.object({
   denizenId: v.string(),
-  disposition: v.union(v.literal("reliable"), v.literal("disruptive")),
   host: prophetHostValidator,
 });
 
@@ -1164,7 +1163,6 @@ const necromancerStateValidator = v.object({
   })),
   ghoulCallers: v.array(v.object({
     denizenId: v.string(),
-    disposition: v.string(),
     location: v.object({
       kind: v.literal("path"),
       pathSpaceId: v.string(),
@@ -1312,7 +1310,6 @@ const necromancerAllyValidator = v.object({
 
 const necromancerGhoulCallerValidator = v.object({
   denizenId: v.string(),
-  disposition: v.string(),
   location: v.object({
     kind: v.literal("path"),
     pathSpaceId: v.string(),

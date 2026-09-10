@@ -31,6 +31,7 @@ import {
   applyCreateCampaignClass,
   applyCreateCampaignDoctrine,
   applyCreateDenizenV5Candidate,
+  applyCreatePowerfulDenizenProfile,
   applyCreatePlaceV5Candidate,
   applyCreateTemple,
   applyEstablishCult,
@@ -158,12 +159,24 @@ function initializeReady(state: CampaignStateV5 = baseV5()) {
   }).nextState;
 }
 
-function withDenizen(state: CampaignStateV5, n: number, representation: "individual" | "collective") {
-  return applyCreateDenizenV5Candidate(state, {
+function withDenizen(
+  state: CampaignStateV5,
+  n: number,
+  representation: "individual" | "collective",
+  taxonomy?: "prophet" | "cult",
+) {
+  const created = applyCreateDenizenV5Candidate(state, {
     denizenId: denizenId(n),
     name: representation === "individual" ? `Person ${n}` : `Group ${n}`,
     representation,
     description: null,
+  }).nextState;
+  if (taxonomy === undefined) return created;
+  return applyCreatePowerfulDenizenProfile(created, {
+    denizenId: denizenId(n),
+    taxonomies: [{ kind: "builtin", taxonomyId: taxonomy }],
+    status: { kind: "standard", value: "reliable" },
+    goal: null,
   }).nextState;
 }
 
@@ -184,7 +197,7 @@ describe("Denizen representation integrity", () => {
   it("accepts an individual Supplicant and rejects a collective Supplicant", () => {
     let state = initializeReady();
     state = withDenizen(state, 1, "individual");
-    state = withDenizen(state, 2, "collective");
+    state = withDenizen(state, 2, "collective", "cult");
     const added = applyAddSupplicant(state, {
       denizenId: denizenId(1),
       classId: "artisan",
@@ -202,17 +215,15 @@ describe("Denizen representation integrity", () => {
 
   it("accepts an individual Prophet and rejects a collective Prophet", () => {
     let state = initializeReady();
-    state = withDenizen(state, 1, "individual");
-    state = withDenizen(state, 2, "collective");
+    state = withDenizen(state, 1, "individual", "prophet");
+    state = withDenizen(state, 2, "collective", "cult");
     const added = applyAddProphet(state, {
       denizenId: denizenId(1),
-      disposition: "reliable",
       host: { kind: "temple", templeId: "notor" },
     });
     expect(() => validateCampaignState(added.nextState)).not.toThrow();
     expect(() => applyAddProphet(state, {
       denizenId: denizenId(2),
-      disposition: "disruptive",
       host: { kind: "temple", templeId: "notor" },
     })).toThrow(DomainError);
   });
@@ -220,7 +231,7 @@ describe("Denizen representation integrity", () => {
   it("accepts a collective Cult and rejects an individual Cult", () => {
     let state = initializeReady();
     state = withDenizen(state, 1, "individual");
-    state = withDenizen(state, 2, "collective");
+    state = withDenizen(state, 2, "collective", "cult");
     const added = applyEstablishCult(state, {
       cultDenizenId: denizenId(2),
       hostSeatId: "warlock",
@@ -247,8 +258,8 @@ describe("Denizen representation integrity", () => {
   it("accepts a null Cult leader and rejects a non-individual leader", () => {
     let state = initializeReady();
     state = withDenizen(state, 1, "individual");
-    state = withDenizen(state, 2, "collective");
-    state = withDenizen(state, 3, "collective");
+    state = withDenizen(state, 2, "collective", "cult");
+    state = withDenizen(state, 3, "collective", "cult");
     const withNullLeader = applyEstablishCult(state, {
       cultDenizenId: denizenId(2),
       hostSeatId: "hierophant",
@@ -287,8 +298,8 @@ describe("Denizen representation integrity", () => {
 describe("Host integrity", () => {
   it("resolves Temple and Cult hosts and rejects dangling hosts", () => {
     let state = initializeReady();
-    state = withDenizen(state, 1, "individual");
-    state = withDenizen(state, 2, "collective");
+    state = withDenizen(state, 1, "individual", "prophet");
+    state = withDenizen(state, 2, "collective", "cult");
     state = applyEstablishCult(state, {
       cultDenizenId: denizenId(2),
       hostSeatId: "faustian",
@@ -313,7 +324,6 @@ describe("Host integrity", () => {
     })).toThrow(DomainError);
     expect(() => applyAddProphet(state, {
       denizenId: denizenId(1),
-      disposition: "reliable",
       host: { kind: "temple", templeId: "ushin" },
     })).not.toThrow();
   });
@@ -406,10 +416,9 @@ describe("Manual transitions", () => {
 
   it("adds, updates, and removes a Prophet without deleting the Denizen", () => {
     let state = initializeReady();
-    state = withDenizen(state, 1, "individual");
+    state = withDenizen(state, 1, "individual", "prophet");
     state = applyAddProphet(state, {
       denizenId: denizenId(1),
-      disposition: "reliable",
       host: { kind: "temple", templeId: "ushin" },
     }).nextState;
     state = applyRemoveProphet(state, denizenId(1)).nextState;
@@ -420,7 +429,7 @@ describe("Manual transitions", () => {
   it("creates and updates a Cult including leader -> null", () => {
     let state = initializeReady();
     state = withDenizen(state, 1, "individual");
-    state = withDenizen(state, 2, "collective");
+    state = withDenizen(state, 2, "collective", "cult");
     state = applyEstablishCult(state, {
       cultDenizenId: denizenId(2),
       hostSeatId: "warlock",
@@ -440,7 +449,7 @@ describe("Manual transitions", () => {
 
   it("adds and removes built-in and custom Dogmas", () => {
     let state = initializeReady();
-    state = withDenizen(state, 2, "collective");
+    state = withDenizen(state, 2, "collective", "cult");
     state = applyEstablishCult(state, {
       cultDenizenId: denizenId(2),
       hostSeatId: "sage",
@@ -527,10 +536,9 @@ describe("Anti-automation", () => {
 
   it("Doctrine change does not alter Prophets or create Cults", () => {
     let state = initializeReady();
-    state = withDenizen(state, 1, "individual");
+    state = withDenizen(state, 1, "individual", "prophet");
     state = applyAddProphet(state, {
       denizenId: denizenId(1),
-      disposition: "disruptive",
       host: { kind: "temple", templeId: "krolis" },
     }).nextState;
     const krolis = state.hierophant.temples.find((t) => t.templeId === "krolis")!;
@@ -548,7 +556,7 @@ describe("Anti-automation", () => {
   it("Cult Conviction change does not add or remove Dogma, and clearing leader does not replace them", () => {
     let state = initializeReady();
     state = withDenizen(state, 1, "individual");
-    state = withDenizen(state, 2, "collective");
+    state = withDenizen(state, 2, "collective", "cult");
     state = applyEstablishCult(state, {
       cultDenizenId: denizenId(2),
       hostSeatId: "mariner",
@@ -589,7 +597,7 @@ describe("Anti-automation", () => {
   it("cannot remove a Cult while a role still hosts there", () => {
     let state = initializeReady();
     state = withDenizen(state, 1, "individual");
-    state = withDenizen(state, 2, "collective");
+    state = withDenizen(state, 2, "collective", "cult");
     state = applyEstablishCult(state, {
       cultDenizenId: denizenId(2),
       hostSeatId: "sorcerer",

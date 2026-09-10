@@ -57,6 +57,7 @@ vi.mock("../convex/_generated/api.js", () => ({
       addNecromancerGhoulCaller: "m3Commands.addNecromancerGhoulCaller",
       updateNecromancerGhoulCaller: "m3Commands.updateNecromancerGhoulCaller",
       removeNecromancerGhoulCaller: "m3Commands.removeNecromancerGhoulCaller",
+      setPowerfulDenizenStatus: "m3Commands.setPowerfulDenizenStatus",
       createNecromancerCampaignGate: "m3Commands.createNecromancerCampaignGate",
       updateNecromancerCampaignGate: "m3Commands.updateNecromancerCampaignGate",
       createNecromancerCampaignPathSpace: "m3Commands.createNecromancerCampaignPathSpace",
@@ -82,7 +83,6 @@ function initializedWithCampaignStructure() {
     ],
     ghoulCallers: [{
       denizenId: "den_00000000-0000-0000-0000-000000000006" as never,
-      disposition: "disruptive",
       location: { kind: "path", pathSpaceId: "edge_sage" },
       pettyDeadCount: 0,
       primaryElement: "fire",

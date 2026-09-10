@@ -36,7 +36,6 @@ import type {
   HierophantCultDogma,
   HierophantDogmaEntryId,
   HierophantProphet,
-  HierophantProphetDisposition,
   HierophantProphetHost,
   HierophantState,
   HierophantSupplicant,
@@ -49,6 +48,11 @@ import type {
 } from "./hierophant-state";
 import type { HierophantEvent } from "./events";
 import type { ExpectedFieldChange } from "./world-subject-transitions";
+import { validateHierophantReferenceIntegrity } from "./hierophant-validation";
+import {
+  requirePowerfulRoleProfile,
+  requireReliableOrDisruptiveStatus,
+} from "./powerful-denizen-roles";
 
 export interface HierophantTransitionResult {
   readonly nextState: CampaignStateV5;
@@ -74,7 +78,9 @@ const MAX_NAME_LENGTH = 200;
 const MAX_TEXT_LENGTH = 8000;
 
 function replaceHierophant(state: CampaignStateV5, hierophant: HierophantState): CampaignStateV5 {
-  return { ...state, hierophant };
+  const nextState = { ...state, hierophant };
+  validateHierophantReferenceIntegrity(nextState);
+  return nextState;
 }
 
 function checkPrecondition<T>(
@@ -174,6 +180,7 @@ function requireIndividual(state: CampaignStateV5, denizenId: DenizenId, label: 
   if (denizen.representation !== "individual") {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `${label} must reference an individual Denizen`);
   }
+  return denizen;
 }
 
 function requireCollective(state: CampaignStateV5, denizenId: DenizenId, label: string) {
@@ -184,6 +191,7 @@ function requireCollective(state: CampaignStateV5, denizenId: DenizenId, label: 
   if (denizen.representation !== "collective") {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `${label} must reference a collective Denizen`);
   }
+  return denizen;
 }
 
 function requirePlace(state: CampaignStateV5, placeId: PlaceId, label: string) {
@@ -702,25 +710,24 @@ export function applyAddProphet(state: CampaignStateV5, prophet: HierophantProph
   if (!isValidDenizenId(prophet.denizenId)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${prophet.denizenId}`);
   }
-  requireIndividual(state, prophet.denizenId, "Prophet denizenId");
+  const denizen = requireIndividual(state, prophet.denizenId, "Prophet denizenId");
+  const profile = requirePowerfulRoleProfile(denizen, "Prophet", "prophet");
+  requireReliableOrDisruptiveStatus(profile, "Prophet");
   if (state.hierophant.prophets.some((p) => p.denizenId === prophet.denizenId)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Denizen is already a Prophet: ${prophet.denizenId}`);
   }
-  if (prophet.disposition !== "reliable" && prophet.disposition !== "disruptive") {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid Prophet disposition: ${prophet.disposition}`);
-  }
   assertProphetHost(state, prophet.host);
+  const added: HierophantProphet = { denizenId: prophet.denizenId, host: prophet.host };
   return {
     nextState: replaceHierophant(state, {
       ...state.hierophant,
-      prophets: [...state.hierophant.prophets, prophet],
+      prophets: [...state.hierophant.prophets, added],
     }),
-    events: [{ type: "prophet_added", version: 1, data: { prophet } }],
+    events: [{ type: "prophet_added", version: 1, data: { prophet: added } }],
   };
 }
 
 export interface UpdateProphetFields {
-  readonly disposition?: ExpectedFieldChange<HierophantProphetDisposition>;
   readonly host?: ExpectedFieldChange<HierophantProphetHost>;
 }
 
@@ -729,7 +736,7 @@ export function applyUpdateProphet(
   denizenId: DenizenId,
   fields: UpdateProphetFields,
 ): HierophantTransitionResult {
-  if (fields.disposition === undefined && fields.host === undefined) {
+  if (fields.host === undefined) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Update must specify at least one field");
   }
   const idx = state.hierophant.prophets.findIndex((p) => p.denizenId === denizenId);
@@ -737,24 +744,12 @@ export function applyUpdateProphet(
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Prophet not found: ${denizenId}`);
   }
   const current = state.hierophant.prophets[idx];
-  let disposition = current.disposition;
-  let host = current.host;
-  if (fields.disposition !== undefined) {
-    checkPrecondition("disposition", current.disposition, fields.disposition);
-    if (fields.disposition.value !== "reliable" && fields.disposition.value !== "disruptive") {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid Prophet disposition: ${fields.disposition.value}`);
-    }
-    disposition = fields.disposition.value;
-  }
-  if (fields.host !== undefined) {
-    checkPrecondition("host", current.host, fields.host, hostEqual);
-    assertProphetHost(state, fields.host.value);
-    host = fields.host.value;
-  }
-  if (disposition === current.disposition && hostEqual(host, current.host)) {
+  checkPrecondition("host", current.host, fields.host, hostEqual);
+  assertProphetHost(state, fields.host.value);
+  if (hostEqual(fields.host.value, current.host)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Update produces no change");
   }
-  const updated: HierophantProphet = { denizenId, disposition, host };
+  const updated: HierophantProphet = { denizenId, host: fields.host.value };
   const prophets = state.hierophant.prophets.map((p, i) => (i === idx ? updated : p));
   return {
     nextState: replaceHierophant(state, { ...state.hierophant, prophets }),
@@ -777,7 +772,8 @@ export function applyEstablishCult(state: CampaignStateV5, cult: HierophantCult)
   if (!isValidDenizenId(cult.cultDenizenId)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid cultDenizenId: ${cult.cultDenizenId}`);
   }
-  requireCollective(state, cult.cultDenizenId, "cultDenizenId");
+  const collective = requireCollective(state, cult.cultDenizenId, "cultDenizenId");
+  requirePowerfulRoleProfile(collective, "Cult", "cult");
   if (state.hierophant.cults.some((c) => c.cultDenizenId === cult.cultDenizenId)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Denizen is already a Cult: ${cult.cultDenizenId}`);
   }

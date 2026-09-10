@@ -2026,7 +2026,6 @@ export const addProphet = mutation({
     commandId: v.string(),
     expectedCampaignId: v.string(),
     denizenId: v.string(),
-    disposition: v.union(v.literal("reliable"), v.literal("disruptive")),
     host: prophetHostArg,
   },
   handler: async (ctx, args) => {
@@ -2036,7 +2035,6 @@ export const addProphet = mutation({
       () => {
         const prophet = {
           denizenId: args.denizenId,
-          disposition: args.disposition,
           host: args.host,
         } as HierophantProphet;
         return {
@@ -2055,10 +2053,6 @@ export const updateProphet = mutation({
     expectedCampaignId: v.string(),
     denizenId: v.string(),
     fields: v.object({
-      disposition: v.optional(v.object({
-        expected: v.union(v.literal("reliable"), v.literal("disruptive")),
-        value: v.union(v.literal("reliable"), v.literal("disruptive")),
-      })),
       host: v.optional(v.object({ expected: prophetHostArg, value: prophetHostArg })),
     }),
   },
@@ -2845,7 +2839,6 @@ const necromancerAllyArg = v.object({
 
 const necromancerGhoulCallerArg = v.object({
   denizenId: v.string(),
-  disposition: v.string(),
   location: necromancerPathLocationArg,
   pettyDeadCount: v.number(),
   primaryElement: v.union(
@@ -3548,10 +3541,6 @@ export const updateNecromancerGhoulCaller = mutation({
       location: v.optional(v.object({
         expected: necromancerPathLocationArg,
         value: necromancerPathLocationArg,
-      })),
-      disposition: v.optional(v.object({
-        expected: v.string(),
-        value: v.string(),
       })),
       pettyDeadCount: v.optional(v.object({
         expected: v.number(),

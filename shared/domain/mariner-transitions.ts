@@ -4,6 +4,10 @@ import { isValidDenizenId, isValidIsleId, isValidPlaceId } from "./ids";
 import { DomainError } from "./errors";
 import type { ExpectedFieldChange } from "./world-subject-transitions";
 import type { MarinerEvent } from "./events";
+import {
+  requirePowerfulRoleProfile,
+  requireRampagingBeastMethod,
+} from "./powerful-denizen-roles";
 import type {
   MarinerArrangementId,
   MarinerBoardIsleId,
@@ -680,6 +684,15 @@ export function applyAddMarinerBeast(
   if (current.beasts.some((existing) => existing.denizenId === beast.denizenId)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Denizen is already a Mariner Beast: ${beast.denizenId}`);
   }
+  const denizen = state.world.denizens.find((candidate) => candidate.denizenId === beast.denizenId);
+  if (denizen === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Beast denizenId does not resolve: ${beast.denizenId}`);
+  }
+  if (denizen.representation !== "individual") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Beast denizenId must reference an individual Denizen");
+  }
+  const profile = requirePowerfulRoleProfile(denizen, "Beast", "beast");
+  requireRampagingBeastMethod(profile, beast.condition, "Beast");
   return commitMariner(state, { ...current, beasts: [...current.beasts, beast] }, [{
     type: "mariner_beast_added",
     version: 1,

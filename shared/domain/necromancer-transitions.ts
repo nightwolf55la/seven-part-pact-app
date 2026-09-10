@@ -6,6 +6,11 @@ import type { ExpectedFieldChange } from "./world-subject-transitions";
 import type { ElementId } from "./shared-world";
 import { ELEMENT_IDS } from "./shared-world";
 import type { PowerfulDenizenTruthEntry } from "./powerful-denizen";
+import {
+  requireDisruptiveStatus,
+  requirePowerfulRoleProfile,
+  requireReliableOrDisruptiveStatus,
+} from "./powerful-denizen-roles";
 import type { PactSeatId } from "./pact-seats";
 import { isValidPactSeatId } from "./pact-seats";
 import type { NecromancerEvent } from "./events";
@@ -20,7 +25,6 @@ import type {
   NecromancerGateBand,
   NecromancerGateId,
   NecromancerGateStatus,
-  NecromancerGhoulCallerDisposition,
   NecromancerLawOfDeathId,
   NecromancerOccupiableSpaceRef,
   NecromancerPathRegion,
@@ -37,7 +41,6 @@ import {
   isValidNecromancerCampaignPathSpaceId,
   isValidNecromancerGateBand,
   isValidNecromancerGateStatus,
-  isValidNecromancerGhoulCallerDisposition,
   isValidNecromancerLawOfDeathId,
   isValidNecromancerLawVisibility,
   isValidNecromancerPathRegion,
@@ -144,7 +147,6 @@ export interface UpdateNecromancerAllyFields {
 
 export interface UpdateNecromancerGhoulCallerFields {
   readonly location?: ExpectedFieldChange<NecromancerGhoulCallerState["location"]>;
-  readonly disposition?: ExpectedFieldChange<NecromancerGhoulCallerDisposition>;
   readonly pettyDeadCount?: ExpectedFieldChange<number>;
   readonly primaryElement?: ExpectedFieldChange<ElementId>;
   readonly aesthetic?: ExpectedFieldChange<string>;
@@ -293,7 +295,6 @@ export function canonicalizeNecromancerGhoulCaller(
 ): NecromancerGhoulCallerState {
   return {
     denizenId: ghoulCaller.denizenId,
-    disposition: ghoulCaller.disposition,
     location: ghoulCaller.location,
     pettyDeadCount: ghoulCaller.pettyDeadCount,
     primaryElement: requirePrimaryElement(ghoulCaller.primaryElement, "Primary Element"),
@@ -308,7 +309,6 @@ export function canonicalizeUpdateNecromancerGhoulCallerFields(
 ): UpdateNecromancerGhoulCallerFields {
   return {
     ...(fields.location === undefined ? {} : { location: fields.location }),
-    ...(fields.disposition === undefined ? {} : { disposition: fields.disposition }),
     ...(fields.pettyDeadCount === undefined ? {} : { pettyDeadCount: fields.pettyDeadCount }),
     ...(fields.primaryElement === undefined ? {} : { primaryElement: fields.primaryElement }),
     ...(fields.aesthetic === undefined
@@ -426,7 +426,6 @@ function allyEqual(a: NecromancerAllyState, b: NecromancerAllyState): boolean {
 function ghoulCallerEqual(a: NecromancerGhoulCallerState, b: NecromancerGhoulCallerState): boolean {
   return (
     a.denizenId === b.denizenId &&
-    a.disposition === b.disposition &&
     a.pettyDeadCount === b.pettyDeadCount &&
     a.primaryElement === b.primaryElement &&
     a.aesthetic === b.aesthetic &&
@@ -471,14 +470,22 @@ function assertOccupiableResolves(necromancer: NecromancerState, location: Necro
 
 function requireDenizenFoeProfile(state: CampaignStateV5, denizenId: DenizenId, label: string) {
   const denizen = requireDenizen(state, denizenId, label);
-  if (denizen.powerfulProfile === null) {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", `${label} requires a Powerful-Denizen profile`);
-  }
-  const hasFoeTaxonomy = denizen.powerfulProfile.taxonomies.some(
-    (ref) => ref.kind === "builtin" && ref.taxonomyId === "foe_of_death",
-  );
-  if (!hasFoeTaxonomy) {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", `${label} requires builtin taxonomy foe_of_death`);
+  requirePowerfulRoleProfile(denizen, label, "foe_of_death");
+  return denizen;
+}
+
+function requireGhoulCallerRoleProfile(
+  state: CampaignStateV5,
+  denizenId: DenizenId,
+  label: string,
+  startingDisruptive = false,
+) {
+  const denizen = requireIndividualDenizen(state, denizenId, label);
+  const profile = requirePowerfulRoleProfile(denizen, label, "ghoul_caller");
+  if (startingDisruptive) {
+    requireDisruptiveStatus(profile, label);
+  } else {
+    requireReliableOrDisruptiveStatus(profile, label);
   }
   return denizen;
 }
@@ -838,11 +845,10 @@ export function applyInitializeNecromancer(
 
   const ghoulCallers: NecromancerGhoulCallerState[] = [];
   if (input.arrangementGhoulCaller !== null) {
-    requireIndividualDenizen(state, input.arrangementGhoulCaller.denizenId, "arrangementGhoulCaller");
+    requireGhoulCallerRoleProfile(state, input.arrangementGhoulCaller.denizenId, "arrangementGhoulCaller", true);
     assertNonNegativeSafeInteger("ageYears", input.arrangementGhoulCaller.ageYears);
     ghoulCallers.push({
       denizenId: input.arrangementGhoulCaller.denizenId,
-      disposition: "disruptive",
       location: { kind: "path", pathSpaceId: input.arrangementGhoulCaller.pathSpaceId },
       pettyDeadCount: 0,
       primaryElement: input.arrangementGhoulCaller.primaryElement,
@@ -1535,19 +1541,15 @@ export function applyAddNecromancerGhoulCaller(
 ): NecromancerTransitionResult {
   const current = requireInitialized(state);
   const ghoulCaller = canonicalizeNecromancerGhoulCaller(rawGhoulCaller);
-  requireIndividualDenizen(state, ghoulCaller.denizenId, "Ghoul-Caller");
+  requireGhoulCallerRoleProfile(state, ghoulCaller.denizenId, "Ghoul-Caller");
   if (current.ghoulCallers.some((existing) => existing.denizenId === ghoulCaller.denizenId)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate necromancer ghoul-caller denizenId: ${ghoulCaller.denizenId}`);
-  }
-  if (!isValidNecromancerGhoulCallerDisposition(ghoulCaller.disposition)) {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", `Ghoul-Caller disposition is invalid: ${JSON.stringify(ghoulCaller.disposition)}`);
   }
   assertNonNegativeSafeInteger("pettyDeadCount", ghoulCaller.pettyDeadCount);
   assertNonNegativeSafeInteger("ageYears", ghoulCaller.ageYears);
   validateGhoulCallerLocation(current, ghoulCaller.location, "Ghoul-Caller location");
   const added: NecromancerGhoulCallerState = {
     denizenId: ghoulCaller.denizenId,
-    disposition: ghoulCaller.disposition,
     location: ghoulCaller.location,
     pettyDeadCount: ghoulCaller.pettyDeadCount,
     primaryElement: ghoulCaller.primaryElement,
@@ -1571,7 +1573,6 @@ export function applyUpdateNecromancerGhoulCaller(
   const fields = canonicalizeUpdateNecromancerGhoulCallerFields(rawFields);
   if (
     fields.location === undefined &&
-    fields.disposition === undefined &&
     fields.pettyDeadCount === undefined &&
     fields.primaryElement === undefined &&
     fields.aesthetic === undefined &&
@@ -1586,7 +1587,6 @@ export function applyUpdateNecromancerGhoulCaller(
   }
   const existing = current.ghoulCallers[idx];
   let location = existing.location;
-  let disposition = existing.disposition;
   let pettyDeadCount = existing.pettyDeadCount;
   let primaryElement = existing.primaryElement;
   let aesthetic = existing.aesthetic;
@@ -1596,16 +1596,6 @@ export function applyUpdateNecromancerGhoulCaller(
     checkPrecondition("location", existing.location, fields.location, necromancerOccupiableSpaceRefsEqual);
     validateGhoulCallerLocation(current, fields.location.value, "Ghoul-Caller location");
     location = fields.location.value;
-  }
-  if (fields.disposition !== undefined) {
-    checkPrecondition("disposition", existing.disposition, fields.disposition);
-    if (!isValidNecromancerGhoulCallerDisposition(fields.disposition.value)) {
-      throw new DomainError(
-        "INVALID_CAMPAIGN_STATE",
-        `Ghoul-Caller disposition is invalid: ${JSON.stringify(fields.disposition.value)}`,
-      );
-    }
-    disposition = fields.disposition.value;
   }
   if (fields.pettyDeadCount !== undefined) {
     checkPrecondition("pettyDeadCount", existing.pettyDeadCount, fields.pettyDeadCount);
@@ -1631,7 +1621,6 @@ export function applyUpdateNecromancerGhoulCaller(
   }
   const updated: NecromancerGhoulCallerState = {
     denizenId,
-    disposition,
     location,
     pettyDeadCount,
     primaryElement,

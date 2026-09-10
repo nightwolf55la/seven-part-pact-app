@@ -16,6 +16,10 @@ import {
   isValidHierophantTempleId,
 } from "./hierophant-catalogs";
 import type { HierophantTemple } from "./hierophant-state";
+import {
+  requirePowerfulRoleProfile,
+  requireReliableOrDisruptiveStatus,
+} from "./powerful-denizen-roles";
 
 function assertNonNegativeSafeInteger(path: string, value: unknown): asserts value is number {
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
@@ -411,8 +415,11 @@ export function validateHierophantStructure(hierophant: unknown): void {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId is invalid: ${JSON.stringify(rec.denizenId)}`);
     }
     prophetIds.push(rec.denizenId);
-    if (rec.disposition !== "reliable" && rec.disposition !== "disruptive") {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.disposition is invalid: ${JSON.stringify(rec.disposition)}`);
+    if ("disposition" in rec) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path} must not persist disposition; shared Powerful Status is authoritative`,
+      );
     }
     if (rec.host === null || rec.host === undefined || typeof rec.host !== "object") {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.host must be an object`);
@@ -479,6 +486,7 @@ export function validateHierophantReferenceIntegrity(state: CampaignStateV5): vo
     if (collective.representation !== "collective") {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.cultDenizenId must reference a collective Denizen`);
     }
+    requirePowerfulRoleProfile(collective, path, "cult");
     if (cult.anchorPlaceId !== null && !placeIds.has(cult.anchorPlaceId as string)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.anchorPlaceId does not resolve: ${cult.anchorPlaceId}`);
     }
@@ -515,5 +523,7 @@ export function validateHierophantReferenceIntegrity(state: CampaignStateV5): vo
     if (denizen.representation !== "individual") {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId must reference an individual Denizen`);
     }
+    const profile = requirePowerfulRoleProfile(denizen, path, "prophet");
+    requireReliableOrDisruptiveStatus(profile, path);
   }
 }

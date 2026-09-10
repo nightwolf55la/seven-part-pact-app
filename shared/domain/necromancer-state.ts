@@ -153,7 +153,6 @@ export interface NecromancerAllyState {
 
 export interface NecromancerGhoulCallerState {
   readonly denizenId: DenizenId;
-  readonly disposition: NecromancerGhoulCallerDisposition;
   readonly location: { readonly kind: "path"; readonly pathSpaceId: NecromancerPathSpaceId };
   readonly pettyDeadCount: number;
   readonly primaryElement: ElementId;

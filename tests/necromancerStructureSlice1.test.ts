@@ -153,6 +153,16 @@ function foeProfile() {
   };
 }
 
+function ghoulProfile() {
+  return {
+    taxonomies: [{ kind: "builtin" as const, taxonomyId: "ghoul_caller" as const }],
+    status: { kind: "standard" as const, value: "reliable" as const },
+    goal: null,
+    methods: [],
+    truths: [],
+  };
+}
+
 function defaultWorld(options?: { extraCollective?: boolean; omitDenizen1?: boolean }) {
   const denizens: Array<{
     denizenId: DenizenId;
@@ -160,14 +170,14 @@ function defaultWorld(options?: { extraCollective?: boolean; omitDenizen1?: bool
     representation: "individual" | "collective";
     description: null;
     mortalityState: "not_deceased" | null;
-    powerfulProfile: ReturnType<typeof foeProfile> | null;
+    powerfulProfile: ReturnType<typeof foeProfile> | ReturnType<typeof ghoulProfile> | null;
   }> = [];
   if (!options?.omitDenizen1) {
     denizens.push({ denizenId: DEN_1, name: "Foe One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: foeProfile() });
   }
   denizens.push(
     { denizenId: DEN_2, name: "Ally One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
-    { denizenId: DEN_3, name: "Ghoul One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
+    { denizenId: DEN_3, name: "Ghoul One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: ghoulProfile() },
   );
   if (options?.extraCollective) {
     denizens.push({
@@ -251,7 +261,6 @@ function ally(overrides?: Partial<NecromancerAllyState>): NecromancerAllyState {
 function ghoul(overrides?: Partial<NecromancerGhoulCallerState>): NecromancerGhoulCallerState {
   return {
     denizenId: DEN_3,
-    disposition: "reliable",
     location: { kind: "path", pathSpaceId: "edge_sage" },
     pettyDeadCount: 0,
     primaryElement: "fire",

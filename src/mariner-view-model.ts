@@ -30,7 +30,11 @@ import {
   type MarinerSeaRegionId,
   type MarinerState,
   type PactSeatId,
+  type PowerfulDenizenProfile,
   type UpdateMarinerBeastFields,
+  denizenHasBuiltinTaxonomy,
+  profileHasStandardRampagingMethod,
+  powerfulStatusLabel,
 } from "../shared/domain";
 import type { PlaceRef } from "./WorldSurface";
 
@@ -38,6 +42,7 @@ export interface NamedDenizen {
   readonly denizenId: string;
   readonly name: string;
   readonly representation: "individual" | "collective";
+  readonly powerfulProfile?: PowerfulDenizenProfile | null;
 }
 
 export interface NamedIsle {
@@ -242,7 +247,21 @@ export function availableIndividualBeastDenizens(
   beasts: readonly MarinerBeastState[],
 ): NamedDenizen[] {
   const used = new Set(beasts.map((beast) => beast.denizenId as string));
-  return denizens.filter((denizen) => denizen.representation === "individual" && !used.has(denizen.denizenId));
+  return denizens.filter((denizen) =>
+    denizen.representation === "individual"
+    && !used.has(denizen.denizenId)
+    && denizenHasBuiltinTaxonomy(denizen, "beast")
+    && denizen.powerfulProfile != null,
+  );
+}
+
+export function denizenHasRampagingMethod(denizen: NamedDenizen | undefined): boolean {
+  return denizen?.powerfulProfile != null && profileHasStandardRampagingMethod(denizen.powerfulProfile);
+}
+
+export function denizenSharedStatusLabel(denizen: NamedDenizen | undefined): string {
+  if (denizen?.powerfulProfile == null) return "unset";
+  return powerfulStatusLabel(denizen.powerfulProfile.status);
 }
 
 export function otherDomainSeatOptions(): PactSeatId[] {

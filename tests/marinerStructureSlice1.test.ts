@@ -6,6 +6,7 @@ import type {
   MonthOrdinal,
   PlaceId,
   PlayerId,
+  PowerfulDenizenMethodEntryId,
   WizardId,
 } from "../shared/domain";
 import {
@@ -77,6 +78,22 @@ function worldIsleIds(): Record<MarinerBoardIsleId, IsleId> {
   return bindings;
 }
 
+function beastProfile(methodEntryId?: PowerfulDenizenMethodEntryId) {
+  return {
+    taxonomies: [{ kind: "builtin" as const, taxonomyId: "beast" as const }],
+    status: { kind: "standard" as const, value: "malignant" as const },
+    goal: null,
+    methods: methodEntryId === undefined
+      ? []
+      : [{
+          methodEntryId,
+          definition: { kind: "standard" as const, method: "rampaging" as const },
+          origin: "source" as const,
+        }],
+    truths: [],
+  };
+}
+
 function defaultWorld(options?: {
   shipPlacement?: "mobile" | "on_isle" | "missing";
   omitIsle?: MarinerBoardIsleId;
@@ -104,10 +121,10 @@ function defaultWorld(options?: {
     representation: "individual" | "collective";
     description: null;
     mortalityState: "not_deceased" | null;
-    powerfulProfile: null;
+    powerfulProfile: ReturnType<typeof beastProfile> | null;
   }> = [
-    { denizenId: DEN_1, name: "Beast One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
-    { denizenId: DEN_2, name: "Beast Two", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
+    { denizenId: DEN_1, name: "Beast One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: beastProfile("pdmth_00000000-0000-0000-0000-0000000000b1" as PowerfulDenizenMethodEntryId) },
+    { denizenId: DEN_2, name: "Beast Two", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: beastProfile() },
   ];
   if (options?.extraCollective) {
     denizens.push({

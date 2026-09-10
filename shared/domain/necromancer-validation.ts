@@ -18,7 +18,6 @@ import {
   isValidNecromancerCampaignPathSpaceId,
   isValidNecromancerGateBand,
   isValidNecromancerGateStatus,
-  isValidNecromancerGhoulCallerDisposition,
   isValidNecromancerLawOfDeathId,
   isValidNecromancerLawVisibility,
   isValidNecromancerPathRegion,
@@ -33,6 +32,10 @@ import {
   isValidNecromancerWizardTraversalKind,
   necromancerFoeSubjectKey,
 } from "./necromancer-state";
+import {
+  requirePowerfulRoleProfile,
+  requireReliableOrDisruptiveStatus,
+} from "./powerful-denizen-roles";
 
 const MAX_GHOUL_CALLER_PROFILE_TEXT_LENGTH = 8000;
 
@@ -467,10 +470,10 @@ function validateOccupants(
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId is invalid: ${JSON.stringify(ghoul.denizenId)}`);
     }
     ghoulIds.push(ghoul.denizenId);
-    if (typeof ghoul.disposition !== "string" || !isValidNecromancerGhoulCallerDisposition(ghoul.disposition)) {
+    if ("disposition" in ghoul) {
       throw new DomainError(
         "INVALID_CAMPAIGN_STATE",
-        `${path}.disposition is invalid: ${JSON.stringify(ghoul.disposition)}`,
+        `${path} must not persist disposition; shared Powerful Status is authoritative`,
       );
     }
     const location = validateOccupiableSpaceRef(`${path}.location`, ghoul.location);
@@ -714,5 +717,7 @@ export function validateNecromancerReferenceIntegrity(state: CampaignStateV5): v
     if (denizen.representation !== "individual") {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId must reference an individual Denizen`);
     }
+    const profile = requirePowerfulRoleProfile(denizen, path, "ghoul_caller");
+    requireReliableOrDisruptiveStatus(profile, path);
   }
 }

@@ -69,6 +69,8 @@ import type {
   WizardMortalityStateChangedEventV1,
 } from "./events";
 import { validateNecromancerReferenceIntegrity } from "./necromancer-validation";
+import { validateHierophantReferenceIntegrity } from "./hierophant-validation";
+import { validateMarinerReferenceIntegrity } from "./mariner-validation";
 import { isNecromancerWizardFoe } from "./necromancer-state";
 
 export type SharedStateTransitionResult = {
@@ -81,6 +83,12 @@ const MAX_DESCRIPTION_LENGTH = 8000;
 const VALID_MORTALITY_STATES = new Set<MortalityState>(["not_deceased", "deceased"]);
 const VALID_TREASURE_CONDITIONS = new Set<TreasureCondition>(["intact", "destroyed"]);
 const VALID_FRAGMENT_CONDITIONS = new Set(["intact", "damaged", "destroyed"]);
+
+function assertCompleteRoleIntegrity(state: CampaignStateV5): void {
+  validateNecromancerReferenceIntegrity(state);
+  validateHierophantReferenceIntegrity(state);
+  validateMarinerReferenceIntegrity(state);
+}
 
 function normalizeName(raw: string): string {
   const trimmed = raw.trim();
@@ -457,7 +465,7 @@ export function applyRemovePowerfulDenizenProfile(
     data: { denizenId, profile: current },
   };
   const nextState = replaceDenizen(state, index, updated);
-  validateNecromancerReferenceIntegrity(nextState);
+  assertCompleteRoleIntegrity(nextState);
   return { nextState, events: [event] };
 }
 
@@ -480,7 +488,7 @@ export function applySetPowerfulDenizenTaxonomies(
     data: { denizenId, previous: current.taxonomies, updated: taxonomies },
   };
   const nextState = replaceDenizen(state, index, { ...denizen, powerfulProfile: profile });
-  validateNecromancerReferenceIntegrity(nextState);
+  assertCompleteRoleIntegrity(nextState);
   return { nextState, events: [event] };
 }
 
@@ -502,7 +510,9 @@ export function applySetPowerfulDenizenStatus(
     version: 1,
     data: { denizenId, previous: current.status, updated: status },
   };
-  return { nextState: replaceDenizen(state, index, { ...denizen, powerfulProfile: profile }), events: [event] };
+  const nextState = replaceDenizen(state, index, { ...denizen, powerfulProfile: profile });
+  assertCompleteRoleIntegrity(nextState);
+  return { nextState, events: [event] };
 }
 
 export function applySetPowerfulDenizenGoal(
@@ -589,7 +599,9 @@ export function applyUpdatePowerfulDenizenMethod(
     version: 1,
     data: { denizenId, previous: existing, updated },
   };
-  return { nextState: replaceDenizen(state, index, { ...denizen, powerfulProfile: profile }), events: [event] };
+  const nextState = replaceDenizen(state, index, { ...denizen, powerfulProfile: profile });
+  assertCompleteRoleIntegrity(nextState);
+  return { nextState, events: [event] };
 }
 
 export function applyRemovePowerfulDenizenMethod(
@@ -619,7 +631,9 @@ export function applyRemovePowerfulDenizenMethod(
     version: 1,
     data: { denizenId, method: existing },
   };
-  return { nextState: replaceDenizen(state, index, { ...denizen, powerfulProfile: profile }), events: [event] };
+  const nextState = replaceDenizen(state, index, { ...denizen, powerfulProfile: profile });
+  assertCompleteRoleIntegrity(nextState);
+  return { nextState, events: [event] };
 }
 
 export interface AddPowerfulDenizenTruthInput {

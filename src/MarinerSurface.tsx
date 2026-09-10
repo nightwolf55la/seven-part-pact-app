@@ -54,6 +54,8 @@ import {
   conditionLabel,
   definitionsMatchingElement,
   denizenName,
+  denizenHasRampagingMethod,
+  denizenSharedStatusLabel,
   externalLandDisplayName,
   isMarinerInitialized,
   isTyphoon,
@@ -535,6 +537,11 @@ function SetupPanel({
                   <option key={denizen.denizenId} value={denizen.denizenId}>{denizen.name}</option>
                 ))}
               </select>
+              {availableIndividualBeastDenizens(world.denizens, []).length === 0 && (
+                <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">
+                  Starting Beast requires a shared Powerful profile with Beast taxonomy and an explicit Status. Configure it in World first.
+                </p>
+              )}
             </label>
             <label className="text-sm">
               Element
@@ -1163,12 +1170,14 @@ function BeastPanel({
                 {" · "}{beast.element}
                 {builtinBeastName(beast.definitionId) ? ` · ${builtinBeastName(beast.definitionId)}` : " · custom"}
                 {" · "}{conditionLabel(beast.condition)}
+                {" · Status "}{denizenSharedStatusLabel(world.denizens.find((denizen) => denizen.denizenId === beast.denizenId))}
                 {" · "}{beastLocationLabel(beast.location, mariner, world.isles)}
               </div>
               {beastEditor !== null && beastEditor.denizenId === beast.denizenId ? (
                 <BeastEditor
                   initial={beastEditor}
                   pending={pending}
+                  hasRampagingMethod={denizenHasRampagingMethod(world.denizens.find((denizen) => denizen.denizenId === beast.denizenId))}
                   onCancel={() => setBeastEditor(null)}
                   onSave={async (next) => {
                     const ok = await onUpdate(beastEditor, next);
@@ -1198,17 +1207,23 @@ function BeastPanel({
         <label className="text-sm block">
           Denizen
           <select aria-label="Add Beast Denizen" className={`${fieldClass} mt-1`} value={addDenizenId} onChange={(e) => setAddDenizenId(e.target.value)}>
-            <option value="">Select Denizen…</option>
+            <option value="">Select Denizen with Beast profile…</option>
             {unusedDenizens.map((denizen) => (
               <option key={denizen.denizenId} value={denizen.denizenId}>{denizen.name}</option>
             ))}
           </select>
+          {unusedDenizens.length === 0 && (
+            <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">
+              Configure a shared Powerful profile with Beast taxonomy and an explicit Status in World first.
+            </p>
+          )}
         </label>
         <BeastFields
           element={addElement}
           definitionId={addDefinitionId}
           condition={addCondition}
           location={addLocation}
+          hasRampagingMethod={denizenHasRampagingMethod(unusedDenizens.find((denizen) => denizen.denizenId === addDenizenId) ?? world.denizens.find((denizen) => denizen.denizenId === addDenizenId))}
           onElement={setAddElement}
           onDefinition={setAddDefinitionId}
           onCondition={setAddCondition}
@@ -1216,7 +1231,7 @@ function BeastPanel({
         />
         <button
           className={btnClass}
-          disabled={pending || addDenizenId === ""}
+          disabled={pending || addDenizenId === "" || (addCondition === "rampaging" && !denizenHasRampagingMethod(unusedDenizens.find((denizen) => denizen.denizenId === addDenizenId) ?? world.denizens.find((denizen) => denizen.denizenId === addDenizenId)))}
           onClick={() => {
             void (async () => {
               const ok = await onAdd({
@@ -1240,11 +1255,13 @@ function BeastPanel({
 function BeastEditor({
   initial,
   pending,
+  hasRampagingMethod,
   onCancel,
   onSave,
 }: {
   initial: MarinerBeastState;
   pending: boolean;
+  hasRampagingMethod: boolean;
   onCancel: () => void;
   onSave: (next: Pick<MarinerBeastState, "element" | "definitionId" | "condition" | "location">) => void | Promise<void>;
 }) {
@@ -1259,6 +1276,7 @@ function BeastEditor({
         definitionId={definitionId}
         condition={condition}
         location={location}
+        hasRampagingMethod={hasRampagingMethod}
         onElement={setElement}
         onDefinition={setDefinitionId}
         onCondition={setCondition}
@@ -1267,7 +1285,7 @@ function BeastEditor({
       <div className="flex gap-2">
         <button
           className={btnClass}
-          disabled={pending}
+          disabled={pending || (condition === "rampaging" && !hasRampagingMethod)}
           onClick={() => {
             void onSave({
               element,
@@ -1290,6 +1308,7 @@ function BeastFields({
   definitionId,
   condition,
   location,
+  hasRampagingMethod = false,
   onElement,
   onDefinition,
   onCondition,
@@ -1299,6 +1318,7 @@ function BeastFields({
   definitionId: string;
   condition: MarinerBeastCondition;
   location: MarinerBeastLocation;
+  hasRampagingMethod?: boolean;
   onElement: (value: ElementId) => void;
   onDefinition: (value: string) => void;
   onCondition: (value: MarinerBeastCondition) => void;
@@ -1347,6 +1367,11 @@ function BeastFields({
           <option value="friendly_nesting">Friendly / Nesting</option>
           <option value="rampaging">Rampaging</option>
         </select>
+        {condition === "rampaging" && !hasRampagingMethod && (
+          <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">
+            Rampaging requires a standard Rampaging Method on the shared Powerful profile. Add it in World first. Beast condition is not shared Status.
+          </p>
+        )}
       </label>
       <LocationFields location={location} onChange={onLocation} />
     </div>

@@ -105,7 +105,6 @@ export type HierophantProphetHost =
 
 export interface HierophantProphet {
   readonly denizenId: DenizenId;
-  readonly disposition: HierophantProphetDisposition;
   readonly host: HierophantProphetHost;
 }
 

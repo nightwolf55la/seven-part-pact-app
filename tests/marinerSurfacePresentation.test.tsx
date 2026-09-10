@@ -14,6 +14,7 @@ import {
   type MarinerBoardIsleId,
   type MarinerState,
   type PlaceId,
+  type PowerfulDenizenMethodEntryId,
 } from "../shared/domain";
 import MarinerSurface from "../src/MarinerSurface";
 import type { WorldReference } from "../src/WorldSurface";
@@ -38,10 +39,22 @@ function worldIsleIds(): Record<MarinerBoardIsleId, IsleId> {
   return bindings;
 }
 
+const BEAST_PROFILE = {
+  taxonomies: [{ kind: "builtin" as const, taxonomyId: "beast" as const }],
+  status: { kind: "standard" as const, value: "malignant" as const },
+  goal: null,
+  methods: [{
+    methodEntryId: "pdmth_00000000-0000-0000-0000-0000000000b1" as PowerfulDenizenMethodEntryId,
+    definition: { kind: "standard" as const, method: "rampaging" as const },
+    origin: "source" as const,
+  }],
+  truths: [],
+};
+
 const WORLD: WorldReference = {
   denizens: [
-    { denizenId: DEN_A, name: "Kraken-kin", representation: "individual", description: null },
-    { denizenId: DEN_B, name: "Spare Leviathan", representation: "individual", description: null },
+    { denizenId: DEN_A, name: "Kraken-kin", representation: "individual", description: null, powerfulProfile: BEAST_PROFILE },
+    { denizenId: DEN_B, name: "Spare Leviathan", representation: "individual", description: null, powerfulProfile: BEAST_PROFILE },
     { denizenId: "den_00000000-0000-0000-0000-00000000000c", name: "The Choir", representation: "collective", description: null },
   ],
   isles: MARINER_BOARD_ISLE_IDS.map((id, index) => ({

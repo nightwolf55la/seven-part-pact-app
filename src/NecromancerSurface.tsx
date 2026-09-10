@@ -16,7 +16,6 @@ import {
   type NecromancerGateId,
   type NecromancerGateState,
   type NecromancerGateStatus,
-  type NecromancerGhoulCallerDisposition,
   type NecromancerGhoulCallerState,
   type ElementId,
   type NecromancerOccupiableSpaceRef,
@@ -28,6 +27,8 @@ import {
   type PactSeatId,
   type WizardId,
   type DenizenId,
+  type PowerfulDenizenStatus,
+  powerfulStatusLabel,
 } from "../shared/domain";
 import type { WorldReference } from "./WorldSurface";
 import {
@@ -57,6 +58,7 @@ import {
   arrangementSetupSummary,
   availableGateStatusTransitions,
   availableSetupDenizens,
+  availableSetupGhoulCallerDenizens,
   buildAddNecromancerAllyPayload,
   buildAddNecromancerFoePayload,
   buildAddNecromancerGhoulCallerPayload,
@@ -250,6 +252,7 @@ export default function NecromancerSurface({
   const addNecromancerGhoulCaller = useMutation(api.m3Commands.addNecromancerGhoulCaller);
   const updateNecromancerGhoulCaller = useMutation(api.m3Commands.updateNecromancerGhoulCaller);
   const removeNecromancerGhoulCaller = useMutation(api.m3Commands.removeNecromancerGhoulCaller);
+  const setPowerfulDenizenStatus = useMutation(api.m3Commands.setPowerfulDenizenStatus);
   const createNecromancerCampaignGate = useMutation(api.m3Commands.createNecromancerCampaignGate);
   const updateNecromancerCampaignGate = useMutation(api.m3Commands.updateNecromancerCampaignGate);
   const createNecromancerCampaignPathSpace = useMutation(api.m3Commands.createNecromancerCampaignPathSpace);
@@ -517,10 +520,10 @@ export default function NecromancerSurface({
         campaignId={campaignId}
         pending={pending}
         run={run}
-        addNecromancerFoe={addNecromancerFoe as never}
+        addNecromancerFoe={addNecromancerFoe}
         updateNecromancerFoe={updateNecromancerFoe}
-        removeNecromancerFoe={removeNecromancerFoe as never}
-        escapeNecromancerWizardFoe={escapeNecromancerWizardFoe as never}
+        removeNecromancerFoe={removeNecromancerFoe}
+        escapeNecromancerWizardFoe={escapeNecromancerWizardFoe}
         addNecromancerWizardFoeTruth={addNecromancerWizardFoeTruth}
         updateNecromancerWizardFoeTruth={updateNecromancerWizardFoeTruth}
         removeNecromancerWizardFoeTruth={removeNecromancerWizardFoeTruth}
@@ -533,6 +536,7 @@ export default function NecromancerSurface({
         addNecromancerGhoulCaller={addNecromancerGhoulCaller}
         updateNecromancerGhoulCaller={updateNecromancerGhoulCaller}
         removeNecromancerGhoulCaller={removeNecromancerGhoulCaller}
+        setPowerfulDenizenStatus={setPowerfulDenizenStatus}
         onSelectSpace={(ref) => setSelection(selectionOf(ref))}
       />
       <AdvancedStructure
@@ -774,10 +778,15 @@ function SetupPanel({
                 onChange={(event) => setSetup((current) => ({ ...current, ghoulCallerDenizenId: event.target.value }))}
               >
                 <option value="">Select individual Denizen…</option>
-                {availableSetupDenizens(world.denizens, setup, setup.ghoulCallerDenizenId, true).map((denizen) => (
+                {availableSetupGhoulCallerDenizens(world.denizens, setup, setup.ghoulCallerDenizenId).map((denizen) => (
                   <option key={denizen.denizenId} value={denizen.denizenId}>{denizen.name}</option>
                 ))}
               </select>
+              {availableSetupGhoulCallerDenizens(world.denizens, setup, setup.ghoulCallerDenizenId).length === 0 && (
+                <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">
+                  Starting Ghoul-Caller requires a shared Powerful profile with Ghoul-Caller taxonomy and Disruptive Status. Configure it in World first.
+                </p>
+              )}
             </label>
             <label className="text-sm">
               <span className="block font-medium mb-1">Edge-of-Life path</span>
@@ -1369,6 +1378,7 @@ function RoleManagement({
   addNecromancerGhoulCaller,
   updateNecromancerGhoulCaller,
   removeNecromancerGhoulCaller,
+  setPowerfulDenizenStatus,
   onSelectSpace,
 }: {
   necromancer: NecromancerState;
@@ -1377,7 +1387,7 @@ function RoleManagement({
   campaignId: string;
   pending: boolean;
   run: (action: () => Promise<void>) => Promise<boolean>;
-  addNecromancerFoe: (args: { commandId: string; expectedCampaignId: string; foe: NecromancerFoeState }) => Promise<unknown>;
+  addNecromancerFoe: (args: ReturnType<typeof buildAddNecromancerFoePayload>) => Promise<unknown>;
   updateNecromancerFoe: (args: ReturnType<typeof buildUpdateNecromancerFoePayload>) => Promise<unknown>;
   removeNecromancerFoe: (args: ReturnType<typeof buildRemoveNecromancerFoePayload>) => Promise<unknown>;
   escapeNecromancerWizardFoe: (args: ReturnType<typeof buildEscapeNecromancerWizardFoePayload>) => Promise<unknown>;
@@ -1393,6 +1403,12 @@ function RoleManagement({
   addNecromancerGhoulCaller: (args: { commandId: string; expectedCampaignId: string; ghoulCaller: NecromancerGhoulCallerState }) => Promise<unknown>;
   updateNecromancerGhoulCaller: (args: NonNullable<ReturnType<typeof buildUpdateNecromancerGhoulCallerPayload>>) => Promise<unknown>;
   removeNecromancerGhoulCaller: (args: ReturnType<typeof buildRemoveNecromancerGhoulCallerPayload>) => Promise<unknown>;
+  setPowerfulDenizenStatus: (args: {
+    commandId: string;
+    expectedCampaignId: string;
+    denizenId: string;
+    change: { expected: PowerfulDenizenStatus; value: PowerfulDenizenStatus };
+  }) => Promise<unknown>;
   onSelectSpace: (ref: NecromancerOccupiableSpaceRef) => void;
 }) {
   const occupiable = activeOccupiableSpaces(necromancer);
@@ -1411,7 +1427,6 @@ function RoleManagement({
   const [allySpaceKey, setAllySpaceKey] = useState("");
   const [ghoulDenizenId, setGhoulDenizenId] = useState("");
   const [ghoulPathId, setGhoulPathId] = useState("");
-  const [ghoulDisposition, setGhoulDisposition] = useState<NecromancerGhoulCallerDisposition>("disruptive");
   const [ghoulPetty, setGhoulPetty] = useState("0");
   const [ghoulPrimaryElement, setGhoulPrimaryElement] = useState<ElementId | "">("");
   const [ghoulAesthetic, setGhoulAesthetic] = useState("");
@@ -1742,14 +1757,13 @@ function RoleManagement({
             world={world}
             edgePaths={edgePaths}
             pending={pending}
-            onUpdate={async (location, disposition, pettyDeadCount, primaryElement, aesthetic, strangeQuirk, ageYears) => {
+            onUpdate={async (location, pettyDeadCount, primaryElement, aesthetic, strangeQuirk, ageYears) => {
               const payload = buildUpdateNecromancerGhoulCallerPayload({
                 commandId: newCommandId(),
                 expectedCampaignId: campaignId,
                 denizenId: ghoul.denizenId,
                 expected: ghoul,
                 location,
-                disposition,
                 pettyDeadCount,
                 primaryElement,
                 aesthetic,
@@ -1759,6 +1773,16 @@ function RoleManagement({
               if (payload === null) return;
               await run(async () => {
                 await updateNecromancerGhoulCaller(payload);
+              });
+            }}
+            onSetStatus={async (expected, value) => {
+              await run(async () => {
+                await setPowerfulDenizenStatus({
+                  commandId: newCommandId(),
+                  expectedCampaignId: campaignId,
+                  denizenId: ghoul.denizenId,
+                  change: { expected, value },
+                });
               });
             }}
             onRemove={async () => {
@@ -1776,20 +1800,20 @@ function RoleManagement({
         <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-2">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Add Ghoul-Caller</h4>
           <select aria-label="Add Ghoul-Caller Denizen" className={fieldClass} value={ghoulDenizenId} onChange={(event) => setGhoulDenizenId(event.target.value)}>
-            <option value="">Individual Denizen…</option>
+            <option value="">Individual Denizen with Ghoul-Caller profile…</option>
             {unusedIndividualGhoulDenizens(world.denizens, necromancer.ghoulCallers).map((denizen) => (
               <option key={denizen.denizenId} value={denizen.denizenId}>{denizen.name}</option>
             ))}
           </select>
+          {unusedIndividualGhoulDenizens(world.denizens, necromancer.ghoulCallers).length === 0 && (
+            <p className="text-xs text-amber-800 dark:text-amber-200">
+              Configure a shared Powerful profile with Ghoul-Caller taxonomy and Reliable or Disruptive Status in World first.
+            </p>
+          )}
           <select aria-label="Add Ghoul-Caller Edge path" className={fieldClass} value={ghoulPathId} onChange={(event) => setGhoulPathId(event.target.value)}>
             <option value="">Edge-of-Life path…</option>
             {edgePaths.map((path) => (
               <option key={path.pathSpaceId} value={path.pathSpaceId}>{pathSpaceDisplayName(path)}</option>
-            ))}
-          </select>
-          <select aria-label="Add Ghoul-Caller disposition" className={fieldClass} value={ghoulDisposition} onChange={(event) => setGhoulDisposition(event.target.value as NecromancerGhoulCallerDisposition)}>
-            {NECROMANCER_GHOUL_CALLER_DISPOSITIONS.map((disposition) => (
-              <option key={disposition} value={disposition}>{disposition}</option>
             ))}
           </select>
           <input
@@ -1850,7 +1874,6 @@ function RoleManagement({
                   expectedCampaignId: campaignId,
                   ghoulCaller: {
                     denizenId: ghoulDenizenId as NecromancerGhoulCallerState["denizenId"],
-                    disposition: ghoulDisposition,
                     location: { kind: "path", pathSpaceId: ghoulPathId as NecromancerGhoulCallerState["location"]["pathSpaceId"] },
                     pettyDeadCount,
                     primaryElement: ghoulPrimaryElement,
@@ -2173,6 +2196,7 @@ function GhoulRow({
   edgePaths,
   pending,
   onUpdate,
+  onSetStatus,
   onRemove,
 }: {
   ghoul: NecromancerGhoulCallerState;
@@ -2182,37 +2206,36 @@ function GhoulRow({
   pending: boolean;
   onUpdate: (
     location: NecromancerGhoulCallerState["location"],
-    disposition: NecromancerGhoulCallerDisposition,
     pettyDeadCount: number,
     primaryElement: ElementId,
     aesthetic: string,
     strangeQuirk: string,
     ageYears: number,
   ) => Promise<void>;
+  onSetStatus: (expected: PowerfulDenizenStatus, value: PowerfulDenizenStatus) => Promise<void>;
   onRemove: () => Promise<void>;
 }) {
+  const sharedStatus = world.denizens.find((denizen) => denizen.denizenId === ghoul.denizenId)?.powerfulProfile?.status ?? null;
   const [pathId, setPathId] = useState<string>(ghoul.location.pathSpaceId);
-  const [disposition, setDisposition] = useState(ghoul.disposition);
   const [petty, setPetty] = useState(String(ghoul.pettyDeadCount));
   const [primaryElement, setPrimaryElement] = useState<ElementId>(ghoul.primaryElement);
   const [aesthetic, setAesthetic] = useState(ghoul.aesthetic);
   const [strangeQuirk, setStrangeQuirk] = useState(ghoul.strangeQuirk);
   const [age, setAge] = useState(String(ghoul.ageYears));
-  const expectedKey = `${ghoul.location.pathSpaceId}:${ghoul.disposition}:${ghoul.pettyDeadCount}:${ghoul.primaryElement}:${ghoul.aesthetic}:${ghoul.strangeQuirk}:${ghoul.ageYears}`;
+  const expectedKey = `${ghoul.location.pathSpaceId}:${ghoul.pettyDeadCount}:${ghoul.primaryElement}:${ghoul.aesthetic}:${ghoul.strangeQuirk}:${ghoul.ageYears}`;
   useLayoutEffect(() => {
     setPathId(ghoul.location.pathSpaceId);
-    setDisposition(ghoul.disposition);
     setPetty(String(ghoul.pettyDeadCount));
     setPrimaryElement(ghoul.primaryElement);
     setAesthetic(ghoul.aesthetic);
     setStrangeQuirk(ghoul.strangeQuirk);
     setAge(String(ghoul.ageYears));
-  }, [expectedKey, ghoul.location.pathSpaceId, ghoul.disposition, ghoul.pettyDeadCount, ghoul.primaryElement, ghoul.aesthetic, ghoul.strangeQuirk, ghoul.ageYears]);
+  }, [expectedKey, ghoul.location.pathSpaceId, ghoul.pettyDeadCount, ghoul.primaryElement, ghoul.aesthetic, ghoul.strangeQuirk, ghoul.ageYears]);
   return (
     <div className="rounded border border-slate-200 dark:border-slate-700 p-2 space-y-1">
       <p className="text-sm font-medium">{denizenName(world.denizens, ghoul.denizenId)}</p>
       <p className="text-xs text-slate-500">
-        {occupiableSpaceLabel(ghoul.location, necromancer)} · {ghoul.disposition} · petty dead {ghoul.pettyDeadCount}
+        {occupiableSpaceLabel(ghoul.location, necromancer)} · {sharedStatus === null ? "Status unset" : powerfulStatusLabel(sharedStatus)} · petty dead {ghoul.pettyDeadCount}
       </p>
       {ghoulCallerProfileLines(ghoul).map((line) => (
         <p key={line} className="text-xs text-slate-500">{line}</p>
@@ -2222,9 +2245,20 @@ function GhoulRow({
           <option key={path.pathSpaceId} value={path.pathSpaceId}>{pathSpaceDisplayName(path)}</option>
         ))}
       </select>
-      <select className={fieldClass} value={disposition} onChange={(event) => setDisposition(event.target.value as NecromancerGhoulCallerDisposition)}>
+      <select
+        aria-label="Ghoul-Caller Status"
+        className={fieldClass}
+        value={sharedStatus?.kind === "standard" ? sharedStatus.value : ""}
+        disabled={pending || sharedStatus === null}
+        onChange={(event) => {
+          if (sharedStatus === null) return;
+          const value = event.target.value;
+          if (value !== "reliable" && value !== "disruptive") return;
+          void onSetStatus(sharedStatus, { kind: "standard", value });
+        }}
+      >
         {NECROMANCER_GHOUL_CALLER_DISPOSITIONS.map((option) => (
-          <option key={option} value={option}>{option}</option>
+          <option key={option} value={option}>{option === "reliable" ? "Reliable" : "Disruptive"}</option>
         ))}
       </select>
       <input className={fieldClass} value={petty} onChange={(event) => setPetty(event.target.value)} aria-label="Petty dead count" />
@@ -2251,7 +2285,6 @@ function GhoulRow({
             if (pettyDeadCount === null || ageYears === null) return;
             void onUpdate(
               { kind: "path", pathSpaceId: pathId as NecromancerGhoulCallerState["location"]["pathSpaceId"] },
-              disposition,
               pettyDeadCount,
               primaryElement,
               aesthetic,

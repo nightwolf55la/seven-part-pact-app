@@ -713,6 +713,16 @@ export {
   isValidStandardPowerfulDenizenMethod,
   powerfulDenizenTaxonomyRefKey,
 } from "./powerful-denizen";
+export {
+  denizenHasBuiltinTaxonomy,
+  isReliableOrDisruptiveStatus,
+  profileHasStandardRampagingMethod,
+  requirePowerfulRoleProfile,
+  requireReliableOrDisruptiveStatus,
+  requireDisruptiveStatus,
+  requireRampagingBeastMethod,
+  powerfulStatusLabel,
+} from "./powerful-denizen-roles";
 
 // --- V5 Reference Validation (candidate, not active) ---
 

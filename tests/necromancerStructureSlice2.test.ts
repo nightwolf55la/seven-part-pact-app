@@ -127,6 +127,14 @@ const FOE_PROFILE = {
   truths: [],
 };
 
+const GHOUL_PROFILE = {
+  taxonomies: [{ kind: "builtin" as const, taxonomyId: "ghoul_caller" as const }],
+  status: { kind: "standard" as const, value: "disruptive" as const },
+  goal: null,
+  methods: [],
+  truths: [],
+};
+
 function defaultWorld() {
   return {
     denizens: [
@@ -135,7 +143,7 @@ function defaultWorld() {
       { denizenId: DEN_3, name: "Far Foe One", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: FOE_PROFILE },
       { denizenId: DEN_4, name: "Far Foe Two", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: FOE_PROFILE },
       { denizenId: DEN_5, name: "Near Ally", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null },
-      { denizenId: DEN_6, name: "Ghoul-Caller", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null },
+      { denizenId: DEN_6, name: "Ghoul-Caller", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: GHOUL_PROFILE },
       { denizenId: DEN_COLLECTIVE, name: "A Host of Dead", representation: "collective" as const, description: null, mortalityState: null, powerfulProfile: FOE_PROFILE },
     ],
     isles: [],
@@ -344,7 +352,6 @@ describe("Necromancer Phase 2A transitions", () => {
       expect(n.foes).toHaveLength(4);
       expect(n.ghoulCallers).toEqual([{
         denizenId: DEN_6,
-        disposition: "disruptive",
         location: { kind: "path", pathSpaceId: "edge_sage" },
         pettyDeadCount: 0,
         primaryElement: "fire",
@@ -714,15 +721,12 @@ describe("Necromancer Phase 2A transitions", () => {
       }).nextState;
       expect(petty.necromancer.souls).toEqual(escapedAttempt.necromancer.souls);
       expect(petty.necromancer.foes).toEqual(beforeGhoul.foes);
-      const flipped = applyUpdateNecromancerGhoulCaller(petty, DEN_6, {
-        disposition: { expected: "disruptive", value: "reliable" },
-      }).nextState;
-      expect(flipped.necromancer.ghoulCallers[0]?.location).toEqual(petty.necromancer.ghoulCallers[0]?.location);
-      expect(flipped.necromancer.foes).toEqual(petty.necromancer.foes);
-      expect(flipped.necromancer.allies).toEqual(petty.necromancer.allies);
-      expect(flipped.calendar).toEqual(beforeFive.calendar);
-      expect(flipped.lifecycle).toEqual(beforeFive.lifecycle);
-      expect(flipped.wizardmootHistory).toEqual([]);
+      expect(petty.necromancer.ghoulCallers[0]?.location).toEqual(escapedAttempt.necromancer.ghoulCallers[0]?.location);
+      expect(petty.necromancer.foes).toEqual(beforeGhoul.foes);
+      expect(petty.necromancer.allies).toEqual(escapedAttempt.necromancer.allies);
+      expect(petty.calendar).toEqual(beforeFive.calendar);
+      expect(petty.lifecycle).toEqual(beforeFive.lifecycle);
+      expect(petty.wizardmootHistory).toEqual([]);
     });
 
     it("does not add a remove-Gate operation", () => {
@@ -740,7 +744,6 @@ describe("Necromancer Phase 2A transitions", () => {
       }).nextState;
       const withGhoul = applyAddNecromancerGhoulCaller(withAlly, {
         denizenId: DEN_6,
-        disposition: "reliable",
         location: { kind: "path", pathSpaceId: "edge_mariner" },
         pettyDeadCount: 0,
         primaryElement: "water",
@@ -779,7 +782,6 @@ describe("Necromancer Phase 2A transitions", () => {
       const ghoul = result.nextState.necromancer.ghoulCallers[0];
       expect(ghoul).toEqual({
         denizenId: DEN_6,
-        disposition: "disruptive",
         location: { kind: "path", pathSpaceId: "edge_sage" },
         pettyDeadCount: 0,
         primaryElement: "earth",
@@ -841,7 +843,6 @@ describe("Necromancer Phase 2A transitions", () => {
       const quiet = applyInitializeNecromancer(baseV5(), quietInput()).nextState;
       const added = applyAddNecromancerGhoulCaller(quiet, {
         denizenId: DEN_6,
-        disposition: "disruptive",
         location: { kind: "path", pathSpaceId: "edge_sage" },
         pettyDeadCount: 0,
         primaryElement: "air",
@@ -872,7 +873,6 @@ describe("Necromancer Phase 2A transitions", () => {
         strangeQuirk: "collects moths",
         ageYears: 900,
         location: ghoul?.location,
-        disposition: "disruptive",
         pettyDeadCount: 0,
       });
       expect(updated.nextState.necromancer.souls).toEqual(added.nextState.necromancer.souls);
@@ -932,7 +932,6 @@ describe("Necromancer Phase 2A transitions", () => {
       expect(padded.arrangementGhoulCaller).toEqual(trimmed.arrangementGhoulCaller);
       expect(canonicalizeNecromancerGhoulCaller({
         denizenId: DEN_6,
-        disposition: "reliable",
         location: { kind: "path", pathSpaceId: "edge_sage" },
         pettyDeadCount: 0,
         primaryElement: "air",

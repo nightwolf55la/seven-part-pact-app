@@ -9,6 +9,7 @@ import type {
   MonthOrdinal,
   PlaceId,
   PlayerId,
+  PowerfulDenizenMethodEntryId,
   WizardId,
 } from "../shared/domain";
 import {
@@ -110,6 +111,18 @@ function isleBindings() {
   }));
 }
 
+const BEAST_PROFILE = {
+  taxonomies: [{ kind: "builtin" as const, taxonomyId: "beast" as const }],
+  status: { kind: "standard" as const, value: "malignant" as const },
+  goal: null,
+  methods: [{
+    methodEntryId: "pdmth_00000000-0000-0000-0000-0000000000b1" as PowerfulDenizenMethodEntryId,
+    definition: { kind: "standard" as const, method: "rampaging" as const },
+    origin: "source" as const,
+  }],
+  truths: [],
+};
+
 function sunkenFleetBeast(denizenId: DenizenId = DEN_1): MarinerBeastState {
   return {
     denizenId,
@@ -124,9 +137,9 @@ function defaultWorld(options?: { extraShip?: boolean; extraDenizen?: boolean })
   const bindings = worldIsleIds();
   return {
     denizens: [
-      { denizenId: DEN_1, name: "Beast One", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null },
+      { denizenId: DEN_1, name: "Beast One", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: BEAST_PROFILE },
       ...(options?.extraDenizen
-        ? [{ denizenId: DEN_2, name: "Beast Two", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null }]
+        ? [{ denizenId: DEN_2, name: "Beast Two", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: BEAST_PROFILE }]
         : []),
     ],
     isles: MARINER_BOARD_ISLE_IDS.map((id) => ({

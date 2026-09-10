@@ -64,7 +64,19 @@ const denizens: readonly DenizenRef[] = [
   { denizenId: "den_far_1", name: "Far Foe One", representation: "individual", description: null },
   { denizenId: "den_far_2", name: "Far Foe Two", representation: "collective", description: null },
   { denizenId: "den_ally", name: "Bound Ally", representation: "collective", description: null },
-  { denizenId: "den_ghoul", name: "Ghoul Caller", representation: "individual", description: null },
+  {
+    denizenId: "den_ghoul",
+    name: "Ghoul Caller",
+    representation: "individual",
+    description: null,
+    powerfulProfile: {
+      taxonomies: [{ kind: "builtin", taxonomyId: "ghoul_caller" }],
+      status: { kind: "standard", value: "disruptive" },
+      goal: null,
+      methods: [],
+      truths: [],
+    },
+  },
   { denizenId: "den_collective_ghoul", name: "Crowd", representation: "collective", description: null },
 ];
 
@@ -357,7 +369,6 @@ describe("labels and pieces", () => {
     allies: [{ denizenId: "den_ally" as DenizenId, location: { kind: "gate", gateId: "amber" } }],
     ghoulCallers: [{
       denizenId: "den_ghoul" as DenizenId,
-      disposition: "disruptive",
       location: { kind: "path", pathSpaceId: "edge_sage" },
       pettyDeadCount: 2,
       primaryElement: "fire",
@@ -650,7 +661,6 @@ describe("campaign structure inspector selection", () => {
 describe("Ghoul-Caller profile payloads and presentation", () => {
   const ghoul = {
     denizenId: "den_ghoul" as DenizenId,
-    disposition: "disruptive" as const,
     location: { kind: "path" as const, pathSpaceId: "edge_sage" as const },
     pettyDeadCount: 0,
     primaryElement: "fire" as const,
@@ -675,7 +685,6 @@ describe("Ghoul-Caller profile payloads and presentation", () => {
       denizenId: ghoul.denizenId,
       expected: ghoul,
       location: ghoul.location,
-      disposition: ghoul.disposition,
       pettyDeadCount: ghoul.pettyDeadCount,
       primaryElement: "water",
       aesthetic: "  river silt  ",
