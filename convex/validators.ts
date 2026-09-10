@@ -1197,7 +1197,7 @@ const faustianCommunityValidator = v.object({
   communityId: v.string(),
   pawnCount: v.number(),
   schemes: v.array(faustianSchemeValidator),
-  accompliceCardId: v.union(v.string(), v.null()),
+  accompliceCardIds: v.array(v.string()),
 });
 const faustianPossessionRepresentationValidator = v.union(
   v.object({ kind: v.literal("none") }),
@@ -1207,6 +1207,10 @@ const faustianPossessionRepresentationValidator = v.union(
 const faustianDemonOccupancyValidator = v.union(
   v.object({ kind: v.literal("isha") }),
   v.object({ kind: v.literal("pact_domain"), seatId: v.string() }),
+);
+const faustianDemonBindingValidator = v.union(
+  v.object({ kind: v.literal("bound") }),
+  v.object({ kind: v.literal("unbound"), malignance: v.string() }),
 );
 const faustianDevilObligationValidator = v.union(
   v.object({ kind: v.literal("wizard_owes_week_next_month"), wizardId: v.string() }),
@@ -1243,16 +1247,29 @@ const faustianStateValidator = v.object({
     wizardId: v.string(),
     represented: faustianPossessionRepresentationValidator,
   })),
+  setAsideHand: v.array(v.string()),
+  domainPlacements: v.array(v.object({
+    cardId: v.string(),
+    seatId: v.string(),
+    represented: faustianPossessionRepresentationValidator,
+  })),
   activeTwistCardIds: v.array(v.string()),
-  conspiracies: v.array(v.object({ denizenId: v.string() })),
+  conspiracies: v.array(v.object({
+    denizenId: v.string(),
+    communityId: v.string(),
+  })),
   antagonists: v.array(v.object({
     denizenId: v.string(),
-    suitGoal: v.string(),
+    seatId: v.string(),
+    chipCount: v.number(),
   })),
   demons: v.array(v.object({
     denizenId: v.string(),
-    malignance: v.string(),
-    occupancy: faustianDemonOccupancyValidator,
+    binding: faustianDemonBindingValidator,
+    form: v.string(),
+    hellOfOrigin: v.string(),
+    magicalSymbol: v.string(),
+    occupancy: v.union(faustianDemonOccupancyValidator, v.null()),
     monthsInCurrentDomain: v.number(),
   })),
   domainSeizures: v.array(v.object({
@@ -1260,11 +1277,23 @@ const faustianStateValidator = v.object({
     conduitDenizenId: v.string(),
   })),
   selectedDevilLawIds: v.array(v.string()),
-  selectedDevilFormIds: v.array(v.string()),
+  selectedDevilForms: v.object({
+    casual: v.array(v.string()),
+    special: v.array(v.string()),
+    duress: v.array(v.string()),
+  }),
   originClaims: v.array(v.object({
     claimId: v.string(),
     status: v.string(),
   })),
+  customOriginClaim: v.union(
+    v.null(),
+    v.object({
+      claim: v.string(),
+      secretName: v.union(v.string(), v.null()),
+      status: v.string(),
+    }),
+  ),
   devilObligations: v.array(faustianDevilObligationValidator),
 });
 

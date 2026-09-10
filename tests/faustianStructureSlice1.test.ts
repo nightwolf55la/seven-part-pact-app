@@ -23,12 +23,22 @@ import {
   EMPTY_NECROMANCER_STATE,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
   EMPTY_SHARED_WORLD_STATE,
+  FAUSTIAN_ANTAGONIST_GOAL_DEFINITIONS,
+  FAUSTIAN_ANTAGONIST_GOALS,
+  FAUSTIAN_ANTAGONIST_METHOD_NAMES,
   FAUSTIAN_CARD_DEFINITIONS,
   FAUSTIAN_CARD_IDS,
   FAUSTIAN_COMMUNITY_DEFINITIONS,
   FAUSTIAN_COMMUNITY_IDS,
+  FAUSTIAN_DEVIL_FORM_DEFINITIONS,
+  FAUSTIAN_DEVIL_FORM_IDS,
+  FAUSTIAN_DEVIL_LAW_DEFINITIONS,
+  FAUSTIAN_DEVIL_LAW_IDS,
+  FAUSTIAN_ORIGIN_CLAIM_DEFINITIONS,
+  FAUSTIAN_ORIGIN_CLAIM_IDS,
   FAUSTIAN_RANKS,
   FAUSTIAN_SUITS,
+  POWERFUL_DENIZEN_BUILTIN_TAXONOMY_IDS,
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
   buildInitializedDefaultFaustianState,
@@ -83,13 +93,24 @@ const EMPTY_PACT_SEATS = {
   sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
 } as const;
 
-function powerfulProfile(taxonomyId: "conspiracy" | "antagonist" | "unbound_demon") {
+function powerfulProfile(
+  taxonomyId: "conspiracy" | "beast" | "demon" | "occultist",
+  goal: string | null = null,
+) {
   return {
     taxonomies: [{ kind: "builtin" as const, taxonomyId }],
     status: { kind: "standard" as const, value: "malignant" as const },
-    goal: null,
+    goal,
     methods: [],
     truths: [],
+  };
+}
+
+function defaultInitForms() {
+  return {
+    casual: FAUSTIAN_DEVIL_FORM_IDS.slice(0, 3),
+    special: FAUSTIAN_DEVIL_FORM_IDS.slice(3, 5),
+    duress: FAUSTIAN_DEVIL_FORM_IDS.slice(5, 6),
   };
 }
 
@@ -105,8 +126,9 @@ function takeFromDeck(faustian: FaustianState, cardId: FaustianCardId): Faustian
 
 function initializedFaustian(overrides?: Partial<Parameters<typeof buildInitializedDefaultFaustianState>[0]>): FaustianState {
   return buildInitializedDefaultFaustianState({
-    selectedDevilLawIds: ["first", "second"],
+    selectedDevilLawIds: [FAUSTIAN_DEVIL_LAW_IDS[0], FAUSTIAN_DEVIL_LAW_IDS[1]],
     activeTwistCardId: TWIST,
+    selectedDevilForms: defaultInitForms(),
     ...overrides,
   });
 }
@@ -221,7 +243,7 @@ describe("Faustian initialization and derived deck facts", () => {
 
   it("normal initialization creates one Twist, two Laws, and a coherent 52-card partition", () => {
     const faustian = initializedFaustian();
-    expect(faustian.selectedDevilLawIds).toEqual(["first", "second"]);
+    expect(faustian.selectedDevilLawIds).toEqual([FAUSTIAN_DEVIL_LAW_IDS[0], FAUSTIAN_DEVIL_LAW_IDS[1]]);
     expect(faustian.activeTwistCardIds).toEqual([TWIST]);
     expect(faustian.machinations).toEqual([{ cardId: TWIST, facing: "face_down" }]);
     expect(faustian.faustianDeck).not.toContain(TWIST);
@@ -232,15 +254,19 @@ describe("Faustian initialization and derived deck facts", () => {
   });
 
   it("does not permanently require exactly two Laws on persisted state", () => {
-    const oneLaw = { ...initializedFaustian(), selectedDevilLawIds: ["third"] as const };
-    const threeLaws = { ...initializedFaustian(), selectedDevilLawIds: ["first", "second", "third"] as const };
+    const oneLaw = { ...initializedFaustian(), selectedDevilLawIds: [FAUSTIAN_DEVIL_LAW_IDS[2]] };
+    const threeLaws = {
+      ...initializedFaustian(),
+      selectedDevilLawIds: [FAUSTIAN_DEVIL_LAW_IDS[0], FAUSTIAN_DEVIL_LAW_IDS[1], FAUSTIAN_DEVIL_LAW_IDS[2]],
+    };
     const noLaws = { ...initializedFaustian(), selectedDevilLawIds: [] };
     expect(() => validateFaustianStructure(oneLaw)).not.toThrow();
     expect(() => validateFaustianStructure(threeLaws)).not.toThrow();
     expect(() => validateFaustianStructure(noLaws)).not.toThrow();
     expect(() => buildInitializedDefaultFaustianState({
-      selectedDevilLawIds: ["first"],
+      selectedDevilLawIds: [FAUSTIAN_DEVIL_LAW_IDS[0]],
       activeTwistCardId: TWIST,
+      selectedDevilForms: defaultInitForms(),
     })).toThrow(DomainError);
   });
 
@@ -311,11 +337,11 @@ describe("Faustian card location integrity", () => {
   it("rejects duplicate Law IDs and unknown Law IDs without requiring exactly two", () => {
     expect(() => validateFaustianStructure({
       ...initializedFaustian(),
-      selectedDevilLawIds: ["first", "first"],
+      selectedDevilLawIds: [FAUSTIAN_DEVIL_LAW_IDS[0], FAUSTIAN_DEVIL_LAW_IDS[0]],
     })).toThrow(/duplicate/i);
     expect(() => validateFaustianStructure({
       ...initializedFaustian(),
-      selectedDevilLawIds: ["not_a_law" as "first"],
+      selectedDevilLawIds: ["not_a_law" as typeof FAUSTIAN_DEVIL_LAW_IDS[number]],
     })).toThrow(DomainError);
   });
 });
@@ -324,13 +350,18 @@ describe("Faustian reference integrity", () => {
   it("rejects incoherent Conspiracy / Antagonist / Demon Powerful-Denizen refs", () => {
     const missingDenizen = {
       ...EMPTY_FAUSTIAN_STATE,
-      conspiracies: [{ denizenId: DEN_1 }],
+      conspiracies: [{ denizenId: DEN_1, communityId: "aries" as const }],
+      antagonists: [{ denizenId: DEN_1, seatId: "hierophant" as const, chipCount: 1 as const }],
     };
     expectInvalid(baseV5(missingDenizen), /conspiracy|denizen/i);
 
     expectInvalid(
       baseV5(
-        { ...EMPTY_FAUSTIAN_STATE, conspiracies: [{ denizenId: DEN_1 }] },
+        {
+          ...EMPTY_FAUSTIAN_STATE,
+          conspiracies: [{ denizenId: DEN_1, communityId: "aries" }],
+          antagonists: [{ denizenId: DEN_1, seatId: "hierophant", chipCount: 1 }],
+        },
         {
           ...EMPTY_SHARED_WORLD_STATE,
           denizens: [{
@@ -339,7 +370,7 @@ describe("Faustian reference integrity", () => {
             representation: "individual",
             description: null,
             mortalityState: "not_deceased",
-            powerfulProfile: powerfulProfile("conspiracy"),
+            powerfulProfile: powerfulProfile("conspiracy", "Calamity"),
           }],
         },
       ),
@@ -348,7 +379,11 @@ describe("Faustian reference integrity", () => {
 
     expectInvalid(
       baseV5(
-        { ...EMPTY_FAUSTIAN_STATE, conspiracies: [{ denizenId: DEN_1 }] },
+        {
+          ...EMPTY_FAUSTIAN_STATE,
+          conspiracies: [{ denizenId: DEN_1, communityId: "aries" }],
+          antagonists: [{ denizenId: DEN_1, seatId: "hierophant", chipCount: 1 }],
+        },
         {
           ...EMPTY_SHARED_WORLD_STATE,
           denizens: [{
@@ -368,7 +403,7 @@ describe("Faustian reference integrity", () => {
       baseV5(
         {
           ...EMPTY_FAUSTIAN_STATE,
-          antagonists: [{ denizenId: DEN_2, suitGoal: "subjugation" }],
+          antagonists: [{ denizenId: DEN_2, seatId: "hierophant", chipCount: 2 }],
         },
         {
           ...EMPTY_SHARED_WORLD_STATE,
@@ -382,7 +417,7 @@ describe("Faustian reference integrity", () => {
           }],
         },
       ),
-      /Powerful|taxonomy|antagonist/i,
+      /Powerful/,
     );
 
     expectInvalid(
@@ -391,7 +426,10 @@ describe("Faustian reference integrity", () => {
           ...EMPTY_FAUSTIAN_STATE,
           demons: [{
             denizenId: DEN_3,
-            malignance: "violent",
+            binding: { kind: "unbound", malignance: "violent" },
+            form: "a black dog",
+            hellOfOrigin: "the brass city",
+            magicalSymbol: "a seven-pointed seal",
             occupancy: { kind: "isha" },
             monthsInCurrentDomain: 0,
           }],
@@ -472,11 +510,17 @@ describe("Faustian reference integrity", () => {
         represented: { kind: "treasure", treasureId: TRS_1 },
       }],
       beneathAntagonists: [{ cardId: TWIST_2, denizenId: DEN_2 }],
-      conspiracies: [{ denizenId: DEN_1 }],
-      antagonists: [{ denizenId: DEN_2, suitGoal: "subjugation" }],
+      conspiracies: [{ denizenId: DEN_1, communityId: "aries" }],
+      antagonists: [
+        { denizenId: DEN_1, seatId: "hierophant", chipCount: 1 },
+        { denizenId: DEN_2, seatId: "hierophant", chipCount: 2 },
+      ],
       demons: [{
         denizenId: DEN_3,
-        malignance: "controlling",
+        binding: { kind: "unbound", malignance: "controlling" },
+        form: "a column of smoke",
+        hellOfOrigin: "the brass city",
+        magicalSymbol: "a seven-pointed seal",
         occupancy: { kind: "pact_domain", seatId: "hierophant" },
         monthsInCurrentDomain: 2,
       }],
@@ -496,7 +540,7 @@ describe("Faustian reference integrity", () => {
           representation: "collective",
           description: null,
           mortalityState: null,
-          powerfulProfile: powerfulProfile("conspiracy"),
+          powerfulProfile: powerfulProfile("conspiracy", "Calamity"),
         },
         {
           denizenId: DEN_2,
@@ -504,7 +548,7 @@ describe("Faustian reference integrity", () => {
           representation: "individual",
           description: null,
           mortalityState: "not_deceased",
-          powerfulProfile: powerfulProfile("antagonist"),
+          powerfulProfile: powerfulProfile("beast", "Subjugation"),
         },
         {
           denizenId: DEN_3,
@@ -512,7 +556,7 @@ describe("Faustian reference integrity", () => {
           representation: "individual",
           description: null,
           mortalityState: "not_deceased",
-          powerfulProfile: powerfulProfile("unbound_demon"),
+          powerfulProfile: powerfulProfile("demon"),
         },
       ],
       companionRelationships: [{
@@ -551,5 +595,285 @@ describe("CampaignState V5 Faustian overlay", () => {
         pawnCount: -1,
       })),
     }), /pawn/i);
+  });
+});
+
+describe("Faustian source-integrity corrections", () => {
+  it("adds Occultist, Conspiracy, and Demon taxonomies and does not treat Antagonist or Unbound Demon as taxonomies", () => {
+    expect([...POWERFUL_DENIZEN_BUILTIN_TAXONOMY_IDS]).toEqual([
+      "ghoul_caller",
+      "prophet",
+      "cult",
+      "beast",
+      "foe_of_death",
+      "conspiracy",
+      "occultist",
+      "demon",
+    ]);
+    expect(POWERFUL_DENIZEN_BUILTIN_TAXONOMY_IDS).not.toContain("antagonist");
+    expect(POWERFUL_DENIZEN_BUILTIN_TAXONOMY_IDS).not.toContain("unbound_demon");
+  });
+
+  it("maps Antagonist Goals in the Faustian catalog while leaving shared Powerful Goal authoritative", () => {
+    expect([...FAUSTIAN_ANTAGONIST_GOALS]).toEqual(["Subjugation", "Calamity", "Extinction", "Treachery"]);
+    expect(FAUSTIAN_ANTAGONIST_GOAL_DEFINITIONS).toEqual([
+      { goal: "Subjugation", suit: "spades", applicationLabel: "Subjugation / Spades" },
+      { goal: "Calamity", suit: "clubs", applicationLabel: "Calamity / Clubs" },
+      { goal: "Extinction", suit: "diamonds", applicationLabel: "Extinction / Diamonds" },
+      { goal: "Treachery", suit: "hearts", applicationLabel: "Treachery / Hearts" },
+    ]);
+    expect([...FAUSTIAN_ANTAGONIST_METHOD_NAMES]).toEqual([
+      "Amass Power",
+      "Offer Aid",
+      "Spread Dissent",
+      "Bargain with the Devil",
+    ]);
+    const catalogSource = readFileSync(resolve(__dirname, "../shared/domain/faustian-catalogs.ts"), "utf8");
+    expect(catalogSource).toMatch(/Amass Power/);
+    expect(catalogSource).toMatch(/Offer Aid/);
+    expect(catalogSource).toMatch(/Spread Dissent/);
+    expect(catalogSource).toMatch(/Bargain with the Devil/);
+    expect(catalogSource).not.toMatch(/suitGoal/);
+  });
+
+  it("catalogs the seven source Devil Laws rather than ordinal application labels", () => {
+    expect(FAUSTIAN_DEVIL_LAW_IDS).toHaveLength(7);
+    expect(FAUSTIAN_DEVIL_LAW_IDS).not.toEqual([
+      "first", "second", "third", "fourth", "fifth", "sixth", "seventh",
+    ]);
+    const texts = FAUSTIAN_DEVIL_LAW_DEFINITIONS.map((law) => "text" in law ? law.text : "");
+    expect(texts.join(" ")).toMatch(/laughter of children/i);
+    expect(texts.join(" ")).toMatch(/temple door/i);
+    expect(texts.join(" ")).toMatch(/crowing rooster/i);
+    expect(texts.join(" ")).toMatch(/morning light/i);
+    expect(texts.join(" ")).toMatch(/bet or wager/i);
+    expect(texts.join(" ")).toMatch(/break a promise/i);
+    expect(texts.join(" ")).toMatch(/good food/i);
+  });
+
+  it("catalogs the 17 source Devil Forms with casual/special/duress selection", () => {
+    expect(FAUSTIAN_DEVIL_FORM_DEFINITIONS).toHaveLength(17);
+    expect(FAUSTIAN_DEVIL_FORM_IDS).toHaveLength(17);
+    const descriptions = FAUSTIAN_DEVIL_FORM_DEFINITIONS.map((form) =>
+      "description" in form ? form.description : "",
+    ).join(" ");
+    expect(descriptions).toMatch(/black goatee/i);
+    expect(descriptions).toMatch(/seven heads/i);
+    expect(descriptions).toMatch(/the Faustian himself/i);
+    expect(EMPTY_FAUSTIAN_STATE).toHaveProperty("selectedDevilForms");
+    expect(EMPTY_FAUSTIAN_STATE).not.toHaveProperty("selectedDevilFormIds");
+  });
+
+  it("catalogs the eleven origin/Secret-Name claims and allows a custom claim", () => {
+    expect(FAUSTIAN_ORIGIN_CLAIM_DEFINITIONS).toHaveLength(11);
+    expect(FAUSTIAN_ORIGIN_CLAIM_IDS).toHaveLength(11);
+    const names = FAUSTIAN_ORIGIN_CLAIM_DEFINITIONS.map((claim) =>
+      "secretName" in claim ? claim.secretName : "",
+    );
+    expect(names).toEqual(expect.arrayContaining([
+      "Marcus", "Calliope", "Robin", "Nathix", "Nemora", "Madris",
+      "Ephrain", "Elzammarat", "Azmodai", "The Tower",
+    ]));
+    expect(EMPTY_FAUSTIAN_STATE).toHaveProperty("customOriginClaim");
+  });
+
+  it("treats Antagonist as a Faustian role on a real Nature, with Domain and chip count", () => {
+    const faustian = {
+      ...EMPTY_FAUSTIAN_STATE,
+      antagonists: [{ denizenId: DEN_2, seatId: "hierophant", chipCount: 2 }],
+    };
+    const state = baseV5(faustian as FaustianState, {
+      ...EMPTY_SHARED_WORLD_STATE,
+      denizens: [{
+        denizenId: DEN_2,
+        name: "Lord Ash",
+        representation: "individual",
+        description: null,
+        mortalityState: "not_deceased",
+        powerfulProfile: {
+          taxonomies: [{ kind: "builtin", taxonomyId: "beast" }],
+          status: { kind: "standard", value: "malignant" },
+          goal: "Subjugation",
+          methods: [],
+          truths: [],
+        },
+      }],
+    });
+    expect(() => validateCampaignStateV5Candidate(state)).not.toThrow();
+    expect("suitGoal" in (state.faustian.antagonists[0] as object)).toBe(false);
+  });
+
+  it("links a Conspiracy to a Community and requires the Antagonist role", () => {
+    const faustian = {
+      ...EMPTY_FAUSTIAN_STATE,
+      conspiracies: [{ denizenId: DEN_1, communityId: "aries" }],
+      antagonists: [{ denizenId: DEN_1, seatId: "hierophant", chipCount: 1 }],
+    };
+    const accepted = baseV5(faustian as FaustianState, {
+      ...EMPTY_SHARED_WORLD_STATE,
+      denizens: [{
+        denizenId: DEN_1,
+        name: "The League",
+        representation: "collective",
+        description: null,
+        mortalityState: null,
+        powerfulProfile: {
+          taxonomies: [{ kind: "builtin", taxonomyId: "conspiracy" }],
+          status: { kind: "standard", value: "malignant" },
+          goal: "Calamity",
+          methods: [],
+          truths: [],
+        },
+      }],
+    });
+    expect(() => validateCampaignStateV5Candidate(accepted)).not.toThrow();
+
+    const missingRole = {
+      ...EMPTY_FAUSTIAN_STATE,
+      conspiracies: [{ denizenId: DEN_1, communityId: "aries" }],
+    };
+    expectInvalid(
+      baseV5(missingRole as FaustianState, {
+        ...EMPTY_SHARED_WORLD_STATE,
+        denizens: [{
+          denizenId: DEN_1,
+          name: "The League",
+          representation: "collective",
+          description: null,
+          mortalityState: null,
+          powerfulProfile: {
+            taxonomies: [{ kind: "builtin", taxonomyId: "conspiracy" }],
+            status: { kind: "standard", value: "malignant" },
+            goal: "Calamity",
+            methods: [],
+            truths: [],
+          },
+        }],
+      }),
+      /antagonist/i,
+    );
+  });
+
+  it("records Demon as taxonomy with Bound/Unbound state, form, Hell, symbol, and Domain progress", () => {
+    const unbound = {
+      ...EMPTY_FAUSTIAN_STATE,
+      demons: [{
+        denizenId: DEN_3,
+        binding: { kind: "unbound", malignance: "violent" },
+        form: "a column of smoke",
+        hellOfOrigin: "the brass city",
+        magicalSymbol: "a seven-pointed seal",
+        occupancy: { kind: "pact_domain", seatId: "hierophant" },
+        monthsInCurrentDomain: 2,
+      }],
+    };
+    const accepted = baseV5(unbound as FaustianState, {
+      ...EMPTY_SHARED_WORLD_STATE,
+      denizens: [{
+        denizenId: DEN_3,
+        name: "Ashmaw",
+        representation: "individual",
+        description: null,
+        mortalityState: "not_deceased",
+        powerfulProfile: {
+          taxonomies: [{ kind: "builtin", taxonomyId: "demon" }],
+          status: { kind: "standard", value: "malignant" },
+          goal: null,
+          methods: [],
+          truths: [],
+        },
+      }],
+    });
+    expect(() => validateCampaignStateV5Candidate(accepted)).not.toThrow();
+
+    const boundMissingMalignance = {
+      ...EMPTY_FAUSTIAN_STATE,
+      demons: [{
+        denizenId: DEN_3,
+        binding: { kind: "bound" },
+        form: "a black dog",
+        hellOfOrigin: "the brass city",
+        magicalSymbol: "a seven-pointed seal",
+        occupancy: null,
+        monthsInCurrentDomain: 0,
+      }],
+    };
+    expect(() => validateCampaignStateV5Candidate(baseV5(boundMissingMalignance as FaustianState, {
+      ...EMPTY_SHARED_WORLD_STATE,
+      denizens: [{
+        denizenId: DEN_3,
+        name: "Ashmaw",
+        representation: "individual",
+        description: null,
+        mortalityState: "not_deceased",
+        powerfulProfile: {
+          taxonomies: [{ kind: "builtin", taxonomyId: "demon" }],
+          status: { kind: "standard", value: "malignant" },
+          goal: null,
+          methods: [],
+          truths: [],
+        },
+      }],
+    }))).not.toThrow();
+  });
+
+  it("allows multiple Accomplices in one Community", () => {
+    const ace = faustianCardId("spades", "ace");
+    const two = faustianCardId("spades", "2");
+    const withAccomplices = {
+      ...takeFromDeck(takeFromDeck(EMPTY_FAUSTIAN_STATE, ace), two),
+      communities: EMPTY_FAUSTIAN_STATE.communities.map((community, index) =>
+        index === 0
+          ? { ...community, accompliceCardIds: [ace, two] }
+          : community
+      ),
+    };
+    expect(() => validateFaustianStructure(withAccomplices)).not.toThrow();
+  });
+
+  it("includes set-aside hands and Domain-placed cards in the exact-once partition", () => {
+    const ace = faustianCardId("spades", "ace");
+    const queen = faustianCardId("spades", "queen");
+    const jack = faustianCardId("spades", "jack");
+    const partitioned = {
+      ...takeFromDeck(takeFromDeck(takeFromDeck(EMPTY_FAUSTIAN_STATE, ace), queen), jack),
+      setAsideHand: [ace, queen],
+      domainPlacements: [{
+        cardId: jack,
+        seatId: "hierophant",
+        represented: { kind: "denizen", denizenId: DEN_2 },
+      }],
+    };
+    expect(() => validateFaustianStructure(partitioned)).not.toThrow();
+    expectInvalid(
+      baseV5(partitioned as FaustianState),
+      /denizen/i,
+    );
+  });
+
+  it("enforces 3 casual / 2 special / 1 duress Forms only during normal initialization", () => {
+    const casual = FAUSTIAN_DEVIL_FORM_IDS.slice(0, 3);
+    const special = FAUSTIAN_DEVIL_FORM_IDS.slice(3, 5);
+    const duress = FAUSTIAN_DEVIL_FORM_IDS.slice(5, 6);
+    expect(() => buildInitializedDefaultFaustianState({
+      selectedDevilLawIds: [FAUSTIAN_DEVIL_LAW_IDS[0], FAUSTIAN_DEVIL_LAW_IDS[1]],
+      activeTwistCardId: TWIST,
+      selectedDevilForms: { casual, special, duress },
+    })).not.toThrow();
+    expect(() => buildInitializedDefaultFaustianState({
+      selectedDevilLawIds: [FAUSTIAN_DEVIL_LAW_IDS[0], FAUSTIAN_DEVIL_LAW_IDS[1]],
+      activeTwistCardId: TWIST,
+      selectedDevilForms: { casual: casual.slice(0, 2), special, duress },
+    })).toThrow(DomainError);
+
+    const extraDuress = {
+      ...EMPTY_FAUSTIAN_STATE,
+      selectedDevilForms: {
+        casual,
+        special,
+        duress: [...duress, FAUSTIAN_DEVIL_FORM_IDS[6]],
+      },
+    };
+    expect(() => validateFaustianStructure(extraDuress)).not.toThrow();
   });
 });

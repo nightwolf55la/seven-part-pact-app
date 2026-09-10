@@ -1,7 +1,7 @@
 import type { CompanionRelationshipId, DenizenId, TreasureId, WizardId } from "./ids";
 import type { PactSeatId } from "./pact-seats";
 import type {
-  FaustianAntagonistGoal,
+  FaustianAntagonistChipCount,
   FaustianCardFacing,
   FaustianCardId,
   FaustianCommunityId,
@@ -18,6 +18,7 @@ import {
   FAUSTIAN_ORIGIN_CLAIM_IDS,
   FAUSTIAN_SUITS,
   isValidFaustianCardId,
+  isValidFaustianDevilFormId,
   isValidFaustianDevilLawId,
 } from "./faustian-catalogs";
 import { DomainError } from "./errors";
@@ -31,7 +32,7 @@ export interface FaustianCommunityState {
   readonly communityId: FaustianCommunityId;
   readonly pawnCount: number;
   readonly schemes: readonly FaustianSchemePlacement[];
-  readonly accompliceCardId: FaustianCardId | null;
+  readonly accompliceCardIds: readonly FaustianCardId[];
 }
 
 export interface FaustianMachinationCard {
@@ -60,23 +61,38 @@ export interface FaustianPossessionCard {
   readonly represented: FaustianPossessionRepresentation;
 }
 
+export interface FaustianDomainPlacedCard {
+  readonly cardId: FaustianCardId;
+  readonly seatId: PactSeatId;
+  readonly represented: FaustianPossessionRepresentation;
+}
+
 export interface FaustianConspiracyState {
   readonly denizenId: DenizenId;
+  readonly communityId: FaustianCommunityId;
 }
 
 export interface FaustianAntagonistState {
   readonly denizenId: DenizenId;
-  readonly suitGoal: FaustianAntagonistGoal;
+  readonly seatId: PactSeatId;
+  readonly chipCount: FaustianAntagonistChipCount;
 }
 
 export type FaustianDemonOccupancy =
   | { readonly kind: "isha" }
   | { readonly kind: "pact_domain"; readonly seatId: PactSeatId };
 
+export type FaustianDemonBinding =
+  | { readonly kind: "bound" }
+  | { readonly kind: "unbound"; readonly malignance: FaustianMalignance };
+
 export interface FaustianDemonState {
   readonly denizenId: DenizenId;
-  readonly malignance: FaustianMalignance;
-  readonly occupancy: FaustianDemonOccupancy;
+  readonly binding: FaustianDemonBinding;
+  readonly form: string;
+  readonly hellOfOrigin: string;
+  readonly magicalSymbol: string;
+  readonly occupancy: FaustianDemonOccupancy | null;
   readonly monthsInCurrentDomain: number;
 }
 
@@ -88,6 +104,18 @@ export interface FaustianDomainSeizure {
 export interface FaustianOriginClaimState {
   readonly claimId: FaustianOriginClaimId;
   readonly status: FaustianOriginClaimStatus;
+}
+
+export interface FaustianCustomOriginClaim {
+  readonly claim: string;
+  readonly secretName: string | null;
+  readonly status: FaustianOriginClaimStatus;
+}
+
+export interface FaustianSelectedDevilForms {
+  readonly casual: readonly FaustianDevilFormId[];
+  readonly special: readonly FaustianDevilFormId[];
+  readonly duress: readonly FaustianDevilFormId[];
 }
 
 export type FaustianDevilObligation =
@@ -127,14 +155,17 @@ export interface FaustianState {
   readonly entrustedCards: readonly FaustianEntrustedCard[];
   readonly beneathAntagonists: readonly FaustianAntagonistBeneathCard[];
   readonly possessions: readonly FaustianPossessionCard[];
+  readonly setAsideHand: readonly FaustianCardId[];
+  readonly domainPlacements: readonly FaustianDomainPlacedCard[];
   readonly activeTwistCardIds: readonly FaustianCardId[];
   readonly conspiracies: readonly FaustianConspiracyState[];
   readonly antagonists: readonly FaustianAntagonistState[];
   readonly demons: readonly FaustianDemonState[];
   readonly domainSeizures: readonly FaustianDomainSeizure[];
   readonly selectedDevilLawIds: readonly FaustianDevilLawId[];
-  readonly selectedDevilFormIds: readonly FaustianDevilFormId[];
+  readonly selectedDevilForms: FaustianSelectedDevilForms;
   readonly originClaims: readonly FaustianOriginClaimState[];
+  readonly customOriginClaim: FaustianCustomOriginClaim | null;
   readonly devilObligations: readonly FaustianDevilObligation[];
 }
 
@@ -143,7 +174,7 @@ function emptyCommunities(): readonly FaustianCommunityState[] {
     communityId,
     pawnCount: 0,
     schemes: [],
-    accompliceCardId: null,
+    accompliceCardIds: [],
   }));
 }
 
@@ -154,6 +185,12 @@ function openOriginClaims(): readonly FaustianOriginClaimState[] {
   }));
 }
 
+export const EMPTY_SELECTED_DEVIL_FORMS: FaustianSelectedDevilForms = {
+  casual: [],
+  special: [],
+  duress: [],
+};
+
 export const EMPTY_FAUSTIAN_STATE: FaustianState = {
   faustianDeck: [...FAUSTIAN_CARD_IDS],
   devilDeck: [],
@@ -163,21 +200,46 @@ export const EMPTY_FAUSTIAN_STATE: FaustianState = {
   entrustedCards: [],
   beneathAntagonists: [],
   possessions: [],
+  setAsideHand: [],
+  domainPlacements: [],
   activeTwistCardIds: [],
   conspiracies: [],
   antagonists: [],
   demons: [],
   domainSeizures: [],
   selectedDevilLawIds: [],
-  selectedDevilFormIds: [],
+  selectedDevilForms: EMPTY_SELECTED_DEVIL_FORMS,
   originClaims: openOriginClaims(),
+  customOriginClaim: null,
   devilObligations: [],
 };
 
 export interface InitializedDefaultFaustianInput {
   readonly selectedDevilLawIds: readonly FaustianDevilLawId[];
   readonly activeTwistCardId: FaustianCardId;
-  readonly selectedDevilFormIds?: readonly FaustianDevilFormId[];
+  readonly selectedDevilForms: FaustianSelectedDevilForms;
+}
+
+function requireUniqueFormSelection(forms: FaustianSelectedDevilForms, enforceNormalCounts: boolean): void {
+  const selected = [...forms.casual, ...forms.special, ...forms.duress];
+  const seen = new Set<string>();
+  for (const formId of selected) {
+    if (!isValidFaustianDevilFormId(formId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown Devil Form: ${formId}`);
+    }
+    if (seen.has(formId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate Faustian Devil form: ${formId}`);
+    }
+    seen.add(formId);
+  }
+  if (enforceNormalCounts) {
+    if (forms.casual.length !== 3 || forms.special.length !== 2 || forms.duress.length !== 1) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        "Normal Faustian initialization requires 3 casual, 2 special, and 1 duress Devil Forms",
+      );
+    }
+  }
 }
 
 export function buildInitializedDefaultFaustianState(
@@ -199,6 +261,7 @@ export function buildInitializedDefaultFaustianState(
   if (!isValidFaustianCardId(input.activeTwistCardId)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid Twist card: ${input.activeTwistCardId}`);
   }
+  requireUniqueFormSelection(input.selectedDevilForms, true);
 
   return {
     ...EMPTY_FAUSTIAN_STATE,
@@ -206,7 +269,11 @@ export function buildInitializedDefaultFaustianState(
     machinations: [{ cardId: input.activeTwistCardId, facing: "face_down" }],
     activeTwistCardIds: [input.activeTwistCardId],
     selectedDevilLawIds: [...input.selectedDevilLawIds],
-    selectedDevilFormIds: input.selectedDevilFormIds ?? [],
+    selectedDevilForms: {
+      casual: [...input.selectedDevilForms.casual],
+      special: [...input.selectedDevilForms.special],
+      duress: [...input.selectedDevilForms.duress],
+    },
   };
 }
 

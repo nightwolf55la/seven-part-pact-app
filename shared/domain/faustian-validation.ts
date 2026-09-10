@@ -11,6 +11,7 @@ import {
   FAUSTIAN_CARD_IDS,
   FAUSTIAN_COMMUNITY_IDS,
   FAUSTIAN_ORIGIN_CLAIM_IDS,
+  isValidFaustianAntagonistChipCount,
   isValidFaustianAntagonistGoal,
   isValidFaustianCardFacing,
   isValidFaustianCardId,
@@ -21,12 +22,13 @@ import {
   isValidFaustianOriginClaimId,
   isValidFaustianOriginClaimStatus,
 } from "./faustian-catalogs";
-import type { FaustianCardId } from "./faustian-catalogs";
+import type { FaustianCardId, FaustianDevilFormId } from "./faustian-catalogs";
 import type {
   FaustianCommunityState,
   FaustianDevilObligation,
   FaustianMachinationCard,
   FaustianPossessionRepresentation,
+  FaustianSelectedDevilForms,
   FaustianState,
 } from "./faustian-state";
 import { requirePowerfulRoleProfile } from "./powerful-denizen-roles";
@@ -106,9 +108,13 @@ function validateCommunities(communities: unknown): readonly FaustianCommunitySt
       requireFacing(schemePath, s.facing);
     }
     uniqueIds((c.schemes as Array<{ cardId: string }>).map((scheme) => scheme.cardId), `${path} scheme card`);
-    if (c.accompliceCardId !== null) {
-      requireCardId(`${path}.accompliceCardId`, c.accompliceCardId);
+    if (!Array.isArray(c.accompliceCardIds)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.accompliceCardIds must be an array`);
     }
+    const accompliceCardIds = (c.accompliceCardIds as unknown[]).map((cardId, j) =>
+      requireCardId(`${path}.accompliceCardIds[${j}]`, cardId),
+    );
+    uniqueIds(accompliceCardIds, `${path} Accomplice card`);
   }
   for (const communityId of FAUSTIAN_COMMUNITY_IDS) {
     if (!seen.has(communityId)) {
@@ -244,13 +250,15 @@ function collectLocatedCards(faustian: FaustianState): string[] {
   located.push(...faustian.devilDeck);
   for (const community of faustian.communities) {
     for (const scheme of community.schemes) located.push(scheme.cardId);
-    if (community.accompliceCardId !== null) located.push(community.accompliceCardId);
+    located.push(...community.accompliceCardIds);
   }
   for (const card of faustian.machinations) located.push(card.cardId);
   located.push(...faustian.defeatedSchemes);
   for (const card of faustian.entrustedCards) located.push(card.cardId);
   for (const card of faustian.beneathAntagonists) located.push(card.cardId);
   for (const card of faustian.possessions) located.push(card.cardId);
+  located.push(...faustian.setAsideHand);
+  for (const card of faustian.domainPlacements) located.push(card.cardId);
   return located;
 }
 
@@ -321,6 +329,26 @@ export function validateFaustianStructure(faustian: unknown): void {
     validatePossessionRepresentation(`${path}.represented`, c.represented);
   }
 
+  const setAsideHand = validateCardIdArray("faustian.setAsideHand", f.setAsideHand);
+
+  if (!Array.isArray(f.domainPlacements)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "faustian.domainPlacements must be an array");
+  }
+  for (let i = 0; i < f.domainPlacements.length; i++) {
+    const card = f.domainPlacements[i];
+    const path = `faustian.domainPlacements[${i}]`;
+    if (card === null || card === undefined || typeof card !== "object") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be an object`);
+    }
+    const c = card as Record<string, unknown>;
+    requireCardId(`${path}.cardId`, c.cardId);
+    if (typeof c.seatId !== "string" || !isValidPactSeatId(c.seatId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.seatId is invalid: ${JSON.stringify(c.seatId)}`);
+    }
+    validatePossessionRepresentation(`${path}.represented`, c.represented);
+  }
+  uniqueIds((f.domainPlacements as Array<{ cardId: string }>).map((card) => card.cardId), "Faustian Domain-placed card");
+
   if (!Array.isArray(f.activeTwistCardIds)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "faustian.activeTwistCardIds must be an array");
   }
@@ -348,6 +376,9 @@ export function validateFaustianStructure(faustian: unknown): void {
     if (typeof c.denizenId !== "string" || !isValidDenizenId(c.denizenId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId is invalid: ${JSON.stringify(c.denizenId)}`);
     }
+    if (typeof c.communityId !== "string" || !isValidFaustianCommunityId(c.communityId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.communityId is invalid: ${JSON.stringify(c.communityId)}`);
+    }
   }
   uniqueIds((f.conspiracies as Array<{ denizenId: string }>).map((c) => c.denizenId), "Faustian Conspiracy");
 
@@ -364,8 +395,11 @@ export function validateFaustianStructure(faustian: unknown): void {
     if (typeof a.denizenId !== "string" || !isValidDenizenId(a.denizenId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId is invalid: ${JSON.stringify(a.denizenId)}`);
     }
-    if (typeof a.suitGoal !== "string" || !isValidFaustianAntagonistGoal(a.suitGoal)) {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.suitGoal is invalid: ${JSON.stringify(a.suitGoal)}`);
+    if (typeof a.seatId !== "string" || !isValidPactSeatId(a.seatId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.seatId is invalid: ${JSON.stringify(a.seatId)}`);
+    }
+    if (typeof a.chipCount !== "number" || !isValidFaustianAntagonistChipCount(a.chipCount)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.chipCount must be 1, 2, or 3`);
     }
   }
   uniqueIds((f.antagonists as Array<{ denizenId: string }>).map((a) => a.denizenId), "Faustian Antagonist");
@@ -383,21 +417,39 @@ export function validateFaustianStructure(faustian: unknown): void {
     if (typeof d.denizenId !== "string" || !isValidDenizenId(d.denizenId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId is invalid: ${JSON.stringify(d.denizenId)}`);
     }
-    if (typeof d.malignance !== "string" || !isValidFaustianMalignance(d.malignance)) {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.malignance is invalid: ${JSON.stringify(d.malignance)}`);
+    if (d.binding === null || d.binding === undefined || typeof d.binding !== "object") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.binding must be an object`);
     }
-    if (d.occupancy === null || d.occupancy === undefined || typeof d.occupancy !== "object") {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.occupancy must be an object`);
-    }
-    const occupancy = d.occupancy as Record<string, unknown>;
-    if (occupancy.kind === "isha") {
-      // ok
-    } else if (occupancy.kind === "pact_domain") {
-      if (typeof occupancy.seatId !== "string" || !isValidPactSeatId(occupancy.seatId)) {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.occupancy.seatId is invalid: ${JSON.stringify(occupancy.seatId)}`);
+    const binding = d.binding as Record<string, unknown>;
+    if (binding.kind === "bound") {
+      // Bound Demons have no Malignance.
+    } else if (binding.kind === "unbound") {
+      if (typeof binding.malignance !== "string" || !isValidFaustianMalignance(binding.malignance)) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `${path}.binding.malignance is invalid: ${JSON.stringify(binding.malignance)}`,
+        );
       }
     } else {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.occupancy.kind is invalid: ${JSON.stringify(occupancy.kind)}`);
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.binding.kind is invalid: ${JSON.stringify(binding.kind)}`);
+    }
+    assertNonEmptyString(`${path}.form`, d.form);
+    assertNonEmptyString(`${path}.hellOfOrigin`, d.hellOfOrigin);
+    assertNonEmptyString(`${path}.magicalSymbol`, d.magicalSymbol);
+    if (d.occupancy !== null) {
+      if (d.occupancy === undefined || typeof d.occupancy !== "object") {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.occupancy must be an object or null`);
+      }
+      const occupancy = d.occupancy as Record<string, unknown>;
+      if (occupancy.kind === "isha") {
+        // ok
+      } else if (occupancy.kind === "pact_domain") {
+        if (typeof occupancy.seatId !== "string" || !isValidPactSeatId(occupancy.seatId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.occupancy.seatId is invalid: ${JSON.stringify(occupancy.seatId)}`);
+        }
+      } else {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.occupancy.kind is invalid: ${JSON.stringify(occupancy.kind)}`);
+      }
     }
     assertNonNegativeSafeInteger(`${path}.monthsInCurrentDomain`, d.monthsInCurrentDomain);
   }
@@ -436,16 +488,32 @@ export function validateFaustianStructure(faustian: unknown): void {
   }
   uniqueIds(f.selectedDevilLawIds as string[], "Faustian Law");
 
-  if (!Array.isArray(f.selectedDevilFormIds)) {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", "faustian.selectedDevilFormIds must be an array");
+  if (f.selectedDevilForms === null || f.selectedDevilForms === undefined || typeof f.selectedDevilForms !== "object") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "faustian.selectedDevilForms must be an object");
   }
-  for (let i = 0; i < f.selectedDevilFormIds.length; i++) {
-    const formId = f.selectedDevilFormIds[i];
-    if (typeof formId !== "string" || !isValidFaustianDevilFormId(formId)) {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `faustian.selectedDevilFormIds[${i}] is invalid: ${JSON.stringify(formId)}`);
+  const selectedDevilForms = f.selectedDevilForms as Record<string, unknown>;
+  function validateFormOccasion(occasion: "casual" | "special" | "duress"): readonly FaustianDevilFormId[] {
+    const value = selectedDevilForms[occasion];
+    if (!Array.isArray(value)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `faustian.selectedDevilForms.${occasion} must be an array`);
     }
+    for (let i = 0; i < value.length; i++) {
+      const formId = value[i];
+      if (typeof formId !== "string" || !isValidFaustianDevilFormId(formId)) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `faustian.selectedDevilForms.${occasion}[${i}] is invalid: ${JSON.stringify(formId)}`,
+        );
+      }
+    }
+    return value as FaustianDevilFormId[];
   }
-  uniqueIds(f.selectedDevilFormIds as string[], "Faustian Devil form");
+  const selectedForms: FaustianSelectedDevilForms = {
+    casual: validateFormOccasion("casual"),
+    special: validateFormOccasion("special"),
+    duress: validateFormOccasion("duress"),
+  };
+  uniqueIds([...selectedForms.casual, ...selectedForms.special, ...selectedForms.duress], "Faustian Devil form");
 
   if (!Array.isArray(f.originClaims)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "faustian.originClaims must be an array");
@@ -481,6 +549,23 @@ export function validateFaustianStructure(faustian: unknown): void {
     }
   }
 
+  if (f.customOriginClaim !== null) {
+    if (f.customOriginClaim === undefined || typeof f.customOriginClaim !== "object") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", "faustian.customOriginClaim must be an object or null");
+    }
+    const custom = f.customOriginClaim as Record<string, unknown>;
+    assertNonEmptyString("faustian.customOriginClaim.claim", custom.claim);
+    if (custom.secretName !== null) {
+      assertNonEmptyString("faustian.customOriginClaim.secretName", custom.secretName);
+    }
+    if (typeof custom.status !== "string" || !isValidFaustianOriginClaimStatus(custom.status)) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `faustian.customOriginClaim.status is invalid: ${JSON.stringify(custom.status)}`,
+      );
+    }
+  }
+
   if (!Array.isArray(f.devilObligations)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "faustian.devilObligations must be an array");
   }
@@ -501,6 +586,7 @@ export function validateFaustianStructure(faustian: unknown): void {
     communities,
     machinations,
     defeatedSchemes,
+    setAsideHand,
   });
   const seenCards = new Set<string>();
   for (const cardId of located) {
@@ -538,6 +624,9 @@ export function validateFaustianReferenceIntegrity(state: CampaignStateV5): void
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId must reference a collective Denizen`);
     }
     requirePowerfulRoleProfile(denizen, path, "conspiracy");
+    if (!antagonistIds.has(faustian.conspiracies[i].denizenId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must also be a Faustian Antagonist`);
+    }
   }
 
   for (let i = 0; i < faustian.antagonists.length; i++) {
@@ -546,10 +635,16 @@ export function validateFaustianReferenceIntegrity(state: CampaignStateV5): void
     if (denizen === undefined) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId does not resolve: ${faustian.antagonists[i].denizenId}`);
     }
-    if (denizen.representation !== "individual") {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId must reference an individual Denizen`);
+    const profile = denizen.powerfulProfile;
+    if (profile === null) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} requires a Powerful-Denizen profile`);
     }
-    requirePowerfulRoleProfile(denizen, path, "antagonist");
+    if (!isValidFaustianAntagonistGoal(profile.goal ?? "")) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path} shared Powerful Goal must be one of Subjugation, Calamity, Extinction, or Treachery`,
+      );
+    }
   }
 
   for (let i = 0; i < faustian.demons.length; i++) {
@@ -561,7 +656,7 @@ export function validateFaustianReferenceIntegrity(state: CampaignStateV5): void
     if (denizen.representation !== "individual") {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId must reference an individual Denizen`);
     }
-    requirePowerfulRoleProfile(denizen, path, "unbound_demon");
+    requirePowerfulRoleProfile(denizen, path, "demon");
   }
 
   for (let i = 0; i < faustian.entrustedCards.length; i++) {
@@ -582,6 +677,17 @@ export function validateFaustianReferenceIntegrity(state: CampaignStateV5): void
     }
     if (possession.represented.kind === "treasure" && !treasureIds.has(possession.represented.treasureId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.represented.treasureId does not resolve: ${possession.represented.treasureId}`);
+    }
+  }
+
+  for (let i = 0; i < faustian.domainPlacements.length; i++) {
+    const path = `faustian.domainPlacements[${i}]`;
+    const placement = faustian.domainPlacements[i];
+    if (placement.represented.kind === "denizen" && !denizenById.has(placement.represented.denizenId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.represented.denizenId does not resolve: ${placement.represented.denizenId}`);
+    }
+    if (placement.represented.kind === "treasure" && !treasureIds.has(placement.represented.treasureId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.represented.treasureId does not resolve: ${placement.represented.treasureId}`);
     }
   }
 

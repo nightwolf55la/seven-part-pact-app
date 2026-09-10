@@ -11,8 +11,8 @@ export const POWERFUL_DENIZEN_BUILTIN_TAXONOMY_IDS = [
   "beast",
   "foe_of_death",
   "conspiracy",
-  "antagonist",
-  "unbound_demon",
+  "occultist",
+  "demon",
 ] as const;
 
 export type BuiltinPowerfulDenizenTaxonomyId =
@@ -31,8 +31,8 @@ export const POWERFUL_DENIZEN_BUILTIN_TAXONOMY_DEFINITIONS: readonly PowerfulDen
   { taxonomyId: "beast", name: "Beast", description: null },
   { taxonomyId: "foe_of_death", name: "Foe of Death", description: null },
   { taxonomyId: "conspiracy", name: "Conspiracy", description: null },
-  { taxonomyId: "antagonist", name: "Antagonist", description: null },
-  { taxonomyId: "unbound_demon", name: "Unbound Demon", description: null },
+  { taxonomyId: "occultist", name: "Occultist", description: null },
+  { taxonomyId: "demon", name: "Demon", description: null },
 ];
 
 export function isValidBuiltinPowerfulDenizenTaxonomyId(

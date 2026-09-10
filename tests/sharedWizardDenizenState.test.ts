@@ -290,8 +290,8 @@ describe("M5.2D D1A shared wizard and denizen state", () => {
       "beast",
       "foe_of_death",
       "conspiracy",
-      "antagonist",
-      "unbound_demon",
+      "occultist",
+      "demon",
     ]);
     expectInvalid(
       {

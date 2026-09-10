@@ -124,88 +124,128 @@ export function isValidFaustianCommunityId(value: string): value is FaustianComm
 }
 
 export const FAUSTIAN_DEVIL_LAW_IDS = [
-  "first",
-  "second",
-  "third",
-  "fourth",
-  "fifth",
-  "sixth",
-  "seventh",
+  "laughter_of_children_and_music",
+  "temple_door_or_immortal_flames",
+  "crowing_rooster",
+  "morning_light",
+  "cannot_refuse_a_bet",
+  "never_break_a_promise",
+  "heart_won_by_gifts",
 ] as const;
 
 export type FaustianDevilLawId = (typeof FAUSTIAN_DEVIL_LAW_IDS)[number];
 
 export interface FaustianDevilLawDefinition {
   readonly id: FaustianDevilLawId;
-  /** Application ordinal label; not a source title. */
-  readonly applicationLabel: string;
+  readonly text: string;
 }
 
-const DEVIL_LAW_APPLICATION_LABELS: Record<FaustianDevilLawId, string> = {
-  first: "First Law of the Devil",
-  second: "Second Law of the Devil",
-  third: "Third Law of the Devil",
-  fourth: "Fourth Law of the Devil",
-  fifth: "Fifth Law of the Devil",
-  sixth: "Sixth Law of the Devil",
-  seventh: "Seventh Law of the Devil",
-};
-
-export const FAUSTIAN_DEVIL_LAW_DEFINITIONS: readonly FaustianDevilLawDefinition[] =
-  FAUSTIAN_DEVIL_LAW_IDS.map((id) => ({
-    id,
-    applicationLabel: DEVIL_LAW_APPLICATION_LABELS[id],
-  }));
+export const FAUSTIAN_DEVIL_LAW_DEFINITIONS: readonly FaustianDevilLawDefinition[] = [
+  {
+    id: "laughter_of_children_and_music",
+    text: "The laughter of children and drumming of music drive the Devil to flee.",
+  },
+  {
+    id: "temple_door_or_immortal_flames",
+    text: "The Devil cannot step through a temple door or across the Immortal Flames.",
+  },
+  {
+    id: "crowing_rooster",
+    text: "A crowing rooster reveals the Devil's disguises and forces his true form.",
+  },
+  {
+    id: "morning_light",
+    text: "The first rays of morning light make the Devil disappear/flee.",
+  },
+  {
+    id: "cannot_refuse_a_bet",
+    text: "The Devil cannot refuse a bet or wager, though he twists the odds.",
+  },
+  {
+    id: "never_break_a_promise",
+    text: "The Devil can never break a promise unless doing so serves fulfillment of a bargain.",
+  },
+  {
+    id: "heart_won_by_gifts",
+    text: "The Devil's heart can be won through gifts of good food, fine wines, and raw human meat.",
+  },
+];
 
 export function isValidFaustianDevilLawId(value: string): value is FaustianDevilLawId {
   return (FAUSTIAN_DEVIL_LAW_IDS as readonly string[]).includes(value);
 }
 
 export const FAUSTIAN_DEVIL_FORM_IDS = [
-  "first",
-  "second",
-  "third",
-  "fourth",
-  "fifth",
-  "sixth",
-  "seventh",
+  "dashing_young_man",
+  "old_schoolmaster",
+  "ancient_miser",
+  "beautiful_young_woman",
+  "caring_mother",
+  "old_hag",
+  "little_kid",
+  "wicked_criminal",
+  "childhood_love",
+  "black_dog",
+  "black_goat",
+  "black_cat",
+  "seven_headed_dragon",
+  "coiling_beast",
+  "primordial_flame",
+  "scared_child",
+  "the_faustian",
 ] as const;
 
 export type FaustianDevilFormId = (typeof FAUSTIAN_DEVIL_FORM_IDS)[number];
 
+export const FAUSTIAN_DEVIL_FORM_OCCASIONS = ["casual", "special", "duress"] as const;
+
+export type FaustianDevilFormOccasion = (typeof FAUSTIAN_DEVIL_FORM_OCCASIONS)[number];
+
 export interface FaustianDevilFormDefinition {
   readonly id: FaustianDevilFormId;
-  readonly applicationLabel: string;
+  readonly description: string;
 }
 
-const DEVIL_FORM_APPLICATION_LABELS: Record<FaustianDevilFormId, string> = {
-  first: "First Devil Form",
-  second: "Second Devil Form",
-  third: "Third Devil Form",
-  fourth: "Fourth Devil Form",
-  fifth: "Fifth Devil Form",
-  sixth: "Sixth Devil Form",
-  seventh: "Seventh Devil Form",
-};
-
-export const FAUSTIAN_DEVIL_FORM_DEFINITIONS: readonly FaustianDevilFormDefinition[] =
-  FAUSTIAN_DEVIL_FORM_IDS.map((id) => ({
-    id,
-    applicationLabel: DEVIL_FORM_APPLICATION_LABELS[id],
-  }));
+export const FAUSTIAN_DEVIL_FORM_DEFINITIONS: readonly FaustianDevilFormDefinition[] = [
+  { id: "dashing_young_man", description: "a dashing young man with impeccable fashion and a black goatee" },
+  { id: "old_schoolmaster", description: "an old schoolmaster with a stern glare and a contract to sign" },
+  { id: "ancient_miser", description: "an ancient miser with rings of gold and a mouth full of smoke" },
+  { id: "beautiful_young_woman", description: "a beautiful young woman with a white veil and blood-red lips" },
+  { id: "caring_mother", description: "a caring mother surrounded by mewling/howling/writhing children" },
+  { id: "old_hag", description: "an old hag with white hair and wrinkled skin who rides a mortar and pestle" },
+  { id: "little_kid", description: "a little kid wearing bells/jangles and a grinning mask" },
+  { id: "wicked_criminal", description: "a wicked criminal dangling from a noose with spinning eyes and blue skin" },
+  { id: "childhood_love", description: "the Faustian's childhood love with sparkling eyes and a fistful of flowers" },
+  { id: "black_dog", description: "a black dog with bloodshot eyes and a rasping bark" },
+  { id: "black_goat", description: "a black goat with tangled horns and an extra eye" },
+  { id: "black_cat", description: "a black cat with eyes like stars and feathered wings" },
+  { id: "seven_headed_dragon", description: "a great and terrible dragon with seven heads and curling tails" },
+  { id: "coiling_beast", description: "a coiling beast with dozens of eyes and packs of dogs for feet" },
+  { id: "primordial_flame", description: "a column of primordial flame and darkness, howling in fury" },
+  { id: "scared_child", description: "a scared and sobbing child" },
+  { id: "the_faustian", description: "the Faustian himself (\"You\")" },
+];
 
 export function isValidFaustianDevilFormId(value: string): value is FaustianDevilFormId {
   return (FAUSTIAN_DEVIL_FORM_IDS as readonly string[]).includes(value);
 }
 
+export function isValidFaustianDevilFormOccasion(value: string): value is FaustianDevilFormOccasion {
+  return (FAUSTIAN_DEVIL_FORM_OCCASIONS as readonly string[]).includes(value);
+}
+
 export const FAUSTIAN_ORIGIN_CLAIM_IDS = [
-  "first",
-  "second",
-  "third",
-  "fourth",
-  "fifth",
-  "sixth",
-  "seventh",
+  "betrayed_innocent_wizard",
+  "captured_star",
+  "betrayed_fairy_princess",
+  "the_god_ithax",
+  "daughter_of_wizard_king",
+  "ancient_wizard_of_ergoad",
+  "creator_undone_by_creation",
+  "author_of_the_pact",
+  "nameless_king_beneath_dark",
+  "sorcerers_scapegoat",
+  "you_are_the_devil",
 ] as const;
 
 export type FaustianOriginClaimId = (typeof FAUSTIAN_ORIGIN_CLAIM_IDS)[number];
@@ -216,24 +256,23 @@ export type FaustianOriginClaimStatus = (typeof FAUSTIAN_ORIGIN_CLAIM_STATUSES)[
 
 export interface FaustianOriginClaimDefinition {
   readonly claimId: FaustianOriginClaimId;
-  readonly applicationLabel: string;
+  readonly claim: string;
+  readonly secretName: string;
 }
 
-const ORIGIN_CLAIM_APPLICATION_LABELS: Record<FaustianOriginClaimId, string> = {
-  first: "First Devil Origin or Secret-Name Claim",
-  second: "Second Devil Origin or Secret-Name Claim",
-  third: "Third Devil Origin or Secret-Name Claim",
-  fourth: "Fourth Devil Origin or Secret-Name Claim",
-  fifth: "Fifth Devil Origin or Secret-Name Claim",
-  sixth: "Sixth Devil Origin or Secret-Name Claim",
-  seventh: "Seventh Devil Origin or Secret-Name Claim",
-};
-
-export const FAUSTIAN_ORIGIN_CLAIM_DEFINITIONS: readonly FaustianOriginClaimDefinition[] =
-  FAUSTIAN_ORIGIN_CLAIM_IDS.map((claimId) => ({
-    claimId,
-    applicationLabel: ORIGIN_CLAIM_APPLICATION_LABELS[claimId],
-  }));
+export const FAUSTIAN_ORIGIN_CLAIM_DEFINITIONS: readonly FaustianOriginClaimDefinition[] = [
+  { claimId: "betrayed_innocent_wizard", claim: "betrayed innocent wizard", secretName: "Marcus" },
+  { claimId: "captured_star", claim: "captured star", secretName: "Calliope" },
+  { claimId: "betrayed_fairy_princess", claim: "betrayed fairy princess", secretName: "Robin" },
+  { claimId: "the_god_ithax", claim: "the god Ithax", secretName: "Nathix" },
+  { claimId: "daughter_of_wizard_king", claim: "daughter of the great Wizard-King", secretName: "Nemora" },
+  { claimId: "ancient_wizard_of_ergoad", claim: "ancient powerful wizard who ruled Ergoad", secretName: "Madris" },
+  { claimId: "creator_undone_by_creation", claim: "creator of the world undone by his own creation", secretName: "Ephrain" },
+  { claimId: "author_of_the_pact", claim: "author of the Pact", secretName: "Elzammarat" },
+  { claimId: "nameless_king_beneath_dark", claim: "nameless King beneath the roiling dark", secretName: "Azmodai" },
+  { claimId: "sorcerers_scapegoat", claim: "Sorcerer's scapegoat / collective fever dream", secretName: "The Tower" },
+  { claimId: "you_are_the_devil", claim: "You are the Devil and the Devil is you", secretName: "the Faustian's own name" },
+];
 
 export function isValidFaustianOriginClaimId(value: string): value is FaustianOriginClaimId {
   return (FAUSTIAN_ORIGIN_CLAIM_IDS as readonly string[]).includes(value);
@@ -244,10 +283,10 @@ export function isValidFaustianOriginClaimStatus(value: string): value is Fausti
 }
 
 export const FAUSTIAN_ANTAGONIST_GOALS = [
-  "subjugation",
-  "calamity",
-  "extinction",
-  "treachery",
+  "Subjugation",
+  "Calamity",
+  "Extinction",
+  "Treachery",
 ] as const;
 
 export type FaustianAntagonistGoal = (typeof FAUSTIAN_ANTAGONIST_GOALS)[number];
@@ -259,14 +298,32 @@ export interface FaustianAntagonistGoalDefinition {
 }
 
 export const FAUSTIAN_ANTAGONIST_GOAL_DEFINITIONS: readonly FaustianAntagonistGoalDefinition[] = [
-  { goal: "subjugation", suit: "spades", applicationLabel: "Subjugation / Spades" },
-  { goal: "calamity", suit: "clubs", applicationLabel: "Calamity / Clubs" },
-  { goal: "extinction", suit: "diamonds", applicationLabel: "Extinction / Diamonds" },
-  { goal: "treachery", suit: "hearts", applicationLabel: "Treachery / Hearts" },
+  { goal: "Subjugation", suit: "spades", applicationLabel: "Subjugation / Spades" },
+  { goal: "Calamity", suit: "clubs", applicationLabel: "Calamity / Clubs" },
+  { goal: "Extinction", suit: "diamonds", applicationLabel: "Extinction / Diamonds" },
+  { goal: "Treachery", suit: "hearts", applicationLabel: "Treachery / Hearts" },
 ];
 
 export function isValidFaustianAntagonistGoal(value: string): value is FaustianAntagonistGoal {
   return (FAUSTIAN_ANTAGONIST_GOALS as readonly string[]).includes(value);
+}
+
+export function faustianAntagonistGoalSuit(goal: string): FaustianSuit | null {
+  const definition = FAUSTIAN_ANTAGONIST_GOAL_DEFINITIONS.find((entry) => entry.goal === goal);
+  return definition?.suit ?? null;
+}
+
+export const FAUSTIAN_ANTAGONIST_METHOD_NAMES = [
+  "Amass Power",
+  "Offer Aid",
+  "Spread Dissent",
+  "Bargain with the Devil",
+] as const;
+
+export type FaustianAntagonistMethodName = (typeof FAUSTIAN_ANTAGONIST_METHOD_NAMES)[number];
+
+export function isValidFaustianAntagonistMethodName(value: string): value is FaustianAntagonistMethodName {
+  return (FAUSTIAN_ANTAGONIST_METHOD_NAMES as readonly string[]).includes(value);
 }
 
 export const FAUSTIAN_MALIGNANCES = ["violent", "controlling"] as const;
@@ -275,4 +332,12 @@ export type FaustianMalignance = (typeof FAUSTIAN_MALIGNANCES)[number];
 
 export function isValidFaustianMalignance(value: string): value is FaustianMalignance {
   return (FAUSTIAN_MALIGNANCES as readonly string[]).includes(value);
+}
+
+export const FAUSTIAN_ANTAGONIST_CHIP_COUNTS = [1, 2, 3] as const;
+
+export type FaustianAntagonistChipCount = (typeof FAUSTIAN_ANTAGONIST_CHIP_COUNTS)[number];
+
+export function isValidFaustianAntagonistChipCount(value: number): value is FaustianAntagonistChipCount {
+  return FAUSTIAN_ANTAGONIST_CHIP_COUNTS.includes(value as FaustianAntagonistChipCount);
 }
