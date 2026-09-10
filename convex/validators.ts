@@ -2143,6 +2143,18 @@ const faustianCommunityBlackmailedEventV1Validator = v.object({
   }),
 });
 
+const faustianAccompliceDirectedEventV1Validator = v.object({
+  type: v.literal("faustian_accomplice_directed"),
+  version: v.literal(1),
+  data: v.object({
+    accompliceCardId: v.string(),
+    sourceCommunityId: v.string(),
+    destinationCommunityId: v.string(),
+    revealedSchemeCardIds: v.array(v.string()),
+    returnedSchemeCardIds: v.array(v.string()),
+  }),
+});
+
 export const campaignEventValidator = v.union(
   historicalMonthChangedEventV1Validator,
   undoAppliedEventV1Validator,
@@ -2273,6 +2285,7 @@ export const campaignEventValidator = v.union(
   pactFragmentOperationalStateChangedEventV1Validator,
   faustianCommunityInvestigatedEventV1Validator,
   faustianCommunityBlackmailedEventV1Validator,
+  faustianAccompliceDirectedEventV1Validator,
 );
 
 export const anyCampaignStateValidator = campaignStateV5Validator;

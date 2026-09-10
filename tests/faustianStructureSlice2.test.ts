@@ -24,9 +24,11 @@ import {
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
   applyBlackmailFaustianCommunity,
+  applyDirectFaustianAccomplice,
   applyInvestigateFaustianCommunity,
   blackmailFaustianCommunityFingerprint,
   buildInitializedDefaultFaustianState,
+  directFaustianAccompliceFingerprint,
   faustianCardId,
   investigateFaustianCommunityFingerprint,
   isLogicalStateCommandType,
@@ -104,6 +106,27 @@ function withCommunitySchemes(
       community.communityId === communityId ? { ...community, schemes } : community
     ),
   };
+}
+
+function withCommunityAccomplice(
+  faustian: FaustianState,
+  communityId: FaustianCommunityId,
+  cardId: FaustianCardId,
+): FaustianState {
+  const next = takeFromDeck(faustian, [cardId]);
+  return {
+    ...next,
+    communities: next.communities.map((community) =>
+      community.communityId === communityId
+        ? { ...community, accompliceCardIds: [...community.accompliceCardIds, cardId] }
+        : community
+    ),
+  };
+}
+
+function withDevilDeckBottom(faustian: FaustianState, cardId: FaustianCardId): FaustianState {
+  const next = takeFromDeck(faustian, [cardId]);
+  return { ...next, devilDeck: [...next.devilDeck, cardId] };
 }
 
 function baseV5(faustian: FaustianState = initializedFaustian()): CampaignStateV5 {
@@ -404,5 +427,204 @@ describe("Faustian mutation arg path", () => {
     expect(blackmailArgs).not.toContain("cardId");
     expect(blackmailArgs).not.toContain("schemeCardId");
     expect(blackmailArgs).not.toContain("drawnCardId");
+  });
+});
+
+const SEVEN = faustianCardId("clubs", "7");
+const LOWER = faustianCardId("hearts", "5");
+const EQUAL = faustianCardId("hearts", "7");
+const HIGHER = faustianCardId("hearts", "9");
+const ACE = faustianCardId("hearts", "ace");
+const ACE_SCHEME = faustianCardId("clubs", "ace");
+const KING = faustianCardId("diamonds", "king");
+const TWO = faustianCardId("diamonds", "2");
+const DEVIL_BOTTOM = faustianCardId("spades", "king");
+
+function ordinaryDirectState(): CampaignStateV5 {
+  return baseV5(withCommunitySchemes(
+    withCommunitySchemes(
+      withCommunityAccomplice(
+        withDevilDeckBottom(initializedFaustian(), DEVIL_BOTTOM),
+        ARIES,
+        SEVEN,
+      ),
+      LEO,
+      [
+        { cardId: LOWER, facing: "face_down" },
+        { cardId: EQUAL, facing: "face_up" },
+        { cardId: HIGHER, facing: "face_down" },
+      ],
+    ),
+    "virgo",
+    [{ cardId: OTHER_COMMUNITY_SCHEME, facing: "face_down" }],
+  ));
+}
+
+describe("direct_faustian_accomplice", () => {
+  it("is a registered logical command whose fingerprint is client intent only", () => {
+    expect(CAMPAIGN_COMMAND_TYPES as readonly string[]).toContain("direct_faustian_accomplice");
+    expect(isLogicalStateCommandType("direct_faustian_accomplice")).toBe(true);
+    const fingerprint = directFaustianAccompliceFingerprint(CAMPAIGN_A, SEVEN, LEO);
+    expect(fingerprint).toContain("direct_faustian_accomplice:v1:");
+    expect(fingerprint).toContain(SEVEN);
+    expect(fingerprint).toContain(LEO);
+    expect(fingerprint).not.toContain(ARIES);
+    expect(fingerprint).not.toContain("revealedSchemeCardIds");
+    expect(fingerprint).not.toContain("returnedSchemeCardIds");
+    expect(fingerprint).not.toContain(LOWER);
+    expect(fingerprint).toBe(directFaustianAccompliceFingerprint(CAMPAIGN_A, SEVEN, LEO));
+    expect(fingerprint).not.toBe(directFaustianAccompliceFingerprint(CAMPAIGN_A, SEVEN, ARIES));
+  });
+
+  it("moves an ordinary Accomplice, reveals destination Schemes, and returns equal-or-lower cards in scheme order", () => {
+    const start = ordinaryDirectState();
+    const result = applyDirectFaustianAccomplice(start, SEVEN, LEO);
+    const aries = result.nextState.faustian.communities.find((community) => community.communityId === ARIES);
+    const leo = result.nextState.faustian.communities.find((community) => community.communityId === LEO);
+    const virgo = result.nextState.faustian.communities.find((community) => community.communityId === "virgo");
+
+    expect(aries?.accompliceCardIds).toEqual([]);
+    expect(leo?.accompliceCardIds).toEqual([SEVEN]);
+    expect(leo?.schemes).toEqual([{ cardId: HIGHER, facing: "face_up" }]);
+    expect(virgo?.schemes).toEqual([{ cardId: OTHER_COMMUNITY_SCHEME, facing: "face_down" }]);
+    expect(result.nextState.faustian.devilDeck).toEqual([DEVIL_BOTTOM, LOWER, EQUAL]);
+    expect(result.events).toEqual([{
+      type: "faustian_accomplice_directed",
+      version: 1,
+      data: {
+        accompliceCardId: SEVEN,
+        sourceCommunityId: ARIES,
+        destinationCommunityId: LEO,
+        revealedSchemeCardIds: [LOWER, HIGHER],
+        returnedSchemeCardIds: [LOWER, EQUAL],
+      },
+    }]);
+    expect(() => validateFaustianStructure(result.nextState.faustian)).not.toThrow();
+    expect(() => validateCampaignStateV5Candidate(result.nextState)).not.toThrow();
+  });
+
+  it.each([
+    { accomplice: SEVEN, scheme: LOWER, defeated: true, label: "ordinary lower" },
+    { accomplice: SEVEN, scheme: EQUAL, defeated: true, label: "ordinary equal" },
+    { accomplice: SEVEN, scheme: HIGHER, defeated: false, label: "ordinary higher" },
+    { accomplice: SEVEN, scheme: KING, defeated: false, label: "ordinary king" },
+    { accomplice: ACE, scheme: KING, defeated: true, label: "ace defeats king" },
+    { accomplice: ACE, scheme: ACE_SCHEME, defeated: true, label: "ace defeats ace" },
+    { accomplice: ACE, scheme: TWO, defeated: false, label: "ace does not defeat 2" },
+  ] as const)("rank rule: $label", ({ accomplice, scheme, defeated }) => {
+    const start = baseV5(withCommunitySchemes(
+      withCommunityAccomplice(initializedFaustian(), ARIES, accomplice),
+      LEO,
+      [{ cardId: scheme, facing: "face_down" }],
+    ));
+    const result = applyDirectFaustianAccomplice(start, accomplice, LEO);
+    const leo = result.nextState.faustian.communities.find((community) => community.communityId === LEO);
+    if (defeated) {
+      expect(leo?.schemes).toEqual([]);
+      expect(result.nextState.faustian.devilDeck).toEqual([scheme]);
+    } else {
+      expect(leo?.schemes).toEqual([{ cardId: scheme, facing: "face_up" }]);
+      expect(result.nextState.faustian.devilDeck).toEqual([]);
+    }
+  });
+
+  it("an Ace Accomplice defeats representative high cards but not a 2, returning defeated cards in scheme order", () => {
+    const start = baseV5(withCommunitySchemes(
+      withCommunityAccomplice(initializedFaustian(), ARIES, ACE),
+      LEO,
+      [
+        { cardId: KING, facing: "face_down" },
+        { cardId: TWO, facing: "face_up" },
+        { cardId: HIGHER, facing: "face_down" },
+      ],
+    ));
+    const result = applyDirectFaustianAccomplice(start, ACE, LEO);
+    const leo = result.nextState.faustian.communities.find((community) => community.communityId === LEO);
+    expect(leo?.schemes).toEqual([{ cardId: TWO, facing: "face_up" }]);
+    expect(result.nextState.faustian.devilDeck).toEqual([KING, HIGHER]);
+    expect(result.events[0]).toMatchObject({
+      type: "faustian_accomplice_directed",
+      data: {
+        accompliceCardId: ACE,
+        sourceCommunityId: ARIES,
+        destinationCommunityId: LEO,
+        revealedSchemeCardIds: [KING, HIGHER],
+        returnedSchemeCardIds: [KING, HIGHER],
+      },
+    });
+  });
+
+  it("rejects a card that is not a current Accomplice, and a same-Community destination", () => {
+    const start = ordinaryDirectState();
+    expectCode(() => applyDirectFaustianAccomplice(start, LOWER, LEO), "INVALID_CAMPAIGN_STATE");
+    expectCode(() => applyDirectFaustianAccomplice(start, HIGHER, ARIES), "INVALID_CAMPAIGN_STATE");
+    expectCode(() => applyDirectFaustianAccomplice(start, SEVEN, ARIES), "INVALID_CAMPAIGN_STATE");
+  });
+});
+
+describe("direct_faustian_accomplice ordinary command path", () => {
+  it("commits through the ordinary executor with authoritative event data and idempotency", async () => {
+    const state = ordinaryDirectState();
+    const fingerprint = directFaustianAccompliceFingerprint(CAMPAIGN_A, SEVEN, LEO);
+    expect(fingerprint).not.toContain(LOWER);
+    const prepare: () => OrdinaryLogicalCommandPreparation = () => ({
+      commandType: "direct_faustian_accomplice",
+      commandFingerprint: fingerprint,
+      apply: (current) => applyDirectFaustianAccomplice(current, SEVEN, LEO),
+    });
+
+    const accepted = recordingIo({ campaign: campaignOf(CAMPAIGN_A, state, 4) });
+    const receipt = await executeOrdinaryLogicalCommand(
+      accepted.io,
+      { commandId: COMMAND_1, expectedCampaignId: CAMPAIGN_A },
+      prepare,
+    );
+    expect(receipt).toEqual({ revision: 5 });
+    expect(accepted.commits[0]?.events[0]).toEqual({
+      type: "faustian_accomplice_directed",
+      version: 1,
+      data: {
+        accompliceCardId: SEVEN,
+        sourceCommunityId: ARIES,
+        destinationCommunityId: LEO,
+        revealedSchemeCardIds: [LOWER, HIGHER],
+        returnedSchemeCardIds: [LOWER, EQUAL],
+      },
+    });
+    expect(() => validateEventCoherenceForTest(accepted.commits[0]!, 5)).not.toThrow();
+
+    const replay = recordingIo({
+      campaign: campaignOf(CAMPAIGN_A, accepted.commits[0]!.nextState, 5),
+      accepted: { commandType: "direct_faustian_accomplice", commandFingerprint: fingerprint, campaignRevision: 5 },
+      snapshot: accepted.commits[0]!.nextState,
+    });
+    const replayReceipt = await executeOrdinaryLogicalCommand(
+      replay.io,
+      { commandId: COMMAND_1, expectedCampaignId: CAMPAIGN_A },
+      prepare,
+    );
+    expect(replayReceipt).toEqual({ revision: 5 });
+    expect(replay.commits).toHaveLength(0);
+  });
+});
+
+describe("directFaustianAccomplice mutation arg path", () => {
+  const source = readFileSync(join(__dirname, "..", "convex", "m3Commands.ts"), "utf8");
+
+  it("registers the mutation on the ordinary executor without result-card client args", () => {
+    const exportIdx = source.indexOf("export const directFaustianAccomplice = mutation({");
+    expect(exportIdx).toBeGreaterThan(-1);
+    const argsStart = source.indexOf("args: {", exportIdx);
+    const handlerIdx = source.indexOf("handler: async (ctx, args) => {", exportIdx);
+    const argsBlock = source.slice(argsStart, handlerIdx);
+    expect(argsBlock).toContain("commandId: v.string()");
+    expect(argsBlock).toContain("expectedCampaignId: v.string()");
+    expect(argsBlock).toContain("accompliceCardId: v.string()");
+    expect(argsBlock).toContain("destinationCommunityId: v.string()");
+    expect(argsBlock).not.toContain("sourceCommunityId");
+    expect(argsBlock).not.toContain("revealedSchemeCardIds");
+    expect(argsBlock).not.toContain("returnedSchemeCardIds");
+    const handlerEnd = source.indexOf("\n  },\n});", handlerIdx);
+    expect(source.slice(handlerIdx, handlerEnd)).toContain("executeConvexOrdinaryLogicalCommand");
   });
 });

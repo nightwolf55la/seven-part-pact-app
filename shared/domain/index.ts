@@ -169,6 +169,8 @@ export type {
   FaustianCommunityInvestigatedEventV1,
   FaustianCommunityBlackmailedDataV1,
   FaustianCommunityBlackmailedEventV1,
+  FaustianAccompliceDirectedDataV1,
+  FaustianAccompliceDirectedEventV1,
   CampaignEvent,
 } from "./events";
 
@@ -408,6 +410,7 @@ export {
   updatePactFragmentOperationalStateFingerprint,
   investigateFaustianCommunityFingerprint,
   blackmailFaustianCommunityFingerprint,
+  directFaustianAccompliceFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
@@ -1193,6 +1196,7 @@ export type { FaustianTransitionResult } from "./faustian-transitions";
 export {
   applyInvestigateFaustianCommunity,
   applyBlackmailFaustianCommunity,
+  applyDirectFaustianAccomplice,
 } from "./faustian-transitions";
 
 export type {

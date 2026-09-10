@@ -1631,9 +1631,23 @@ export interface FaustianCommunityBlackmailedEventV1 {
   readonly data: FaustianCommunityBlackmailedDataV1;
 }
 
+export interface FaustianAccompliceDirectedDataV1 {
+  readonly accompliceCardId: FaustianCardId;
+  readonly sourceCommunityId: FaustianCommunityId;
+  readonly destinationCommunityId: FaustianCommunityId;
+  readonly revealedSchemeCardIds: readonly FaustianCardId[];
+  readonly returnedSchemeCardIds: readonly FaustianCardId[];
+}
+export interface FaustianAccompliceDirectedEventV1 {
+  readonly type: "faustian_accomplice_directed";
+  readonly version: 1;
+  readonly data: FaustianAccompliceDirectedDataV1;
+}
+
 export type FaustianEvent =
   | FaustianCommunityInvestigatedEventV1
-  | FaustianCommunityBlackmailedEventV1;
+  | FaustianCommunityBlackmailedEventV1
+  | FaustianAccompliceDirectedEventV1;
 
 export type CampaignEvent =
   | InfrastructureEvent

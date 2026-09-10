@@ -1031,6 +1031,18 @@ export function blackmailFaustianCommunityFingerprint(
   })}`;
 }
 
+export function directFaustianAccompliceFingerprint(
+  expectedCampaignId: string,
+  accompliceCardId: string,
+  destinationCommunityId: string,
+): string {
+  return `direct_faustian_accomplice:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    accompliceCardId,
+    destinationCommunityId,
+  })}`;
+}
+
 /**
  * Pure deterministic idempotency match for command replay.
  * Given a previously committed command record and an incoming attempt,

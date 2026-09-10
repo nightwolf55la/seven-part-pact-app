@@ -1,7 +1,7 @@
 import type { CampaignStateV5 } from "./campaign-state";
 import { DomainError } from "./errors";
 import type { FaustianEvent } from "./events";
-import type { FaustianCardId, FaustianCommunityId } from "./faustian-catalogs";
+import type { FaustianCardId, FaustianCommunityId, FaustianRank } from "./faustian-catalogs";
 import { isValidFaustianCardId, isValidFaustianCommunityId } from "./faustian-catalogs";
 import type { FaustianState } from "./faustian-state";
 import { isFaustianDeckEmpty } from "./faustian-state";
@@ -26,6 +26,35 @@ function commitFaustian(
   return { nextState, events };
 }
 
+const RANK_VALUE: Record<FaustianRank, number> = {
+  ace: 14,
+  "2": 2,
+  "3": 3,
+  "4": 4,
+  "5": 5,
+  "6": 6,
+  "7": 7,
+  "8": 8,
+  "9": 9,
+  "10": 10,
+  jack: 11,
+  queen: 12,
+  king: 13,
+};
+
+function cardRank(cardId: FaustianCardId): FaustianRank {
+  return cardId.slice(cardId.indexOf("_") + 1) as FaustianRank;
+}
+
+function accompliceDefeatsScheme(accompliceCardId: FaustianCardId, schemeCardId: FaustianCardId): boolean {
+  const accompliceRank = cardRank(accompliceCardId);
+  const schemeRank = cardRank(schemeCardId);
+  if (accompliceRank === "ace") {
+    return schemeRank !== "2";
+  }
+  return RANK_VALUE[schemeRank] <= RANK_VALUE[accompliceRank];
+}
+
 function requireCommunity(state: CampaignStateV5, communityId: FaustianCommunityId): number {
   if (!isValidFaustianCommunityId(communityId)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown Faustian Community: ${communityId}`);
@@ -35,6 +64,22 @@ function requireCommunity(state: CampaignStateV5, communityId: FaustianCommunity
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown Faustian Community: ${communityId}`);
   }
   return idx;
+}
+
+function requireAccompliceCommunity(state: CampaignStateV5, accompliceCardId: FaustianCardId): number {
+  const matches: number[] = [];
+  for (let i = 0; i < state.faustian.communities.length; i++) {
+    if (state.faustian.communities[i].accompliceCardIds.includes(accompliceCardId)) {
+      matches.push(i);
+    }
+  }
+  if (matches.length !== 1) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Selected card is not currently an Accomplice in a Community: ${accompliceCardId}`,
+    );
+  }
+  return matches[0];
 }
 
 export function applyInvestigateFaustianCommunity(
@@ -109,6 +154,72 @@ export function applyBlackmailFaustianCommunity(
     data: {
       communityId,
       drawnCardId,
+    },
+  }]);
+}
+
+export function applyDirectFaustianAccomplice(
+  state: CampaignStateV5,
+  accompliceCardId: FaustianCardId,
+  destinationCommunityId: FaustianCommunityId,
+): FaustianTransitionResult {
+  if (!isValidFaustianCardId(accompliceCardId)) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Selected Accomplice is not a canonical Faustian card: ${accompliceCardId}`,
+    );
+  }
+  const sourceIdx = requireAccompliceCommunity(state, accompliceCardId);
+  const destinationIdx = requireCommunity(state, destinationCommunityId);
+  const sourceCommunityId = state.faustian.communities[sourceIdx].communityId;
+  if (sourceCommunityId === destinationCommunityId) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Accomplice destination Community must differ from source Community ${sourceCommunityId}`,
+    );
+  }
+
+  const destination = state.faustian.communities[destinationIdx];
+  const revealedSchemeCardIds = destination.schemes
+    .filter((scheme) => scheme.facing === "face_down")
+    .map((scheme) => scheme.cardId);
+  const returnedSchemeCardIds = destination.schemes
+    .filter((scheme) => accompliceDefeatsScheme(accompliceCardId, scheme.cardId))
+    .map((scheme) => scheme.cardId);
+  const remainingSchemes = destination.schemes
+    .filter((scheme) => !accompliceDefeatsScheme(accompliceCardId, scheme.cardId))
+    .map((scheme) => ({ ...scheme, facing: "face_up" as const }));
+
+  const faustian: FaustianState = {
+    ...state.faustian,
+    devilDeck: [...state.faustian.devilDeck, ...returnedSchemeCardIds],
+    communities: state.faustian.communities.map((entry, i) => {
+      if (i === sourceIdx) {
+        return {
+          ...entry,
+          accompliceCardIds: entry.accompliceCardIds.filter((cardId) => cardId !== accompliceCardId),
+        };
+      }
+      if (i === destinationIdx) {
+        return {
+          ...entry,
+          accompliceCardIds: [...entry.accompliceCardIds, accompliceCardId],
+          schemes: remainingSchemes,
+        };
+      }
+      return entry;
+    }),
+  };
+
+  return commitFaustian(state, faustian, [{
+    type: "faustian_accomplice_directed",
+    version: 1,
+    data: {
+      accompliceCardId,
+      sourceCommunityId,
+      destinationCommunityId,
+      revealedSchemeCardIds,
+      returnedSchemeCardIds,
     },
   }]);
 }
