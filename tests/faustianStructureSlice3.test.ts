@@ -706,6 +706,43 @@ describe("M5.2E Devil destinations and Visions scheduling", () => {
       expect(() => validateCampaignState(spent)).not.toThrow();
     }
   });
+
+  it("Devil Companion scheduling accepts a current relationship and rejects an ended one", () => {
+    const destination = { kind: "devil_companion" as const, companionRelationshipId: CMPREL_1 };
+    const currentWorld = worldWithCompanionAndDenizen();
+    const currentVisions = withPlayFaustian(
+      withDevilTime(buildVisionsState()),
+      faustianWithSchemeAndSeizure(),
+      currentWorld,
+    );
+    const scheduled = applyScheduleTime(currentVisions, {
+      expectedMonthOrdinal: MONTH,
+      allocationId: DEVIL_ALLOC,
+      destination,
+      note: null,
+    });
+    if (scheduled.nextState.lifecycle.kind !== "play") throw new Error("not play");
+    const devil = scheduled.nextState.lifecycle.currentMonth.timeParticipants.find((tp) => tp.participant.kind === "devil");
+    expect(devil?.allocations[0].destination).toEqual(destination);
+
+    const endedVisions = withPlayFaustian(
+      withDevilTime(buildVisionsState()),
+      faustianWithSchemeAndSeizure(),
+      {
+        ...currentWorld,
+        companionRelationships: currentWorld.companionRelationships.map((rel) => ({
+          ...rel,
+          status: "ended" as const,
+        })),
+      },
+    );
+    expect(() => applyScheduleTime(endedVisions, {
+      expectedMonthOrdinal: MONTH,
+      allocationId: DEVIL_ALLOC,
+      destination,
+      note: null,
+    })).toThrow(/current|ended|companion/i);
+  });
 });
 
 describe("M5.2E Faustian durable structural state", () => {

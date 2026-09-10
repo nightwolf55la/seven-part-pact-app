@@ -545,14 +545,24 @@ function validateScheduledDestination(
       }
       return;
     }
-    case "devil_companion":
-      if (!state.world.companionRelationships.some((rel) => rel.companionRelationshipId === dest.companionRelationshipId)) {
+    case "devil_companion": {
+      const relationship = state.world.companionRelationships.find(
+        (rel) => rel.companionRelationshipId === dest.companionRelationshipId,
+      );
+      if (relationship === undefined) {
         throw new DomainError(
           "INVALID_CAMPAIGN_STATE",
           `Devil Companion destination does not resolve: ${dest.companionRelationshipId}`,
         );
       }
+      if (relationship.status !== "current") {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `Devil Companion destination ${dest.companionRelationshipId} is not a current Companion`,
+        );
+      }
       return;
+    }
     case "devil_wizard":
       if (!state.wizards.some((wizard) => wizard.wizardId === dest.wizardId)) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `Devil Wizard destination does not resolve: ${dest.wizardId}`);
