@@ -1271,6 +1271,12 @@ const faustianStateValidator = v.object({
     magicalSymbol: v.string(),
     occupancy: v.union(faustianDemonOccupancyValidator, v.null()),
     monthsInCurrentDomain: v.number(),
+    condition: v.union(
+      v.literal("active"),
+      v.literal("destroyed_reforming"),
+      v.literal("imprisoned"),
+      v.literal("banished"),
+    ),
   })),
   domainSeizures: v.array(v.object({
     seatId: v.string(),

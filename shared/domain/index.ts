@@ -1159,6 +1159,7 @@ export type {
   FaustianAntagonistState,
   FaustianDemonOccupancy,
   FaustianDemonBinding,
+  FaustianDemonCondition,
   FaustianDemonState,
   FaustianDomainSeizure,
   FaustianOriginClaimState,
@@ -1171,10 +1172,12 @@ export type {
 export {
   EMPTY_FAUSTIAN_STATE,
   EMPTY_SELECTED_DEVIL_FORMS,
+  FAUSTIAN_DEMON_CONDITIONS,
   buildInitializedDefaultFaustianState,
   faustianDeckMissingSuits,
   devilWeeksOwedForMissingSuits,
   isFaustianDeckEmpty,
+  isValidFaustianDemonCondition,
 } from "./faustian-state";
 
 export { validateFaustianStructure, validateFaustianReferenceIntegrity } from "./faustian-validation";

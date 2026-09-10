@@ -86,6 +86,19 @@ export type FaustianDemonBinding =
   | { readonly kind: "bound" }
   | { readonly kind: "unbound"; readonly malignance: FaustianMalignance };
 
+export const FAUSTIAN_DEMON_CONDITIONS = [
+  "active",
+  "destroyed_reforming",
+  "imprisoned",
+  "banished",
+] as const;
+
+export type FaustianDemonCondition = (typeof FAUSTIAN_DEMON_CONDITIONS)[number];
+
+export function isValidFaustianDemonCondition(value: string): value is FaustianDemonCondition {
+  return (FAUSTIAN_DEMON_CONDITIONS as readonly string[]).includes(value);
+}
+
 export interface FaustianDemonState {
   readonly denizenId: DenizenId;
   readonly binding: FaustianDemonBinding;
@@ -94,6 +107,7 @@ export interface FaustianDemonState {
   readonly magicalSymbol: string;
   readonly occupancy: FaustianDemonOccupancy | null;
   readonly monthsInCurrentDomain: number;
+  readonly condition: FaustianDemonCondition;
 }
 
 export interface FaustianDomainSeizure {

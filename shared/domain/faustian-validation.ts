@@ -23,13 +23,14 @@ import {
   isValidFaustianOriginClaimStatus,
 } from "./faustian-catalogs";
 import type { FaustianCardId, FaustianDevilFormId } from "./faustian-catalogs";
-import type {
-  FaustianCommunityState,
-  FaustianDevilObligation,
-  FaustianMachinationCard,
-  FaustianPossessionRepresentation,
-  FaustianSelectedDevilForms,
-  FaustianState,
+import {
+  isValidFaustianDemonCondition,
+  type FaustianCommunityState,
+  type FaustianDevilObligation,
+  type FaustianMachinationCard,
+  type FaustianPossessionRepresentation,
+  type FaustianSelectedDevilForms,
+  type FaustianState,
 } from "./faustian-state";
 import { requirePowerfulRoleProfile } from "./powerful-denizen-roles";
 
@@ -436,6 +437,9 @@ export function validateFaustianStructure(faustian: unknown): void {
     assertNonEmptyString(`${path}.form`, d.form);
     assertNonEmptyString(`${path}.hellOfOrigin`, d.hellOfOrigin);
     assertNonEmptyString(`${path}.magicalSymbol`, d.magicalSymbol);
+    if (typeof d.condition !== "string" || !isValidFaustianDemonCondition(d.condition)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.condition is invalid: ${JSON.stringify(d.condition)}`);
+    }
     if (d.occupancy !== null) {
       if (d.occupancy === undefined || typeof d.occupancy !== "object") {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.occupancy must be an object or null`);
@@ -450,6 +454,12 @@ export function validateFaustianStructure(faustian: unknown): void {
       } else {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.occupancy.kind is invalid: ${JSON.stringify(occupancy.kind)}`);
       }
+    }
+    if (d.condition === "banished" && d.occupancy !== null) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path}.occupancy must be null when condition is banished`,
+      );
     }
     assertNonNegativeSafeInteger(`${path}.monthsInCurrentDomain`, d.monthsInCurrentDomain);
   }
@@ -657,6 +667,12 @@ export function validateFaustianReferenceIntegrity(state: CampaignStateV5): void
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId must reference an individual Denizen`);
     }
     requirePowerfulRoleProfile(denizen, path, "demon");
+    if (denizen.mortalityState !== "not_deceased") {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path}.denizenId is deceased; a Faustian Demon cannot use shared deceased state`,
+      );
+    }
   }
 
   for (let i = 0; i < faustian.entrustedCards.length; i++) {

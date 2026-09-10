@@ -182,6 +182,47 @@ function expectInvalid(state: unknown, pattern: RegExp): void {
   }
 }
 
+function demonOverlay(overrides: Record<string, unknown> = {}) {
+  return {
+    denizenId: DEN_3,
+    binding: { kind: "unbound" as const, malignance: "violent" as const },
+    form: "a column of smoke",
+    hellOfOrigin: "the brass city",
+    magicalSymbol: "a seven-pointed seal",
+    occupancy: { kind: "isha" as const },
+    monthsInCurrentDomain: 0,
+    condition: "active" as const,
+    ...overrides,
+  };
+}
+
+function demonWorld(mortalityState: "not_deceased" | "deceased" = "not_deceased") {
+  return {
+    ...EMPTY_SHARED_WORLD_STATE,
+    denizens: [{
+      denizenId: DEN_3,
+      name: "Ashmaw",
+      representation: "individual" as const,
+      description: null,
+      mortalityState,
+      powerfulProfile: powerfulProfile("demon"),
+    }],
+  };
+}
+
+function demonCampaign(
+  demonOverrides: Record<string, unknown> = {},
+  mortalityState: "not_deceased" | "deceased" = "not_deceased",
+) {
+  return baseV5(
+    {
+      ...EMPTY_FAUSTIAN_STATE,
+      demons: [demonOverlay(demonOverrides)],
+    } as FaustianState,
+    demonWorld(mortalityState),
+  );
+}
+
 describe("Faustian static card catalog", () => {
   it("contains exactly 52 unique identities covering all 4x13 combinations", () => {
     expect(FAUSTIAN_SUITS).toEqual(EXPECTED_SUITS);
@@ -433,6 +474,7 @@ describe("Faustian reference integrity", () => {
             magicalSymbol: "a seven-pointed seal",
             occupancy: { kind: "isha" },
             monthsInCurrentDomain: 0,
+            condition: "active",
           }],
         },
         {
@@ -553,6 +595,26 @@ describe("Faustian reference integrity", () => {
     })).toThrow(/conduit.*deceased|deceased.*conduit/i);
   });
 
+  it("rejects a deceased Denizen as a Faustian Demon", () => {
+    expectInvalid(
+      demonCampaign({ condition: "active" }, "deceased"),
+      /demon.*deceased|deceased.*demon/i,
+    );
+  });
+
+  it("fails closed when set_denizen_mortality_state tries to kill a Faustian Demon", () => {
+    const living = demonCampaign({ condition: "active" }, "not_deceased");
+    expect(() => validateCampaignStateV5Candidate(living)).not.toThrow();
+    expect(() => applySetDenizenMortalityState(living, DEN_3, {
+      expected: "not_deceased",
+      value: "deceased",
+    })).toThrow(DomainError);
+    expect(() => applySetDenizenMortalityState(living, DEN_3, {
+      expected: "not_deceased",
+      value: "deceased",
+    })).toThrow(/demon.*deceased|deceased.*demon/i);
+  });
+
   it("accepts coherent Conspiracy, Antagonist, Demon, and Devil treasure custody", () => {
     const moved = takeFromDeck(takeFromDeck(EMPTY_FAUSTIAN_STATE, TWIST), TWIST_2);
     const faustian: FaustianState = {
@@ -576,6 +638,7 @@ describe("Faustian reference integrity", () => {
         magicalSymbol: "a seven-pointed seal",
         occupancy: { kind: "pact_domain", seatId: "hierophant" },
         monthsInCurrentDomain: 2,
+        condition: "active",
       }],
       domainSeizures: [{ seatId: "hierophant", conduitDenizenId: DEN_2 }],
       devilObligations: [{
@@ -818,6 +881,7 @@ describe("Faustian source-integrity corrections", () => {
         magicalSymbol: "a seven-pointed seal",
         occupancy: { kind: "pact_domain", seatId: "hierophant" },
         monthsInCurrentDomain: 2,
+        condition: "active",
       }],
     };
     const accepted = baseV5(unbound as FaustianState, {
@@ -849,6 +913,7 @@ describe("Faustian source-integrity corrections", () => {
         magicalSymbol: "a seven-pointed seal",
         occupancy: null,
         monthsInCurrentDomain: 0,
+        condition: "active",
       }],
     };
     expect(() => validateCampaignStateV5Candidate(baseV5(boundMissingMalignance as FaustianState, {
@@ -868,6 +933,51 @@ describe("Faustian source-integrity corrections", () => {
         },
       }],
     }))).not.toThrow();
+  });
+
+  it("accepts the closed Faustian Demon conditions active, destroyed_reforming, imprisoned, and banished", () => {
+    for (const condition of ["active", "destroyed_reforming", "imprisoned", "banished"] as const) {
+      const occupancy = condition === "banished" ? null : { kind: "isha" as const };
+      expect(() => validateCampaignStateV5Candidate(demonCampaign({ condition, occupancy }))).not.toThrow();
+    }
+  });
+
+  it("rejects banished occupancy and accepts banished with occupancy null", () => {
+    expectInvalid(
+      demonCampaign({
+        condition: "banished",
+        occupancy: { kind: "pact_domain", seatId: "hierophant" },
+      }),
+      /banished/,
+    );
+    expect(() => validateCampaignStateV5Candidate(demonCampaign({
+      condition: "banished",
+      occupancy: null,
+    }))).not.toThrow();
+  });
+
+  it("lets destroyed_reforming retain occupancy and imprisoned keep the existing occupancy model", () => {
+    const occupancy = { kind: "pact_domain" as const, seatId: "hierophant" as const };
+    const destroyed = demonCampaign({ condition: "destroyed_reforming", occupancy });
+    expect(() => validateCampaignStateV5Candidate(destroyed)).not.toThrow();
+    expect(destroyed.faustian.demons[0]?.occupancy).toEqual(occupancy);
+
+    const imprisoned = demonCampaign({ condition: "imprisoned", occupancy });
+    expect(() => validateCampaignStateV5Candidate(imprisoned)).not.toThrow();
+    expect(imprisoned.faustian.demons[0]?.occupancy).toEqual(occupancy);
+    expect(imprisoned.faustian.demons[0]).not.toHaveProperty("prison");
+    expect(imprisoned.faustian.demons[0]).not.toHaveProperty("containerId");
+  });
+
+  it("records ordinary initialized and constructed Demons as active", () => {
+    expect(EMPTY_FAUSTIAN_STATE.demons).toEqual([]);
+    expect(initializedFaustian().demons).toEqual([]);
+    expect(EMPTY_FAUSTIAN_STATE.demons.every((demon) => demon.condition === "active")).toBe(true);
+    expect(initializedFaustian().demons.every((demon) => demon.condition === "active")).toBe(true);
+
+    const ordinary = demonCampaign({ condition: "active" });
+    expect(() => validateCampaignStateV5Candidate(ordinary)).not.toThrow();
+    expect(ordinary.faustian.demons[0]?.condition).toBe("active");
   });
 
   it("allows multiple Accomplices in one Community", () => {
