@@ -14,15 +14,8 @@ import type {
 } from "../shared/domain";
 import {
   DomainError,
-  EMPTY_HIEROPHANT_STATE,
-  EMPTY_MARINER_STATE,
-  EMPTY_NECROMANCER_STATE,
-  EMPTY_FAUSTIAN_STATE,
-  EMPTY_SHARED_WORLD_STATE,
   NECROMANCER_BUILTIN_GATE_IDS,
   NECROMANCER_QUIET_ARRANGEMENT_SOUL_LOCATIONS,
-  SEVEN_PART_PACT_DRAFT4_ID,
-  SEVEN_PART_PACT_DRAFT4_VERSION,
   applyAddNecromancerAlly,
   applyAddNecromancerFoe,
   applyAddNecromancerGhoulCaller,
@@ -48,10 +41,9 @@ import {
   canonicalizeUpdateNecromancerGhoulCallerFields,
   necromancerDefaultInternalOutgoingTarget,
   validateCampaignStateV5Candidate,
-  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
-  EMPTY_SAGE_STATE,
 } from "../shared/domain";
 import * as Domain from "../shared/domain";
+import { makeTestCampaignStateV5 } from "./test-state";
 
 const PLR_A = "plr_00000000-0000-0000-0000-00000000000a" as PlayerId;
 const PLR_B = "plr_00000000-0000-0000-0000-00000000000b" as PlayerId;
@@ -68,16 +60,6 @@ const DEN_MISSING = "den_00000000-0000-0000-0000-999999999999" as DenizenId;
 const CAMPAIGN_GATE = "ngt_00000000-0000-0000-0000-0000000000ab" as NecromancerCampaignGateId;
 const CAMPAIGN_PATH = "nps_00000000-0000-0000-0000-0000000000cd" as NecromancerCampaignPathSpaceId;
 const CAMPAIGN_PATH_2 = "nps_00000000-0000-0000-0000-0000000000ce" as NecromancerCampaignPathSpaceId;
-
-const EMPTY_PACT_SEATS = {
-  necromancer: { status: null, wizardId: null, watcherPlayerId: null },
-  hierophant: { status: null, wizardId: null, watcherPlayerId: null },
-  warlock: { status: null, wizardId: null, watcherPlayerId: null },
-  mariner: { status: null, wizardId: null, watcherPlayerId: null },
-  faustian: { status: null, wizardId: null, watcherPlayerId: null },
-  sage: { status: null, wizardId: null, watcherPlayerId: null },
-  sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
-} as const;
 
 /** Independently transcribed Quiet illustration path spaces. */
 const QUIET_SOUL_PATH_IDS = [
@@ -157,31 +139,16 @@ function defaultWorld() {
 }
 
 function baseV5(overrides?: Partial<CampaignStateV5>): CampaignStateV5 {
-  return {
-    schemaVersion: 5,
-    ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
+  return makeTestCampaignStateV5({
     calendar: { monthOrdinal: 0 as MonthOrdinal },
-    configuration: { ageId: null, facilitatorPlayerId: null },
     players: [
       { playerId: PLR_A, name: "Alice" },
       { playerId: PLR_B, name: "Bob" },
     ],
     wizards: [wizard(WIZ_A, "Wizard A")],
-    pactSeats: { ...EMPTY_PACT_SEATS },
-    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
-    lifecycle: {
-      kind: "setup",
-      orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
-    },
-    wizardmootHistory: [],
     world: defaultWorld(),
-    hierophant: { ...EMPTY_HIEROPHANT_STATE },
-    mariner: { ...EMPTY_MARINER_STATE },
-    necromancer: EMPTY_NECROMANCER_STATE,
-    faustian: EMPTY_FAUSTIAN_STATE,
-    sage: EMPTY_SAGE_STATE,
     ...overrides,
-  };
+  });
 }
 
 function quietInput(overrides?: Partial<InitializeNecromancerInput>): InitializeNecromancerInput {

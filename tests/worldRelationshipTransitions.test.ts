@@ -13,18 +13,11 @@ import type {
   SharedWorldState,
 } from "../shared/domain";
 import {
-  SEVEN_PART_PACT_DRAFT4_ID,
-  SEVEN_PART_PACT_DRAFT4_VERSION,
   DomainError,
   BLANK_WIZARD_CHARACTER_V5,
   EMPTY_SHARED_WORLD_STATE,
-  EMPTY_HIEROPHANT_STATE,
-  EMPTY_MARINER_STATE,
-  EMPTY_NECROMANCER_STATE,
-  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
-  EMPTY_SAGE_STATE,
-  EMPTY_FAUSTIAN_STATE,
 } from "../shared/domain";
+import { makeTestCampaignStateV5 } from "./test-state";
 import {
   applySetWizardHomeIsleV5Candidate,
   applySetWizardSanctumV5Candidate,
@@ -49,16 +42,6 @@ const CMPREL_1 = "cmprel_00000000-0000-0000-0000-000000000001" as CompanionRelat
 const CMPREL_2 = "cmprel_00000000-0000-0000-0000-000000000002" as CompanionRelationshipId;
 const CMPREL_3 = "cmprel_00000000-0000-0000-0000-000000000003" as CompanionRelationshipId;
 
-const EMPTY_PACT_SEATS = {
-  necromancer: { status: null, wizardId: null, watcherPlayerId: null },
-  hierophant: { status: null, wizardId: null, watcherPlayerId: null },
-  warlock: { status: null, wizardId: null, watcherPlayerId: null },
-  mariner: { status: null, wizardId: null, watcherPlayerId: null },
-  faustian: { status: null, wizardId: null, watcherPlayerId: null },
-  sage: { status: null, wizardId: null, watcherPlayerId: null },
-  sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
-} as const;
-
 // ---------------------------------------------------------------------------
 // State helpers
 // ---------------------------------------------------------------------------
@@ -77,27 +60,12 @@ function blankV5Wizard(overrides?: Partial<CampaignWizardV5>): CampaignWizardV5 
 }
 
 function baseV5(wizards?: CampaignWizardV5[], world?: Partial<SharedWorldState>): CampaignStateV5 {
-  return {
-    schemaVersion: 5,
-    ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
+  return makeTestCampaignStateV5({
     calendar: { monthOrdinal: 0 as MonthOrdinal },
-    configuration: { ageId: null, facilitatorPlayerId: null },
     players: [{ playerId: PLR_A, name: "Alice" }],
     wizards: wizards ?? [blankV5Wizard()],
-    pactSeats: EMPTY_PACT_SEATS,
-    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
-    lifecycle: {
-      kind: "setup",
-      orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
-    },
-    wizardmootHistory: [],
     world: { ...EMPTY_SHARED_WORLD_STATE, ...world },
-    hierophant: { ...EMPTY_HIEROPHANT_STATE },
-    mariner: { ...EMPTY_MARINER_STATE },
-    necromancer: { ...EMPTY_NECROMANCER_STATE },
-    faustian: { ...EMPTY_FAUSTIAN_STATE },
-    sage: { ...EMPTY_SAGE_STATE },
-  };
+  });
 }
 
 function withRelationship(state: CampaignStateV5, cr: CompanionRelationship): CampaignStateV5 {

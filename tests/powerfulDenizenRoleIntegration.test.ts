@@ -16,16 +16,8 @@ import type {
 } from "../shared/domain";
 import {
   DomainError,
-  EMPTY_HIEROPHANT_STATE,
-  EMPTY_MARINER_STATE,
-  EMPTY_NECROMANCER_STATE,
-  EMPTY_FAUSTIAN_STATE,
-  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
-  EMPTY_SAGE_STATE,
   HIEROPHANT_STARTING_TEMPLE_IDS,
   MARINER_BOARD_ISLE_IDS,
-  SEVEN_PART_PACT_DRAFT4_ID,
-  SEVEN_PART_PACT_DRAFT4_VERSION,
   applyAddMarinerBeast,
   applyAddNecromancerFoe,
   applyAddNecromancerGhoulCaller,
@@ -54,6 +46,7 @@ import {
   isNecromancerDenizenFoe,
   validateCampaignStateV5Candidate,
 } from "../shared/domain";
+import { makeTestCampaignStateV5 } from "./test-state";
 
 const PLR_A = "plr_00000000-0000-0000-0000-00000000000a" as PlayerId;
 const WIZ_A = "wiz_00000000-0000-0000-0000-00000000000a" as WizardId;
@@ -67,16 +60,6 @@ const DEN_9 = "den_00000000-0000-0000-0000-000000000009" as DenizenId;
 const DEN_CULT = "den_00000000-0000-0000-0000-0000000000cc" as DenizenId;
 const SHIP = "plc_00000000-0000-0000-0000-0000000000aa" as PlaceId;
 const MTH_RAMP = "pdmth_00000000-0000-0000-0000-0000000000b1" as PowerfulDenizenMethodEntryId;
-
-const EMPTY_PACT_SEATS = {
-  necromancer: { status: null, wizardId: null, watcherPlayerId: null },
-  hierophant: { status: null, wizardId: null, watcherPlayerId: null },
-  warlock: { status: null, wizardId: null, watcherPlayerId: null },
-  mariner: { status: null, wizardId: null, watcherPlayerId: null },
-  faustian: { status: null, wizardId: null, watcherPlayerId: null },
-  sage: { status: null, wizardId: null, watcherPlayerId: null },
-  sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
-} as const;
 
 const FOE_PROFILE: PowerfulDenizenProfile = {
   taxonomies: [{ kind: "builtin", taxonomyId: "foe_of_death" }],
@@ -139,11 +122,8 @@ function worldIsleIds(): Record<MarinerBoardIsleId, IsleId> {
 
 function baseV5(denizens: ReturnType<typeof denizen>[] = []): CampaignStateV5 {
   const bindings = worldIsleIds();
-  return {
-    schemaVersion: 5,
-    ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
+  return makeTestCampaignStateV5({
     calendar: { monthOrdinal: 0 as MonthOrdinal },
-    configuration: { ageId: null, facilitatorPlayerId: null },
     players: [{ playerId: PLR_A, name: "Alice" }],
     wizards: [{
       wizardId: WIZ_A,
@@ -161,13 +141,6 @@ function baseV5(denizens: ReturnType<typeof denizen>[] = []): CampaignStateV5 {
       sanctumPlaceId: null,
       mortalityState: "not_deceased",
     }],
-    pactSeats: { ...EMPTY_PACT_SEATS },
-    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
-    lifecycle: {
-      kind: "setup",
-      orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
-    },
-    wizardmootHistory: [],
     world: {
       denizens,
       isles: MARINER_BOARD_ISLE_IDS.map((id) => ({
@@ -182,12 +155,7 @@ function baseV5(denizens: ReturnType<typeof denizen>[] = []): CampaignStateV5 {
       campaignPowerfulDenizenTaxonomies: [],
       treasures: [],
     },
-    hierophant: { ...EMPTY_HIEROPHANT_STATE },
-    mariner: { ...EMPTY_MARINER_STATE },
-    necromancer: { ...EMPTY_NECROMANCER_STATE },
-    faustian: { ...EMPTY_FAUSTIAN_STATE },
-    sage: { ...EMPTY_SAGE_STATE },
-  };
+  });
 }
 
 function quietNecromancerInput(): InitializeNecromancerInput {

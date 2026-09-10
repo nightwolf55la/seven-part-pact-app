@@ -10,10 +10,6 @@ import {
   CURRENT_STATE_SCHEMA_VERSION,
   DomainError,
   EMPTY_HIEROPHANT_STATE,
-  EMPTY_MARINER_STATE,
-  EMPTY_NECROMANCER_STATE,
-  EMPTY_FAUSTIAN_STATE,
-  EMPTY_SHARED_WORLD_STATE,
   HIEROPHANT_BUILTIN_CLASS_IDS,
   HIEROPHANT_BUILTIN_CLASS_DEFINITIONS,
   HIEROPHANT_BUILTIN_DOCTRINE_DEFINITIONS,
@@ -21,8 +17,6 @@ import {
   HIEROPHANT_FLAME_LAW_IDS,
   HIEROPHANT_STARTING_TEMPLE_DEFINITIONS,
   HIEROPHANT_STARTING_TEMPLE_IDS,
-  SEVEN_PART_PACT_DRAFT4_ID,
-  SEVEN_PART_PACT_DRAFT4_VERSION,
   adjustTempleResourcesFingerprint,
   applyAdjustTempleResources,
   applyCreatePlaceV5Candidate,
@@ -34,9 +28,8 @@ import {
   isValidHierophantFlameLawId,
   validateCampaignState,
   validateCampaignStateV5Candidate,
-  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
-  EMPTY_SAGE_STATE,
 } from "../shared/domain";
+import { makeTestCampaignStateV5 } from "./test-state";
 import { CAMPAIGN_COMMAND_TYPES } from "../shared/domain";
 import { validateEventCoherenceForTest } from "../convex/canonicalCommit";
 import type { CanonicalCommitInput } from "../convex/canonicalCommit";
@@ -57,22 +50,9 @@ function placeId(n: number): PlaceId {
   return `plc_00000000-0000-0000-0000-${String(n).padStart(12, "0")}` as PlaceId;
 }
 
-const EMPTY_PACT_SEATS = {
-  necromancer: { status: null, wizardId: null, watcherPlayerId: null },
-  hierophant: { status: null, wizardId: null, watcherPlayerId: null },
-  warlock: { status: null, wizardId: null, watcherPlayerId: null },
-  mariner: { status: null, wizardId: null, watcherPlayerId: null },
-  faustian: { status: null, wizardId: null, watcherPlayerId: null },
-  sage: { status: null, wizardId: null, watcherPlayerId: null },
-  sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
-} as const;
-
 function baseV5(): CampaignStateV5 {
-  return {
-    schemaVersion: 5,
-    ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
+  return makeTestCampaignStateV5({
     calendar: { monthOrdinal: 0 as MonthOrdinal },
-    configuration: { ageId: null, facilitatorPlayerId: null },
     players: [{ playerId: PLR_A, name: "Alice" }],
     wizards: [{
       wizardId: WIZ_A,
@@ -90,20 +70,7 @@ function baseV5(): CampaignStateV5 {
       sanctumPlaceId: null,
       mortalityState: "not_deceased",
     }],
-    pactSeats: EMPTY_PACT_SEATS,
-    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
-    lifecycle: {
-      kind: "setup",
-      orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
-    },
-    wizardmootHistory: [],
-    world: { ...EMPTY_SHARED_WORLD_STATE },
-    hierophant: { ...EMPTY_HIEROPHANT_STATE },
-    mariner: { ...EMPTY_MARINER_STATE },
-    necromancer: { ...EMPTY_NECROMANCER_STATE },
-    faustian: { ...EMPTY_FAUSTIAN_STATE },
-    sage: { ...EMPTY_SAGE_STATE },
-  };
+  });
 }
 
 function withStartingTemplePlaces(state: CampaignStateV5): CampaignStateV5 {

@@ -12,10 +12,7 @@ import {
   EMPTY_HIEROPHANT_STATE,
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
-  EMPTY_FAUSTIAN_STATE,
   EMPTY_SHARED_WORLD_STATE,
-  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
-  EMPTY_SAGE_STATE,
   NECROMANCER_ARRANGEMENT_DEFINITIONS,
   NECROMANCER_BUILTIN_GATE_DEFINITIONS,
   NECROMANCER_BUILTIN_GATE_IDS,
@@ -26,8 +23,6 @@ import {
   NECROMANCER_LAW_OF_DEATH_DEFINITIONS,
   NECROMANCER_LAW_OF_DEATH_IDS,
   NECROMANCER_TERMINAL_EXIT_IDS,
-  SEVEN_PART_PACT_DRAFT4_ID,
-  SEVEN_PART_PACT_DRAFT4_VERSION,
   SUPPORTED_STATE_SCHEMA_VERSIONS,
   buildInitializedDefaultNecromancerState,
   initialCampaignState,
@@ -36,6 +31,7 @@ import {
   validateCampaignStateV5Candidate,
   validateNecromancerStructure,
 } from "../shared/domain";
+import { makeTestCampaignStateV5 } from "./test-state";
 import type {
   NecromancerAllyState,
   NecromancerBuiltinGateId,
@@ -57,16 +53,6 @@ const DEN_COLLECTIVE = "den_00000000-0000-0000-0000-0000000000cc" as DenizenId;
 const DEN_MISSING = "den_00000000-0000-0000-0000-999999999999" as DenizenId;
 const CAMPAIGN_GATE = "ngt_00000000-0000-0000-0000-0000000000ab";
 const CAMPAIGN_PATH = "nps_00000000-0000-0000-0000-0000000000cd";
-
-const EMPTY_PACT_SEATS = {
-  necromancer: { status: null, wizardId: null, watcherPlayerId: null },
-  hierophant: { status: null, wizardId: null, watcherPlayerId: null },
-  warlock: { status: null, wizardId: null, watcherPlayerId: null },
-  mariner: { status: null, wizardId: null, watcherPlayerId: null },
-  faustian: { status: null, wizardId: null, watcherPlayerId: null },
-  sage: { status: null, wizardId: null, watcherPlayerId: null },
-  sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
-} as const;
 
 function gateRef(gateId: NecromancerBuiltinGateId): NecromancerOccupiableSpaceRef {
   return { kind: "gate", gateId };
@@ -205,11 +191,8 @@ function baseV5(
   necromancer: NecromancerState = EMPTY_NECROMANCER_STATE,
   world = { ...EMPTY_SHARED_WORLD_STATE },
 ): CampaignStateV5 {
-  return {
-    schemaVersion: 5,
-    ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
+  return makeTestCampaignStateV5({
     calendar: { monthOrdinal: 0 as MonthOrdinal },
-    configuration: { ageId: null, facilitatorPlayerId: null },
     players: [{ playerId: PLR_A, name: "Alice" }],
     wizards: [{
       wizardId: WIZ_A,
@@ -227,20 +210,9 @@ function baseV5(
       sanctumPlaceId: null,
       mortalityState: "not_deceased",
     }],
-    pactSeats: EMPTY_PACT_SEATS,
-    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
-    lifecycle: {
-      kind: "setup",
-      orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
-    },
-    wizardmootHistory: [],
     world,
-    hierophant: { ...EMPTY_HIEROPHANT_STATE },
-    mariner: { ...EMPTY_MARINER_STATE },
     necromancer,
-    faustian: EMPTY_FAUSTIAN_STATE,
-    sage: EMPTY_SAGE_STATE,
-  };
+  });
 }
 
 function initialized(overrides?: Parameters<typeof buildInitializedDefaultNecromancerState>[0]): NecromancerState {
