@@ -142,6 +142,7 @@ vi.mock("convex/react", () => ({
           ghoulCallers: [],
           selectedLaws: [],
           depth: null,
+          wizardTraversals: [],
         },
       };
     }

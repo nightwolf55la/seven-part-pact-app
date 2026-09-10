@@ -44,6 +44,13 @@ vi.mock("../convex/_generated/api.js", () => ({
       addNecromancerFoe: "m3Commands.addNecromancerFoe",
       updateNecromancerFoe: "m3Commands.updateNecromancerFoe",
       removeNecromancerFoe: "m3Commands.removeNecromancerFoe",
+      escapeNecromancerWizardFoe: "m3Commands.escapeNecromancerWizardFoe",
+      addNecromancerWizardFoeTruth: "m3Commands.addNecromancerWizardFoeTruth",
+      updateNecromancerWizardFoeTruth: "m3Commands.updateNecromancerWizardFoeTruth",
+      removeNecromancerWizardFoeTruth: "m3Commands.removeNecromancerWizardFoeTruth",
+      addNecromancerWizardTraversal: "m3Commands.addNecromancerWizardTraversal",
+      updateNecromancerWizardTraversal: "m3Commands.updateNecromancerWizardTraversal",
+      removeNecromancerWizardTraversal: "m3Commands.removeNecromancerWizardTraversal",
       addNecromancerAlly: "m3Commands.addNecromancerAlly",
       updateNecromancerAlly: "m3Commands.updateNecromancerAlly",
       removeNecromancerAlly: "m3Commands.removeNecromancerAlly",
@@ -96,6 +103,7 @@ function renderSurface() {
       world: WORLD,
       campaignId: CAMPAIGN_ID,
       necromancerWizard: null,
+      wizards: [],
     }));
   });
   return { container, root };

@@ -9,6 +9,7 @@ export const POWERFUL_DENIZEN_BUILTIN_TAXONOMY_IDS = [
   "prophet",
   "cult",
   "beast",
+  "foe_of_death",
 ] as const;
 
 export type BuiltinPowerfulDenizenTaxonomyId =
@@ -25,6 +26,7 @@ export const POWERFUL_DENIZEN_BUILTIN_TAXONOMY_DEFINITIONS: readonly PowerfulDen
   { taxonomyId: "prophet", name: "Prophet", description: null },
   { taxonomyId: "cult", name: "Cult", description: null },
   { taxonomyId: "beast", name: "Beast", description: null },
+  { taxonomyId: "foe_of_death", name: "Foe of Death", description: null },
 ];
 
 export function isValidBuiltinPowerfulDenizenTaxonomyId(

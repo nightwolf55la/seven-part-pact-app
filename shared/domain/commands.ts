@@ -82,6 +82,13 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "add_necromancer_foe",
   "update_necromancer_foe",
   "remove_necromancer_foe",
+  "escape_necromancer_wizard_foe",
+  "add_necromancer_wizard_foe_truth",
+  "update_necromancer_wizard_foe_truth",
+  "remove_necromancer_wizard_foe_truth",
+  "add_necromancer_wizard_traversal",
+  "update_necromancer_wizard_traversal",
+  "remove_necromancer_wizard_traversal",
   "add_necromancer_ally",
   "update_necromancer_ally",
   "remove_necromancer_ally",
@@ -210,6 +217,13 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "add_necromancer_foe":
     case "update_necromancer_foe":
     case "remove_necromancer_foe":
+    case "escape_necromancer_wizard_foe":
+    case "add_necromancer_wizard_foe_truth":
+    case "update_necromancer_wizard_foe_truth":
+    case "remove_necromancer_wizard_foe_truth":
+    case "add_necromancer_wizard_traversal":
+    case "update_necromancer_wizard_traversal":
+    case "remove_necromancer_wizard_traversal":
     case "add_necromancer_ally":
     case "update_necromancer_ally":
     case "remove_necromancer_ally":

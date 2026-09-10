@@ -1122,6 +1122,30 @@ const necromancerFoeLocationValidator = v.union(
   }),
 );
 
+const necromancerFoeValidator = v.union(
+  v.object({
+    subject: v.object({
+      kind: v.literal("denizen"),
+      denizenId: v.string(),
+    }),
+    location: necromancerFoeLocationValidator,
+  }),
+  v.object({
+    subject: v.object({
+      kind: v.literal("wizard"),
+      wizardId: v.string(),
+    }),
+    location: necromancerFoeLocationValidator,
+    truths: v.array(powerfulDenizenTruthEntryValidator),
+  }),
+);
+
+const necromancerWizardTraversalValidator = v.object({
+  wizardId: v.string(),
+  kind: v.string(),
+  location: necromancerOccupiableSpaceRefValidator,
+});
+
 const necromancerStateValidator = v.object({
   gates: v.array(necromancerGateStateValidator),
   pathSpaces: v.array(necromancerPathSpaceStateValidator),
@@ -1133,10 +1157,7 @@ const necromancerStateValidator = v.object({
     location: necromancerOccupiableSpaceRefValidator,
     count: v.number(),
   })),
-  foes: v.array(v.object({
-    denizenId: v.string(),
-    location: necromancerFoeLocationValidator,
-  })),
+  foes: v.array(necromancerFoeValidator),
   allies: v.array(v.object({
     denizenId: v.string(),
     location: necromancerOccupiableSpaceRefValidator,
@@ -1165,6 +1186,7 @@ const necromancerStateValidator = v.object({
       value: v.number(),
     }),
   ),
+  wizardTraversals: v.array(necromancerWizardTraversalValidator),
 });
 
 const marinerIsleBindingValidator = v.object({
@@ -1281,11 +1303,6 @@ const necromancerDepthValidator = v.union(
 const necromancerSelectedLawValidator = v.object({
   lawId: v.string(),
   visibility: v.string(),
-});
-
-const necromancerFoeValidator = v.object({
-  denizenId: v.string(),
-  location: necromancerFoeLocationValidator,
 });
 
 const necromancerAllyValidator = v.object({
@@ -1432,6 +1449,67 @@ const necromancerFoeRemovedEventV1Validator = v.object({
   type: v.literal("necromancer_foe_removed"),
   version: v.literal(1),
   data: v.object({ foe: necromancerFoeValidator }),
+});
+
+const necromancerWizardFoeEscapedEventV1Validator = v.object({
+  type: v.literal("necromancer_wizard_foe_escaped"),
+  version: v.literal(1),
+  data: v.object({
+    wizardId: v.string(),
+    previousMortalityState: v.literal("deceased"),
+    newMortalityState: v.literal("not_deceased"),
+    previous: necromancerFoeValidator,
+    updated: necromancerFoeValidator,
+  }),
+});
+
+const necromancerWizardFoeTruthAddedEventV1Validator = v.object({
+  type: v.literal("necromancer_wizard_foe_truth_added"),
+  version: v.literal(1),
+  data: v.object({
+    wizardId: v.string(),
+    truth: powerfulDenizenTruthEntryValidator,
+  }),
+});
+
+const necromancerWizardFoeTruthUpdatedEventV1Validator = v.object({
+  type: v.literal("necromancer_wizard_foe_truth_updated"),
+  version: v.literal(1),
+  data: v.object({
+    wizardId: v.string(),
+    previous: powerfulDenizenTruthEntryValidator,
+    updated: powerfulDenizenTruthEntryValidator,
+  }),
+});
+
+const necromancerWizardFoeTruthRemovedEventV1Validator = v.object({
+  type: v.literal("necromancer_wizard_foe_truth_removed"),
+  version: v.literal(1),
+  data: v.object({
+    wizardId: v.string(),
+    truth: powerfulDenizenTruthEntryValidator,
+  }),
+});
+
+const necromancerWizardTraversalAddedEventV1Validator = v.object({
+  type: v.literal("necromancer_wizard_traversal_added"),
+  version: v.literal(1),
+  data: v.object({ traversal: necromancerWizardTraversalValidator }),
+});
+
+const necromancerWizardTraversalUpdatedEventV1Validator = v.object({
+  type: v.literal("necromancer_wizard_traversal_updated"),
+  version: v.literal(1),
+  data: v.object({
+    previous: necromancerWizardTraversalValidator,
+    updated: necromancerWizardTraversalValidator,
+  }),
+});
+
+const necromancerWizardTraversalRemovedEventV1Validator = v.object({
+  type: v.literal("necromancer_wizard_traversal_removed"),
+  version: v.literal(1),
+  data: v.object({ traversal: necromancerWizardTraversalValidator }),
 });
 
 const necromancerAllyAddedEventV1Validator = v.object({
@@ -2021,6 +2099,13 @@ export const campaignEventValidator = v.union(
   necromancerFoeAddedEventV1Validator,
   necromancerFoeUpdatedEventV1Validator,
   necromancerFoeRemovedEventV1Validator,
+  necromancerWizardFoeEscapedEventV1Validator,
+  necromancerWizardFoeTruthAddedEventV1Validator,
+  necromancerWizardFoeTruthUpdatedEventV1Validator,
+  necromancerWizardFoeTruthRemovedEventV1Validator,
+  necromancerWizardTraversalAddedEventV1Validator,
+  necromancerWizardTraversalUpdatedEventV1Validator,
+  necromancerWizardTraversalRemovedEventV1Validator,
   necromancerAllyAddedEventV1Validator,
   necromancerAllyUpdatedEventV1Validator,
   necromancerAllyRemovedEventV1Validator,

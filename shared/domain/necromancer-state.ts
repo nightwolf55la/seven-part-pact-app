@@ -1,6 +1,7 @@
 import type { DenizenId, WizardId } from "./ids";
 import type { PactSeatId } from "./pact-seats";
-import type { ElementId } from "./shared-world";
+import type { ElementId, WizardOrDenizenSubjectRef } from "./shared-world";
+import type { PowerfulDenizenTruthEntry } from "./powerful-denizen";
 import type {
   NecromancerAbominationKind,
   NecromancerBuiltinGateId,
@@ -88,9 +89,61 @@ export type NecromancerFoeLocation =
       readonly abominationKind: NecromancerAbominationKind;
     };
 
-export interface NecromancerFoeState {
-  readonly denizenId: DenizenId;
+export type NecromancerFoeSubjectRef = WizardOrDenizenSubjectRef;
+
+export interface NecromancerDenizenFoeState {
+  readonly subject: {
+    readonly kind: "denizen";
+    readonly denizenId: DenizenId;
+  };
   readonly location: NecromancerFoeLocation;
+}
+
+export interface NecromancerWizardFoeState {
+  readonly subject: {
+    readonly kind: "wizard";
+    readonly wizardId: WizardId;
+  };
+  readonly location: NecromancerFoeLocation;
+  readonly truths: readonly PowerfulDenizenTruthEntry[];
+}
+
+export type NecromancerFoeState = NecromancerDenizenFoeState | NecromancerWizardFoeState;
+
+export const NECROMANCER_WIZARD_TRAVERSAL_KINDS = ["living_katabasis", "deceased_peaceful"] as const;
+
+export type NecromancerWizardTraversalKind =
+  (typeof NECROMANCER_WIZARD_TRAVERSAL_KINDS)[number];
+
+export interface NecromancerWizardTraversalState {
+  readonly wizardId: WizardId;
+  readonly kind: NecromancerWizardTraversalKind;
+  readonly location: NecromancerOccupiableSpaceRef;
+}
+
+export function necromancerFoeSubjectKey(subject: NecromancerFoeSubjectRef): string {
+  return subject.kind === "wizard" ? `wizard:${subject.wizardId}` : `denizen:${subject.denizenId}`;
+}
+
+export function necromancerFoeSubjectsEqual(
+  left: NecromancerFoeSubjectRef,
+  right: NecromancerFoeSubjectRef,
+): boolean {
+  return necromancerFoeSubjectKey(left) === necromancerFoeSubjectKey(right);
+}
+
+export function isNecromancerWizardFoe(foe: NecromancerFoeState): foe is NecromancerWizardFoeState {
+  return foe.subject.kind === "wizard";
+}
+
+export function isNecromancerDenizenFoe(foe: NecromancerFoeState): foe is NecromancerDenizenFoeState {
+  return foe.subject.kind === "denizen";
+}
+
+export function isValidNecromancerWizardTraversalKind(
+  value: string,
+): value is NecromancerWizardTraversalKind {
+  return (NECROMANCER_WIZARD_TRAVERSAL_KINDS as readonly string[]).includes(value);
 }
 
 export interface NecromancerAllyState {
@@ -119,6 +172,7 @@ export interface NecromancerState {
   readonly ghoulCallers: readonly NecromancerGhoulCallerState[];
   readonly selectedLaws: readonly NecromancerSelectedLaw[];
   readonly depth: NecromancerDepthState | null;
+  readonly wizardTraversals: readonly NecromancerWizardTraversalState[];
 }
 
 export const EMPTY_NECROMANCER_STATE: NecromancerState = {
@@ -131,6 +185,7 @@ export const EMPTY_NECROMANCER_STATE: NecromancerState = {
   ghoulCallers: [],
   selectedLaws: [],
   depth: null,
+  wizardTraversals: [],
 };
 
 export interface InitializedDefaultNecromancerInput {
@@ -145,6 +200,7 @@ export interface InitializedDefaultNecromancerInput {
   readonly ghoulCallers?: readonly NecromancerGhoulCallerState[];
   readonly selectedLaws?: readonly NecromancerSelectedLaw[];
   readonly depth?: NecromancerDepthState | null;
+  readonly wizardTraversals?: readonly NecromancerWizardTraversalState[];
 }
 
 export function buildInitializedDefaultNecromancerState(
@@ -171,6 +227,7 @@ export function buildInitializedDefaultNecromancerState(
     ghoulCallers: input.ghoulCallers ?? [],
     selectedLaws: input.selectedLaws ?? [],
     depth: input.depth ?? null,
+    wizardTraversals: input.wizardTraversals ?? [],
   };
 }
 

@@ -81,6 +81,7 @@ function makeSerializableState(monthOrdinal: number): SerializableCampaignState 
       ghoulCallers: [],
       selectedLaws: [],
       depth: null,
+      wizardTraversals: [],
     },
   };
 }

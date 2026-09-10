@@ -1,6 +1,6 @@
 import type { CampaignStateV5 } from "./campaign-state";
 import { DomainError } from "./errors";
-import { isValidDenizenId, isValidWizardId } from "./ids";
+import { isValidDenizenId, isValidPowerfulDenizenTruthId, isValidWizardId } from "./ids";
 import { isValidPactSeatId } from "./pact-seats";
 import type {
   NecromancerDirectedStep,
@@ -27,7 +27,12 @@ import {
   necromancerOccupiableSpaceRefsEqual,
 } from "./necromancer-catalogs";
 import { ELEMENT_IDS } from "./shared-world";
-import type { NecromancerState } from "./necromancer-state";
+import type { NecromancerFoeState, NecromancerState } from "./necromancer-state";
+import {
+  isNecromancerWizardFoe,
+  isValidNecromancerWizardTraversalKind,
+  necromancerFoeSubjectKey,
+} from "./necromancer-state";
 
 const MAX_GHOUL_CALLER_PROFILE_TEXT_LENGTH = 8000;
 
@@ -87,7 +92,9 @@ function isExactEmptyNecromancerState(n: Record<string, unknown>): boolean {
     n.ghoulCallers.length === 0 &&
     Array.isArray(n.selectedLaws) &&
     n.selectedLaws.length === 0 &&
-    n.depth === null
+    n.depth === null &&
+    Array.isArray(n.wizardTraversals) &&
+    n.wizardTraversals.length === 0
   );
 }
 
@@ -350,7 +357,7 @@ function validateOccupants(
   uniqueIds(soulKeys, "necromancer soul location");
 
   const foes = n.foes as unknown[];
-  const foeIds: string[] = [];
+  const foeSubjectKeys: string[] = [];
   for (let i = 0; i < foes.length; i++) {
     const entry = foes[i];
     const path = `necromancer.foes[${i}]`;
@@ -358,10 +365,29 @@ function validateOccupants(
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} is not a valid object`);
     }
     const foe = entry as Record<string, unknown>;
-    if (typeof foe.denizenId !== "string" || !isValidDenizenId(foe.denizenId)) {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId is invalid: ${JSON.stringify(foe.denizenId)}`);
+    if (foe.subject === null || foe.subject === undefined || typeof foe.subject !== "object") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.subject must be an object`);
     }
-    foeIds.push(foe.denizenId);
+    const subject = foe.subject as Record<string, unknown>;
+    if (subject.kind === "denizen") {
+      if (typeof subject.denizenId !== "string" || !isValidDenizenId(subject.denizenId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.subject.denizenId is invalid: ${JSON.stringify(subject.denizenId)}`);
+      }
+      if ("truths" in foe) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must not store a Truth list on a Denizen Foe`);
+      }
+      foeSubjectKeys.push(`denizen:${subject.denizenId}`);
+    } else if (subject.kind === "wizard") {
+      if (typeof subject.wizardId !== "string" || !isValidWizardId(subject.wizardId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.subject.wizardId is invalid: ${JSON.stringify(subject.wizardId)}`);
+      }
+      if (!Array.isArray(foe.truths)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.truths must be an array`);
+      }
+      foeSubjectKeys.push(`wizard:${subject.wizardId}`);
+    } else {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.subject.kind is invalid: ${JSON.stringify(subject.kind)}`);
+    }
     if (foe.location === null || foe.location === undefined || typeof foe.location !== "object") {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.location must be an object`);
     }
@@ -387,7 +413,28 @@ function validateOccupants(
       assertOccupiableLocation(`${path}.location`, occupiable, gateIds, pathSpaceIds);
     }
   }
-  uniqueIds(foeIds, "necromancer foe denizenId");
+  uniqueIds(foeSubjectKeys, "necromancer foe subject");
+
+  const traversals = n.wizardTraversals as unknown[];
+  const traversalWizardIds: string[] = [];
+  for (let i = 0; i < traversals.length; i++) {
+    const entry = traversals[i];
+    const path = `necromancer.wizardTraversals[${i}]`;
+    if (entry === null || entry === undefined || typeof entry !== "object") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} is not a valid object`);
+    }
+    const traversal = entry as Record<string, unknown>;
+    if (typeof traversal.wizardId !== "string" || !isValidWizardId(traversal.wizardId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.wizardId is invalid: ${JSON.stringify(traversal.wizardId)}`);
+    }
+    traversalWizardIds.push(traversal.wizardId);
+    if (typeof traversal.kind !== "string" || !isValidNecromancerWizardTraversalKind(traversal.kind)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.kind is invalid: ${JSON.stringify(traversal.kind)}`);
+    }
+    const location = validateOccupiableSpaceRef(`${path}.location`, traversal.location);
+    assertOccupiableLocation(`${path}.location`, location, gateIds, pathSpaceIds);
+  }
+  uniqueIds(traversalWizardIds, "necromancer wizard traversal wizardId");
 
   const allies = n.allies as unknown[];
   const allyIds: string[] = [];
@@ -489,6 +536,9 @@ export function validateNecromancerStructure(necromancer: unknown): void {
   if (!Array.isArray(n.selectedLaws)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "necromancer.selectedLaws must be an array");
   }
+  if (!Array.isArray(n.wizardTraversals)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "necromancer.wizardTraversals must be an array");
+  }
 
   if (isExactEmptyNecromancerState(n)) {
     return;
@@ -513,12 +563,14 @@ export function validateNecromancerReferenceIntegrity(state: CampaignStateV5): v
     necromancer.allies.length === 0 &&
     necromancer.ghoulCallers.length === 0 &&
     necromancer.selectedLaws.length === 0 &&
-    necromancer.depth === null
+    necromancer.depth === null &&
+    necromancer.wizardTraversals.length === 0
   ) {
     return;
   }
 
-  const wizardIds = new Set(state.wizards.map((wizard) => wizard.wizardId as string));
+  const wizardById = new Map(state.wizards.map((wizard) => [wizard.wizardId as string, wizard]));
+  const wizardIds = new Set(wizardById.keys());
   if (necromancer.depth !== null && !wizardIds.has(necromancer.depth.wizardId as string)) {
     throw new DomainError(
       "INVALID_CAMPAIGN_STATE",
@@ -527,13 +579,119 @@ export function validateNecromancerReferenceIntegrity(state: CampaignStateV5): v
   }
 
   const denizenById = new Map(state.world.denizens.map((d) => [d.denizenId as string, d]));
+  const truthIds = new Set<string>();
+  for (const denizen of state.world.denizens) {
+    const profile = denizen.powerfulProfile;
+    if (profile === null) continue;
+    for (const truth of profile.truths) {
+      truthIds.add(truth.truthId);
+    }
+  }
 
+  const wizardFoeIds = new Set<string>();
   for (let i = 0; i < necromancer.foes.length; i++) {
     const foe = necromancer.foes[i];
     const path = `necromancer.foes[${i}]`;
-    const denizen = denizenById.get(foe.denizenId as string);
-    if (denizen === undefined) {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId does not resolve: ${foe.denizenId}`);
+    if (foe.subject.kind === "denizen") {
+      const denizen = denizenById.get(foe.subject.denizenId as string);
+      if (denizen === undefined) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `${path}.subject.denizenId does not resolve: ${foe.subject.denizenId}`,
+        );
+      }
+      if (denizen.powerfulProfile === null) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `${path} requires a Powerful-Denizen profile`,
+        );
+      }
+      const hasFoeTaxonomy = denizen.powerfulProfile.taxonomies.some(
+        (ref) => ref.kind === "builtin" && ref.taxonomyId === "foe_of_death",
+      );
+      if (!hasFoeTaxonomy) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `${path} requires builtin taxonomy foe_of_death`,
+        );
+      }
+      continue;
+    }
+
+    if (!isNecromancerWizardFoe(foe)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.subject.kind is invalid`);
+    }
+
+    const wizard = wizardById.get(foe.subject.wizardId as string);
+    if (wizard === undefined) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path}.subject.wizardId does not resolve: ${foe.subject.wizardId}`,
+      );
+    }
+    wizardFoeIds.add(foe.subject.wizardId);
+    if (foe.location.kind === "escaped") {
+      if (wizard.mortalityState !== "not_deceased") {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `${path} escaped Wizard Foe requires mortalityState not_deceased`,
+        );
+      }
+      if (foe.location.abominationKind !== "occult") {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `${path} escaped Wizard Foe requires occult Abomination`,
+        );
+      }
+    } else if (wizard.mortalityState !== "deceased") {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path} Wizard Foe inside Death requires mortalityState deceased`,
+      );
+    }
+    for (let t = 0; t < foe.truths.length; t++) {
+      const truth = foe.truths[t];
+      const truthPath = `${path}.truths[${t}]`;
+      if (!isValidPowerfulDenizenTruthId(truth.truthId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${truthPath}.truthId is invalid: ${JSON.stringify(truth.truthId)}`);
+      }
+      if (truthIds.has(truth.truthId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate powerful denizen truthId: ${truth.truthId}`);
+      }
+      truthIds.add(truth.truthId);
+      if (typeof truth.text !== "string" || truth.text.trim().length === 0) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${truthPath}.text must be a non-empty string`);
+      }
+      if (truth.origin !== "source" && truth.origin !== "campaign") {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${truthPath}.origin is invalid: ${JSON.stringify(truth.origin)}`);
+      }
+    }
+  }
+
+  for (let i = 0; i < necromancer.wizardTraversals.length; i++) {
+    const traversal = necromancer.wizardTraversals[i];
+    const path = `necromancer.wizardTraversals[${i}]`;
+    const wizard = wizardById.get(traversal.wizardId as string);
+    if (wizard === undefined) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.wizardId does not resolve: ${traversal.wizardId}`);
+    }
+    if (wizardFoeIds.has(traversal.wizardId)) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path} Wizard cannot appear in wizardTraversals and as a Wizard Foe`,
+      );
+    }
+    if (traversal.kind === "living_katabasis" && wizard.mortalityState !== "not_deceased") {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path} living_katabasis requires mortalityState not_deceased`,
+      );
+    }
+    if (traversal.kind === "deceased_peaceful" && wizard.mortalityState !== "deceased") {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path} deceased_peaceful requires mortalityState deceased`,
+      );
     }
   }
 

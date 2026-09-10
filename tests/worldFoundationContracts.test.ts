@@ -189,6 +189,7 @@ function minimalV5State(): CampaignStateV5 {
       ghoulCallers: [],
       selectedLaws: [],
       depth: null,
+      wizardTraversals: [],
     },
   };
 }

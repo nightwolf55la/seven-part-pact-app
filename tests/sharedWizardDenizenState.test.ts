@@ -286,6 +286,7 @@ describe("M5.2D D1A shared wizard and denizen state", () => {
       "prophet",
       "cult",
       "beast",
+      "foe_of_death",
     ]);
     expectInvalid(
       {

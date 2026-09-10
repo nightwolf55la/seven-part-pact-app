@@ -253,6 +253,20 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Updated Necromancer Foe";
     case "necromancer_foe_removed":
       return "Removed Necromancer Foe";
+    case "necromancer_wizard_foe_escaped":
+      return "Escaped Necromancer Wizard Foe";
+    case "necromancer_wizard_foe_truth_added":
+      return "Added Necromancer Wizard Foe Truth";
+    case "necromancer_wizard_foe_truth_updated":
+      return "Updated Necromancer Wizard Foe Truth";
+    case "necromancer_wizard_foe_truth_removed":
+      return "Removed Necromancer Wizard Foe Truth";
+    case "necromancer_wizard_traversal_added":
+      return "Added Necromancer Wizard traversal";
+    case "necromancer_wizard_traversal_updated":
+      return "Updated Necromancer Wizard traversal";
+    case "necromancer_wizard_traversal_removed":
+      return "Removed Necromancer Wizard traversal";
     case "necromancer_ally_added":
       return "Added Necromancer Ally";
     case "necromancer_ally_updated":
@@ -466,6 +480,13 @@ export function mapEventToActivityEntry(
     case "necromancer_foe_added":
     case "necromancer_foe_updated":
     case "necromancer_foe_removed":
+    case "necromancer_wizard_foe_escaped":
+    case "necromancer_wizard_foe_truth_added":
+    case "necromancer_wizard_foe_truth_updated":
+    case "necromancer_wizard_foe_truth_removed":
+    case "necromancer_wizard_traversal_added":
+    case "necromancer_wizard_traversal_updated":
+    case "necromancer_wizard_traversal_removed":
     case "necromancer_ally_added":
     case "necromancer_ally_updated":
     case "necromancer_ally_removed":

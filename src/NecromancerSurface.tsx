@@ -7,6 +7,11 @@ import {
   type NecromancerCampaignGateState,
   type NecromancerFoeLocation,
   type NecromancerFoeState,
+  type NecromancerWizardFoeState,
+  type NecromancerWizardTraversalKind,
+  type NecromancerWizardTraversalState,
+  type UpdateNecromancerWizardTraversalFields,
+  isNecromancerWizardFoe,
   type NecromancerGateBand,
   type NecromancerGateId,
   type NecromancerGateState,
@@ -22,6 +27,7 @@ import {
   type NecromancerState,
   type PactSeatId,
   type WizardId,
+  type DenizenId,
 } from "../shared/domain";
 import type { WorldReference } from "./WorldSurface";
 import {
@@ -55,9 +61,12 @@ import {
   buildAddNecromancerFoePayload,
   buildAddNecromancerGhoulCallerPayload,
   buildAddNecromancerStepPayload,
+  buildAddNecromancerWizardFoeTruthPayload,
+  buildAddNecromancerWizardTraversalPayload,
   buildBindCurrentNecromancerAtDepthZeroPayload,
   buildCreateNecromancerCampaignGatePayload,
   buildCreateNecromancerCampaignPathSpacePayload,
+  buildEscapeNecromancerWizardFoePayload,
   buildInitializeNecromancerPayload,
   buildMoveNecromancerSoulsPayload,
   buildRemoveNecromancerAllyPayload,
@@ -65,6 +74,8 @@ import {
   buildRemoveNecromancerFoePayload,
   buildRemoveNecromancerGhoulCallerPayload,
   buildRemoveNecromancerStepPayload,
+  buildRemoveNecromancerWizardFoeTruthPayload,
+  buildRemoveNecromancerWizardTraversalPayload,
   buildSetNecromancerDepthPayload,
   buildSetNecromancerGateStatusPayload,
   buildSetNecromancerSoulCountPayload,
@@ -73,14 +84,19 @@ import {
   buildUpdateNecromancerCampaignGatePayload,
   buildUpdateNecromancerFoePayload,
   buildUpdateNecromancerGhoulCallerPayload,
+  buildUpdateNecromancerWizardFoeTruthPayload,
+  buildUpdateNecromancerWizardTraversalPayload,
   builtinInternalStepPresentation,
   campaignGates,
   campaignPathSpaces,
   campaignStructureInspectTargets,
+  denizenFoeTruths,
   denizenName,
   emptyNecromancerSetupDraft,
   elementDisplayName,
   escapedFoesGroupedBySeat,
+  foeDisplayName,
+  foeSubjectKey,
   ghoulCallerProfileLines,
   foeLocationLabel,
   gateBandLabel,
@@ -107,10 +123,14 @@ import {
   stepsInvolvingCustomNodes,
   unusedAllyDenizens,
   unusedFoeDenizens,
+  unusedFoeWizards,
   unusedIndividualGhoulDenizens,
+  unusedTraversalWizards,
+  newTruthId,
   withSetupArrangement,
   worldIsleName,
   type NecromancerSetupDraft,
+  type NecromancerWizardNameRef,
   type NecromancerWizardRef,
 } from "./necromancer-view-model";
 
@@ -200,11 +220,13 @@ export default function NecromancerSurface({
   world,
   campaignId,
   necromancerWizard,
+  wizards,
 }: {
   necromancer: NecromancerState;
   world: WorldReference;
   campaignId: string;
   necromancerWizard: NecromancerWizardRef | null;
+  wizards: readonly NecromancerWizardNameRef[];
 }) {
   const initializeNecromancer = useMutation(api.m3Commands.initializeNecromancer);
   const setNecromancerDepth = useMutation(api.m3Commands.setNecromancerDepth);
@@ -215,6 +237,13 @@ export default function NecromancerSurface({
   const addNecromancerFoe = useMutation(api.m3Commands.addNecromancerFoe);
   const updateNecromancerFoe = useMutation(api.m3Commands.updateNecromancerFoe);
   const removeNecromancerFoe = useMutation(api.m3Commands.removeNecromancerFoe);
+  const escapeNecromancerWizardFoe = useMutation(api.m3Commands.escapeNecromancerWizardFoe);
+  const addNecromancerWizardFoeTruth = useMutation(api.m3Commands.addNecromancerWizardFoeTruth);
+  const updateNecromancerWizardFoeTruth = useMutation(api.m3Commands.updateNecromancerWizardFoeTruth);
+  const removeNecromancerWizardFoeTruth = useMutation(api.m3Commands.removeNecromancerWizardFoeTruth);
+  const addNecromancerWizardTraversal = useMutation(api.m3Commands.addNecromancerWizardTraversal);
+  const updateNecromancerWizardTraversal = useMutation(api.m3Commands.updateNecromancerWizardTraversal);
+  const removeNecromancerWizardTraversal = useMutation(api.m3Commands.removeNecromancerWizardTraversal);
   const addNecromancerAlly = useMutation(api.m3Commands.addNecromancerAlly);
   const updateNecromancerAlly = useMutation(api.m3Commands.updateNecromancerAlly);
   const removeNecromancerAlly = useMutation(api.m3Commands.removeNecromancerAlly);
@@ -401,12 +430,14 @@ export default function NecromancerSurface({
         <DeathBoard
           necromancer={necromancer}
           world={world}
+          wizards={wizards}
           selection={selection}
           onSelect={setSelection}
         />
         <Inspector
           necromancer={necromancer}
           world={world}
+          wizards={wizards}
           selection={selection}
           selectedLocation={selectedLocation}
           selectedGate={selectedGate}
@@ -478,16 +509,24 @@ export default function NecromancerSurface({
           }}
         />
       </div>
-      <EscapedFoeTray necromancer={necromancer} world={world} />
+      <EscapedFoeTray necromancer={necromancer} world={world} wizards={wizards} />
       <RoleManagement
         necromancer={necromancer}
         world={world}
+        wizards={wizards}
         campaignId={campaignId}
         pending={pending}
         run={run}
-        addNecromancerFoe={addNecromancerFoe}
+        addNecromancerFoe={addNecromancerFoe as never}
         updateNecromancerFoe={updateNecromancerFoe}
-        removeNecromancerFoe={removeNecromancerFoe}
+        removeNecromancerFoe={removeNecromancerFoe as never}
+        escapeNecromancerWizardFoe={escapeNecromancerWizardFoe as never}
+        addNecromancerWizardFoeTruth={addNecromancerWizardFoeTruth}
+        updateNecromancerWizardFoeTruth={updateNecromancerWizardFoeTruth}
+        removeNecromancerWizardFoeTruth={removeNecromancerWizardFoeTruth}
+        addNecromancerWizardTraversal={addNecromancerWizardTraversal}
+        updateNecromancerWizardTraversal={updateNecromancerWizardTraversal}
+        removeNecromancerWizardTraversal={removeNecromancerWizardTraversal}
         addNecromancerAlly={addNecromancerAlly}
         updateNecromancerAlly={updateNecromancerAlly}
         removeNecromancerAlly={removeNecromancerAlly}
@@ -965,11 +1004,13 @@ function LawsPanel({
 function DeathBoard({
   necromancer,
   world,
+  wizards,
   selection,
   onSelect,
 }: {
   necromancer: NecromancerState;
   world: WorldReference;
+  wizards: readonly NecromancerWizardNameRef[];
   selection: Selection | null;
   onSelect: (selection: Selection) => void;
 }) {
@@ -1061,7 +1102,7 @@ function DeathBoard({
                 {(definition?.applicationLabel ?? pathSpaceId).replace(" Edge of Life", "").replace(" Far Lands", " Far").replace(" Abyss", "")}
               </text>
               <text x={point.x} y={point.y + 8} textAnchor="middle" fontSize={9} fill="#4c1d95">
-                {compactPieceText(pieces, world)}
+                {compactPieceText(pieces, world, wizards)}
               </text>
             </g>
           );
@@ -1098,7 +1139,7 @@ function DeathBoard({
                 {NECROMANCER_BUILTIN_GATE_DEFINITIONS.find((entry) => entry.gateId === gateId)?.displayName}
               </text>
               <text x={point.x} y={point.y + 10} textAnchor="middle" fontSize={9} fill={textFill}>
-                {status}{compactPieceText(pieces, world) !== "" ? ` · ${compactPieceText(pieces, world)}` : ""}
+                {status}{compactPieceText(pieces, world, wizards) !== "" ? ` · ${compactPieceText(pieces, world, wizards)}` : ""}
               </text>
             </g>
           );
@@ -1111,18 +1152,24 @@ function DeathBoard({
 function compactPieceText(
   pieces: ReturnType<typeof piecesAtSpace>,
   world: WorldReference,
+  wizards: readonly NecromancerWizardNameRef[],
 ): string {
   const bits: string[] = [];
   if (pieces.souls > 0) bits.push(`${pieces.souls}S`);
-  for (const foe of pieces.foes) bits.push(`F:${denizenName(world.denizens, foe.denizenId)}`);
+  for (const foe of pieces.foes) bits.push(`F:${foeDisplayName(world.denizens, wizards, foe)}`);
   for (const ally of pieces.allies) bits.push(`A:${denizenName(world.denizens, ally.denizenId)}`);
   for (const ghoul of pieces.ghoulCallers) bits.push(`G:${denizenName(world.denizens, ghoul.denizenId)}`);
+  for (const traversal of pieces.wizardTraversals) {
+    const name = wizards.find((wizard) => wizard.wizardId === traversal.wizardId)?.name ?? traversal.wizardId;
+    bits.push(`T:${name}`);
+  }
   return bits.join(" · ");
 }
 
 function Inspector({
   necromancer,
   world,
+  wizards,
   selection,
   selectedLocation,
   selectedGate,
@@ -1140,6 +1187,7 @@ function Inspector({
 }: {
   necromancer: NecromancerState;
   world: WorldReference;
+  wizards: readonly NecromancerWizardNameRef[];
   selection: Selection | null;
   selectedLocation: NecromancerOccupiableSpaceRef | null;
   selectedGate: NecromancerGateState | undefined;
@@ -1182,7 +1230,14 @@ function Inspector({
         </p>
       </div>
       <p className="text-sm">Souls: <strong>{pieces.souls}</strong></p>
-      <PieceList label="Foes" items={pieces.foes.map((foe) => denizenName(world.denizens, foe.denizenId))} />
+      <PieceList label="Foes" items={pieces.foes.map((foe) => foeDisplayName(world.denizens, wizards, foe))} />
+      <PieceList
+        label="Wizard traversals"
+        items={pieces.wizardTraversals.map((traversal) => {
+          const name = wizards.find((wizard) => wizard.wizardId === traversal.wizardId)?.name ?? traversal.wizardId;
+          return `${name} · ${traversal.kind}`;
+        })}
+      />
       <PieceList label="Allies" items={pieces.allies.map((ally) => denizenName(world.denizens, ally.denizenId))} />
       <PieceList
         label="Ghoul-Callers"
@@ -1263,9 +1318,11 @@ function PieceList({ label, items }: { label: string; items: readonly string[] }
 function EscapedFoeTray({
   necromancer,
   world,
+  wizards,
 }: {
   necromancer: NecromancerState;
   world: WorldReference;
+  wizards: readonly NecromancerWizardNameRef[];
 }) {
   const groups = escapedFoesGroupedBySeat(necromancer.foes);
   return (
@@ -1277,8 +1334,8 @@ function EscapedFoeTray({
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{group.domainLabel}</p>
           <ul className="text-sm">
             {group.foes.map((foe) => (
-              <li key={foe.denizenId}>
-                {denizenName(world.denizens, foe.denizenId)}
+              <li key={foeSubjectKey(foe)}>
+                {foeDisplayName(world.denizens, wizards, foe)}
                 {foe.location.kind === "escaped" ? ` · ${foe.location.abominationKind}` : ""}
               </li>
             ))}
@@ -1292,12 +1349,20 @@ function EscapedFoeTray({
 function RoleManagement({
   necromancer,
   world,
+  wizards,
   campaignId,
   pending,
   run,
   addNecromancerFoe,
   updateNecromancerFoe,
   removeNecromancerFoe,
+  escapeNecromancerWizardFoe,
+  addNecromancerWizardFoeTruth,
+  updateNecromancerWizardFoeTruth,
+  removeNecromancerWizardFoeTruth,
+  addNecromancerWizardTraversal,
+  updateNecromancerWizardTraversal,
+  removeNecromancerWizardTraversal,
   addNecromancerAlly,
   updateNecromancerAlly,
   removeNecromancerAlly,
@@ -1308,12 +1373,20 @@ function RoleManagement({
 }: {
   necromancer: NecromancerState;
   world: WorldReference;
+  wizards: readonly NecromancerWizardNameRef[];
   campaignId: string;
   pending: boolean;
   run: (action: () => Promise<void>) => Promise<boolean>;
   addNecromancerFoe: (args: { commandId: string; expectedCampaignId: string; foe: NecromancerFoeState }) => Promise<unknown>;
   updateNecromancerFoe: (args: ReturnType<typeof buildUpdateNecromancerFoePayload>) => Promise<unknown>;
   removeNecromancerFoe: (args: ReturnType<typeof buildRemoveNecromancerFoePayload>) => Promise<unknown>;
+  escapeNecromancerWizardFoe: (args: ReturnType<typeof buildEscapeNecromancerWizardFoePayload>) => Promise<unknown>;
+  addNecromancerWizardFoeTruth: (args: ReturnType<typeof buildAddNecromancerWizardFoeTruthPayload>) => Promise<unknown>;
+  updateNecromancerWizardFoeTruth: (args: ReturnType<typeof buildUpdateNecromancerWizardFoeTruthPayload>) => Promise<unknown>;
+  removeNecromancerWizardFoeTruth: (args: ReturnType<typeof buildRemoveNecromancerWizardFoeTruthPayload>) => Promise<unknown>;
+  addNecromancerWizardTraversal: (args: ReturnType<typeof buildAddNecromancerWizardTraversalPayload>) => Promise<unknown>;
+  updateNecromancerWizardTraversal: (args: ReturnType<typeof buildUpdateNecromancerWizardTraversalPayload>) => Promise<unknown>;
+  removeNecromancerWizardTraversal: (args: ReturnType<typeof buildRemoveNecromancerWizardTraversalPayload>) => Promise<unknown>;
   addNecromancerAlly: (args: { commandId: string; expectedCampaignId: string; ally: NecromancerAllyState }) => Promise<unknown>;
   updateNecromancerAlly: (args: ReturnType<typeof buildUpdateNecromancerAllyPayload>) => Promise<unknown>;
   removeNecromancerAlly: (args: ReturnType<typeof buildRemoveNecromancerAllyPayload>) => Promise<unknown>;
@@ -1324,11 +1397,16 @@ function RoleManagement({
 }) {
   const occupiable = activeOccupiableSpaces(necromancer);
   const edgePaths = activeEdgeOfLifePathSpaces(necromancer);
+  const [foeSubjectKind, setFoeSubjectKind] = useState<"denizen" | "wizard">("denizen");
   const [foeDenizenId, setFoeDenizenId] = useState("");
+  const [foeWizardId, setFoeWizardId] = useState("");
   const [foeKind, setFoeKind] = useState<"death" | "escaped">("death");
   const [foeSpaceKey, setFoeSpaceKey] = useState("");
   const [foeSeatId, setFoeSeatId] = useState<PactSeatId>(otherPactSeatOptions()[0]!);
   const [foeAbomination, setFoeAbomination] = useState<NecromancerAbominationKind>("occult");
+  const [traversalWizardId, setTraversalWizardId] = useState("");
+  const [traversalKind, setTraversalKind] = useState<NecromancerWizardTraversalKind>("living_katabasis");
+  const [traversalSpaceKey, setTraversalSpaceKey] = useState("");
   const [allyDenizenId, setAllyDenizenId] = useState("");
   const [allySpaceKey, setAllySpaceKey] = useState("");
   const [ghoulDenizenId, setGhoulDenizenId] = useState("");
@@ -1346,17 +1424,18 @@ function RoleManagement({
         <h3 className="text-sm font-semibold">Foes</h3>
         {necromancer.foes.map((foe) => (
           <FoeRow
-            key={foe.denizenId}
+            key={foeSubjectKey(foe)}
             foe={foe}
             necromancer={necromancer}
             world={world}
+            wizards={wizards}
             occupiable={occupiable}
             pending={pending}
             onUpdate={async (location) => {
               const payload = buildUpdateNecromancerFoePayload({
                 commandId: newCommandId(),
                 expectedCampaignId: campaignId,
-                denizenId: foe.denizenId,
+                subject: foe.subject,
                 expectedLocation: foe.location,
                 location,
               });
@@ -1374,20 +1453,83 @@ function RoleManagement({
                 await removeNecromancerFoe(payload);
               });
             }}
+            onEscape={async (destinationSeatId) => {
+              if (!isNecromancerWizardFoe(foe)) return;
+              const payload = buildEscapeNecromancerWizardFoePayload({
+                commandId: newCommandId(),
+                expectedCampaignId: campaignId,
+                wizardId: foe.subject.wizardId,
+                expectedFoe: foe,
+                destinationSeatId,
+              });
+              await run(async () => {
+                await escapeNecromancerWizardFoe(payload);
+              });
+            }}
+            onAddTruth={async (text) => {
+              if (!isNecromancerWizardFoe(foe)) return;
+              await run(async () => {
+                await addNecromancerWizardFoeTruth(buildAddNecromancerWizardFoeTruthPayload({
+                  commandId: newCommandId(),
+                  expectedCampaignId: campaignId,
+                  wizardId: foe.subject.wizardId,
+                  truthId: newTruthId(),
+                  text,
+                }));
+              });
+            }}
+            onUpdateTruth={async (truthId, expectedText, text) => {
+              if (!isNecromancerWizardFoe(foe)) return;
+              await run(async () => {
+                await updateNecromancerWizardFoeTruth(buildUpdateNecromancerWizardFoeTruthPayload({
+                  commandId: newCommandId(),
+                  expectedCampaignId: campaignId,
+                  wizardId: foe.subject.wizardId,
+                  truthId,
+                  expectedText,
+                  text,
+                }));
+              });
+            }}
+            onRemoveTruth={async (truth) => {
+              if (!isNecromancerWizardFoe(foe)) return;
+              await run(async () => {
+                await removeNecromancerWizardFoeTruth(buildRemoveNecromancerWizardFoeTruthPayload({
+                  commandId: newCommandId(),
+                  expectedCampaignId: campaignId,
+                  wizardId: foe.subject.wizardId,
+                  truthId: truth.truthId,
+                  expectedTruth: truth,
+                }));
+              });
+            }}
             onSelectSpace={onSelectSpace}
           />
         ))}
         <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-2">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Add Foe</h4>
-          <select aria-label="Add Foe Denizen" className={fieldClass} value={foeDenizenId} onChange={(event) => setFoeDenizenId(event.target.value)}>
-            <option value="">Existing Denizen…</option>
-            {unusedFoeDenizens(world.denizens, necromancer.foes).map((denizen) => (
-              <option key={denizen.denizenId} value={denizen.denizenId}>{denizen.name}</option>
-            ))}
+          <select aria-label="Add Foe subject kind" className={fieldClass} value={foeSubjectKind} onChange={(event) => setFoeSubjectKind(event.target.value as "denizen" | "wizard")}>
+            <option value="denizen">Denizen</option>
+            <option value="wizard">Wizard</option>
           </select>
+          {foeSubjectKind === "denizen" ? (
+            <select aria-label="Add Foe Denizen" className={fieldClass} value={foeDenizenId} onChange={(event) => setFoeDenizenId(event.target.value)}>
+              <option value="">Existing Denizen…</option>
+              {unusedFoeDenizens(world.denizens, necromancer.foes).map((denizen) => (
+                <option key={denizen.denizenId} value={denizen.denizenId}>{denizen.name}</option>
+              ))}
+            </select>
+          ) : (
+            <select aria-label="Add Foe Wizard" className={fieldClass} value={foeWizardId} onChange={(event) => setFoeWizardId(event.target.value)}>
+              <option value="">Existing Wizard…</option>
+              {unusedFoeWizards(wizards, necromancer.foes, necromancer.wizardTraversals).map((wizard) => (
+                <option key={wizard.wizardId} value={wizard.wizardId}>{wizard.name}</option>
+              ))}
+            </select>
+          )}
           <select aria-label="Add Foe location kind" className={fieldClass} value={foeKind} onChange={(event) => setFoeKind(event.target.value as "death" | "escaped")}>
             <option value="death">Death space</option>
-            <option value="escaped">Escaped</option>
+            {foeSubjectKind === "denizen" && <option value="escaped">Escaped</option>}
           </select>
           {foeKind === "death" ? (
             <OccupiableSelect
@@ -1420,11 +1562,15 @@ function RoleManagement({
                 const location: NecromancerFoeLocation | null = foeKind === "escaped"
                   ? { kind: "escaped", seatId: foeSeatId, abominationKind: foeAbomination }
                   : parseOccupiableRefKey(foeSpaceKey);
-                if (foeDenizenId === "" || location === null) return;
+                if (location === null) return;
+                const foe: NecromancerFoeState | null = foeSubjectKind === "denizen"
+                  ? (foeDenizenId === "" ? null : { subject: { kind: "denizen", denizenId: foeDenizenId as DenizenId }, location })
+                  : (foeWizardId === "" ? null : { subject: { kind: "wizard", wizardId: foeWizardId as WizardId }, location, truths: [] });
+                if (foe === null) return;
                 const payload = buildAddNecromancerFoePayload({
                   commandId: newCommandId(),
                   expectedCampaignId: campaignId,
-                  foe: { denizenId: foeDenizenId as NecromancerFoeState["denizenId"], location },
+                  foe,
                 });
                 await run(async () => {
                   await addNecromancerFoe(payload);
@@ -1433,6 +1579,84 @@ function RoleManagement({
             }}
           >
             Add Foe
+          </button>
+        </div>
+      </section>
+      <section className="rounded-lg border border-slate-200 dark:border-slate-800 p-3 space-y-2">
+        <h3 className="text-sm font-semibold">Wizard traversal</h3>
+        {necromancer.wizardTraversals.map((traversal) => (
+          <WizardTraversalRow
+            key={traversal.wizardId}
+            traversal={traversal}
+            wizards={wizards}
+            necromancer={necromancer}
+            occupiable={occupiable}
+            pending={pending}
+            onUpdate={async (fields) => {
+              await run(async () => {
+                await updateNecromancerWizardTraversal(buildUpdateNecromancerWizardTraversalPayload({
+                  commandId: newCommandId(),
+                  expectedCampaignId: campaignId,
+                  wizardId: traversal.wizardId,
+                  fields,
+                }));
+              });
+            }}
+            onRemove={async () => {
+              await run(async () => {
+                await removeNecromancerWizardTraversal(buildRemoveNecromancerWizardTraversalPayload({
+                  commandId: newCommandId(),
+                  expectedCampaignId: campaignId,
+                  wizardId: traversal.wizardId,
+                  expectedTraversal: traversal,
+                }));
+              });
+            }}
+            onSelectSpace={onSelectSpace}
+          />
+        ))}
+        <div className="space-y-2 border-t border-slate-200 dark:border-slate-800 pt-2">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Add Wizard traversal</h4>
+          <select aria-label="Add Wizard traversal Wizard" className={fieldClass} value={traversalWizardId} onChange={(event) => setTraversalWizardId(event.target.value)}>
+            <option value="">Existing Wizard…</option>
+            {unusedTraversalWizards(wizards, necromancer.foes, necromancer.wizardTraversals).map((wizard) => (
+              <option key={wizard.wizardId} value={wizard.wizardId}>{wizard.name}</option>
+            ))}
+          </select>
+          <select aria-label="Add Wizard traversal kind" className={fieldClass} value={traversalKind} onChange={(event) => setTraversalKind(event.target.value as NecromancerWizardTraversalKind)}>
+            <option value="living_katabasis">Living Katabasis</option>
+            <option value="deceased_peaceful">Deceased peaceful</option>
+          </select>
+          <OccupiableSelect
+            ariaLabel="Add Wizard traversal location"
+            value={traversalSpaceKey}
+            onChange={setTraversalSpaceKey}
+            spaces={occupiable}
+            necromancer={necromancer}
+            allowEmpty
+          />
+          <button
+            className={btnClass}
+            disabled={pending}
+            onClick={() => {
+              void (async () => {
+                const location = parseOccupiableRefKey(traversalSpaceKey);
+                if (traversalWizardId === "" || location === null) return;
+                await run(async () => {
+                  await addNecromancerWizardTraversal(buildAddNecromancerWizardTraversalPayload({
+                    commandId: newCommandId(),
+                    expectedCampaignId: campaignId,
+                    traversal: {
+                      wizardId: traversalWizardId as WizardId,
+                      kind: traversalKind,
+                      location,
+                    },
+                  }));
+                });
+              })();
+            }}
+          >
+            Add traversal
           </button>
         </div>
       </section>
@@ -1654,27 +1878,40 @@ function FoeRow({
   foe,
   necromancer,
   world,
+  wizards,
   occupiable,
   pending,
   onUpdate,
   onRemove,
+  onEscape,
+  onAddTruth,
+  onUpdateTruth,
+  onRemoveTruth,
   onSelectSpace,
 }: {
   foe: NecromancerFoeState;
   necromancer: NecromancerState;
   world: WorldReference;
+  wizards: readonly NecromancerWizardNameRef[];
   occupiable: readonly NecromancerOccupiableSpaceRef[];
   pending: boolean;
   onUpdate: (location: NecromancerFoeLocation) => Promise<void>;
   onRemove: () => Promise<void>;
+  onEscape: (destinationSeatId: PactSeatId) => Promise<void>;
+  onAddTruth: (text: string) => Promise<void>;
+  onUpdateTruth: (truthId: string, expectedText: string, text: string) => Promise<void>;
+  onRemoveTruth: (truth: NecromancerWizardFoeState["truths"][number]) => Promise<void>;
   onSelectSpace: (ref: NecromancerOccupiableSpaceRef) => void;
 }) {
+  const name = foeDisplayName(world.denizens, wizards, foe);
+  const wizardFoe = isNecromancerWizardFoe(foe);
   const [kind, setKind] = useState<"death" | "escaped">(foe.location.kind === "escaped" ? "escaped" : "death");
   const [spaceKey, setSpaceKey] = useState(foe.location.kind === "escaped" ? "" : occupiableRefKey(foe.location));
   const [seatId, setSeatId] = useState<PactSeatId>(foe.location.kind === "escaped" ? foe.location.seatId : otherPactSeatOptions()[0]!);
   const [abomination, setAbomination] = useState<NecromancerAbominationKind>(
     foe.location.kind === "escaped" ? foe.location.abominationKind : "occult",
   );
+  const [truthDraft, setTruthDraft] = useState("");
   const locationKey = foe.location.kind === "escaped"
     ? `escaped:${foe.location.seatId}:${foe.location.abominationKind}`
     : occupiableRefKey(foe.location);
@@ -1684,17 +1921,19 @@ function FoeRow({
     setSeatId(foe.location.kind === "escaped" ? foe.location.seatId : otherPactSeatOptions()[0]!);
     setAbomination(foe.location.kind === "escaped" ? foe.location.abominationKind : "occult");
   }, [locationKey, foe.location]);
+  const denizenTruths = denizenFoeTruths(world.denizens, foe);
+  const wizardInsideDeath = wizardFoe && foe.location.kind !== "escaped";
   return (
     <div className="rounded border border-slate-200 dark:border-slate-700 p-2 space-y-1">
-      <p className="text-sm font-medium">{denizenName(world.denizens, foe.denizenId)}</p>
-      <p className="text-xs text-slate-500">{foeLocationLabel(foe.location, necromancer)}</p>
+      <p className="text-sm font-medium">{name}</p>
+      <p className="text-xs text-slate-500">{foe.subject.kind} · {foeLocationLabel(foe.location, necromancer)}</p>
       <select className={fieldClass} value={kind} onChange={(event) => setKind(event.target.value as "death" | "escaped")}>
         <option value="death">Death space</option>
-        <option value="escaped">Escaped</option>
+        {(!wizardFoe || foe.location.kind === "escaped") && <option value="escaped">Escaped</option>}
       </select>
       {kind === "death" ? (
         <OccupiableSelect
-          ariaLabel={`Update ${denizenName(world.denizens, foe.denizenId)} location`}
+          ariaLabel={`Update ${name} location`}
           value={spaceKey}
           onChange={setSpaceKey}
           spaces={occupiable}
@@ -1714,7 +1953,7 @@ function FoeRow({
           </select>
         </div>
       )}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <button
           className={btnClass}
           disabled={pending}
@@ -1728,6 +1967,147 @@ function FoeRow({
           }}
         >
           Update location
+        </button>
+        {wizardInsideDeath && (
+          <button
+            className={btnClass}
+            disabled={pending}
+            onClick={() => { void onEscape(seatId); }}
+          >
+            Escape as Occult
+          </button>
+        )}
+        <button className={ghostBtn} disabled={pending} onClick={() => { void onRemove(); }}>Remove</button>
+      </div>
+      {wizardFoe ? (
+        <div className="space-y-1 border-t border-slate-200 dark:border-slate-700 pt-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Wizard Foe Truths</p>
+          {foe.truths.map((truth) => (
+            <WizardFoeTruthRow
+              key={truth.truthId}
+              truth={truth}
+              pending={pending}
+              onUpdate={(text) => onUpdateTruth(truth.truthId, truth.text, text)}
+              onRemove={() => onRemoveTruth(truth)}
+            />
+          ))}
+          <div className="flex gap-2">
+            <input
+              aria-label={`Add Truth for ${name}`}
+              className={fieldClass}
+              value={truthDraft}
+              onChange={(event) => setTruthDraft(event.target.value)}
+            />
+            <button
+              className={btnClass}
+              disabled={pending}
+              onClick={() => {
+                const text = truthDraft.trim();
+                if (text === "") return;
+                setTruthDraft("");
+                void onAddTruth(text);
+              }}
+            >
+              Add Truth
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-1 border-t border-slate-200 dark:border-slate-700 pt-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Denizen profile Truths</p>
+          {denizenTruths.length === 0
+            ? <p className="text-xs text-slate-500">None. Edit the shared Powerful-Denizen profile.</p>
+            : denizenTruths.map((truth) => (
+              <p key={truth.truthId} className="text-xs">{truth.text}</p>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WizardFoeTruthRow({
+  truth,
+  pending,
+  onUpdate,
+  onRemove,
+}: {
+  truth: NecromancerWizardFoeState["truths"][number];
+  pending: boolean;
+  onUpdate: (text: string) => Promise<void>;
+  onRemove: () => Promise<void>;
+}) {
+  const [text, setText] = useState(truth.text);
+  useLayoutEffect(() => { setText(truth.text); }, [truth.text]);
+  return (
+    <div className="flex gap-2">
+      <input className={fieldClass} value={text} onChange={(event) => setText(event.target.value)} aria-label="Wizard Foe Truth text" />
+      <button className={ghostBtn} disabled={pending} onClick={() => { void onUpdate(text); }}>Save</button>
+      <button className={ghostBtn} disabled={pending} onClick={() => { void onRemove(); }}>Remove</button>
+    </div>
+  );
+}
+
+function WizardTraversalRow({
+  traversal,
+  wizards,
+  necromancer,
+  occupiable,
+  pending,
+  onUpdate,
+  onRemove,
+  onSelectSpace,
+}: {
+  traversal: NecromancerWizardTraversalState;
+  wizards: readonly NecromancerWizardNameRef[];
+  necromancer: NecromancerState;
+  occupiable: readonly NecromancerOccupiableSpaceRef[];
+  pending: boolean;
+  onUpdate: (fields: UpdateNecromancerWizardTraversalFields) => Promise<void>;
+  onRemove: () => Promise<void>;
+  onSelectSpace: (ref: NecromancerOccupiableSpaceRef) => void;
+}) {
+  const name = wizards.find((wizard) => wizard.wizardId === traversal.wizardId)?.name ?? traversal.wizardId;
+  const [kind, setKind] = useState(traversal.kind);
+  const [spaceKey, setSpaceKey] = useState(occupiableRefKey(traversal.location));
+  useLayoutEffect(() => {
+    setKind(traversal.kind);
+    setSpaceKey(occupiableRefKey(traversal.location));
+  }, [traversal.kind, traversal.location]);
+  return (
+    <div className="rounded border border-slate-200 dark:border-slate-700 p-2 space-y-1">
+      <p className="text-sm font-medium">{name}</p>
+      <p className="text-xs text-slate-500">{traversal.kind} · {occupiableSpaceLabel(traversal.location, necromancer)}</p>
+      <select aria-label={`Update ${name} traversal kind`} className={fieldClass} value={kind} onChange={(event) => setKind(event.target.value as NecromancerWizardTraversalKind)}>
+        <option value="living_katabasis">Living Katabasis</option>
+        <option value="deceased_peaceful">Deceased peaceful</option>
+      </select>
+      <OccupiableSelect
+        ariaLabel={`Update ${name} traversal location`}
+        value={spaceKey}
+        onChange={setSpaceKey}
+        spaces={occupiable}
+        necromancer={necromancer}
+      />
+      <div className="flex gap-2">
+        <button
+          className={btnClass}
+          disabled={pending}
+          onClick={() => {
+            const location = parseOccupiableRefKey(spaceKey);
+            if (location === null) return;
+            onSelectSpace(location);
+            const fields: UpdateNecromancerWizardTraversalFields = {
+              ...(kind !== traversal.kind ? { kind: { expected: traversal.kind, value: kind } } : {}),
+              ...(occupiableRefKey(location) !== occupiableRefKey(traversal.location)
+                ? { location: { expected: traversal.location, value: location } }
+                : {}),
+            };
+            if (fields.kind === undefined && fields.location === undefined) return;
+            void onUpdate(fields);
+          }}
+        >
+          Update
         </button>
         <button className={ghostBtn} disabled={pending} onClick={() => { void onRemove(); }}>Remove</button>
       </div>

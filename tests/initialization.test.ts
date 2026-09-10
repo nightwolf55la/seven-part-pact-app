@@ -121,6 +121,7 @@ function makeInitialState(): SerializableCampaignState {
       ghoulCallers: [],
       selectedLaws: [],
       depth: null,
+      wizardTraversals: [],
     },
   };
 }

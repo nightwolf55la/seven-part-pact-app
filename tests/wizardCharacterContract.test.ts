@@ -159,6 +159,7 @@ function makeState(): CurrentCampaignState {
       ghoulCallers: [],
       selectedLaws: [],
       depth: null,
+      wizardTraversals: [],
     },
   };
 }

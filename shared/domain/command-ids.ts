@@ -640,21 +640,105 @@ export function addNecromancerFoeFingerprint(expectedCampaignId: string, foe: un
 
 export function updateNecromancerFoeFingerprint(
   expectedCampaignId: string,
-  denizenId: string,
+  subject: unknown,
   fields: unknown,
 ): string {
-  return `update_necromancer_foe:v1:${canonicalJsonStringify({ expectedCampaignId, denizenId, fields })}`;
+  return `update_necromancer_foe:v1:${canonicalJsonStringify({ expectedCampaignId, subject, fields })}`;
 }
 
 export function removeNecromancerFoeFingerprint(
   expectedCampaignId: string,
-  denizenId: string,
+  subject: unknown,
   expectedFoe: unknown,
 ): string {
   return `remove_necromancer_foe:v1:${canonicalJsonStringify({
     expectedCampaignId,
-    denizenId,
+    subject,
     expectedFoe,
+  })}`;
+}
+
+export function escapeNecromancerWizardFoeFingerprint(
+  expectedCampaignId: string,
+  wizardId: string,
+  expectedMortalityState: unknown,
+  expectedFoe: unknown,
+  destinationSeatId: string,
+): string {
+  return `escape_necromancer_wizard_foe:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    wizardId,
+    expectedMortalityState,
+    expectedFoe,
+    destinationSeatId,
+  })}`;
+}
+
+export function addNecromancerWizardFoeTruthFingerprint(
+  expectedCampaignId: string,
+  wizardId: string,
+  truthId: string,
+  text: string,
+): string {
+  return `add_necromancer_wizard_foe_truth:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    wizardId,
+    truthId,
+    text,
+  })}`;
+}
+
+export function updateNecromancerWizardFoeTruthFingerprint(
+  expectedCampaignId: string,
+  wizardId: string,
+  truthId: string,
+  expectedText: string,
+  text: string,
+): string {
+  return `update_necromancer_wizard_foe_truth:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    wizardId,
+    truthId,
+    expectedText,
+    text,
+  })}`;
+}
+
+export function removeNecromancerWizardFoeTruthFingerprint(
+  expectedCampaignId: string,
+  wizardId: string,
+  truthId: string,
+  expectedTruth: unknown,
+): string {
+  return `remove_necromancer_wizard_foe_truth:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    wizardId,
+    truthId,
+    expectedTruth,
+  })}`;
+}
+
+export function addNecromancerWizardTraversalFingerprint(expectedCampaignId: string, traversal: unknown): string {
+  return `add_necromancer_wizard_traversal:v1:${canonicalJsonStringify({ expectedCampaignId, traversal })}`;
+}
+
+export function updateNecromancerWizardTraversalFingerprint(
+  expectedCampaignId: string,
+  wizardId: string,
+  fields: unknown,
+): string {
+  return `update_necromancer_wizard_traversal:v1:${canonicalJsonStringify({ expectedCampaignId, wizardId, fields })}`;
+}
+
+export function removeNecromancerWizardTraversalFingerprint(
+  expectedCampaignId: string,
+  wizardId: string,
+  expectedTraversal: unknown,
+): string {
+  return `remove_necromancer_wizard_traversal:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    wizardId,
+    expectedTraversal,
   })}`;
 }
 

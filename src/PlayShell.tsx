@@ -186,6 +186,11 @@ function renderNecromancer(
       world={worldRef}
       campaignId={campaignId}
       necromancerWizard={necromancerWizardFromPlayRef(playRef)}
+      wizards={playRef.wizards.map((wizard) => ({
+        wizardId: wizard.wizardId,
+        name: wizard.name,
+        mortalityState: wizard.mortalityState ?? "not_deceased",
+      }))}
     />
   );
 }

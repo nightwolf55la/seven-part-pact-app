@@ -68,6 +68,8 @@ import type {
   TreasureStateUpdatedEventV1,
   WizardMortalityStateChangedEventV1,
 } from "./events";
+import { validateNecromancerReferenceIntegrity } from "./necromancer-validation";
+import { isNecromancerWizardFoe } from "./necromancer-state";
 
 export type SharedStateTransitionResult = {
   readonly nextState: CampaignStateV5;
@@ -168,13 +170,19 @@ function collectMethodEntryIds(world: SharedWorldState, exceptDenizenId?: Denize
   return ids;
 }
 
-function collectTruthIds(world: SharedWorldState, exceptDenizenId?: DenizenId): Set<string> {
+function collectTruthIds(state: CampaignStateV5, exceptDenizenId?: DenizenId): Set<string> {
   const ids = new Set<string>();
-  for (const denizen of world.denizens) {
+  for (const denizen of state.world.denizens) {
     if (exceptDenizenId !== undefined && denizen.denizenId === exceptDenizenId) continue;
     const profile = denizen.powerfulProfile;
     if (profile === null) continue;
     for (const truth of profile.truths) {
+      ids.add(truth.truthId);
+    }
+  }
+  for (const foe of state.necromancer.foes) {
+    if (!isNecromancerWizardFoe(foe)) continue;
+    for (const truth of foe.truths) {
       ids.add(truth.truthId);
     }
   }
@@ -362,6 +370,7 @@ export function applySetWizardMortalityState(
       newMortalityState: change.value,
     },
   };
+  validateNecromancerReferenceIntegrity(nextState);
   return { nextState, events: [event] };
 }
 
@@ -447,7 +456,9 @@ export function applyRemovePowerfulDenizenProfile(
     version: 1,
     data: { denizenId, profile: current },
   };
-  return { nextState: replaceDenizen(state, index, updated), events: [event] };
+  const nextState = replaceDenizen(state, index, updated);
+  validateNecromancerReferenceIntegrity(nextState);
+  return { nextState, events: [event] };
 }
 
 export function applySetPowerfulDenizenTaxonomies(
@@ -468,7 +479,9 @@ export function applySetPowerfulDenizenTaxonomies(
     version: 1,
     data: { denizenId, previous: current.taxonomies, updated: taxonomies },
   };
-  return { nextState: replaceDenizen(state, index, { ...denizen, powerfulProfile: profile }), events: [event] };
+  const nextState = replaceDenizen(state, index, { ...denizen, powerfulProfile: profile });
+  validateNecromancerReferenceIntegrity(nextState);
+  return { nextState, events: [event] };
 }
 
 export function applySetPowerfulDenizenStatus(
@@ -624,7 +637,7 @@ export function applyAddPowerfulDenizenTruth(
   }
   const { index, denizen } = requireDenizen(state, input.denizenId);
   const current = requireProfile(denizen);
-  const existingIds = collectTruthIds(state.world);
+  const existingIds = collectTruthIds(state);
   if (existingIds.has(input.truthId) || current.truths.some((truth) => truth.truthId === input.truthId)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate powerful denizen truthId: ${input.truthId}`);
   }

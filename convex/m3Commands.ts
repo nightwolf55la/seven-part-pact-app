@@ -166,6 +166,13 @@ import {
   addNecromancerFoeFingerprint,
   updateNecromancerFoeFingerprint,
   removeNecromancerFoeFingerprint,
+  escapeNecromancerWizardFoeFingerprint,
+  addNecromancerWizardFoeTruthFingerprint,
+  updateNecromancerWizardFoeTruthFingerprint,
+  removeNecromancerWizardFoeTruthFingerprint,
+  addNecromancerWizardTraversalFingerprint,
+  updateNecromancerWizardTraversalFingerprint,
+  removeNecromancerWizardTraversalFingerprint,
   addNecromancerAllyFingerprint,
   updateNecromancerAllyFingerprint,
   removeNecromancerAllyFingerprint,
@@ -192,6 +199,13 @@ import {
   applyAddNecromancerFoe,
   applyUpdateNecromancerFoe,
   applyRemoveNecromancerFoe,
+  applyEscapeNecromancerWizardFoe,
+  applyAddNecromancerWizardFoeTruth,
+  applyUpdateNecromancerWizardFoeTruth,
+  applyRemoveNecromancerWizardFoeTruth,
+  applyAddNecromancerWizardTraversal,
+  applyUpdateNecromancerWizardTraversal,
+  applyRemoveNecromancerWizardTraversal,
   applyAddNecromancerAlly,
   applyUpdateNecromancerAlly,
   applyRemoveNecromancerAlly,
@@ -252,7 +266,7 @@ import {
   isValidHierophantStartingTempleId,
   isValidHierophantTempleId,
 } from "../shared/domain";
-import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange, CompanionRelationshipId, HierophantFlameLawId, HierophantStartingTempleId, HierophantTempleId, HierophantCampaignClassId, HierophantCampaignDoctrineId, HierophantDogmaEntryId, HierophantSupplicant, HierophantProphet, HierophantCult, HierophantCultDogma, HierophantCampaignClass, HierophantCampaignDoctrine, CreateTempleInput, OrdinaryTempleDoctrineState, InitializeMarinerInput, MarinerBeastState, MarinerIsleMarket, MarinerRouteOccupancy, MarinerBoardIsleId, MarinerLawOfSeaId, MarinerRouteId, MarinerSeaRegionId, MarinerArrangementId, UpdateMarinerBeastFields, InitializeNecromancerInput, NecromancerArrangementId, NecromancerLawOfDeathId, NecromancerBuiltinGateId, NecromancerBuiltinPathSpaceId, NecromancerDepthState, NecromancerSelectedLaw, NecromancerGateId, NecromancerGateStatus, NecromancerOccupiableSpaceRef, NecromancerFoeState, NecromancerAllyState, NecromancerGhoulCallerState, UpdateNecromancerFoeFields, UpdateNecromancerAllyFields, UpdateNecromancerGhoulCallerFields, NecromancerCampaignGateId, NecromancerGateBand, UpdateNecromancerCampaignGateFields, NecromancerCampaignPathSpaceId, NecromancerPathRegion, NecromancerCampaignPathSpaceState, NecromancerDirectedStep, MortalityState, PowerfulDenizenTaxonomyRef, PowerfulDenizenStatus, PowerfulDenizenMethodDefinition, PowerfulDenizenMethodEntry, PowerfulDenizenTruthEntry, PowerfulDenizenProfile, CampaignPowerfulDenizenTaxonomy, CampaignPowerfulDenizenTaxonomyId, PowerfulDenizenMethodEntryId, PowerfulDenizenTruthId, TreasureId, TreasureCondition, TreasureCustody, PactFragmentOperationalState } from "../shared/domain";
+import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange, CompanionRelationshipId, HierophantFlameLawId, HierophantStartingTempleId, HierophantTempleId, HierophantCampaignClassId, HierophantCampaignDoctrineId, HierophantDogmaEntryId, HierophantSupplicant, HierophantProphet, HierophantCult, HierophantCultDogma, HierophantCampaignClass, HierophantCampaignDoctrine, CreateTempleInput, OrdinaryTempleDoctrineState, InitializeMarinerInput, MarinerBeastState, MarinerIsleMarket, MarinerRouteOccupancy, MarinerBoardIsleId, MarinerLawOfSeaId, MarinerRouteId, MarinerSeaRegionId, MarinerArrangementId, UpdateMarinerBeastFields, InitializeNecromancerInput, NecromancerArrangementId, NecromancerLawOfDeathId, NecromancerBuiltinGateId, NecromancerBuiltinPathSpaceId, NecromancerDepthState, NecromancerSelectedLaw, NecromancerGateId, NecromancerGateStatus, NecromancerOccupiableSpaceRef, NecromancerFoeState, NecromancerFoeSubjectRef, NecromancerWizardFoeState, NecromancerWizardTraversalState, UpdateNecromancerWizardTraversalFields, NecromancerAllyState, NecromancerGhoulCallerState, UpdateNecromancerFoeFields, UpdateNecromancerAllyFields, UpdateNecromancerGhoulCallerFields, NecromancerCampaignGateId, NecromancerGateBand, UpdateNecromancerCampaignGateFields, NecromancerCampaignPathSpaceId, NecromancerPathRegion, NecromancerCampaignPathSpaceState, NecromancerDirectedStep, MortalityState, PowerfulDenizenTaxonomyRef, PowerfulDenizenStatus, PowerfulDenizenMethodDefinition, PowerfulDenizenMethodEntry, PowerfulDenizenTruthEntry, PowerfulDenizenProfile, CampaignPowerfulDenizenTaxonomy, CampaignPowerfulDenizenTaxonomyId, PowerfulDenizenMethodEntryId, PowerfulDenizenTruthId, TreasureId, TreasureCondition, TreasureCustody, PactFragmentOperationalState } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
 import type { WizardInitIds } from "../shared/domain/begin-play";
 import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
@@ -2785,9 +2799,43 @@ const necromancerPathLocationArg = v.object({
   pathSpaceId: v.string(),
 });
 
-const necromancerFoeArg = v.object({
-  denizenId: v.string(),
-  location: necromancerFoeLocationArg,
+const necromancerFoeSubjectArg = v.union(
+  v.object({
+    kind: v.literal("denizen"),
+    denizenId: v.string(),
+  }),
+  v.object({
+    kind: v.literal("wizard"),
+    wizardId: v.string(),
+  }),
+);
+
+const necromancerFoeArg = v.union(
+  v.object({
+    subject: v.object({
+      kind: v.literal("denizen"),
+      denizenId: v.string(),
+    }),
+    location: necromancerFoeLocationArg,
+  }),
+  v.object({
+    subject: v.object({
+      kind: v.literal("wizard"),
+      wizardId: v.string(),
+    }),
+    location: necromancerFoeLocationArg,
+    truths: v.array(v.object({
+      truthId: v.string(),
+      text: v.string(),
+      origin: v.union(v.literal("source"), v.literal("campaign")),
+    })),
+  }),
+);
+
+const necromancerWizardTraversalArg = v.object({
+  wizardId: v.string(),
+  kind: v.string(),
+  location: necromancerOccupiableArg,
 });
 
 const necromancerAllyArg = v.object({
@@ -3071,7 +3119,7 @@ export const updateNecromancerFoe = mutation({
   args: {
     commandId: v.string(),
     expectedCampaignId: v.string(),
-    denizenId: v.string(),
+    subject: necromancerFoeSubjectArg,
     fields: v.object({
       location: v.optional(v.object({
         expected: necromancerFoeLocationArg,
@@ -3087,12 +3135,12 @@ export const updateNecromancerFoe = mutation({
         commandType: "update_necromancer_foe",
         commandFingerprint: updateNecromancerFoeFingerprint(
           args.expectedCampaignId,
-          args.denizenId,
+          args.subject,
           args.fields,
         ),
         apply: (state) => applyUpdateNecromancerFoe(
           state,
-          args.denizenId as DenizenId,
+          args.subject as NecromancerFoeSubjectRef,
           args.fields as UpdateNecromancerFoeFields,
         ),
       }),
@@ -3104,7 +3152,7 @@ export const removeNecromancerFoe = mutation({
   args: {
     commandId: v.string(),
     expectedCampaignId: v.string(),
-    denizenId: v.string(),
+    subject: necromancerFoeSubjectArg,
     expectedFoe: necromancerFoeArg,
   },
   handler: async (ctx, args) => {
@@ -3115,15 +3163,273 @@ export const removeNecromancerFoe = mutation({
         commandType: "remove_necromancer_foe",
         commandFingerprint: removeNecromancerFoeFingerprint(
           args.expectedCampaignId,
-          args.denizenId,
+          args.subject,
           args.expectedFoe,
         ),
         apply: (state) => applyRemoveNecromancerFoe(
           state,
-          args.denizenId as DenizenId,
+          args.subject as NecromancerFoeSubjectRef,
           args.expectedFoe as NecromancerFoeState,
         ),
       }),
+    );
+  },
+});
+
+export const escapeNecromancerWizardFoe = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    wizardId: v.string(),
+    expectedMortalityState: v.literal("deceased"),
+    expectedFoe: necromancerFoeArg,
+    destinationSeatId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidWizardId(args.wizardId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
+        }
+        if (!isValidPactSeatId(args.destinationSeatId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid destinationSeatId: ${args.destinationSeatId}`);
+        }
+        return {
+          commandType: "escape_necromancer_wizard_foe",
+          commandFingerprint: escapeNecromancerWizardFoeFingerprint(
+            args.expectedCampaignId,
+            args.wizardId,
+            args.expectedMortalityState,
+            args.expectedFoe,
+            args.destinationSeatId,
+          ),
+          apply: (state) => applyEscapeNecromancerWizardFoe(
+            state,
+            args.wizardId as WizardId,
+            args.expectedMortalityState,
+            args.expectedFoe as unknown as NecromancerWizardFoeState,
+            args.destinationSeatId as PactSeatId,
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const addNecromancerWizardFoeTruth = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    wizardId: v.string(),
+    truthId: v.string(),
+    text: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidWizardId(args.wizardId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
+        }
+        if (!isValidPowerfulDenizenTruthId(args.truthId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid truthId: ${args.truthId}`);
+        }
+        return {
+          commandType: "add_necromancer_wizard_foe_truth",
+          commandFingerprint: addNecromancerWizardFoeTruthFingerprint(
+            args.expectedCampaignId,
+            args.wizardId,
+            args.truthId,
+            args.text,
+          ),
+          apply: (state) => applyAddNecromancerWizardFoeTruth(state, {
+            wizardId: args.wizardId as WizardId,
+            truthId: args.truthId as PowerfulDenizenTruthId,
+            text: args.text,
+          }),
+        };
+      },
+    );
+  },
+});
+
+export const updateNecromancerWizardFoeTruth = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    wizardId: v.string(),
+    truthId: v.string(),
+    expectedText: v.string(),
+    text: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidWizardId(args.wizardId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
+        }
+        if (!isValidPowerfulDenizenTruthId(args.truthId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid truthId: ${args.truthId}`);
+        }
+        return {
+          commandType: "update_necromancer_wizard_foe_truth",
+          commandFingerprint: updateNecromancerWizardFoeTruthFingerprint(
+            args.expectedCampaignId,
+            args.wizardId,
+            args.truthId,
+            args.expectedText,
+            args.text,
+          ),
+          apply: (state) => applyUpdateNecromancerWizardFoeTruth(
+            state,
+            args.wizardId as WizardId,
+            args.truthId as PowerfulDenizenTruthId,
+            { expected: args.expectedText, value: args.text },
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const removeNecromancerWizardFoeTruth = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    wizardId: v.string(),
+    truthId: v.string(),
+    expectedTruth: v.object({
+      truthId: v.string(),
+      text: v.string(),
+      origin: v.union(v.literal("source"), v.literal("campaign")),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidWizardId(args.wizardId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
+        }
+        if (!isValidPowerfulDenizenTruthId(args.truthId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid truthId: ${args.truthId}`);
+        }
+        return {
+          commandType: "remove_necromancer_wizard_foe_truth",
+          commandFingerprint: removeNecromancerWizardFoeTruthFingerprint(
+            args.expectedCampaignId,
+            args.wizardId,
+            args.truthId,
+            args.expectedTruth,
+          ),
+          apply: (state) => applyRemoveNecromancerWizardFoeTruth(
+            state,
+            args.wizardId as WizardId,
+            args.truthId as PowerfulDenizenTruthId,
+            args.expectedTruth as PowerfulDenizenTruthEntry,
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const addNecromancerWizardTraversal = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    traversal: necromancerWizardTraversalArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "add_necromancer_wizard_traversal",
+        commandFingerprint: addNecromancerWizardTraversalFingerprint(args.expectedCampaignId, args.traversal),
+        apply: (state) => applyAddNecromancerWizardTraversal(
+          state,
+          args.traversal as NecromancerWizardTraversalState,
+        ),
+      }),
+    );
+  },
+});
+
+export const updateNecromancerWizardTraversal = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    wizardId: v.string(),
+    fields: v.object({
+      kind: v.optional(v.object({ expected: v.string(), value: v.string() })),
+      location: v.optional(v.object({
+        expected: necromancerOccupiableArg,
+        value: necromancerOccupiableArg,
+      })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidWizardId(args.wizardId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
+        }
+        return {
+          commandType: "update_necromancer_wizard_traversal",
+          commandFingerprint: updateNecromancerWizardTraversalFingerprint(
+            args.expectedCampaignId,
+            args.wizardId,
+            args.fields,
+          ),
+          apply: (state) => applyUpdateNecromancerWizardTraversal(
+            state,
+            args.wizardId as WizardId,
+            args.fields as UpdateNecromancerWizardTraversalFields,
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const removeNecromancerWizardTraversal = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    wizardId: v.string(),
+    expectedTraversal: necromancerWizardTraversalArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidWizardId(args.wizardId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
+        }
+        return {
+          commandType: "remove_necromancer_wizard_traversal",
+          commandFingerprint: removeNecromancerWizardTraversalFingerprint(
+            args.expectedCampaignId,
+            args.wizardId,
+            args.expectedTraversal,
+          ),
+          apply: (state) => applyRemoveNecromancerWizardTraversal(
+            state,
+            args.wizardId as WizardId,
+            args.expectedTraversal as NecromancerWizardTraversalState,
+          ),
+        };
+      },
     );
   },
 });

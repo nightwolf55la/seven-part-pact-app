@@ -67,6 +67,7 @@ function validState(monthOrdinal: number = 0) {
       ghoulCallers: [],
       selectedLaws: [],
       depth: null,
+      wizardTraversals: [],
     },
   };
 }

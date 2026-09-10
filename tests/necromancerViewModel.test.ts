@@ -344,13 +344,13 @@ describe("labels and pieces", () => {
       { location: { kind: "path", pathSpaceId: "edge_sage" }, count: 1 },
     ],
     foes: [
-      { denizenId: "den_deep" as DenizenId, location: { kind: "gate", gateId: "deep" } },
+      { subject: { kind: "denizen", denizenId: "den_deep" as DenizenId }, location: { kind: "gate", gateId: "deep" } },
       {
-        denizenId: "den_far_1" as DenizenId,
+        subject: { kind: "denizen", denizenId: "den_far_1" as DenizenId },
         location: { kind: "escaped", seatId: "hierophant", abominationKind: "occult" },
       },
       {
-        denizenId: "den_far_2" as DenizenId,
+        subject: { kind: "denizen", denizenId: "den_far_2" as DenizenId },
         location: { kind: "escaped", seatId: "mariner", abominationKind: "brutal" },
       },
     ],
@@ -376,7 +376,7 @@ describe("labels and pieces", () => {
     const amber = piecesAtSpace(state, { kind: "gate", gateId: "amber" });
     expect(amber.souls).toBe(3);
     expect(amber.allies.map((ally) => ally.denizenId)).toEqual(["den_ally"]);
-    expect(foesAtSpace(state.foes, { kind: "gate", gateId: "deep" }).map((foe) => foe.denizenId)).toEqual(["den_deep"]);
+    expect(foesAtSpace(state.foes, { kind: "gate", gateId: "deep" }).map((foe) => foe.subject.kind === "denizen" ? foe.subject.denizenId : foe.subject.wizardId)).toEqual(["den_deep"]);
     const edge = piecesAtSpace(state, { kind: "path", pathSpaceId: "edge_sage" });
     expect(edge.ghoulCallers.map((ghoul) => ghoul.denizenId)).toEqual(["den_ghoul"]);
   });
@@ -389,7 +389,7 @@ describe("labels and pieces", () => {
   it("labels escaped Foes by destination Pact Domain", () => {
     const groups = escapedFoesGroupedBySeat(state.foes);
     expect(groups.map((group) => group.domainLabel)).toEqual(["Hierophant", "Mariner"]);
-    expect(groups[0]?.foes[0]?.denizenId).toBe("den_far_1");
+    expect(groups[0]?.foes[0]?.subject).toEqual({ kind: "denizen", denizenId: "den_far_1" });
   });
 });
 
@@ -508,13 +508,13 @@ describe("expected-current payloads", () => {
     expect(buildUpdateNecromancerFoePayload({
       commandId: "cmd_fu",
       expectedCampaignId: "camp_1",
-      denizenId: "den_deep",
+      subject: { kind: "denizen", denizenId: "den_deep" as DenizenId },
       expectedLocation: { kind: "gate", gateId: "deep" },
       location: { kind: "escaped", seatId: "hierophant", abominationKind: "occult" },
     })).toEqual({
       commandId: "cmd_fu",
       expectedCampaignId: "camp_1",
-      denizenId: "den_deep",
+      subject: { kind: "denizen", denizenId: "den_deep" as DenizenId },
       fields: {
         location: {
           expected: { kind: "gate", gateId: "deep" },

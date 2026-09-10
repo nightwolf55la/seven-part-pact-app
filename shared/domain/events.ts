@@ -78,6 +78,8 @@ import type {
   NecromancerGhoulCallerState,
   NecromancerSelectedLaw,
   NecromancerState,
+  NecromancerWizardFoeState,
+  NecromancerWizardTraversalState,
 } from "./necromancer-state";
 
 export interface UndoAppliedDataV1 {
@@ -1394,6 +1396,78 @@ export interface NecromancerFoeRemovedEventV1 {
   readonly data: NecromancerFoeRemovedDataV1;
 }
 
+export interface NecromancerWizardFoeEscapedDataV1 {
+  readonly wizardId: WizardId;
+  readonly previousMortalityState: "deceased";
+  readonly newMortalityState: "not_deceased";
+  readonly previous: NecromancerWizardFoeState;
+  readonly updated: NecromancerWizardFoeState;
+}
+export interface NecromancerWizardFoeEscapedEventV1 {
+  readonly type: "necromancer_wizard_foe_escaped";
+  readonly version: 1;
+  readonly data: NecromancerWizardFoeEscapedDataV1;
+}
+
+export interface NecromancerWizardFoeTruthAddedDataV1 {
+  readonly wizardId: WizardId;
+  readonly truth: PowerfulDenizenTruthEntry;
+}
+export interface NecromancerWizardFoeTruthAddedEventV1 {
+  readonly type: "necromancer_wizard_foe_truth_added";
+  readonly version: 1;
+  readonly data: NecromancerWizardFoeTruthAddedDataV1;
+}
+
+export interface NecromancerWizardFoeTruthUpdatedDataV1 {
+  readonly wizardId: WizardId;
+  readonly previous: PowerfulDenizenTruthEntry;
+  readonly updated: PowerfulDenizenTruthEntry;
+}
+export interface NecromancerWizardFoeTruthUpdatedEventV1 {
+  readonly type: "necromancer_wizard_foe_truth_updated";
+  readonly version: 1;
+  readonly data: NecromancerWizardFoeTruthUpdatedDataV1;
+}
+
+export interface NecromancerWizardFoeTruthRemovedDataV1 {
+  readonly wizardId: WizardId;
+  readonly truth: PowerfulDenizenTruthEntry;
+}
+export interface NecromancerWizardFoeTruthRemovedEventV1 {
+  readonly type: "necromancer_wizard_foe_truth_removed";
+  readonly version: 1;
+  readonly data: NecromancerWizardFoeTruthRemovedDataV1;
+}
+
+export interface NecromancerWizardTraversalAddedDataV1 {
+  readonly traversal: NecromancerWizardTraversalState;
+}
+export interface NecromancerWizardTraversalAddedEventV1 {
+  readonly type: "necromancer_wizard_traversal_added";
+  readonly version: 1;
+  readonly data: NecromancerWizardTraversalAddedDataV1;
+}
+
+export interface NecromancerWizardTraversalUpdatedDataV1 {
+  readonly previous: NecromancerWizardTraversalState;
+  readonly updated: NecromancerWizardTraversalState;
+}
+export interface NecromancerWizardTraversalUpdatedEventV1 {
+  readonly type: "necromancer_wizard_traversal_updated";
+  readonly version: 1;
+  readonly data: NecromancerWizardTraversalUpdatedDataV1;
+}
+
+export interface NecromancerWizardTraversalRemovedDataV1 {
+  readonly traversal: NecromancerWizardTraversalState;
+}
+export interface NecromancerWizardTraversalRemovedEventV1 {
+  readonly type: "necromancer_wizard_traversal_removed";
+  readonly version: 1;
+  readonly data: NecromancerWizardTraversalRemovedDataV1;
+}
+
 export interface NecromancerAllyAddedDataV1 {
   readonly ally: NecromancerAllyState;
 }
@@ -1515,6 +1589,13 @@ export type NecromancerEvent =
   | NecromancerFoeAddedEventV1
   | NecromancerFoeUpdatedEventV1
   | NecromancerFoeRemovedEventV1
+  | NecromancerWizardFoeEscapedEventV1
+  | NecromancerWizardFoeTruthAddedEventV1
+  | NecromancerWizardFoeTruthUpdatedEventV1
+  | NecromancerWizardFoeTruthRemovedEventV1
+  | NecromancerWizardTraversalAddedEventV1
+  | NecromancerWizardTraversalUpdatedEventV1
+  | NecromancerWizardTraversalRemovedEventV1
   | NecromancerAllyAddedEventV1
   | NecromancerAllyUpdatedEventV1
   | NecromancerAllyRemovedEventV1

@@ -144,6 +144,7 @@ describe("assertPortableCampaignState: validates without transforming", () => {
       ghoulCallers: [],
       selectedLaws: [],
       depth: null,
+      wizardTraversals: [],
     },
   } as unknown as CampaignStateV5;
 
@@ -332,6 +333,7 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
         ghoulCallers: [],
         selectedLaws: [],
         depth: null,
+        wizardTraversals: [],
       },
     };
     expect(ps.calendar.monthOrdinal).toBe(5);
@@ -394,6 +396,7 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
         ghoulCallers: [],
         selectedLaws: [],
         depth: null,
+        wizardTraversals: [],
       },
     };
     const ps: PersistableCampaignState = state;

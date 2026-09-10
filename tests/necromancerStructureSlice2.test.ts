@@ -119,16 +119,24 @@ function wizard(wizardId: WizardId, name: string, portrayedByPlayerId: PlayerId 
   };
 }
 
+const FOE_PROFILE = {
+  taxonomies: [{ kind: "builtin" as const, taxonomyId: "foe_of_death" as const }],
+  status: { kind: "standard" as const, value: "malignant" as const },
+  goal: null,
+  methods: [],
+  truths: [],
+};
+
 function defaultWorld() {
   return {
     denizens: [
-      { denizenId: DEN_1, name: "Deep Foe", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null },
-      { denizenId: DEN_2, name: "Terminus Foe", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null },
-      { denizenId: DEN_3, name: "Far Foe One", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null },
-      { denizenId: DEN_4, name: "Far Foe Two", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null },
+      { denizenId: DEN_1, name: "Deep Foe", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: FOE_PROFILE },
+      { denizenId: DEN_2, name: "Terminus Foe", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: FOE_PROFILE },
+      { denizenId: DEN_3, name: "Far Foe One", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: FOE_PROFILE },
+      { denizenId: DEN_4, name: "Far Foe Two", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: FOE_PROFILE },
       { denizenId: DEN_5, name: "Near Ally", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null },
       { denizenId: DEN_6, name: "Ghoul-Caller", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null },
-      { denizenId: DEN_COLLECTIVE, name: "A Host of Dead", representation: "collective" as const, description: null, mortalityState: null, powerfulProfile: null },
+      { denizenId: DEN_COLLECTIVE, name: "A Host of Dead", representation: "collective" as const, description: null, mortalityState: null, powerfulProfile: FOE_PROFILE },
     ],
     isles: [],
     places: [],
@@ -284,8 +292,8 @@ describe("Necromancer Phase 2A transitions", () => {
       expect(n.depth).toBeNull();
       expect(n.ghoulCallers).toEqual([]);
       expect(n.foes).toEqual([
-        { denizenId: DEN_1, location: { kind: "gate", gateId: "deep" } },
-        { denizenId: DEN_2, location: { kind: "gate", gateId: "terminus" } },
+        { subject: { kind: "denizen", denizenId: DEN_1 }, location: { kind: "gate", gateId: "deep" } },
+        { subject: { kind: "denizen", denizenId: DEN_2 }, location: { kind: "gate", gateId: "terminus" } },
       ]);
       expect(n.allies).toEqual([{ denizenId: DEN_5, location: { kind: "gate", gateId: "amber" } }]);
       expect(n.gates.filter((gate) => gate.status === "hostile")).toEqual([]);
@@ -428,7 +436,7 @@ describe("Necromancer Phase 2A transitions", () => {
         ],
         arrangementAlly: { denizenId: DEN_1, gateId: "bronze" },
       }));
-      expect(result.nextState.necromancer.foes[0]?.denizenId).toBe(DEN_COLLECTIVE);
+      expect(result.nextState.necromancer.foes[0]?.subject).toEqual({ kind: "denizen", denizenId: DEN_COLLECTIVE });
       expect(result.nextState.necromancer.allies[0]?.denizenId).toBe(DEN_1);
     });
   });
@@ -518,31 +526,31 @@ describe("Necromancer Phase 2A transitions", () => {
     it("uses expected-current role field updates and expected-record removal", () => {
       const state = initialized();
       expectCode(
-        () => applyUpdateNecromancerFoe(state, DEN_1, {
+        () => applyUpdateNecromancerFoe(state, { kind: "denizen", denizenId: DEN_1 }, {
           location: { expected: { kind: "gate", gateId: "terminus" }, value: { kind: "gate", gateId: "amber" } },
         }),
         "STALE_COMMAND_PRECONDITION",
       );
-      const updated = applyUpdateNecromancerFoe(state, DEN_1, {
+      const updated = applyUpdateNecromancerFoe(state, { kind: "denizen", denizenId: DEN_1 }, {
         location: { expected: { kind: "gate", gateId: "deep" }, value: { kind: "gate", gateId: "amber" } },
       });
-      expect(updated.nextState.necromancer.foes.find((foe) => foe.denizenId === DEN_1)?.location).toEqual({
+      expect(updated.nextState.necromancer.foes.find((foe) => foe.subject.kind === "denizen" && foe.subject.denizenId === DEN_1)?.location).toEqual({
         kind: "gate",
         gateId: "amber",
       });
       expect(updated.nextState.world.denizens.some((denizen) => denizen.denizenId === DEN_1)).toBe(true);
       expectCode(
-        () => applyRemoveNecromancerFoe(updated.nextState, DEN_1, {
-          denizenId: DEN_1,
+        () => applyRemoveNecromancerFoe(updated.nextState, { kind: "denizen", denizenId: DEN_1 }, {
+          subject: { kind: "denizen", denizenId: DEN_1 },
           location: { kind: "gate", gateId: "deep" },
         }),
         "STALE_COMMAND_PRECONDITION",
       );
-      const removed = applyRemoveNecromancerFoe(updated.nextState, DEN_1, {
-        denizenId: DEN_1,
+      const removed = applyRemoveNecromancerFoe(updated.nextState, { kind: "denizen", denizenId: DEN_1 }, {
+        subject: { kind: "denizen", denizenId: DEN_1 },
         location: { kind: "gate", gateId: "amber" },
       });
-      expect(removed.nextState.necromancer.foes.some((foe) => foe.denizenId === DEN_1)).toBe(false);
+      expect(removed.nextState.necromancer.foes.some((foe) => foe.subject.kind === "denizen" && foe.subject.denizenId === DEN_1)).toBe(false);
       expect(removed.nextState.world.denizens.some((denizen) => denizen.denizenId === DEN_1)).toBe(true);
       const allyRemoved = applyRemoveNecromancerAlly(removed.nextState, DEN_5, removed.nextState.necromancer.allies[0]);
       expect(allyRemoved.nextState.necromancer.allies).toEqual([]);
@@ -674,28 +682,28 @@ describe("Necromancer Phase 2A transitions", () => {
 
       const beforeFoe = snapshotPieces(moved);
       const addedFoe = applyAddNecromancerFoe(moved, {
-        denizenId: DEN_COLLECTIVE,
+        subject: { kind: "denizen", denizenId: DEN_COLLECTIVE },
         location: { kind: "gate", gateId: "bronze" },
       }).nextState;
-      expect(addedFoe.necromancer.foes.find((foe) => foe.denizenId === DEN_COLLECTIVE)?.location).toEqual({
+      expect(addedFoe.necromancer.foes.find((foe) => foe.subject.kind === "denizen" && foe.subject.denizenId === DEN_COLLECTIVE)?.location).toEqual({
         kind: "gate",
         gateId: "bronze",
       });
       expect(addedFoe.necromancer.gates.find((gate) => gate.gateId === "bronze")?.status).toBe(
         beforeFoe.gateStatuses.find((gate) => gate.gateId === "bronze")?.status,
       );
-      const escapedAttempt = applyUpdateNecromancerFoe(addedFoe, DEN_COLLECTIVE, {
+      const escapedAttempt = applyUpdateNecromancerFoe(addedFoe, { kind: "denizen", denizenId: DEN_COLLECTIVE }, {
         location: {
           expected: { kind: "gate", gateId: "bronze" },
           value: { kind: "escaped", seatId: "sage", abominationKind: "occult" },
         },
       }).nextState;
-      expect(escapedAttempt.necromancer.foes.find((foe) => foe.denizenId === DEN_COLLECTIVE)?.location).toEqual({
+      expect(escapedAttempt.necromancer.foes.find((foe) => foe.subject.kind === "denizen" && foe.subject.denizenId === DEN_COLLECTIVE)?.location).toEqual({
         kind: "escaped",
         seatId: "sage",
         abominationKind: "occult",
       });
-      expect(escapedAttempt.necromancer.foes.find((foe) => foe.denizenId === DEN_1)?.location).toEqual({
+      expect(escapedAttempt.necromancer.foes.find((foe) => foe.subject.kind === "denizen" && foe.subject.denizenId === DEN_1)?.location).toEqual({
         kind: "gate",
         gateId: "deep",
       });

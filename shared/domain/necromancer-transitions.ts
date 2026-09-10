@@ -1,12 +1,15 @@
 import type { CampaignStateV5 } from "./campaign-state";
-import type { DenizenId } from "./ids";
-import { isValidDenizenId, isValidWizardId } from "./ids";
+import type { DenizenId, PowerfulDenizenTruthId, WizardId } from "./ids";
+import { isValidDenizenId, isValidPowerfulDenizenTruthId, isValidWizardId } from "./ids";
 import { DomainError } from "./errors";
 import type { ExpectedFieldChange } from "./world-subject-transitions";
 import type { ElementId } from "./shared-world";
 import { ELEMENT_IDS } from "./shared-world";
-import type { NecromancerEvent } from "./events";
+import type { PowerfulDenizenTruthEntry } from "./powerful-denizen";
+import type { PactSeatId } from "./pact-seats";
 import { isValidPactSeatId } from "./pact-seats";
+import type { NecromancerEvent } from "./events";
+import { canonicalJsonStringify } from "./canonical-json";
 import type {
   NecromancerArrangementId,
   NecromancerBuiltinGateId,
@@ -53,12 +56,23 @@ import type {
   NecromancerDepthState,
   NecromancerFoeLocation,
   NecromancerFoeState,
+  NecromancerFoeSubjectRef,
   NecromancerGhoulCallerState,
   NecromancerSelectedLaw,
   NecromancerSoulCount,
   NecromancerState,
+  NecromancerWizardFoeState,
+  NecromancerWizardTraversalKind,
+  NecromancerWizardTraversalState,
 } from "./necromancer-state";
-import { buildInitializedDefaultNecromancerState } from "./necromancer-state";
+import {
+  buildInitializedDefaultNecromancerState,
+  isNecromancerWizardFoe,
+  isNecromancerDenizenFoe,
+  isValidNecromancerWizardTraversalKind,
+  necromancerFoeSubjectKey,
+  necromancerFoeSubjectsEqual,
+} from "./necromancer-state";
 import { validateNecromancerReferenceIntegrity } from "./necromancer-validation";
 
 export interface NecromancerTransitionResult {
@@ -113,6 +127,17 @@ export interface UpdateNecromancerFoeFields {
   readonly location?: ExpectedFieldChange<NecromancerFoeLocation>;
 }
 
+export interface UpdateNecromancerWizardTraversalFields {
+  readonly kind?: ExpectedFieldChange<NecromancerWizardTraversalKind>;
+  readonly location?: ExpectedFieldChange<NecromancerOccupiableSpaceRef>;
+}
+
+export interface AddNecromancerWizardFoeTruthInput {
+  readonly wizardId: WizardId;
+  readonly truthId: PowerfulDenizenTruthId;
+  readonly text: string;
+}
+
 export interface UpdateNecromancerAllyFields {
   readonly location?: ExpectedFieldChange<NecromancerOccupiableSpaceRef>;
 }
@@ -128,6 +153,7 @@ export interface UpdateNecromancerGhoulCallerFields {
 }
 
 const MAX_NAME_LENGTH = 200;
+const MAX_DESCRIPTION_LENGTH = 8000;
 const MAX_GHOUL_CALLER_PROFILE_TEXT_LENGTH = 8000;
 
 function replaceNecromancer(state: CampaignStateV5, necromancer: NecromancerState): CampaignStateV5 {
@@ -154,7 +180,8 @@ function isExactEmptyNecromancer(necromancer: NecromancerState): boolean {
     necromancer.allies.length === 0 &&
     necromancer.ghoulCallers.length === 0 &&
     necromancer.selectedLaws.length === 0 &&
-    necromancer.depth === null
+    necromancer.depth === null &&
+    necromancer.wizardTraversals.length === 0
   );
 }
 
@@ -382,7 +409,14 @@ function foeLocationsEqual(a: NecromancerFoeLocation, b: NecromancerFoeLocation)
 }
 
 function foeEqual(a: NecromancerFoeState, b: NecromancerFoeState): boolean {
-  return a.denizenId === b.denizenId && foeLocationsEqual(a.location, b.location);
+  if (!necromancerFoeSubjectsEqual(a.subject, b.subject) || !foeLocationsEqual(a.location, b.location)) {
+    return false;
+  }
+  if (isNecromancerWizardFoe(a) || isNecromancerWizardFoe(b)) {
+    if (!isNecromancerWizardFoe(a) || !isNecromancerWizardFoe(b)) return false;
+    return canonicalJsonStringify(a.truths) === canonicalJsonStringify(b.truths);
+  }
+  return true;
 }
 
 function allyEqual(a: NecromancerAllyState, b: NecromancerAllyState): boolean {
@@ -433,6 +467,111 @@ function assertOccupiableResolves(necromancer: NecromancerState, location: Necro
       `${label} does not resolve to an occupiable path space: ${location.pathSpaceId}`,
     );
   }
+}
+
+function requireDenizenFoeProfile(state: CampaignStateV5, denizenId: DenizenId, label: string) {
+  const denizen = requireDenizen(state, denizenId, label);
+  if (denizen.powerfulProfile === null) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${label} requires a Powerful-Denizen profile`);
+  }
+  const hasFoeTaxonomy = denizen.powerfulProfile.taxonomies.some(
+    (ref) => ref.kind === "builtin" && ref.taxonomyId === "foe_of_death",
+  );
+  if (!hasFoeTaxonomy) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${label} requires builtin taxonomy foe_of_death`);
+  }
+  return denizen;
+}
+
+function requireWizard(state: CampaignStateV5, wizardId: WizardId, label: string) {
+  if (!isValidWizardId(wizardId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${label}.wizardId is invalid: ${JSON.stringify(wizardId)}`);
+  }
+  const wizard = state.wizards.find((candidate) => candidate.wizardId === wizardId);
+  if (wizard === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${label}.wizardId does not resolve: ${wizardId}`);
+  }
+  return wizard;
+}
+
+function findFoeIndex(necromancer: NecromancerState, subject: NecromancerFoeSubjectRef): number {
+  return necromancer.foes.findIndex((foe) => necromancerFoeSubjectsEqual(foe.subject, subject));
+}
+
+function collectCampaignTruthIds(state: CampaignStateV5, exceptWizardFoe?: WizardId): Set<string> {
+  const ids = new Set<string>();
+  for (const denizen of state.world.denizens) {
+    const profile = denizen.powerfulProfile;
+    if (profile === null) continue;
+    for (const truth of profile.truths) ids.add(truth.truthId);
+  }
+  for (const foe of state.necromancer.foes) {
+    if (!isNecromancerWizardFoe(foe)) continue;
+    if (exceptWizardFoe !== undefined && foe.subject.wizardId === exceptWizardFoe) continue;
+    for (const truth of foe.truths) ids.add(truth.truthId);
+  }
+  return ids;
+}
+
+function normalizeRequiredText(raw: string, fieldLabel: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${fieldLabel} must not be blank`);
+  }
+  if (trimmed.length > MAX_DESCRIPTION_LENGTH) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${fieldLabel} exceeds ${MAX_DESCRIPTION_LENGTH} characters`);
+  }
+  return trimmed;
+}
+
+function wizardIsFoe(necromancer: NecromancerState, wizardId: WizardId): boolean {
+  return necromancer.foes.some((foe) => foe.subject.kind === "wizard" && foe.subject.wizardId === wizardId);
+}
+
+function wizardHasTraversal(necromancer: NecromancerState, wizardId: WizardId): boolean {
+  return necromancer.wizardTraversals.some((traversal) => traversal.wizardId === wizardId);
+}
+
+function traversalEqual(a: NecromancerWizardTraversalState, b: NecromancerWizardTraversalState): boolean {
+  return (
+    a.wizardId === b.wizardId &&
+    a.kind === b.kind &&
+    necromancerOccupiableSpaceRefsEqual(a.location, b.location)
+  );
+}
+
+function requireWizardFoe(necromancer: NecromancerState, wizardId: WizardId, label: string): NecromancerWizardFoeState {
+  const foe = necromancer.foes.find((candidate) => candidate.subject.kind === "wizard" && candidate.subject.wizardId === wizardId);
+  if (foe === undefined || !isNecromancerWizardFoe(foe)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${label} must identify an existing Wizard Foe`);
+  }
+  return foe;
+}
+
+function normalizeWizardFoeTruths(
+  state: CampaignStateV5,
+  truths: readonly PowerfulDenizenTruthEntry[],
+  wizardId: WizardId,
+): PowerfulDenizenTruthEntry[] {
+  const existingIds = collectCampaignTruthIds(state, wizardId);
+  const seen = new Set<string>();
+  return truths.map((truth, index) => {
+    if (!isValidPowerfulDenizenTruthId(truth.truthId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Foe truths[${index}].truthId is invalid: ${JSON.stringify(truth.truthId)}`);
+    }
+    if (existingIds.has(truth.truthId) || seen.has(truth.truthId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate powerful denizen truthId: ${truth.truthId}`);
+    }
+    seen.add(truth.truthId);
+    if (truth.origin !== "source" && truth.origin !== "campaign") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Foe truths[${index}].origin is invalid: ${JSON.stringify(truth.origin)}`);
+    }
+    return {
+      truthId: truth.truthId,
+      text: normalizeRequiredText(truth.text, "Truth text"),
+      origin: truth.origin,
+    };
+  });
 }
 
 function requireDenizen(state: CampaignStateV5, denizenId: DenizenId, label: string) {
@@ -622,6 +761,9 @@ function pathSpaceIsReferenced(necromancer: NecromancerState, pathSpaceId: Necro
   if (necromancer.ghoulCallers.some((ghoul) => necromancerOccupiableSpaceRefsEqual(ghoul.location, location))) {
     return true;
   }
+  if (necromancer.wizardTraversals.some((traversal) => necromancerOccupiableSpaceRefsEqual(traversal.location, location))) {
+    return true;
+  }
   return necromancer.steps.some(
     (step) =>
       (step.from.kind === "path" && step.from.pathSpaceId === pathSpaceId) ||
@@ -682,8 +824,11 @@ export function applyInitializeNecromancer(
   uniqueOrThrow(pieceDenizenIds, "arrangement starting Denizen");
 
   const foes: NecromancerFoeState[] = input.arrangementFoes.map((binding, index) => {
-    requireDenizen(state, binding.denizenId, `arrangementFoes[${index}]`);
-    return { denizenId: binding.denizenId, location: { kind: "gate", gateId: binding.gateId } };
+    requireDenizenFoeProfile(state, binding.denizenId, `arrangementFoes[${index}]`);
+    return {
+      subject: { kind: "denizen", denizenId: binding.denizenId },
+      location: { kind: "gate", gateId: binding.gateId },
+    };
   });
   requireDenizen(state, input.arrangementAlly.denizenId, "arrangementAlly");
   const allies: NecromancerAllyState[] = [{
@@ -968,12 +1113,28 @@ export function applyAddNecromancerFoe(
   foe: NecromancerFoeState,
 ): NecromancerTransitionResult {
   const current = requireInitialized(state);
-  requireDenizen(state, foe.denizenId, "Foe");
-  if (current.foes.some((existing) => existing.denizenId === foe.denizenId)) {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate necromancer foe denizenId: ${foe.denizenId}`);
+  if (findFoeIndex(current, foe.subject) !== -1) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Duplicate necromancer foe subject: ${necromancerFoeSubjectKey(foe.subject)}`,
+    );
   }
   validateFoeLocation(current, foe.location, "Foe location");
-  const added: NecromancerFoeState = { denizenId: foe.denizenId, location: foe.location };
+  let added: NecromancerFoeState;
+    if (isNecromancerDenizenFoe(foe)) {
+    requireDenizenFoeProfile(state, foe.subject.denizenId, "Foe");
+    added = { subject: { kind: "denizen", denizenId: foe.subject.denizenId }, location: foe.location };
+  } else {
+    requireWizard(state, foe.subject.wizardId, "Foe");
+    if (wizardHasTraversal(current, foe.subject.wizardId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", "Wizard cannot appear in wizardTraversals and as a Wizard Foe");
+    }
+    added = {
+      subject: { kind: "wizard", wizardId: foe.subject.wizardId },
+      location: foe.location,
+      truths: normalizeWizardFoeTruths(state, foe.truths, foe.subject.wizardId),
+    };
+  }
   return commitNecromancer(state, { ...current, foes: [...current.foes, added] }, [{
     type: "necromancer_foe_added",
     version: 1,
@@ -983,21 +1144,33 @@ export function applyAddNecromancerFoe(
 
 export function applyUpdateNecromancerFoe(
   state: CampaignStateV5,
-  denizenId: DenizenId,
+  subject: NecromancerFoeSubjectRef,
   fields: UpdateNecromancerFoeFields,
 ): NecromancerTransitionResult {
   const current = requireInitialized(state);
   if (fields.location === undefined) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Update must specify at least one field");
   }
-  const idx = current.foes.findIndex((foe) => foe.denizenId === denizenId);
+  const idx = findFoeIndex(current, subject);
   if (idx === -1) {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", `Necromancer Foe not found: ${denizenId}`);
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Necromancer Foe not found: ${necromancerFoeSubjectKey(subject)}`);
   }
   const existing = current.foes[idx];
   checkPrecondition("location", existing.location, fields.location, foeLocationsEqual);
   validateFoeLocation(current, fields.location.value, "Foe location");
-  const updated: NecromancerFoeState = { denizenId, location: fields.location.value };
+  if (
+    isNecromancerWizardFoe(existing) &&
+    existing.location.kind !== "escaped" &&
+    fields.location.value.kind === "escaped"
+  ) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      "Wizard Foe escape must use escape_necromancer_wizard_foe",
+    );
+  }
+  const updated: NecromancerFoeState = isNecromancerWizardFoe(existing)
+    ? { subject: existing.subject, location: fields.location.value, truths: existing.truths }
+    : { subject: existing.subject, location: fields.location.value };
   if (foeEqual(existing, updated)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Update produces no change");
   }
@@ -1011,25 +1184,280 @@ export function applyUpdateNecromancerFoe(
 
 export function applyRemoveNecromancerFoe(
   state: CampaignStateV5,
-  denizenId: DenizenId,
+  subject: NecromancerFoeSubjectRef,
   expectedFoe: NecromancerFoeState,
 ): NecromancerTransitionResult {
   const current = requireInitialized(state);
-  const existing = current.foes.find((foe) => foe.denizenId === denizenId);
+  const existing = current.foes.find((foe) => necromancerFoeSubjectsEqual(foe.subject, subject));
   if (existing === undefined) {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", `Necromancer Foe not found: ${denizenId}`);
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Necromancer Foe not found: ${necromancerFoeSubjectKey(subject)}`);
   }
   if (!foeEqual(existing, expectedFoe)) {
     throw new DomainError(
       "STALE_COMMAND_PRECONDITION",
-      `Necromancer Foe ${denizenId} does not match the expected current state`,
+      `Necromancer Foe ${necromancerFoeSubjectKey(subject)} does not match the expected current state`,
     );
   }
-  return commitNecromancer(state, { ...current, foes: current.foes.filter((foe) => foe.denizenId !== denizenId) }, [{
-    type: "necromancer_foe_removed",
+  return commitNecromancer(
+    state,
+    { ...current, foes: current.foes.filter((foe) => !necromancerFoeSubjectsEqual(foe.subject, subject)) },
+    [{ type: "necromancer_foe_removed", version: 1, data: { foe: existing } }],
+  );
+}
+
+export function applyEscapeNecromancerWizardFoe(
+  state: CampaignStateV5,
+  wizardId: WizardId,
+  expectedMortalityState: "deceased",
+  expectedFoe: NecromancerWizardFoeState,
+  destinationSeatId: PactSeatId,
+): NecromancerTransitionResult {
+  const current = requireInitialized(state);
+  const wizard = requireWizard(state, wizardId, "Escape");
+  if (wizard.mortalityState !== expectedMortalityState) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      `Wizard ${wizardId} mortalityState does not match the expected current state`,
+    );
+  }
+  if (wizard.mortalityState !== "deceased") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "escape_necromancer_wizard_foe requires a deceased Wizard");
+  }
+  const existing = requireWizardFoe(current, wizardId, "Escape");
+  if (!foeEqual(existing, expectedFoe)) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      `Necromancer Foe wizard:${wizardId} does not match the expected current state`,
+    );
+  }
+  if (existing.location.kind === "escaped") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Wizard Foe is already escaped");
+  }
+  const escapedLocation: NecromancerFoeLocation = {
+    kind: "escaped",
+    seatId: destinationSeatId,
+    abominationKind: "occult",
+  };
+  validateFoeLocation(current, escapedLocation, "Escape destination");
+  const updated: NecromancerWizardFoeState = {
+    subject: existing.subject,
+    location: escapedLocation,
+    truths: existing.truths,
+  };
+  const withMortality: CampaignStateV5 = {
+    ...state,
+    wizards: state.wizards.map((candidate) =>
+      candidate.wizardId === wizardId ? { ...candidate, mortalityState: "not_deceased" } : candidate,
+    ),
+  };
+  return commitNecromancer(withMortality, {
+    ...current,
+    foes: current.foes.map((foe) => (isNecromancerWizardFoe(foe) && foe.subject.wizardId === wizardId ? updated : foe)),
+  }, [{
+    type: "necromancer_wizard_foe_escaped",
     version: 1,
-    data: { foe: existing },
+    data: {
+      wizardId,
+      previousMortalityState: wizard.mortalityState,
+      newMortalityState: "not_deceased",
+      previous: existing,
+      updated,
+    },
   }]);
+}
+
+export function applyAddNecromancerWizardFoeTruth(
+  state: CampaignStateV5,
+  input: AddNecromancerWizardFoeTruthInput,
+): NecromancerTransitionResult {
+  const current = requireInitialized(state);
+  requireWizard(state, input.wizardId, "Wizard Foe Truth");
+  const existing = requireWizardFoe(current, input.wizardId, "Wizard Foe Truth");
+  if (!isValidPowerfulDenizenTruthId(input.truthId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid truthId: ${input.truthId}`);
+  }
+  const existingIds = collectCampaignTruthIds(state);
+  if (existingIds.has(input.truthId) || existing.truths.some((truth) => truth.truthId === input.truthId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate powerful denizen truthId: ${input.truthId}`);
+  }
+  const truth: PowerfulDenizenTruthEntry = {
+    truthId: input.truthId,
+    text: normalizeRequiredText(input.text, "Truth text"),
+    origin: "campaign",
+  };
+  const updated: NecromancerWizardFoeState = { ...existing, truths: [...existing.truths, truth] };
+  return commitNecromancer(state, {
+    ...current,
+    foes: current.foes.map((foe) => (isNecromancerWizardFoe(foe) && foe.subject.wizardId === input.wizardId ? updated : foe)),
+  }, [{
+    type: "necromancer_wizard_foe_truth_added",
+    version: 1,
+    data: { wizardId: input.wizardId, truth },
+  }]);
+}
+
+export function applyUpdateNecromancerWizardFoeTruth(
+  state: CampaignStateV5,
+  wizardId: WizardId,
+  truthId: PowerfulDenizenTruthId,
+  change: ExpectedFieldChange<string>,
+): NecromancerTransitionResult {
+  const current = requireInitialized(state);
+  requireWizard(state, wizardId, "Wizard Foe Truth");
+  const existingFoe = requireWizardFoe(current, wizardId, "Wizard Foe Truth");
+  const truthIndex = existingFoe.truths.findIndex((truth) => truth.truthId === truthId);
+  if (truthIndex === -1) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Wizard Foe truth not found: ${truthId}`);
+  }
+  const existing = existingFoe.truths[truthIndex];
+  checkPrecondition("text", existing.text, change);
+  const text = normalizeRequiredText(change.value, "Truth text");
+  if (text === existing.text) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Update produces no change");
+  }
+  const updatedTruth: PowerfulDenizenTruthEntry = {
+    truthId: existing.truthId,
+    text,
+    origin: existing.origin,
+  };
+  const updated: NecromancerWizardFoeState = {
+    ...existingFoe,
+    truths: existingFoe.truths.map((truth, i) => (i === truthIndex ? updatedTruth : truth)),
+  };
+  return commitNecromancer(state, {
+    ...current,
+    foes: current.foes.map((foe) => (isNecromancerWizardFoe(foe) && foe.subject.wizardId === wizardId ? updated : foe)),
+  }, [{
+    type: "necromancer_wizard_foe_truth_updated",
+    version: 1,
+    data: { wizardId, previous: existing, updated: updatedTruth },
+  }]);
+}
+
+export function applyRemoveNecromancerWizardFoeTruth(
+  state: CampaignStateV5,
+  wizardId: WizardId,
+  truthId: PowerfulDenizenTruthId,
+  expectedTruth: PowerfulDenizenTruthEntry,
+): NecromancerTransitionResult {
+  const current = requireInitialized(state);
+  requireWizard(state, wizardId, "Wizard Foe Truth");
+  const existingFoe = requireWizardFoe(current, wizardId, "Wizard Foe Truth");
+  const existing = existingFoe.truths.find((truth) => truth.truthId === truthId);
+  if (existing === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Wizard Foe truth not found: ${truthId}`);
+  }
+  if (canonicalJsonStringify(existing) !== canonicalJsonStringify(expectedTruth)) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      `Wizard Foe truth ${truthId} does not match the expected current state`,
+    );
+  }
+  const updated: NecromancerWizardFoeState = {
+    ...existingFoe,
+    truths: existingFoe.truths.filter((truth) => truth.truthId !== truthId),
+  };
+  return commitNecromancer(state, {
+    ...current,
+    foes: current.foes.map((foe) => (isNecromancerWizardFoe(foe) && foe.subject.wizardId === wizardId ? updated : foe)),
+  }, [{
+    type: "necromancer_wizard_foe_truth_removed",
+    version: 1,
+    data: { wizardId, truth: existing },
+  }]);
+}
+
+export function applyAddNecromancerWizardTraversal(
+  state: CampaignStateV5,
+  traversal: NecromancerWizardTraversalState,
+): NecromancerTransitionResult {
+  const current = requireInitialized(state);
+  requireWizard(state, traversal.wizardId, "Wizard traversal");
+  if (wizardHasTraversal(current, traversal.wizardId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate wizard traversal: ${traversal.wizardId}`);
+  }
+  if (wizardIsFoe(current, traversal.wizardId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Wizard cannot appear in wizardTraversals and as a Wizard Foe");
+  }
+  if (!isValidNecromancerWizardTraversalKind(traversal.kind)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Wizard traversal kind is invalid: ${JSON.stringify(traversal.kind)}`);
+  }
+  assertOccupiableResolves(current, traversal.location, "Wizard traversal location");
+  const added: NecromancerWizardTraversalState = {
+    wizardId: traversal.wizardId,
+    kind: traversal.kind,
+    location: traversal.location,
+  };
+  return commitNecromancer(state, { ...current, wizardTraversals: [...current.wizardTraversals, added] }, [{
+    type: "necromancer_wizard_traversal_added",
+    version: 1,
+    data: { traversal: added },
+  }]);
+}
+
+export function applyUpdateNecromancerWizardTraversal(
+  state: CampaignStateV5,
+  wizardId: WizardId,
+  fields: UpdateNecromancerWizardTraversalFields,
+): NecromancerTransitionResult {
+  const current = requireInitialized(state);
+  if (fields.kind === undefined && fields.location === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Update must specify at least one field");
+  }
+  const idx = current.wizardTraversals.findIndex((traversal) => traversal.wizardId === wizardId);
+  if (idx === -1) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Wizard traversal not found: ${wizardId}`);
+  }
+  const existing = current.wizardTraversals[idx];
+  let kind = existing.kind;
+  let location = existing.location;
+  if (fields.kind !== undefined) {
+    checkPrecondition("kind", existing.kind, fields.kind);
+    if (!isValidNecromancerWizardTraversalKind(fields.kind.value)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Wizard traversal kind is invalid: ${JSON.stringify(fields.kind.value)}`);
+    }
+    kind = fields.kind.value;
+  }
+  if (fields.location !== undefined) {
+    checkPrecondition("location", existing.location, fields.location, necromancerOccupiableSpaceRefsEqual);
+    assertOccupiableResolves(current, fields.location.value, "Wizard traversal location");
+    location = fields.location.value;
+  }
+  const updated: NecromancerWizardTraversalState = { wizardId, kind, location };
+  if (traversalEqual(existing, updated)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Update produces no change");
+  }
+  return commitNecromancer(state, {
+    ...current,
+    wizardTraversals: current.wizardTraversals.map((traversal, i) => (i === idx ? updated : traversal)),
+  }, [{
+    type: "necromancer_wizard_traversal_updated",
+    version: 1,
+    data: { previous: existing, updated },
+  }]);
+}
+
+export function applyRemoveNecromancerWizardTraversal(
+  state: CampaignStateV5,
+  wizardId: WizardId,
+  expectedTraversal: NecromancerWizardTraversalState,
+): NecromancerTransitionResult {
+  const current = requireInitialized(state);
+  const existing = current.wizardTraversals.find((traversal) => traversal.wizardId === wizardId);
+  if (existing === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Wizard traversal not found: ${wizardId}`);
+  }
+  if (!traversalEqual(existing, expectedTraversal)) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      `Wizard traversal ${wizardId} does not match the expected current state`,
+    );
+  }
+  return commitNecromancer(
+    state,
+    { ...current, wizardTraversals: current.wizardTraversals.filter((traversal) => traversal.wizardId !== wizardId) },
+    [{ type: "necromancer_wizard_traversal_removed", version: 1, data: { traversal: existing } }],
+  );
 }
 
 export function applyAddNecromancerAlly(

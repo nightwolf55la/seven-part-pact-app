@@ -143,6 +143,16 @@ const EXPECTED_INTERNAL_STEPS: ReadonlyArray<readonly [NecromancerOccupiableSpac
   [gateRef("deep"), gateRef("terminus")],
 ];
 
+function foeProfile() {
+  return {
+    taxonomies: [{ kind: "builtin" as const, taxonomyId: "foe_of_death" as const }],
+    status: { kind: "standard" as const, value: "malignant" as const },
+    goal: null,
+    methods: [],
+    truths: [],
+  };
+}
+
 function defaultWorld(options?: { extraCollective?: boolean; omitDenizen1?: boolean }) {
   const denizens: Array<{
     denizenId: DenizenId;
@@ -150,10 +160,10 @@ function defaultWorld(options?: { extraCollective?: boolean; omitDenizen1?: bool
     representation: "individual" | "collective";
     description: null;
     mortalityState: "not_deceased" | null;
-    powerfulProfile: null;
+    powerfulProfile: ReturnType<typeof foeProfile> | null;
   }> = [];
   if (!options?.omitDenizen1) {
-    denizens.push({ denizenId: DEN_1, name: "Foe One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null });
+    denizens.push({ denizenId: DEN_1, name: "Foe One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: foeProfile() });
   }
   denizens.push(
     { denizenId: DEN_2, name: "Ally One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
@@ -166,7 +176,7 @@ function defaultWorld(options?: { extraCollective?: boolean; omitDenizen1?: bool
       representation: "collective",
       description: null,
       mortalityState: null,
-      powerfulProfile: null,
+      powerfulProfile: foeProfile(),
     });
   }
   return {
@@ -223,11 +233,10 @@ function initialized(overrides?: Parameters<typeof buildInitializedDefaultNecrom
   return buildInitializedDefaultNecromancerState(overrides);
 }
 
-function foe(overrides?: Partial<NecromancerFoeState>): NecromancerFoeState {
+function foe(overrides?: { denizenId?: DenizenId; location?: NecromancerFoeState["location"] }): NecromancerFoeState {
   return {
-    denizenId: DEN_1,
-    location: gateRef("deep"),
-    ...overrides,
+    subject: { kind: "denizen", denizenId: overrides?.denizenId ?? DEN_1 },
+    location: overrides?.location ?? gateRef("deep"),
   };
 }
 

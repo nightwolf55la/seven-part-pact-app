@@ -38,6 +38,9 @@ import {
   necromancerBuiltinPathSpaceDefinition,
   necromancerDirectedStepsEqual,
   necromancerOccupiableSpaceRefsEqual,
+  necromancerFoeSubjectKey,
+  isNecromancerWizardFoe,
+  isNecromancerDenizenFoe,
   pactSeatDisplayName,
   type NecromancerAbominationKind,
   type NecromancerAllyState,
@@ -53,6 +56,10 @@ import {
   type ElementId,
   type NecromancerFoeLocation,
   type NecromancerFoeState,
+  type NecromancerFoeSubjectRef,
+  type NecromancerWizardFoeState,
+  type NecromancerWizardTraversalState,
+  type UpdateNecromancerWizardTraversalFields,
   type NecromancerGateBand,
   type NecromancerGateId,
   type NecromancerGateState,
@@ -81,6 +88,13 @@ export interface NecromancerWizardRef {
   readonly name: string;
   readonly homeIsleId: string | null;
   readonly sanctumPlaceId: string | null;
+  readonly mortalityState?: "not_deceased" | "deceased";
+}
+
+export interface NecromancerWizardNameRef {
+  readonly wizardId: string;
+  readonly name: string;
+  readonly mortalityState: "not_deceased" | "deceased";
 }
 
 export interface MapPoint {
@@ -188,6 +202,7 @@ export function isNecromancerInitialized(necromancer: NecromancerState): boolean
     necromancer.allies.length > 0 ||
     necromancer.ghoulCallers.length > 0 ||
     necromancer.selectedLaws.length > 0 ||
+    necromancer.wizardTraversals.length > 0 ||
     necromancer.depth !== null
   );
 }
@@ -401,12 +416,16 @@ export function piecesAtSpace(
   readonly foes: readonly NecromancerFoeState[];
   readonly allies: readonly NecromancerAllyState[];
   readonly ghoulCallers: readonly NecromancerGhoulCallerState[];
+  readonly wizardTraversals: readonly NecromancerWizardTraversalState[];
 } {
   return {
     souls: soulCountAt(necromancer.souls, location),
     foes: foesAtSpace(necromancer.foes, location),
     allies: alliesAtSpace(necromancer.allies, location),
     ghoulCallers: ghoulCallersAtSpace(necromancer.ghoulCallers, location),
+    wizardTraversals: necromancer.wizardTraversals.filter((traversal) =>
+      necromancerOccupiableSpaceRefsEqual(traversal.location, location),
+    ),
   };
 }
 
@@ -840,12 +859,59 @@ export function availableSetupDenizens(
   });
 }
 
+export function foeSubjectKey(foe: NecromancerFoeState): string {
+  return necromancerFoeSubjectKey(foe.subject);
+}
+
+export function foeDisplayName(
+  denizens: readonly DenizenRef[],
+  wizards: readonly NecromancerWizardNameRef[],
+  foe: NecromancerFoeState,
+): string {
+  if (foe.subject.kind === "wizard") {
+    const wizardId = foe.subject.wizardId;
+    return wizards.find((wizard) => wizard.wizardId === wizardId)?.name ?? "Unknown Wizard";
+  }
+  return denizenName(denizens, foe.subject.denizenId);
+}
+
+export function denizenFoeTruths(
+  denizens: readonly DenizenRef[],
+  foe: NecromancerFoeState,
+): readonly { readonly truthId: string; readonly text: string; readonly origin: "source" | "campaign" }[] {
+  if (foe.subject.kind !== "denizen") return [];
+  const denizen = denizenById(denizens, foe.subject.denizenId);
+  return denizen?.powerfulProfile?.truths ?? [];
+}
+
 export function unusedFoeDenizens(
   denizens: readonly DenizenRef[],
   foes: readonly NecromancerFoeState[],
 ): DenizenRef[] {
-  const taken = new Set<string>(foes.map((foe) => foe.denizenId));
+  const taken = new Set<string>(
+    foes.filter(isNecromancerDenizenFoe).map((foe) => foe.subject.denizenId),
+  );
   return denizens.filter((denizen) => !taken.has(denizen.denizenId));
+}
+
+export function unusedFoeWizards(
+  wizards: readonly NecromancerWizardNameRef[],
+  foes: readonly NecromancerFoeState[],
+  traversals: readonly NecromancerWizardTraversalState[],
+): NecromancerWizardNameRef[] {
+  const taken = new Set<string>([
+    ...foes.filter(isNecromancerWizardFoe).map((foe) => foe.subject.wizardId),
+    ...traversals.map((traversal) => traversal.wizardId),
+  ]);
+  return wizards.filter((wizard) => !taken.has(wizard.wizardId));
+}
+
+export function unusedTraversalWizards(
+  wizards: readonly NecromancerWizardNameRef[],
+  foes: readonly NecromancerFoeState[],
+  traversals: readonly NecromancerWizardTraversalState[],
+): NecromancerWizardNameRef[] {
+  return unusedFoeWizards(wizards, foes, traversals);
 }
 
 export function unusedAllyDenizens(
@@ -1014,19 +1080,19 @@ export function buildAddNecromancerFoePayload(args: {
 export function buildUpdateNecromancerFoePayload(args: {
   readonly commandId: string;
   readonly expectedCampaignId: string;
-  readonly denizenId: string;
+  readonly subject: NecromancerFoeSubjectRef;
   readonly expectedLocation: NecromancerFoeLocation;
   readonly location: NecromancerFoeLocation;
 }): {
   readonly commandId: string;
   readonly expectedCampaignId: string;
-  readonly denizenId: string;
+  readonly subject: NecromancerFoeSubjectRef;
   readonly fields: UpdateNecromancerFoeFields;
 } {
   return {
     commandId: args.commandId,
     expectedCampaignId: args.expectedCampaignId,
-    denizenId: args.denizenId,
+    subject: args.subject,
     fields: {
       location: { expected: args.expectedLocation, value: args.location },
     },
@@ -1040,15 +1106,100 @@ export function buildRemoveNecromancerFoePayload(args: {
 }): {
   readonly commandId: string;
   readonly expectedCampaignId: string;
-  readonly denizenId: string;
+  readonly subject: NecromancerFoeSubjectRef;
   readonly expectedFoe: NecromancerFoeState;
 } {
   return {
     commandId: args.commandId,
     expectedCampaignId: args.expectedCampaignId,
-    denizenId: args.expectedFoe.denizenId,
+    subject: args.expectedFoe.subject,
     expectedFoe: args.expectedFoe,
   };
+}
+
+export function buildEscapeNecromancerWizardFoePayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly wizardId: string;
+  readonly expectedFoe: NecromancerWizardFoeState;
+  readonly destinationSeatId: PactSeatId;
+}): {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly wizardId: string;
+  readonly expectedMortalityState: "deceased";
+  readonly expectedFoe: NecromancerWizardFoeState;
+  readonly destinationSeatId: PactSeatId;
+} {
+  return {
+    commandId: args.commandId,
+    expectedCampaignId: args.expectedCampaignId,
+    wizardId: args.wizardId,
+    expectedMortalityState: "deceased",
+    expectedFoe: args.expectedFoe,
+    destinationSeatId: args.destinationSeatId,
+  };
+}
+
+export function buildAddNecromancerWizardFoeTruthPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly wizardId: string;
+  readonly truthId: string;
+  readonly text: string;
+}) {
+  return args;
+}
+
+export function buildUpdateNecromancerWizardFoeTruthPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly wizardId: string;
+  readonly truthId: string;
+  readonly expectedText: string;
+  readonly text: string;
+}) {
+  return args;
+}
+
+export function buildRemoveNecromancerWizardFoeTruthPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly wizardId: string;
+  readonly truthId: string;
+  readonly expectedTruth: NecromancerWizardFoeState["truths"][number];
+}) {
+  return args;
+}
+
+export function newTruthId(uuid: string = crypto.randomUUID()): string {
+  return `pdtru_${uuid}`;
+}
+
+export function buildAddNecromancerWizardTraversalPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly traversal: NecromancerWizardTraversalState;
+}) {
+  return args;
+}
+
+export function buildUpdateNecromancerWizardTraversalPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly wizardId: string;
+  readonly fields: UpdateNecromancerWizardTraversalFields;
+}) {
+  return args;
+}
+
+export function buildRemoveNecromancerWizardTraversalPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly wizardId: string;
+  readonly expectedTraversal: NecromancerWizardTraversalState;
+}) {
+  return args;
 }
 
 export function buildAddNecromancerAllyPayload(args: {
