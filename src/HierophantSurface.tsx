@@ -17,11 +17,15 @@ import {
   type HierophantState,
   type HierophantTemple,
   type OrdinaryTempleDoctrineState,
+  type PowerfulDenizenStatus,
+  type HierophantProphetHost,
+  powerfulStatusLabel,
 } from "../shared/domain";
 import type { WorldReference } from "./WorldSurface";
 import {
-  availableCollectiveDenizens,
+  availableCultCollectives,
   availableIndividualDenizens,
+  availableProphetDenizens,
   blasphemyText,
   buildAdjustTempleResourcesPayload,
   buildEstablishCultPayload,
@@ -79,6 +83,23 @@ function parseNonNegInt(raw: string): number | null {
   return Number.isSafeInteger(n) ? n : null;
 }
 
+function prophetStatusValue(world: WorldReference, denizenId: string): "reliable" | "disruptive" | "" {
+  const status = world.denizens.find((d) => d.denizenId === denizenId)?.powerfulProfile?.status;
+  if (status?.kind === "standard" && (status.value === "reliable" || status.value === "disruptive")) {
+    return status.value;
+  }
+  return "";
+}
+
+function prophetSharedStatusLabel(world: WorldReference, denizenId: string): string {
+  const status = world.denizens.find((d) => d.denizenId === denizenId)?.powerfulProfile?.status;
+  return status === undefined || status === null ? "Status unset" : powerfulStatusLabel(status);
+}
+
+function cultSharedStatusLabel(world: WorldReference, denizenId: string): string {
+  return prophetSharedStatusLabel(world, denizenId);
+}
+
 function doctrineFromEditor(
   kind: "unset" | "doctrine" | "blasphemy",
   doctrineId: string,
@@ -122,6 +143,7 @@ export default function HierophantSurface({
   const addProphet = useMutation(api.m3Commands.addProphet);
   const updateProphet = useMutation(api.m3Commands.updateProphet);
   const removeProphet = useMutation(api.m3Commands.removeProphet);
+  const setPowerfulDenizenStatus = useMutation(api.m3Commands.setPowerfulDenizenStatus);
   const establishCult = useMutation(api.m3Commands.establishCult);
   const updateCult = useMutation(api.m3Commands.updateCult);
   const removeCult = useMutation(api.m3Commands.removeCult);
@@ -373,25 +395,38 @@ export default function HierophantSurface({
             commandId: newCommandId(),
             expectedCampaignId,
             denizenId: editor.denizenId as string,
-            disposition: editor.disposition as "reliable" | "disruptive",
             host,
           });
         });
         return;
       }
-      const fields: Record<string, unknown> = {};
-      if ((editor.disposition as string) !== (editor.expectedDisposition as string)) {
-        fields.disposition = { expected: editor.expectedDisposition, value: editor.disposition };
-      }
-      fields.host = { expected: editor.expectedHost, value: host };
-      await run(async () => {
-        await updateProphet({
-          commandId: newCommandId(),
-          expectedCampaignId,
-          denizenId: editor.denizenId as string,
-          fields,
+      const currentStatus = world.denizens.find((d) => d.denizenId === editor.denizenId)?.powerfulProfile?.status ?? null;
+      const nextStatusValue = editor.status as string;
+      if (
+        currentStatus !== null
+        && (nextStatusValue === "reliable" || nextStatusValue === "disruptive")
+        && (currentStatus.kind !== "standard" || currentStatus.value !== nextStatusValue)
+      ) {
+        await run(async () => {
+          await setPowerfulDenizenStatus({
+            commandId: newCommandId(),
+            expectedCampaignId,
+            denizenId: editor.denizenId as string,
+            change: { expected: currentStatus, value: { kind: "standard", value: nextStatusValue } },
+          });
         });
-      });
+      }
+      const expectedHost = editor.expectedHost as HierophantProphetHost;
+      if (JSON.stringify(expectedHost) !== JSON.stringify(host)) {
+        await run(async () => {
+          await updateProphet({
+            commandId: newCommandId(),
+            expectedCampaignId,
+            denizenId: editor.denizenId as string,
+            fields: { host: { expected: expectedHost, value: host } },
+          });
+        });
+      }
       return;
     }
 
@@ -614,7 +649,7 @@ export default function HierophantSurface({
     ];
   }
 
-  const unusedCollectives = availableCollectiveDenizens(world.denizens, usedCultIds);
+  const unusedCollectives = availableCultCollectives(world.denizens, usedCultIds);
 
   return (
     <section className="bg-white dark:bg-slate-900 rounded-xl border border-amber-200/70 dark:border-amber-900/40 shadow-sm p-6">
@@ -864,7 +899,6 @@ export default function HierophantSurface({
               onAddProphet={() => setEditor({
                 kind: "prophet-add",
                 denizenId: "",
-                disposition: "reliable",
                 hostKind: "temple",
                 templeId: hierophant.temples[0]?.templeId ?? "",
                 cultDenizenId: hierophant.cults[0]?.cultDenizenId ?? "",
@@ -872,8 +906,7 @@ export default function HierophantSurface({
               onEditProphet={(p) => setEditor({
                 kind: "prophet-edit",
                 denizenId: p.denizenId,
-                disposition: p.disposition,
-                expectedDisposition: p.disposition,
+                status: prophetStatusValue(world, p.denizenId),
                 hostKind: p.host.kind,
                 expectedHost: p.host,
                 templeId: p.host.kind === "temple" ? p.host.templeId : hierophant.temples[0]?.templeId ?? "",
@@ -892,7 +925,7 @@ export default function HierophantSurface({
           {tab === "cults" && (
             <div className="flex flex-col gap-3">
               {unusedCollectives.length === 0 ? (
-                <p className="text-sm text-amber-800 dark:text-amber-200">Create the Cult collective in World first.</p>
+                <p className="text-sm text-amber-800 dark:text-amber-200">Create a collective Denizen in World and give it a Cult Powerful profile with an explicit Status first.</p>
               ) : (
                 <button
                   type="button"
@@ -919,6 +952,9 @@ export default function HierophantSurface({
                     <div className="font-semibold">{denizenLabel(world.denizens, cult.cultDenizenId)}</div>
                     <div className="text-xs text-slate-500 mt-1">
                       Host {hostSeatLabel(cult.hostSeatId)} · Anchor {placeLabel(world.places, cult.anchorPlaceId)} · A {cult.abundance} / C {cult.conviction}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      Shared Status: {cultSharedStatusLabel(world, cult.cultDenizenId)}
                     </div>
                     <div className="text-sm mt-1">Leader: {cult.leaderDenizenId === null ? "Leader unresolved" : denizenLabel(world.denizens, cult.leaderDenizenId)}</div>
                     {leaderWarn !== null && <div className="text-xs text-amber-800 dark:text-amber-200 mt-1">{leaderWarn}</div>}
@@ -1132,18 +1168,25 @@ export default function HierophantSurface({
                     <label className="text-xs">Denizen
                       <select className={fieldClass} value={editor.denizenId as string} onChange={(e) => setEditor({ ...editor, denizenId: e.target.value })}>
                         <option value="">— Individual Denizen —</option>
-                        {availableIndividualDenizens(world.denizens, usedProphetIds).map((d) => (
+                        {availableProphetDenizens(world.denizens, usedProphetIds).map((d) => (
                           <option key={d.denizenId} value={d.denizenId}>{d.name}</option>
                         ))}
                       </select>
                     </label>
                   )}
-                  <label className="text-xs">Disposition
-                    <select className={fieldClass} value={editor.disposition as string} onChange={(e) => setEditor({ ...editor, disposition: e.target.value })}>
-                      <option value="reliable">Reliable</option>
-                      <option value="disruptive">Disruptive</option>
-                    </select>
-                  </label>
+                  {editor.kind === "prophet-add" && availableProphetDenizens(world.denizens, usedProphetIds).length === 0 && (
+                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                      Configure a shared Powerful profile with Prophet taxonomy and Reliable or Disruptive Status in World first.
+                    </p>
+                  )}
+                  {editor.kind === "prophet-edit" && (
+                    <label className="text-xs">Shared Status
+                      <select className={fieldClass} value={editor.status as string} onChange={(e) => setEditor({ ...editor, status: e.target.value })}>
+                        <option value="reliable">Reliable</option>
+                        <option value="disruptive">Disruptive</option>
+                      </select>
+                    </label>
+                  )}
                   <HostFields editor={editor} setEditor={setEditor} hierophant={hierophant} includeArea={false} />
                 </div>
               )}
@@ -1151,7 +1194,7 @@ export default function HierophantSurface({
                 <div className="flex flex-col gap-2">
                   {editor.kind === "cult-establish" && (
                     unusedCollectives.length === 0 ? (
-                      <p className="text-sm">Create the Cult collective in World first.</p>
+                      <p className="text-sm">Create a collective Denizen in World and give it a Cult Powerful profile with an explicit Status first.</p>
                     ) : (
                       <label className="text-xs">Collective Denizen
                         <select className={fieldClass} value={editor.cultDenizenId as string} onChange={(e) => setEditor({ ...editor, cultDenizenId: e.target.value })}>
@@ -1369,7 +1412,7 @@ function PeopleSection({
           <div key={p.denizenId} className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 mb-2">
             <div className="font-medium text-sm">{denizenLabel(world.denizens, p.denizenId)}</div>
             <div className="text-xs text-slate-500">
-              {p.disposition === "reliable" ? "Reliable" : "Disruptive"} · {hostSummary(p.host, hierophant.temples, world.places, world.denizens)}
+              {prophetSharedStatusLabel(world, p.denizenId)} · {hostSummary(p.host, hierophant.temples, world.places, world.denizens)}
             </div>
             <div className="flex gap-2 mt-2">
               <button type="button" className={ghostBtn} onClick={() => onEditProphet(p)}>Edit</button>

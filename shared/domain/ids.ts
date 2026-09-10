@@ -11,6 +11,10 @@ export type DenizenId = Brand<string, "DenizenId">;
 export type IsleId = Brand<string, "IsleId">;
 export type PlaceId = Brand<string, "PlaceId">;
 export type CompanionRelationshipId = Brand<string, "CompanionRelationshipId">;
+export type TreasureId = Brand<string, "TreasureId">;
+export type CampaignPowerfulDenizenTaxonomyId = Brand<string, "CampaignPowerfulDenizenTaxonomyId">;
+export type PowerfulDenizenMethodEntryId = Brand<string, "PowerfulDenizenMethodEntryId">;
+export type PowerfulDenizenTruthId = Brand<string, "PowerfulDenizenTruthId">;
 
 
 const CAMPAIGN_ID_REGEX = /^cmp_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -24,6 +28,10 @@ const DENIZEN_ID_REGEX = /^den_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[
 const ISLE_ID_REGEX = /^isl_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const PLACE_ID_REGEX = /^plc_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const COMPANION_RELATIONSHIP_ID_REGEX = /^cmprel_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const TREASURE_ID_REGEX = /^trs_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const CAMPAIGN_POWERFUL_DENIZEN_TAXONOMY_ID_REGEX = /^pdtax_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const POWERFUL_DENIZEN_METHOD_ENTRY_ID_REGEX = /^pdmth_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const POWERFUL_DENIZEN_TRUTH_ID_REGEX = /^pdtru_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 function generateBrandedId(prefix: string): string {
   return `${prefix}_${crypto.randomUUID()}`;
@@ -154,6 +162,50 @@ export function isValidCompanionRelationshipId(value: string): value is Companio
 export function parseCompanionRelationshipId(value: string): CompanionRelationshipId {
   if (!isValidCompanionRelationshipId(value)) {
     throw new Error(`Invalid CompanionRelationshipId format: "${value}". Expected cmprel_<UUID>.`);
+  }
+  return value;
+}
+
+export function isValidTreasureId(value: string): value is TreasureId {
+  return TREASURE_ID_REGEX.test(value);
+}
+
+export function parseTreasureId(value: string): TreasureId {
+  if (!isValidTreasureId(value)) {
+    throw new Error(`Invalid TreasureId format: "${value}". Expected trs_<UUID>.`);
+  }
+  return value;
+}
+
+export function isValidCampaignPowerfulDenizenTaxonomyId(value: string): value is CampaignPowerfulDenizenTaxonomyId {
+  return CAMPAIGN_POWERFUL_DENIZEN_TAXONOMY_ID_REGEX.test(value);
+}
+
+export function parseCampaignPowerfulDenizenTaxonomyId(value: string): CampaignPowerfulDenizenTaxonomyId {
+  if (!isValidCampaignPowerfulDenizenTaxonomyId(value)) {
+    throw new Error(`Invalid CampaignPowerfulDenizenTaxonomyId format: "${value}". Expected pdtax_<UUID>.`);
+  }
+  return value;
+}
+
+export function isValidPowerfulDenizenMethodEntryId(value: string): value is PowerfulDenizenMethodEntryId {
+  return POWERFUL_DENIZEN_METHOD_ENTRY_ID_REGEX.test(value);
+}
+
+export function parsePowerfulDenizenMethodEntryId(value: string): PowerfulDenizenMethodEntryId {
+  if (!isValidPowerfulDenizenMethodEntryId(value)) {
+    throw new Error(`Invalid PowerfulDenizenMethodEntryId format: "${value}". Expected pdmth_<UUID>.`);
+  }
+  return value;
+}
+
+export function isValidPowerfulDenizenTruthId(value: string): value is PowerfulDenizenTruthId {
+  return POWERFUL_DENIZEN_TRUTH_ID_REGEX.test(value);
+}
+
+export function parsePowerfulDenizenTruthId(value: string): PowerfulDenizenTruthId {
+  if (!isValidPowerfulDenizenTruthId(value)) {
+    throw new Error(`Invalid PowerfulDenizenTruthId format: "${value}". Expected pdtru_<UUID>.`);
   }
   return value;
 }

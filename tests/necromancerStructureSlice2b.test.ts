@@ -12,6 +12,7 @@ import type {
   NecromancerEvent,
   NecromancerInitializedEventV1,
   PlayerId,
+  PowerfulDenizenTruthId,
   WizardId,
 } from "../shared/domain";
 import {
@@ -24,10 +25,14 @@ import {
   addNecromancerFoeFingerprint,
   addNecromancerGhoulCallerFingerprint,
   addNecromancerStepFingerprint,
+  addNecromancerWizardFoeTruthFingerprint,
+  addNecromancerWizardTraversalFingerprint,
   applyAddNecromancerAlly,
   applyAddNecromancerFoe,
   applyAddNecromancerGhoulCaller,
   applyAddNecromancerStep,
+  applyAddNecromancerWizardFoeTruth,
+  applyAddNecromancerWizardTraversal,
   applyCreateNecromancerCampaignGate,
   applyCreateNecromancerCampaignPathSpace,
   applyInitializeNecromancer,
@@ -37,6 +42,9 @@ import {
   applyRemoveNecromancerFoe,
   applyRemoveNecromancerGhoulCaller,
   applyRemoveNecromancerStep,
+  applyRemoveNecromancerWizardFoeTruth,
+  applyRemoveNecromancerWizardTraversal,
+  applyEscapeNecromancerWizardFoe,
   applySetNecromancerDepth,
   applySetNecromancerGateStatus,
   applySetNecromancerSelectedLaws,
@@ -45,6 +53,8 @@ import {
   applyUpdateNecromancerCampaignGate,
   applyUpdateNecromancerFoe,
   applyUpdateNecromancerGhoulCaller,
+  applyUpdateNecromancerWizardFoeTruth,
+  applyUpdateNecromancerWizardTraversal,
   canonicalizeCreateNecromancerCampaignGateInput,
   canonicalizeInitializeNecromancerInput,
   canonicalizeNecromancerGhoulCaller,
@@ -54,12 +64,16 @@ import {
   createNecromancerCampaignPathSpaceFingerprint,
   initializeNecromancerFingerprint,
   isLogicalStateCommandType,
+  isNecromancerWizardFoe,
   moveNecromancerSoulsFingerprint,
   removeNecromancerAllyFingerprint,
   removeNecromancerCampaignPathSpaceFingerprint,
   removeNecromancerFoeFingerprint,
   removeNecromancerGhoulCallerFingerprint,
   removeNecromancerStepFingerprint,
+  removeNecromancerWizardFoeTruthFingerprint,
+  removeNecromancerWizardTraversalFingerprint,
+  escapeNecromancerWizardFoeFingerprint,
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
   setNecromancerDepthFingerprint,
@@ -70,6 +84,9 @@ import {
   updateNecromancerCampaignGateFingerprint,
   updateNecromancerFoeFingerprint,
   updateNecromancerGhoulCallerFingerprint,
+  updateNecromancerWizardFoeTruthFingerprint,
+  updateNecromancerWizardTraversalFingerprint,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 import { campaignEventValidator } from "../convex/validators";
 import { validateEventCoherenceForTest } from "../convex/canonicalCommit";
@@ -87,6 +104,7 @@ const CAMPAIGN_B = "cmp_00000000-0000-0000-0000-000000000002";
 const COMMAND_1 = "cmd_00000000-0000-0000-0000-000000000001";
 const PLR_A = "plr_00000000-0000-0000-0000-00000000000a" as PlayerId;
 const WIZ_A = "wiz_00000000-0000-0000-0000-00000000000a" as WizardId;
+const WIZ_B = "wiz_00000000-0000-0000-0000-00000000000b" as WizardId;
 const DEN_1 = "den_00000000-0000-0000-0000-000000000001" as DenizenId;
 const DEN_2 = "den_00000000-0000-0000-0000-000000000002" as DenizenId;
 const DEN_3 = "den_00000000-0000-0000-0000-000000000003" as DenizenId;
@@ -107,6 +125,13 @@ export const NECROMANCER_COMMAND_TYPES = [
   "add_necromancer_foe",
   "update_necromancer_foe",
   "remove_necromancer_foe",
+  "escape_necromancer_wizard_foe",
+  "add_necromancer_wizard_foe_truth",
+  "update_necromancer_wizard_foe_truth",
+  "remove_necromancer_wizard_foe_truth",
+  "add_necromancer_wizard_traversal",
+  "update_necromancer_wizard_traversal",
+  "remove_necromancer_wizard_traversal",
   "add_necromancer_ally",
   "update_necromancer_ally",
   "remove_necromancer_ally",
@@ -134,6 +159,13 @@ const NECROMANCER_COMMAND_EVENT_PAIRS: ReadonlyArray<readonly [
   ["add_necromancer_foe", "necromancer_foe_added"],
   ["update_necromancer_foe", "necromancer_foe_updated"],
   ["remove_necromancer_foe", "necromancer_foe_removed"],
+  ["escape_necromancer_wizard_foe", "necromancer_wizard_foe_escaped"],
+  ["add_necromancer_wizard_foe_truth", "necromancer_wizard_foe_truth_added"],
+  ["update_necromancer_wizard_foe_truth", "necromancer_wizard_foe_truth_updated"],
+  ["remove_necromancer_wizard_foe_truth", "necromancer_wizard_foe_truth_removed"],
+  ["add_necromancer_wizard_traversal", "necromancer_wizard_traversal_added"],
+  ["update_necromancer_wizard_traversal", "necromancer_wizard_traversal_updated"],
+  ["remove_necromancer_wizard_traversal", "necromancer_wizard_traversal_removed"],
   ["add_necromancer_ally", "necromancer_ally_added"],
   ["update_necromancer_ally", "necromancer_ally_updated"],
   ["remove_necromancer_ally", "necromancer_ally_removed"],
@@ -158,6 +190,13 @@ const MUTATION_NAMES = [
   "addNecromancerFoe",
   "updateNecromancerFoe",
   "removeNecromancerFoe",
+  "escapeNecromancerWizardFoe",
+  "addNecromancerWizardFoeTruth",
+  "updateNecromancerWizardFoeTruth",
+  "removeNecromancerWizardFoeTruth",
+  "addNecromancerWizardTraversal",
+  "updateNecromancerWizardTraversal",
+  "removeNecromancerWizardTraversal",
   "addNecromancerAlly",
   "updateNecromancerAlly",
   "removeNecromancerAlly",
@@ -182,7 +221,23 @@ const EMPTY_PACT_SEATS = {
   sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
 } as const;
 
-function wizard(wizardId: WizardId, name: string) {
+const FOE_PROFILE = {
+  taxonomies: [{ kind: "builtin" as const, taxonomyId: "foe_of_death" as const }],
+  status: { kind: "standard" as const, value: "malignant" as const },
+  goal: null,
+  methods: [],
+  truths: [],
+};
+const GHOUL_PROFILE = {
+  taxonomies: [{ kind: "builtin" as const, taxonomyId: "ghoul_caller" as const }],
+  status: { kind: "standard" as const, value: "disruptive" as const },
+  goal: null,
+  methods: [],
+  truths: [],
+};
+const TRUTH_1 = "pdtru_00000000-0000-0000-0000-0000000000d2" as PowerfulDenizenTruthId;
+
+function wizard(wizardId: WizardId, name: string, mortalityState: "not_deceased" | "deceased" = "not_deceased") {
   return {
     wizardId,
     name,
@@ -197,6 +252,7 @@ function wizard(wizardId: WizardId, name: string) {
     },
     homeIsleId: null,
     sanctumPlaceId: null,
+    mortalityState: mortalityState,
   };
 }
 
@@ -212,6 +268,7 @@ function baseV5(): CampaignStateV5 {
       ...EMPTY_PACT_SEATS,
       necromancer: { status: "present", wizardId: WIZ_A, watcherPlayerId: null },
     },
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup",
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
@@ -219,17 +276,19 @@ function baseV5(): CampaignStateV5 {
     wizardmootHistory: [],
     world: {
       denizens: [
-        { denizenId: DEN_1, name: "Deep Foe", representation: "individual", description: null },
-        { denizenId: DEN_2, name: "Terminus Foe", representation: "individual", description: null },
-        { denizenId: DEN_3, name: "Far Foe One", representation: "individual", description: null },
-        { denizenId: DEN_4, name: "Far Foe Two", representation: "individual", description: null },
-        { denizenId: DEN_5, name: "Near Ally", representation: "individual", description: null },
-        { denizenId: DEN_6, name: "Ghoul-Caller", representation: "individual", description: null },
-        { denizenId: DEN_COLLECTIVE, name: "A Host of Dead", representation: "collective", description: null },
+        { denizenId: DEN_1, name: "Deep Foe", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: FOE_PROFILE },
+        { denizenId: DEN_2, name: "Terminus Foe", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: FOE_PROFILE },
+        { denizenId: DEN_3, name: "Far Foe One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: FOE_PROFILE },
+        { denizenId: DEN_4, name: "Far Foe Two", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: FOE_PROFILE },
+        { denizenId: DEN_5, name: "Near Ally", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
+        { denizenId: DEN_6, name: "Ghoul-Caller", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: GHOUL_PROFILE },
+        { denizenId: DEN_COLLECTIVE, name: "A Host of Dead", representation: "collective", description: null, mortalityState: null, powerfulProfile: FOE_PROFILE },
       ],
       isles: [],
       places: [],
       companionRelationships: [],
+      campaignPowerfulDenizenTaxonomies: [],
+      treasures: [],
     },
     hierophant: { ...EMPTY_HIEROPHANT_STATE },
     mariner: { ...EMPTY_MARINER_STATE },
@@ -348,20 +407,20 @@ function collectRealNecromancerEvents(): NecromancerEvent[] {
   events.push(...moved.events);
 
   const addedFoe = applyAddNecromancerFoe(state, {
-    denizenId: DEN_COLLECTIVE,
+    subject: { kind: "denizen", denizenId: DEN_COLLECTIVE },
     location: { kind: "gate", gateId: "bronze" },
   });
   state = addedFoe.nextState;
   events.push(...addedFoe.events);
 
-  const updatedFoe = applyUpdateNecromancerFoe(state, DEN_COLLECTIVE, {
+  const updatedFoe = applyUpdateNecromancerFoe(state, { kind: "denizen", denizenId: DEN_COLLECTIVE }, {
     location: { expected: { kind: "gate", gateId: "bronze" }, value: { kind: "escaped", seatId: "sage", abominationKind: "occult" } },
   });
   state = updatedFoe.nextState;
   events.push(...updatedFoe.events);
 
-  const removedFoe = applyRemoveNecromancerFoe(state, DEN_COLLECTIVE, {
-    denizenId: DEN_COLLECTIVE,
+  const removedFoe = applyRemoveNecromancerFoe(state, { kind: "denizen", denizenId: DEN_COLLECTIVE }, {
+    subject: { kind: "denizen", denizenId: DEN_COLLECTIVE },
     location: { kind: "escaped", seatId: "sage", abominationKind: "occult" },
   });
   state = removedFoe.nextState;
@@ -389,7 +448,6 @@ function collectRealNecromancerEvents(): NecromancerEvent[] {
 
   const addedGhoul = applyAddNecromancerGhoulCaller(state, {
     denizenId: DEN_6,
-    disposition: "disruptive",
     location: { kind: "path", pathSpaceId: "edge_mariner" },
     pettyDeadCount: 0,
     primaryElement: "air",
@@ -401,7 +459,6 @@ function collectRealNecromancerEvents(): NecromancerEvent[] {
   events.push(...addedGhoul.events);
 
   const updatedGhoul = applyUpdateNecromancerGhoulCaller(state, DEN_6, {
-    disposition: { expected: "disruptive", value: "reliable" },
     pettyDeadCount: { expected: 0, value: 2 },
   });
   state = updatedGhoul.nextState;
@@ -452,6 +509,87 @@ function collectRealNecromancerEvents(): NecromancerEvent[] {
     region: "abyss",
   });
   events.push(...removedPath.events);
+  state = removedPath.nextState;
+
+  state = {
+    ...state,
+    wizards: [...state.wizards, wizard(WIZ_B, "Wizard B")],
+  };
+  const addedTraversal = applyAddNecromancerWizardTraversal(state, {
+    wizardId: WIZ_B,
+    kind: "living_katabasis",
+    location: { kind: "gate", gateId: "amber" },
+  });
+  state = addedTraversal.nextState;
+  events.push(...addedTraversal.events);
+
+  const updatedTraversal = applyUpdateNecromancerWizardTraversal(state, WIZ_B, {
+    location: { expected: { kind: "gate", gateId: "amber" }, value: { kind: "gate", gateId: "bronze" } },
+  });
+  state = updatedTraversal.nextState;
+  events.push(...updatedTraversal.events);
+
+  const removedTraversal = applyRemoveNecromancerWizardTraversal(state, WIZ_B, {
+    wizardId: WIZ_B,
+    kind: "living_katabasis",
+    location: { kind: "gate", gateId: "bronze" },
+  });
+  state = removedTraversal.nextState;
+  events.push(...removedTraversal.events);
+
+  state = {
+    ...state,
+    wizards: state.wizards.map((candidate) =>
+      candidate.wizardId === WIZ_B ? { ...candidate, mortalityState: "deceased" } : candidate,
+    ),
+  };
+  const addedWizardFoe = applyAddNecromancerFoe(state, {
+    subject: { kind: "wizard", wizardId: WIZ_B },
+    location: { kind: "gate", gateId: "amber" },
+    truths: [],
+  });
+  state = addedWizardFoe.nextState;
+  events.push(...addedWizardFoe.events);
+
+  const addedTruth = applyAddNecromancerWizardFoeTruth(state, {
+    wizardId: WIZ_B,
+    truthId: TRUTH_1,
+    text: "The Edge remembers his name",
+  });
+  state = addedTruth.nextState;
+  events.push(...addedTruth.events);
+
+  const updatedTruth = applyUpdateNecromancerWizardFoeTruth(state, WIZ_B, TRUTH_1, {
+    expected: "The Edge remembers his name",
+    value: "The Edge still remembers his name",
+  });
+  state = updatedTruth.nextState;
+  events.push(...updatedTruth.events);
+
+  const wizardFoe = state.necromancer.foes.find(
+    (foe) => foe.subject.kind === "wizard" && foe.subject.wizardId === WIZ_B,
+  );
+  if (wizardFoe === undefined || !isNecromancerWizardFoe(wizardFoe)) {
+    throw new Error("expected Wizard Foe for event collection");
+  }
+  const escaped = applyEscapeNecromancerWizardFoe(
+    state,
+    WIZ_B,
+    "deceased",
+    wizardFoe,
+    "sage",
+  );
+  state = escaped.nextState;
+  events.push(...escaped.events);
+
+  const escapedFoe = state.necromancer.foes.find(
+    (foe) => foe.subject.kind === "wizard" && foe.subject.wizardId === WIZ_B,
+  );
+  if (escapedFoe === undefined || !isNecromancerWizardFoe(escapedFoe)) {
+    throw new Error("expected escaped Wizard Foe for event collection");
+  }
+  const removedTruth = applyRemoveNecromancerWizardFoeTruth(state, WIZ_B, TRUTH_1, escapedFoe.truths[0]);
+  events.push(...removedTruth.events);
   return events;
 }
 
@@ -511,8 +649,8 @@ function recordingIo(options: {
 
 describe("Necromancer Phase 2B persistence contracts", () => {
   describe("command registry", () => {
-    it("registers all 21 Necromancer commands as active logical-state types and omits remove-Gate", () => {
-      expect(NECROMANCER_COMMAND_TYPES).toHaveLength(21);
+    it("registers all 28 Necromancer commands as active logical-state types and omits remove-Gate", () => {
+      expect(NECROMANCER_COMMAND_TYPES).toHaveLength(28);
       for (const commandType of NECROMANCER_COMMAND_TYPES) {
         expect(CAMPAIGN_COMMAND_TYPES as readonly string[]).toContain(commandType);
         expect(isLogicalStateCommandType(commandType)).toBe(true);
@@ -539,13 +677,38 @@ describe("Necromancer Phase 2B persistence contracts", () => {
           1,
           1,
         ),
-        add_necromancer_foe: addNecromancerFoeFingerprint(CAMPAIGN_A, { denizenId: DEN_3, location: { kind: "gate", gateId: "bronze" } }),
-        update_necromancer_foe: updateNecromancerFoeFingerprint(CAMPAIGN_A, DEN_1, {
+        add_necromancer_foe: addNecromancerFoeFingerprint(CAMPAIGN_A, { subject: { kind: "denizen", denizenId: DEN_3 }, location: { kind: "gate", gateId: "bronze" } }),
+        update_necromancer_foe: updateNecromancerFoeFingerprint(CAMPAIGN_A, { kind: "denizen", denizenId: DEN_1 }, {
           location: { expected: { kind: "gate", gateId: "deep" }, value: { kind: "gate", gateId: "amber" } },
         }),
-        remove_necromancer_foe: removeNecromancerFoeFingerprint(CAMPAIGN_A, DEN_1, {
-          denizenId: DEN_1,
+        remove_necromancer_foe: removeNecromancerFoeFingerprint(CAMPAIGN_A, { kind: "denizen", denizenId: DEN_1 }, {
+          subject: { kind: "denizen", denizenId: DEN_1 },
           location: { kind: "gate", gateId: "deep" },
+        }),
+        escape_necromancer_wizard_foe: escapeNecromancerWizardFoeFingerprint(CAMPAIGN_A, WIZ_B, "deceased", {
+          subject: { kind: "wizard", wizardId: WIZ_B },
+          location: { kind: "gate", gateId: "amber" },
+          truths: [],
+        }, "sage"),
+        add_necromancer_wizard_foe_truth: addNecromancerWizardFoeTruthFingerprint(CAMPAIGN_A, WIZ_B, TRUTH_1, "The Edge remembers his name"),
+        update_necromancer_wizard_foe_truth: updateNecromancerWizardFoeTruthFingerprint(CAMPAIGN_A, WIZ_B, TRUTH_1, "The Edge remembers his name", "The Edge still remembers his name"),
+        remove_necromancer_wizard_foe_truth: removeNecromancerWizardFoeTruthFingerprint(CAMPAIGN_A, WIZ_B, TRUTH_1, {
+          truthId: TRUTH_1,
+          text: "The Edge still remembers his name",
+          origin: "campaign",
+        }),
+        add_necromancer_wizard_traversal: addNecromancerWizardTraversalFingerprint(CAMPAIGN_A, {
+          wizardId: WIZ_B,
+          kind: "living_katabasis",
+          location: { kind: "gate", gateId: "amber" },
+        }),
+        update_necromancer_wizard_traversal: updateNecromancerWizardTraversalFingerprint(CAMPAIGN_A, WIZ_B, {
+          location: { expected: { kind: "gate", gateId: "amber" }, value: { kind: "gate", gateId: "bronze" } },
+        }),
+        remove_necromancer_wizard_traversal: removeNecromancerWizardTraversalFingerprint(CAMPAIGN_A, WIZ_B, {
+          wizardId: WIZ_B,
+          kind: "living_katabasis",
+          location: { kind: "gate", gateId: "amber" },
         }),
         add_necromancer_ally: addNecromancerAllyFingerprint(CAMPAIGN_A, { denizenId: DEN_3, location: { kind: "gate", gateId: "lead" } }),
         update_necromancer_ally: updateNecromancerAllyFingerprint(CAMPAIGN_A, DEN_5, {
@@ -557,7 +720,6 @@ describe("Necromancer Phase 2B persistence contracts", () => {
         }),
         add_necromancer_ghoul_caller: addNecromancerGhoulCallerFingerprint(CAMPAIGN_A, {
           denizenId: DEN_6,
-          disposition: "disruptive",
           location: { kind: "path", pathSpaceId: "edge_sage" },
           pettyDeadCount: 0,
           primaryElement: "fire",
@@ -571,7 +733,6 @@ describe("Necromancer Phase 2B persistence contracts", () => {
         }),
         remove_necromancer_ghoul_caller: removeNecromancerGhoulCallerFingerprint(CAMPAIGN_A, DEN_6, {
           denizenId: DEN_6,
-          disposition: "disruptive",
           location: { kind: "path", pathSpaceId: "edge_sage" },
           pettyDeadCount: 0,
           primaryElement: "fire",
@@ -702,7 +863,6 @@ describe("Necromancer Phase 2B persistence contracts", () => {
 
       const paddedGhoul = canonicalizeNecromancerGhoulCaller({
         denizenId: DEN_6,
-        disposition: "disruptive",
         location: { kind: "path", pathSpaceId: "edge_sage" },
         pettyDeadCount: 0,
         primaryElement: "air",
@@ -712,7 +872,6 @@ describe("Necromancer Phase 2B persistence contracts", () => {
       });
       const trimmedGhoul = canonicalizeNecromancerGhoulCaller({
         denizenId: DEN_6,
-        disposition: "disruptive",
         location: { kind: "path", pathSpaceId: "edge_sage" },
         pettyDeadCount: 0,
         primaryElement: "air",
@@ -741,7 +900,6 @@ describe("Necromancer Phase 2B persistence contracts", () => {
         data: {
           ghoulCaller: {
             denizenId: DEN_6,
-            disposition: "disruptive",
             location: { kind: "path", pathSpaceId: "edge_sage" },
             pettyDeadCount: 0,
             primaryElement: "void",
@@ -756,12 +914,12 @@ describe("Necromancer Phase 2B persistence contracts", () => {
   });
 
   describe("event serialization", () => {
-    it("accepts all 21 real Phase-2A Necromancer events on campaignEventValidator", () => {
+    it("accepts all 28 real Phase-2A Necromancer events on campaignEventValidator", () => {
       expectTypeOf<NecromancerInitializedEventV1>().toMatchTypeOf<CampaignEvent>();
       expectTypeOf<NecromancerEvent>().toMatchTypeOf<CampaignEvent>();
       const events = collectRealNecromancerEvents();
       const types = new Set(events.map((event) => event.type));
-      expect(types.size).toBe(21);
+      expect(types.size).toBe(28);
       for (const [, eventType] of NECROMANCER_COMMAND_EVENT_PAIRS) {
         expect(types.has(eventType)).toBe(true);
         expect(findValidatorMembers(campaignEventValidator, eventType, 1).length).toBe(1);
@@ -904,8 +1062,8 @@ describe("Necromancer Phase 2B persistence contracts", () => {
   describe("mutation arg path", () => {
     const source = readFileSync(join(__dirname, "..", "convex", "m3Commands.ts"), "utf8");
 
-    it("registers all 21 mutations on the ordinary executor with expectedCampaignId and no remove-Gate", () => {
-      expect(MUTATION_NAMES).toHaveLength(21);
+    it("registers all 28 mutations on the ordinary executor with expectedCampaignId and no remove-Gate", () => {
+      expect(MUTATION_NAMES).toHaveLength(28);
       for (const name of MUTATION_NAMES) {
         const exportIdx = source.indexOf(`export const ${name} = mutation({`);
         expect(exportIdx, `${name} mutation not found`).toBeGreaterThan(-1);

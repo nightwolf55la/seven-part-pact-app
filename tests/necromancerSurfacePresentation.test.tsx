@@ -44,12 +44,20 @@ vi.mock("../convex/_generated/api.js", () => ({
       addNecromancerFoe: "m3Commands.addNecromancerFoe",
       updateNecromancerFoe: "m3Commands.updateNecromancerFoe",
       removeNecromancerFoe: "m3Commands.removeNecromancerFoe",
+      escapeNecromancerWizardFoe: "m3Commands.escapeNecromancerWizardFoe",
+      addNecromancerWizardFoeTruth: "m3Commands.addNecromancerWizardFoeTruth",
+      updateNecromancerWizardFoeTruth: "m3Commands.updateNecromancerWizardFoeTruth",
+      removeNecromancerWizardFoeTruth: "m3Commands.removeNecromancerWizardFoeTruth",
+      addNecromancerWizardTraversal: "m3Commands.addNecromancerWizardTraversal",
+      updateNecromancerWizardTraversal: "m3Commands.updateNecromancerWizardTraversal",
+      removeNecromancerWizardTraversal: "m3Commands.removeNecromancerWizardTraversal",
       addNecromancerAlly: "m3Commands.addNecromancerAlly",
       updateNecromancerAlly: "m3Commands.updateNecromancerAlly",
       removeNecromancerAlly: "m3Commands.removeNecromancerAlly",
       addNecromancerGhoulCaller: "m3Commands.addNecromancerGhoulCaller",
       updateNecromancerGhoulCaller: "m3Commands.updateNecromancerGhoulCaller",
       removeNecromancerGhoulCaller: "m3Commands.removeNecromancerGhoulCaller",
+      setPowerfulDenizenStatus: "m3Commands.setPowerfulDenizenStatus",
       createNecromancerCampaignGate: "m3Commands.createNecromancerCampaignGate",
       updateNecromancerCampaignGate: "m3Commands.updateNecromancerCampaignGate",
       createNecromancerCampaignPathSpace: "m3Commands.createNecromancerCampaignPathSpace",
@@ -75,7 +83,6 @@ function initializedWithCampaignStructure() {
     ],
     ghoulCallers: [{
       denizenId: "den_00000000-0000-0000-0000-000000000006" as never,
-      disposition: "disruptive",
       location: { kind: "path", pathSpaceId: "edge_sage" },
       pettyDeadCount: 0,
       primaryElement: "fire",
@@ -96,6 +103,7 @@ function renderSurface() {
       world: WORLD,
       campaignId: CAMPAIGN_ID,
       necromancerWizard: null,
+      wizards: [],
     }));
   });
   return { container, root };

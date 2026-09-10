@@ -19,6 +19,7 @@ import {
   buildIntegrityPayloadFromParts,
   computeBackupPayloadDigest,
   verifyMigrationInvariants,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 import type {
   CampaignStateV1,
@@ -78,13 +79,14 @@ function makeV2State(monthOrdinal: number = 3): CurrentCampaignState {
       sage: { status: null, wizardId: null, watcherPlayerId: null },
       sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
     },
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup" as const,
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
     },
     wizardmootHistory: [],
-    world: { denizens: [], isles: [], places: [], companionRelationships: [] },
-    hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] }, mariner: { shipPlaceId: null, selectedLawOfSeaIds: [], boardIsles: [], routes: [], seaRegions: [], beasts: [] }, necromancer: { gates: [], pathSpaces: [], steps: [], souls: [], foes: [], allies: [], ghoulCallers: [], selectedLaws: [], depth: null },
+    world: { denizens: [], isles: [], places: [], companionRelationships: [], campaignPowerfulDenizenTaxonomies: [], treasures: [] },
+    hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] }, mariner: { shipPlaceId: null, selectedLawOfSeaIds: [], boardIsles: [], routes: [], seaRegions: [], beasts: [] }, necromancer: { gates: [], pathSpaces: [], steps: [], souls: [], foes: [], allies: [], ghoulCallers: [], selectedLaws: [], depth: null, wizardTraversals: [] },
   };
 }
 

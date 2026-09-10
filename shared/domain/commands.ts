@@ -82,6 +82,13 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "add_necromancer_foe",
   "update_necromancer_foe",
   "remove_necromancer_foe",
+  "escape_necromancer_wizard_foe",
+  "add_necromancer_wizard_foe_truth",
+  "update_necromancer_wizard_foe_truth",
+  "remove_necromancer_wizard_foe_truth",
+  "add_necromancer_wizard_traversal",
+  "update_necromancer_wizard_traversal",
+  "remove_necromancer_wizard_traversal",
   "add_necromancer_ally",
   "update_necromancer_ally",
   "remove_necromancer_ally",
@@ -94,6 +101,26 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "remove_necromancer_campaign_path_space",
   "add_necromancer_step",
   "remove_necromancer_step",
+  "set_wizard_mortality_state",
+  "set_denizen_mortality_state",
+  "create_powerful_denizen_profile",
+  "remove_powerful_denizen_profile",
+  "set_powerful_denizen_taxonomies",
+  "set_powerful_denizen_status",
+  "set_powerful_denizen_goal",
+  "add_powerful_denizen_method",
+  "update_powerful_denizen_method",
+  "remove_powerful_denizen_method",
+  "add_powerful_denizen_truth",
+  "update_powerful_denizen_truth",
+  "remove_powerful_denizen_truth",
+  "create_campaign_powerful_denizen_taxonomy",
+  "update_campaign_powerful_denizen_taxonomy",
+  "remove_campaign_powerful_denizen_taxonomy",
+  "create_treasure",
+  "update_treasure_details",
+  "update_treasure_state",
+  "update_pact_fragment_operational_state",
 ] as const;
 
 // Historical command types that may appear in persisted revision records but
@@ -190,6 +217,13 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "add_necromancer_foe":
     case "update_necromancer_foe":
     case "remove_necromancer_foe":
+    case "escape_necromancer_wizard_foe":
+    case "add_necromancer_wizard_foe_truth":
+    case "update_necromancer_wizard_foe_truth":
+    case "remove_necromancer_wizard_foe_truth":
+    case "add_necromancer_wizard_traversal":
+    case "update_necromancer_wizard_traversal":
+    case "remove_necromancer_wizard_traversal":
     case "add_necromancer_ally":
     case "update_necromancer_ally":
     case "remove_necromancer_ally":
@@ -202,6 +236,26 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "remove_necromancer_campaign_path_space":
     case "add_necromancer_step":
     case "remove_necromancer_step":
+    case "set_wizard_mortality_state":
+    case "set_denizen_mortality_state":
+    case "create_powerful_denizen_profile":
+    case "remove_powerful_denizen_profile":
+    case "set_powerful_denizen_taxonomies":
+    case "set_powerful_denizen_status":
+    case "set_powerful_denizen_goal":
+    case "add_powerful_denizen_method":
+    case "update_powerful_denizen_method":
+    case "remove_powerful_denizen_method":
+    case "add_powerful_denizen_truth":
+    case "update_powerful_denizen_truth":
+    case "remove_powerful_denizen_truth":
+    case "create_campaign_powerful_denizen_taxonomy":
+    case "update_campaign_powerful_denizen_taxonomy":
+    case "remove_campaign_powerful_denizen_taxonomy":
+    case "create_treasure":
+    case "update_treasure_details":
+    case "update_treasure_state":
+    case "update_pact_fragment_operational_state":
     case "move_month":
     case "legacy_month_change":
       return true;

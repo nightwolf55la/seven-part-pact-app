@@ -85,6 +85,7 @@ function createMutationSpy(): DemoCampaignMutations & { calls: string[] } {
     setSetupOrreryPosition: () => bump("setSetupOrreryPosition"),
     createPlace: () => bump("createPlace"),
     createDenizen: () => bump("createDenizen"),
+    createPowerfulDenizenProfile: () => bump("createPowerfulDenizenProfile"),
     initializeHierophant: () => bump("initializeHierophant"),
     addSupplicant: () => bump("addSupplicant"),
     addProphet: () => bump("addProphet"),

@@ -143,7 +143,7 @@ describe("Hierophant view-model labels and selectors", () => {
       { denizenId: "den_c" as never, classId: "artisan", woe: 1, host: { kind: "cult", cultDenizenId: "den_b" as never } },
     ];
     const prophets: HierophantProphet[] = [
-      { denizenId: "den_c" as never, disposition: "reliable", host: { kind: "temple", templeId: "krolis" } },
+      { denizenId: "den_c" as never, host: { kind: "temple", templeId: "krolis" } },
     ];
     expect(hostedSupplicants(supplicants, { kind: "temple", templeId: "krolis" })).toHaveLength(1);
     expect(hostedSupplicants(supplicants, { kind: "cult", cultDenizenId: "den_b" })).toHaveLength(1);

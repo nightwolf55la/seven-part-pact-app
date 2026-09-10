@@ -23,6 +23,10 @@ import {
   marinerRouteHasEndpoint,
 } from "./mariner-catalogs";
 import type { MarinerBeastLocation, MarinerIsleMarket, MarinerRouteOccupancy, MarinerState } from "./mariner-state";
+import {
+  requirePowerfulRoleProfile,
+  requireRampagingBeastMethod,
+} from "./powerful-denizen-roles";
 
 const ELEMENT_ID_SET = new Set<string>(ELEMENT_IDS);
 const BEAST_CONDITIONS = new Set(["distrusting", "friendly_nesting", "rampaging"]);
@@ -452,6 +456,8 @@ export function validateMarinerReferenceIntegrity(state: CampaignStateV5): void 
     if (denizen.representation !== "individual") {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId must reference an individual Denizen`);
     }
+    const profile = requirePowerfulRoleProfile(denizen, path, "beast");
+    requireRampagingBeastMethod(profile, beast.condition, path);
     if (beast.definitionId !== null) {
       const definition = BEAST_DEFINITION_BY_ID.get(beast.definitionId);
       if (definition === undefined) {

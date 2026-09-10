@@ -6,7 +6,10 @@ import { flushSync } from "react-dom";
 
 type SeatStatus = "present" | "silent" | "absent" | null;
 
+import { EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE } from "../shared/domain";
+
 interface SetupData {
+  campaignId: string;
   configuration: {
     ageId: string | null;
     facilitatorPlayerId: string | null;
@@ -14,9 +17,11 @@ interface SetupData {
   players: { playerId: string; name: string }[];
   wizards: { wizardId: string; name: string; portrayedByPlayerId: string | null }[];
   pactSeats: Record<string, { status: SeatStatus; wizardId: string | null; watcherPlayerId: string | null }>;
+  pactFragmentOperationalState: typeof EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE;
 }
 
 const populatedSetup: SetupData = {
+  campaignId: "cmp_1",
   configuration: { ageId: "awakening", facilitatorPlayerId: null },
   players: [
     { playerId: "plr_1", name: "Alice" },
@@ -32,6 +37,7 @@ const populatedSetup: SetupData = {
     sage: { status: null, wizardId: null, watcherPlayerId: null },
     sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
   },
+  pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 };
 
 let useQueryImpl: (query: unknown, args: unknown) => typeof undefined | null | SetupData;
@@ -59,6 +65,9 @@ vi.mock("../convex/_generated/api.js", () => ({
       setPactSeatWizard: "m3Commands.setPactSeatWizard",
       setPactSeatStatus: "m3Commands.setPactSeatStatus",
       setWatcher: "m3Commands.setWatcher",
+      updateWizardCharacter: "m3Commands.updateWizardCharacter",
+      setWizardMortalityState: "m3Commands.setWizardMortalityState",
+      updatePactFragmentOperationalState: "m3Commands.updatePactFragmentOperationalState",
     },
   },
 }));

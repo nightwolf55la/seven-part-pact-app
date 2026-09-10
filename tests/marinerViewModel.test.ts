@@ -140,9 +140,16 @@ describe("display helpers", () => {
   });
 
   it("filters unused individual Beast Denizens", () => {
+    const beastProfile = {
+      taxonomies: [{ kind: "builtin" as const, taxonomyId: "beast" as const }],
+      status: { kind: "standard" as const, value: "malignant" as const },
+      goal: null,
+      methods: [],
+      truths: [],
+    };
     const denizens = [
-      { denizenId: DEN_A, name: "A", representation: "individual" as const },
-      { denizenId: DEN_B, name: "B", representation: "individual" as const },
+      { denizenId: DEN_A, name: "A", representation: "individual" as const, powerfulProfile: beastProfile },
+      { denizenId: DEN_B, name: "B", representation: "individual" as const, powerfulProfile: beastProfile },
       { denizenId: DEN_C, name: "Choir", representation: "collective" as const },
     ];
     const beasts = [{ denizenId: DEN_A as DenizenId } as MarinerBeastState];

@@ -13,6 +13,7 @@ import {
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
   EMPTY_SHARED_WORLD_STATE,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
   NECROMANCER_ARRANGEMENT_DEFINITIONS,
   NECROMANCER_BUILTIN_GATE_DEFINITIONS,
   NECROMANCER_BUILTIN_GATE_IDS,
@@ -142,19 +143,41 @@ const EXPECTED_INTERNAL_STEPS: ReadonlyArray<readonly [NecromancerOccupiableSpac
   [gateRef("deep"), gateRef("terminus")],
 ];
 
+function foeProfile() {
+  return {
+    taxonomies: [{ kind: "builtin" as const, taxonomyId: "foe_of_death" as const }],
+    status: { kind: "standard" as const, value: "malignant" as const },
+    goal: null,
+    methods: [],
+    truths: [],
+  };
+}
+
+function ghoulProfile() {
+  return {
+    taxonomies: [{ kind: "builtin" as const, taxonomyId: "ghoul_caller" as const }],
+    status: { kind: "standard" as const, value: "reliable" as const },
+    goal: null,
+    methods: [],
+    truths: [],
+  };
+}
+
 function defaultWorld(options?: { extraCollective?: boolean; omitDenizen1?: boolean }) {
   const denizens: Array<{
     denizenId: DenizenId;
     name: string;
     representation: "individual" | "collective";
     description: null;
+    mortalityState: "not_deceased" | null;
+    powerfulProfile: ReturnType<typeof foeProfile> | ReturnType<typeof ghoulProfile> | null;
   }> = [];
   if (!options?.omitDenizen1) {
-    denizens.push({ denizenId: DEN_1, name: "Foe One", representation: "individual", description: null });
+    denizens.push({ denizenId: DEN_1, name: "Foe One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: foeProfile() });
   }
   denizens.push(
-    { denizenId: DEN_2, name: "Ally One", representation: "individual", description: null },
-    { denizenId: DEN_3, name: "Ghoul One", representation: "individual", description: null },
+    { denizenId: DEN_2, name: "Ally One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
+    { denizenId: DEN_3, name: "Ghoul One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: ghoulProfile() },
   );
   if (options?.extraCollective) {
     denizens.push({
@@ -162,6 +185,8 @@ function defaultWorld(options?: { extraCollective?: boolean; omitDenizen1?: bool
       name: "A Host of Dead",
       representation: "collective",
       description: null,
+      mortalityState: null,
+      powerfulProfile: foeProfile(),
     });
   }
   return {
@@ -169,6 +194,8 @@ function defaultWorld(options?: { extraCollective?: boolean; omitDenizen1?: bool
     isles: [],
     places: [],
     companionRelationships: [],
+    campaignPowerfulDenizenTaxonomies: [],
+    treasures: [],
   };
 }
 
@@ -196,8 +223,10 @@ function baseV5(
       },
       homeIsleId: null,
       sanctumPlaceId: null,
+      mortalityState: "not_deceased",
     }],
     pactSeats: EMPTY_PACT_SEATS,
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup",
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
@@ -214,11 +243,10 @@ function initialized(overrides?: Parameters<typeof buildInitializedDefaultNecrom
   return buildInitializedDefaultNecromancerState(overrides);
 }
 
-function foe(overrides?: Partial<NecromancerFoeState>): NecromancerFoeState {
+function foe(overrides?: { denizenId?: DenizenId; location?: NecromancerFoeState["location"] }): NecromancerFoeState {
   return {
-    denizenId: DEN_1,
-    location: gateRef("deep"),
-    ...overrides,
+    subject: { kind: "denizen", denizenId: overrides?.denizenId ?? DEN_1 },
+    location: overrides?.location ?? gateRef("deep"),
   };
 }
 
@@ -233,7 +261,6 @@ function ally(overrides?: Partial<NecromancerAllyState>): NecromancerAllyState {
 function ghoul(overrides?: Partial<NecromancerGhoulCallerState>): NecromancerGhoulCallerState {
   return {
     denizenId: DEN_3,
-    disposition: "reliable",
     location: { kind: "path", pathSpaceId: "edge_sage" },
     pettyDeadCount: 0,
     primaryElement: "fire",

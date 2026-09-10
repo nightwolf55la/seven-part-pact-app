@@ -6,6 +6,7 @@ import type {
   MonthOrdinal,
   PlaceId,
   PlayerId,
+  PowerfulDenizenMethodEntryId,
   WizardId,
 } from "../shared/domain";
 import {
@@ -35,6 +36,7 @@ import {
   validateCampaignState,
   validateCampaignStateV5Candidate,
   validateMarinerStructure,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 import type {
   MarinerBoardIsleId,
@@ -76,6 +78,22 @@ function worldIsleIds(): Record<MarinerBoardIsleId, IsleId> {
   return bindings;
 }
 
+function beastProfile(methodEntryId?: PowerfulDenizenMethodEntryId) {
+  return {
+    taxonomies: [{ kind: "builtin" as const, taxonomyId: "beast" as const }],
+    status: { kind: "standard" as const, value: "malignant" as const },
+    goal: null,
+    methods: methodEntryId === undefined
+      ? []
+      : [{
+          methodEntryId,
+          definition: { kind: "standard" as const, method: "rampaging" as const },
+          origin: "source" as const,
+        }],
+    truths: [],
+  };
+}
+
 function defaultWorld(options?: {
   shipPlacement?: "mobile" | "on_isle" | "missing";
   omitIsle?: MarinerBoardIsleId;
@@ -102,9 +120,11 @@ function defaultWorld(options?: {
     name: string;
     representation: "individual" | "collective";
     description: null;
+    mortalityState: "not_deceased" | null;
+    powerfulProfile: ReturnType<typeof beastProfile> | null;
   }> = [
-    { denizenId: DEN_1, name: "Beast One", representation: "individual", description: null },
-    { denizenId: DEN_2, name: "Beast Two", representation: "individual", description: null },
+    { denizenId: DEN_1, name: "Beast One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: beastProfile("pdmth_00000000-0000-0000-0000-0000000000b1" as PowerfulDenizenMethodEntryId) },
+    { denizenId: DEN_2, name: "Beast Two", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: beastProfile() },
   ];
   if (options?.extraCollective) {
     denizens.push({
@@ -112,6 +132,8 @@ function defaultWorld(options?: {
       name: "A Flock",
       representation: "collective",
       description: null,
+      mortalityState: null,
+      powerfulProfile: null,
     });
   }
   return {
@@ -119,6 +141,8 @@ function defaultWorld(options?: {
     isles,
     places,
     companionRelationships: [],
+    campaignPowerfulDenizenTaxonomies: [],
+    treasures: [],
   };
 }
 
@@ -143,8 +167,10 @@ function baseV5(mariner: MarinerState = EMPTY_MARINER_STATE, world = { ...EMPTY_
       },
       homeIsleId: null,
       sanctumPlaceId: null,
+      mortalityState: "not_deceased",
     }],
     pactSeats: EMPTY_PACT_SEATS,
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup",
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },

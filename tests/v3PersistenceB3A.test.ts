@@ -11,6 +11,7 @@ import {
   assertPortableCampaignState,
   canonicalJsonStringify,
   asCentidegreePosition,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 import { initialCampaignState } from "../shared/domain/initial-state";
 import {
@@ -50,10 +51,11 @@ function baseV3Setup(overrides?: Partial<CampaignStateV5>): CampaignStateV5 {
     players: [],
     wizards: [],
     pactSeats: emptyPactSeats(),
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: { kind: "setup", orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } },
     wizardmootHistory: [],
-    world: { denizens: [], isles: [], places: [], companionRelationships: [] },
-    hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] }, mariner: { shipPlaceId: null, selectedLawOfSeaIds: [], boardIsles: [], routes: [], seaRegions: [], beasts: [] }, necromancer: { gates: [], pathSpaces: [], steps: [], souls: [], foes: [], allies: [], ghoulCallers: [], selectedLaws: [], depth: null },
+    world: { denizens: [], isles: [], places: [], companionRelationships: [], campaignPowerfulDenizenTaxonomies: [], treasures: [] },
+    hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] }, mariner: { shipPlaceId: null, selectedLawOfSeaIds: [], boardIsles: [], routes: [], seaRegions: [], beasts: [] }, necromancer: { gates: [], pathSpaces: [], steps: [], souls: [], foes: [], allies: [], ghoulCallers: [], selectedLaws: [], depth: null, wizardTraversals: [] },
     ...overrides,
   };
 }
@@ -93,11 +95,12 @@ function richPlayState(): CampaignStateV5 {
     calendar: { monthOrdinal: 5 as MonthOrdinal },
     configuration: { ageId: "awakening", facilitatorPlayerId: playerId },
     players: [{ playerId, name: "Alice" }],
-    wizards: [{ wizardId, name: "Valdris", portrayedByPlayerId: playerId, character: { elements: null, pactFragmentPersonalForm: null, familiarDescription: null, ageYears: null, publicChangesOfMagic: [], importantNotes: null }, homeIsleId: null, sanctumPlaceId: null }],
+    wizards: [{ wizardId, name: "Valdris", portrayedByPlayerId: playerId, character: { elements: null, pactFragmentPersonalForm: null, familiarDescription: null, ageYears: null, publicChangesOfMagic: [], importantNotes: null }, homeIsleId: null, sanctumPlaceId: null, mortalityState: "not_deceased" }],
     pactSeats: {
       ...emptyPactSeats(),
       necromancer: { status: "present", wizardId, watcherPlayerId: null },
     },
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "play",
       phase: "meeting",
@@ -114,8 +117,8 @@ function richPlayState(): CampaignStateV5 {
       { monthOrdinal: 3 as MonthOrdinal, attendance: [{ wizardId, attended: true }] },
       { monthOrdinal: 4 as MonthOrdinal, attendance: [{ wizardId, attended: false }] },
     ],
-    world: { denizens: [], isles: [], places: [], companionRelationships: [] },
-    hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] }, mariner: { shipPlaceId: null, selectedLawOfSeaIds: [], boardIsles: [], routes: [], seaRegions: [], beasts: [] }, necromancer: { gates: [], pathSpaces: [], steps: [], souls: [], foes: [], allies: [], ghoulCallers: [], selectedLaws: [], depth: null },
+    world: { denizens: [], isles: [], places: [], companionRelationships: [], campaignPowerfulDenizenTaxonomies: [], treasures: [] },
+    hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] }, mariner: { shipPlaceId: null, selectedLawOfSeaIds: [], boardIsles: [], routes: [], seaRegions: [], beasts: [] }, necromancer: { gates: [], pathSpaces: [], steps: [], souls: [], foes: [], allies: [], ghoulCallers: [], selectedLaws: [], depth: null, wizardTraversals: [] },
   };
 }
 

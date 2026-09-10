@@ -84,6 +84,14 @@ export interface DemoCampaignMutations {
     representation: "individual" | "collective";
     description: string | null;
   }): Promise<{ revision: number }>;
+  createPowerfulDenizenProfile(args: {
+    commandId: string;
+    expectedCampaignId: string;
+    denizenId: string;
+    taxonomies: Array<{ kind: "builtin"; taxonomyId: "prophet" | "cult" }>;
+    status: { kind: "standard"; value: "reliable" | "disruptive" | "companion" | "malignant" };
+    goal: string | null;
+  }): Promise<{ revision: number }>;
   initializeHierophant(args: {
     commandId: string;
     expectedCampaignId: string;
@@ -106,7 +114,6 @@ export interface DemoCampaignMutations {
     commandId: string;
     expectedCampaignId: string;
     denizenId: string;
-    disposition: "reliable" | "disruptive";
     host: { kind: "temple"; templeId: string };
   }): Promise<{ revision: number }>;
   establishCult(args: {
@@ -328,6 +335,30 @@ export async function runDemoCampaignSetup(
       revision = afterDenizen.revision;
     }
 
+    const afterProphetProfile = await runStep("Create Demo Prophet profile", onProgress, () =>
+      mutations.createPowerfulDenizenProfile({
+        commandId: commandId(nextUuid),
+        expectedCampaignId: campaignId,
+        denizenId: fixture.denizenProphetId,
+        taxonomies: [{ kind: "builtin", taxonomyId: "prophet" }],
+        status: { kind: "standard", value: "reliable" },
+        goal: null,
+      }),
+    );
+    revision = afterProphetProfile.revision;
+
+    const afterCultProfile = await runStep("Create Demo Cult profile", onProgress, () =>
+      mutations.createPowerfulDenizenProfile({
+        commandId: commandId(nextUuid),
+        expectedCampaignId: campaignId,
+        denizenId: fixture.denizenCultId,
+        taxonomies: [{ kind: "builtin", taxonomyId: "cult" }],
+        status: { kind: "standard", value: "reliable" },
+        goal: null,
+      }),
+    );
+    revision = afterCultProfile.revision;
+
     const afterInit = await runStep("Initialize Hierophant", onProgress, () =>
       mutations.initializeHierophant({
         commandId: commandId(nextUuid),
@@ -358,7 +389,6 @@ export async function runDemoCampaignSetup(
         commandId: commandId(nextUuid),
         expectedCampaignId: campaignId,
         denizenId: fixture.denizenProphetId,
-        disposition: "reliable",
         host: { kind: "temple", templeId: HIEROPHANT_STARTING_TEMPLE_IDS[1] },
       }),
     );

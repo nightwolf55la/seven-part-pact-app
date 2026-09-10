@@ -21,6 +21,7 @@ import {
   EMPTY_HIEROPHANT_STATE,
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 import {
   applySetWizardHomeIsleV5Candidate,
@@ -68,6 +69,7 @@ function blankV5Wizard(overrides?: Partial<CampaignWizardV5>): CampaignWizardV5 
     character: { ...BLANK_WIZARD_CHARACTER_V5 },
     homeIsleId: null,
     sanctumPlaceId: null,
+    mortalityState: "not_deceased",
     ...overrides,
   };
 }
@@ -81,6 +83,7 @@ function baseV5(wizards?: CampaignWizardV5[], world?: Partial<SharedWorldState>)
     players: [{ playerId: PLR_A, name: "Alice" }],
     wizards: wizards ?? [blankV5Wizard()],
     pactSeats: EMPTY_PACT_SEATS,
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup",
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
@@ -258,7 +261,7 @@ describe("home/sanctum association failures", () => {
 describe("applySetWizardCompanionV5Candidate — assign into empty", () => {
   it("creates a current relationship and emits correct event", () => {
     const state = baseV5(undefined, {
-      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
     });
 
     const result = applySetWizardCompanionV5Candidate(state, {
@@ -298,8 +301,8 @@ describe("applySetWizardCompanionV5Candidate — replace", () => {
   it("ends old relationship, creates new current, preserves Denizen records", () => {
     const state = baseV5(undefined, {
       denizens: [
-        { denizenId: DEN_1, name: "Mara", representation: "individual", description: null },
-        { denizenId: DEN_2, name: "Orin", representation: "individual", description: null },
+        { denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
+        { denizenId: DEN_2, name: "Orin", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
       ],
       companionRelationships: [
         {
@@ -354,7 +357,7 @@ describe("applySetWizardCompanionV5Candidate — replace", () => {
 describe("applySetWizardCompanionV5Candidate — end", () => {
   it("marks relationship ended, leaves no current for slot", () => {
     const state = baseV5(undefined, {
-      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
       companionRelationships: [
         {
           companionRelationshipId: CMPREL_1,
@@ -392,7 +395,7 @@ describe("applySetWizardCompanionV5Candidate — end", () => {
 describe("applySetWizardCompanionV5Candidate — stale precondition", () => {
   it("rejects wrong expectedCurrentRelationshipId and leaves state unchanged", () => {
     const state = baseV5(undefined, {
-      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
       companionRelationships: [
         {
           companionRelationshipId: CMPREL_1,
@@ -436,7 +439,7 @@ describe("applySetWizardCompanionV5Candidate — Denizen reuse", () => {
     const state = baseV5(
       [blankV5Wizard(), blankV5Wizard({ wizardId: WIZ_B, name: "Wizard B" })],
       {
-        denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+        denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
         companionRelationships: [
           {
             companionRelationshipId: CMPREL_1,
@@ -477,7 +480,7 @@ describe("applySetWizardCompanionV5Candidate — Denizen reuse", () => {
 describe("applyUpdateCompanionDescriptionV5Candidate", () => {
   it("normalizes description and preserves all other relationship fields", () => {
     const state = baseV5(undefined, {
-      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
       companionRelationships: [
         {
           companionRelationshipId: CMPREL_1,
@@ -519,8 +522,8 @@ describe("description edit after replacement — stale status", () => {
   it("rejects edit expecting 'current' on a now-ended relationship", () => {
     let state = baseV5(undefined, {
       denizens: [
-        { denizenId: DEN_1, name: "Mara", representation: "individual", description: null },
-        { denizenId: DEN_2, name: "Orin", representation: "individual", description: null },
+        { denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
+        { denizenId: DEN_2, name: "Orin", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
       ],
       companionRelationships: [
         {
@@ -569,8 +572,8 @@ describe("ended relationship description edit", () => {
   it("succeeds when expectedStatus is 'ended'", () => {
     let state = baseV5(undefined, {
       denizens: [
-        { denizenId: DEN_1, name: "Mara", representation: "individual", description: null },
-        { denizenId: DEN_2, name: "Orin", representation: "individual", description: null },
+        { denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
+        { denizenId: DEN_2, name: "Orin", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
       ],
       companionRelationships: [
         {
@@ -618,7 +621,7 @@ describe("ended relationship description edit", () => {
 describe("companion assignment rejections", () => {
   it("rejects duplicate relationship ID", () => {
     const state = baseV5(undefined, {
-      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
       companionRelationships: [
         {
           companionRelationshipId: CMPREL_1,

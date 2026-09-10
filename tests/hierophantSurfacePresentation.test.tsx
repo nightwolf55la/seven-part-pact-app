@@ -45,6 +45,7 @@ vi.mock("../convex/_generated/api.js", () => ({
       addProphet: "m3Commands.addProphet",
       updateProphet: "m3Commands.updateProphet",
       removeProphet: "m3Commands.removeProphet",
+      setPowerfulDenizenStatus: "m3Commands.setPowerfulDenizenStatus",
       establishCult: "m3Commands.establishCult",
       updateCult: "m3Commands.updateCult",
       removeCult: "m3Commands.removeCult",

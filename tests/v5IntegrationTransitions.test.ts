@@ -25,6 +25,7 @@ import {
   EMPTY_HIEROPHANT_STATE,
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 import {
   applyUpdateWizardCharacterV5Candidate,
@@ -76,6 +77,7 @@ function blankV5Wizard(overrides?: Partial<CampaignWizardV5>): CampaignWizardV5 
     character: { ...BLANK_WIZARD_CHARACTER_V5 },
     homeIsleId: null,
     sanctumPlaceId: null,
+    mortalityState: "not_deceased",
     ...overrides,
   };
 }
@@ -89,6 +91,7 @@ function baseV5Setup(wizards?: CampaignWizardV5[]): CampaignStateV5 {
     players: [{ playerId: PLR_A, name: "Alice" }],
     wizards: wizards ?? [blankV5Wizard()],
     pactSeats: EMPTY_PACT_SEATS,
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup",
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
@@ -233,7 +236,7 @@ describe("applySetEngagementTargetV5Candidate — planning", () => {
   it("accepts a Denizen target and emits v2 event", () => {
     const state = baseV5Play("planning", {
       wizards: [blankV5Wizard()],
-      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
       engagements: [pendingEngagement(ENG_1, WIZ_A, null)],
     });
 
@@ -305,7 +308,7 @@ describe("applySetEngagementTargetV5Candidate — preservation", () => {
   it("preserves linkedTimeAllocationId and other engagements", () => {
     const state = baseV5Play("planning", {
       wizards: [blankV5Wizard()],
-      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
       engagements: [
         pendingEngagement(ENG_1, WIZ_A, null, ALLOC_1),
         pendingEngagement(ENG_2, WIZ_A, { kind: "self" }),
@@ -337,7 +340,7 @@ describe("applyRescheduleEngagementV5Candidate — story", () => {
   it("accepts a Denizen target and emits EngagementRescheduledEventV2", () => {
     const state = baseV5Play("story", {
       wizards: [blankV5Wizard()],
-      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
       engagements: [pendingEngagement(ENG_1, WIZ_A, { kind: "self" })],
     });
 
@@ -519,7 +522,7 @@ describe("Real V5 transition -> real coherence gate", () => {
   it("set_engagement_target: real v2 event passes validateEventCoherenceForTest", () => {
     const state = baseV5Play("planning", {
       wizards: [blankV5Wizard()],
-      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
       engagements: [pendingEngagement(ENG_1, WIZ_A, null)],
     });
     const result = applySetEngagementTargetV5Candidate(state, {
@@ -545,7 +548,7 @@ describe("Real V5 transition -> real coherence gate", () => {
   it("reschedule_engagement: real v2 event passes validateEventCoherenceForTest", () => {
     const state = baseV5Play("story", {
       wizards: [blankV5Wizard()],
-      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
       engagements: [pendingEngagement(ENG_1, WIZ_A, { kind: "self" })],
     });
     const result = applyRescheduleEngagementV5Candidate(state, {
@@ -600,7 +603,7 @@ describe("Current V5 commands require v2 (v1 rejected)", () => {
   it("set_engagement_target + engagement_target_changed v1 -> INVALID_CAMPAIGN_STATE", () => {
     const state = baseV5Play("planning", {
       wizards: [blankV5Wizard()],
-      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
       engagements: [pendingEngagement(ENG_1, WIZ_A, null)],
     });
     const result = applySetEngagementTargetV5Candidate(state, {
@@ -629,7 +632,7 @@ describe("Current V5 commands require v2 (v1 rejected)", () => {
   it("reschedule_engagement + engagement_rescheduled v1 -> INVALID_CAMPAIGN_STATE", () => {
     const state = baseV5Play("story", {
       wizards: [blankV5Wizard()],
-      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+      denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
       engagements: [pendingEngagement(ENG_1, WIZ_A, { kind: "self" })],
     });
     const result = applyRescheduleEngagementV5Candidate(state, {

@@ -16,11 +16,15 @@ const BLANK_CHARACTER = {
   companionDescriptions: { air: null, fire: null, earth: null, water: null },
 };
 
+import { EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE } from "../shared/domain";
+
 interface SetupData {
+  campaignId: string;
   configuration: { ageId: string | null; facilitatorPlayerId: string | null };
   players: { playerId: string; name: string }[];
   wizards: { wizardId: string; name: string; portrayedByPlayerId: string | null; character: typeof BLANK_CHARACTER }[];
   pactSeats: Record<string, { status: SeatStatus; wizardId: string | null; watcherPlayerId: string | null }>;
+  pactFragmentOperationalState: typeof EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE;
   monthOrdinal: number | null;
   monthDisplayName: string | null;
   orreryPositions: Record<string, number | null>;
@@ -28,6 +32,7 @@ interface SetupData {
 }
 
 const populatedSetup: SetupData = {
+  campaignId: "cmp_1",
   configuration: { ageId: "awakening", facilitatorPlayerId: null },
   players: [
     { playerId: "plr_1", name: "Alice" },
@@ -45,6 +50,7 @@ const populatedSetup: SetupData = {
     sage: { status: null, wizardId: null, watcherPlayerId: null },
     sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
   },
+  pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
   monthOrdinal: null,
   monthDisplayName: null,
   orreryPositions: {},
@@ -76,6 +82,8 @@ vi.mock("../convex/_generated/api.js", () => ({
       setPactSeatStatus: "m3Commands.setPactSeatStatus",
       setWatcher: "m3Commands.setWatcher",
       updateWizardCharacter: "m3Commands.updateWizardCharacter",
+      setWizardMortalityState: "m3Commands.setWizardMortalityState",
+      updatePactFragmentOperationalState: "m3Commands.updatePactFragmentOperationalState",
     },
   },
 }));

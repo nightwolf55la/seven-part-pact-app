@@ -2,6 +2,8 @@ import type { Brand } from "./brand";
 import type { MonthOrdinal } from "./calendar";
 import type { PlayerId, WizardId, IsleId, PlaceId } from "./ids";
 import type { PactSeatId } from "./pact-seats";
+import { PACT_SEAT_IDS } from "./pact-seats";
+import type { MortalityState } from "./shared-world";
 import type { AgeDefinitionId } from "./ages";
 import type { SetupOrreryState, OrreryState } from "./orrery";
 import type { TimeParticipant } from "./time-model";
@@ -221,7 +223,65 @@ export interface CampaignWizardV5 {
   readonly character: WizardCharacterDataV5;
   readonly homeIsleId: IsleId | null;
   readonly sanctumPlaceId: PlaceId | null;
+  readonly mortalityState: MortalityState;
 }
+
+export type PactFragmentCondition = "intact" | "damaged" | "destroyed";
+
+export const PACT_FRAGMENT_CONDITIONS: readonly PactFragmentCondition[] = [
+  "intact",
+  "damaged",
+  "destroyed",
+] as const;
+
+export type PactFragmentCustody =
+  | {
+      readonly kind: "wizard";
+      readonly wizardId: WizardId;
+    }
+  | {
+      readonly kind: "devil";
+    }
+  | {
+      readonly kind: "unlocated";
+    }
+  | {
+      readonly kind: "none";
+    };
+
+export interface PactFragmentOperationalState {
+  readonly condition: PactFragmentCondition;
+  readonly custody: PactFragmentCustody;
+}
+
+export type PactFragmentOperationalMap = {
+  readonly [K in PactSeatId]: PactFragmentOperationalState;
+};
+
+export function initializePactFragmentOperationalState(
+  pactSeats: { readonly [K in PactSeatId]: Pick<PactSeatState, "wizardId"> },
+): PactFragmentOperationalMap {
+  const fragments = {} as Record<PactSeatId, PactFragmentOperationalState>;
+  for (const seatId of PACT_SEAT_IDS) {
+    const wizardId = pactSeats[seatId].wizardId;
+    fragments[seatId] =
+      wizardId === null
+        ? { condition: "intact", custody: { kind: "none" } }
+        : { condition: "intact", custody: { kind: "wizard", wizardId } };
+  }
+  return fragments as PactFragmentOperationalMap;
+}
+
+export const EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE: PactFragmentOperationalMap =
+  initializePactFragmentOperationalState({
+    necromancer: { wizardId: null },
+    hierophant: { wizardId: null },
+    warlock: { wizardId: null },
+    mariner: { wizardId: null },
+    faustian: { wizardId: null },
+    sage: { wizardId: null },
+    sorcerer: { wizardId: null },
+  });
 
 export interface MonthlyPlayStateV5 {
   readonly timeParticipants: readonly TimeParticipant[];
@@ -251,6 +311,7 @@ export interface CampaignStateV5 {
   readonly players: readonly CampaignPlayer[];
   readonly wizards: readonly CampaignWizardV5[];
   readonly pactSeats: { readonly [K in PactSeatId]: PactSeatState };
+  readonly pactFragmentOperationalState: PactFragmentOperationalMap;
   readonly lifecycle: CampaignLifecycleV5;
   readonly wizardmootHistory: readonly WizardmootHistoryEntry[];
   readonly world: SharedWorldState;

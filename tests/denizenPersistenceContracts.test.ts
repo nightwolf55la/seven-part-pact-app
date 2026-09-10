@@ -79,6 +79,8 @@ describe("Denizen persistence contracts", () => {
           name: "Elder Thorn",
           representation: "individual",
           description: null,
+          mortalityState: "not_deceased",
+          powerfulProfile: null,
         },
       },
     };
@@ -98,12 +100,16 @@ describe("Denizen persistence contracts", () => {
           name: "Old Name",
           representation: "individual",
           description: null,
+          mortalityState: "not_deceased",
+          powerfulProfile: null,
         },
         updated: {
           denizenId: "den_00000000-0000-0000-0000-000000000001" as DenizenId,
           name: "New Name",
           representation: "individual",
           description: null,
+          mortalityState: "not_deceased",
+          powerfulProfile: null,
         },
       },
     };
@@ -137,6 +143,8 @@ describe("Denizen persistence contracts", () => {
           name: "Elder Thorn",
           representation: "individual",
           description: null,
+          mortalityState: "not_deceased",
+          powerfulProfile: null,
         },
       },
     };
@@ -157,12 +165,16 @@ describe("Denizen persistence contracts", () => {
           name: "Old Name",
           representation: "individual",
           description: null,
+          mortalityState: "not_deceased",
+          powerfulProfile: null,
         },
         updated: {
           denizenId: "den_00000000-0000-0000-0000-000000000001" as DenizenId,
           name: "New Name",
           representation: "individual",
           description: null,
+          mortalityState: "not_deceased",
+          powerfulProfile: null,
         },
       },
     };

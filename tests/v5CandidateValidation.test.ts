@@ -25,6 +25,7 @@ import {
   EMPTY_HIEROPHANT_STATE,
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 
 // ---------------------------------------------------------------------------
@@ -56,6 +57,7 @@ function blankV5Wizard(overrides?: Partial<CampaignWizardV5>): CampaignWizardV5 
     character: { ...BLANK_WIZARD_CHARACTER_V5 },
     homeIsleId: null,
     sanctumPlaceId: null,
+    mortalityState: "not_deceased",
     ...overrides,
   };
 }
@@ -69,6 +71,7 @@ function minimalV5Setup(): CampaignStateV5 {
     players: [{ playerId: PLR_A, name: "Alice" }],
     wizards: [blankV5Wizard()],
     pactSeats: EMPTY_PACT_SEATS,
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup",
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
@@ -123,6 +126,8 @@ describe("validateCampaignStateV5Candidate", () => {
     expect(EMPTY_SHARED_WORLD_STATE.isles).toEqual([]);
     expect(EMPTY_SHARED_WORLD_STATE.places).toEqual([]);
     expect(EMPTY_SHARED_WORLD_STATE.companionRelationships).toEqual([]);
+    expect(EMPTY_SHARED_WORLD_STATE.campaignPowerfulDenizenTaxonomies).toEqual([]);
+    expect(EMPTY_SHARED_WORLD_STATE.treasures).toEqual([]);
   });
 
   // =========================================================================
@@ -134,7 +139,7 @@ describe("validateCampaignStateV5Candidate", () => {
       ...minimalV5Play(),
       world: {
         ...EMPTY_SHARED_WORLD_STATE,
-        denizens: [{ denizenId: DEN_1, name: "Elder", representation: "individual", description: null }],
+        denizens: [{ denizenId: DEN_1, name: "Elder", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
       },
       lifecycle: {
         kind: "play",
@@ -204,7 +209,7 @@ describe("validateCampaignStateV5Candidate", () => {
     it.each([
       {
         label: "denizen with blank name",
-        world: { ...EMPTY_SHARED_WORLD_STATE, denizens: [{ denizenId: DEN_1, name: "", representation: "individual", description: null }] },
+        world: { ...EMPTY_SHARED_WORLD_STATE, denizens: [{ denizenId: DEN_1, name: "", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }] },
       },
       {
         label: "denizen with invalid representation",
@@ -239,7 +244,7 @@ describe("validateCampaignStateV5Candidate", () => {
         label: "companion with invalid element",
         world: {
           ...EMPTY_SHARED_WORLD_STATE,
-          denizens: [{ denizenId: DEN_1, name: "D", representation: "individual", description: null }],
+          denizens: [{ denizenId: DEN_1, name: "D", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
           companionRelationships: [{
             companionRelationshipId: CMPREL_1, wizardId: WIZ_A,
             element: "lightning", denizenId: DEN_1, description: null, status: "current",
@@ -250,7 +255,7 @@ describe("validateCampaignStateV5Candidate", () => {
         label: "companion with invalid status",
         world: {
           ...EMPTY_SHARED_WORLD_STATE,
-          denizens: [{ denizenId: DEN_1, name: "D", representation: "individual", description: null }],
+          denizens: [{ denizenId: DEN_1, name: "D", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
           companionRelationships: [{
             companionRelationshipId: CMPREL_1, wizardId: WIZ_A,
             element: "fire", denizenId: DEN_1, description: null, status: "dead",
@@ -289,8 +294,8 @@ describe("validateCampaignStateV5Candidate", () => {
       world: {
         ...EMPTY_SHARED_WORLD_STATE,
         denizens: [
-          { denizenId: DEN_1, name: "A", representation: "individual" as const, description: null },
-          { denizenId: DEN_2, name: "B", representation: "individual" as const, description: null },
+          { denizenId: DEN_1, name: "A", representation: "individual" as const, description: null, mortalityState: "not_deceased", powerfulProfile: null },
+          { denizenId: DEN_2, name: "B", representation: "individual" as const, description: null, mortalityState: "not_deceased", powerfulProfile: null },
         ],
         companionRelationships: [
           { companionRelationshipId: CMPREL_1, wizardId: WIZ_A, element: "fire" as const, denizenId: DEN_1, description: null, status: "current" as const },

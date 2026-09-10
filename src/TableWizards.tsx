@@ -8,6 +8,8 @@ import AddWizardDialog from "./AddWizardDialog";
 import WizardCharacterSheet from "./WizardCharacterSheet";
 import { eligiblePortrayingPlayersForNewWizard } from "./setup-view-model";
 import type { WizardCharacterData } from "../shared/domain/campaign-state";
+import { PactFragmentControls } from "./PactFragmentControls";
+import type { PactFragmentOperationalMap } from "../shared/domain";
 import type { WorldReference } from "./WorldSurface";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -35,12 +37,14 @@ export default function TableWizards({
   wizards,
   worldRef,
   campaignId,
+  pactFragmentOperationalState,
 }: {
   pactSeats: Readonly<Record<string, SeatRef>>;
   players: readonly PlayerRef[];
   wizards: readonly WizardRef[];
   worldRef: WorldReference | null | undefined;
   campaignId: string;
+  pactFragmentOperationalState?: PactFragmentOperationalMap;
 }) {
   const rows = buildTableWizardsRows(pactSeats, players, wizards);
   const createWizard = useMutation(api.m3Commands.createWizard);
@@ -49,6 +53,8 @@ export default function TableWizards({
   const setWizardSanctum = useMutation(api.m3Commands.setWizardSanctum);
   const setWizardCompanion = useMutation(api.m3Commands.setWizardCompanion);
   const updateCompanionDescription = useMutation(api.m3Commands.updateCompanionDescription);
+  const setWizardMortalityState = useMutation(api.m3Commands.setWizardMortalityState);
+  const updatePactFragmentOperationalState = useMutation(api.m3Commands.updatePactFragmentOperationalState);
 
   const [pending, setPending] = useState(false);
   const [showAddWizard, setShowAddWizard] = useState(false);
@@ -56,6 +62,7 @@ export default function TableWizards({
   const [characterWizardId, setCharacterWizardId] = useState<string | null>(null);
   const [characterCampaignId, setCharacterCampaignId] = useState<string | null>(null);
   const [characterError, setCharacterError] = useState<string | null>(null);
+  const [fragmentError, setFragmentError] = useState<string | null>(null);
 
   function openCharacterSheet(wizardId: string): void {
     setCharacterWizardId(wizardId);
@@ -94,6 +101,9 @@ export default function TableWizards({
           Add Wizard
         </button>
       </div>
+      {fragmentError && (
+        <p className="text-sm text-red-600 dark:text-red-400">{fragmentError}</p>
+      )}
       <div className="flex flex-col gap-3">
         {rows.map((row) => (
           <div
@@ -144,6 +154,31 @@ export default function TableWizards({
                 </div>
               ) : (
                 <p className="text-slate-400 dark:text-slate-500">Elements —</p>
+              )}
+              {pactFragmentOperationalState !== undefined && (
+                <PactFragmentControls
+                  seatId={row.seatId}
+                  fragment={pactFragmentOperationalState[row.seatId]}
+                  wizards={wizards.map((wizard) => ({ wizardId: wizard.wizardId, name: wizard.name }))}
+                  pending={pending}
+                  onSave={async (next) => {
+                    setFragmentError(null);
+                    setPending(true);
+                    try {
+                      await updatePactFragmentOperationalState({
+                        commandId: generateCommandId(),
+                        expectedCampaignId: campaignId,
+                        seatId: row.seatId,
+                        expected: pactFragmentOperationalState[row.seatId],
+                        next,
+                      });
+                    } catch (e: any) {
+                      setFragmentError(e?.message ?? "Failed to update Pact-Fragment");
+                    } finally {
+                      setPending(false);
+                    }
+                  }}
+                />
               )}
             </div>
           </div>
@@ -207,6 +242,23 @@ export default function TableWizards({
           homeIsleId={characterWizard.homeIsleId}
           sanctumPlaceId={characterWizard.sanctumPlaceId}
           worldRef={worldRef}
+          mortalityState={characterWizard.mortalityState ?? "not_deceased"}
+          onSetMortality={async (change) => {
+            setCharacterError(null);
+            setPending(true);
+            try {
+              await setWizardMortalityState({
+                commandId: generateCommandId(),
+                expectedCampaignId: characterCampaignId!,
+                wizardId: characterWizard.wizardId,
+                change,
+              });
+            } catch (e: any) {
+              setCharacterError(e?.message ?? "Failed to set wizard mortality");
+            } finally {
+              setPending(false);
+            }
+          }}
           onSetHomeIsle={async (change) => {
             setCharacterError(null);
             setPending(true);

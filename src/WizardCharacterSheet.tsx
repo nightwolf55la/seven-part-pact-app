@@ -45,6 +45,8 @@ export interface WizardCharacterSheetProps {
     expectedStatus: "current";
     description: { expected: string | null; value: string | null };
   }) => Promise<void>;
+  readonly mortalityState?: "not_deceased" | "deceased";
+  readonly onSetMortality?: (change: { expected: "not_deceased" | "deceased"; value: "not_deceased" | "deceased" }) => Promise<void>;
 }
 
 export default function WizardCharacterSheet({
@@ -62,6 +64,8 @@ export default function WizardCharacterSheet({
   onSetSanctum,
   onSetCompanion,
   onUpdateCompanionDescription,
+  mortalityState,
+  onSetMortality,
 }: WizardCharacterSheetProps) {
   const [form, setForm] = useState<WizardCharacterSheetForm>(() => formFromCharacter(character));
   const [elementError, setElementError] = useState<string | null>(null);
@@ -283,6 +287,24 @@ export default function WizardCharacterSheet({
             <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
               {elementError}
             </p>
+          )}
+
+          {onSetMortality && mortalityState !== undefined && (
+            <label className="flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400">
+              Mortality
+              <select
+                disabled={pending}
+                value={mortalityState}
+                onChange={(e) => {
+                  const value = e.target.value as "not_deceased" | "deceased";
+                  void onSetMortality({ expected: mortalityState, value });
+                }}
+                className="text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-700 dark:text-slate-300"
+              >
+                <option value="not_deceased">Not deceased</option>
+                <option value="deceased">Deceased</option>
+              </select>
+            </label>
           )}
 
           {/* Elements */}

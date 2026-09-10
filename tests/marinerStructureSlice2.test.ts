@@ -9,6 +9,7 @@ import type {
   MonthOrdinal,
   PlaceId,
   PlayerId,
+  PowerfulDenizenMethodEntryId,
   WizardId,
 } from "../shared/domain";
 import {
@@ -45,6 +46,7 @@ import {
   setSelectedSeaLawsFingerprint,
   updateMarinerBeastFingerprint,
   validateCampaignStateV5Candidate,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 import { validateEventCoherenceForTest } from "../convex/canonicalCommit";
 import type { CanonicalCommitInput } from "../convex/canonicalCommit";
@@ -109,6 +111,18 @@ function isleBindings() {
   }));
 }
 
+const BEAST_PROFILE = {
+  taxonomies: [{ kind: "builtin" as const, taxonomyId: "beast" as const }],
+  status: { kind: "standard" as const, value: "malignant" as const },
+  goal: null,
+  methods: [{
+    methodEntryId: "pdmth_00000000-0000-0000-0000-0000000000b1" as PowerfulDenizenMethodEntryId,
+    definition: { kind: "standard" as const, method: "rampaging" as const },
+    origin: "source" as const,
+  }],
+  truths: [],
+};
+
 function sunkenFleetBeast(denizenId: DenizenId = DEN_1): MarinerBeastState {
   return {
     denizenId,
@@ -123,9 +137,9 @@ function defaultWorld(options?: { extraShip?: boolean; extraDenizen?: boolean })
   const bindings = worldIsleIds();
   return {
     denizens: [
-      { denizenId: DEN_1, name: "Beast One", representation: "individual" as const, description: null },
+      { denizenId: DEN_1, name: "Beast One", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: BEAST_PROFILE },
       ...(options?.extraDenizen
-        ? [{ denizenId: DEN_2, name: "Beast Two", representation: "individual" as const, description: null }]
+        ? [{ denizenId: DEN_2, name: "Beast Two", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: BEAST_PROFILE }]
         : []),
     ],
     isles: MARINER_BOARD_ISLE_IDS.map((id) => ({
@@ -141,6 +155,8 @@ function defaultWorld(options?: { extraShip?: boolean; extraDenizen?: boolean })
       { placeId: FIXED_PLACE, name: "A hut", description: null, placement: { kind: "on_isle" as const, isleId: bindings.ishana } },
     ],
     companionRelationships: [],
+    campaignPowerfulDenizenTaxonomies: [],
+    treasures: [],
   };
 }
 
@@ -165,8 +181,10 @@ function baseV5(world = defaultWorld()): CampaignStateV5 {
       },
       homeIsleId: null,
       sanctumPlaceId: null,
+      mortalityState: "not_deceased",
     }],
     pactSeats: { ...EMPTY_PACT_SEATS },
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup",
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },

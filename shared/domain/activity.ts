@@ -131,6 +131,46 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Changed wizard Companion";
     case "companion_description_changed":
       return "Updated Companion description";
+    case "wizard_mortality_state_changed":
+      return event.data.newMortalityState === "deceased" ? "Marked wizard deceased" : "Marked wizard not deceased";
+    case "denizen_mortality_state_changed":
+      return event.data.newMortalityState === "deceased" ? "Marked denizen deceased" : "Marked denizen not deceased";
+    case "powerful_denizen_profile_created":
+      return "Created Powerful Denizen profile";
+    case "powerful_denizen_profile_removed":
+      return "Removed Powerful Denizen profile";
+    case "powerful_denizen_taxonomies_changed":
+      return "Changed Powerful Denizen taxonomies";
+    case "powerful_denizen_status_changed":
+      return "Changed Powerful Denizen status";
+    case "powerful_denizen_goal_changed":
+      return "Changed Powerful Denizen goal";
+    case "powerful_denizen_method_added":
+      return "Added Powerful Denizen method";
+    case "powerful_denizen_method_updated":
+      return "Updated Powerful Denizen method";
+    case "powerful_denizen_method_removed":
+      return "Removed Powerful Denizen method";
+    case "powerful_denizen_truth_added":
+      return "Added Powerful Denizen Truth";
+    case "powerful_denizen_truth_updated":
+      return "Updated Powerful Denizen Truth";
+    case "powerful_denizen_truth_removed":
+      return "Removed Powerful Denizen Truth";
+    case "campaign_powerful_denizen_taxonomy_created":
+      return `Created campaign taxonomy "${event.data.taxonomy.name}"`;
+    case "campaign_powerful_denizen_taxonomy_updated":
+      return `Updated campaign taxonomy "${event.data.updated.name}"`;
+    case "campaign_powerful_denizen_taxonomy_removed":
+      return `Removed campaign taxonomy "${event.data.taxonomy.name}"`;
+    case "treasure_created":
+      return `Created treasure "${event.data.treasure.name}"`;
+    case "treasure_details_updated":
+      return `Updated treasure "${event.data.updated.name}"`;
+    case "treasure_state_updated":
+      return `Updated treasure state "${event.data.updated.name}"`;
+    case "pact_fragment_operational_state_changed":
+      return `Updated ${event.data.seatId} Pact-Fragment operational state`;
     case "hierophant_initialized":
       return "Initialized Hierophant Temples";
     case "temple_resources_adjusted":
@@ -213,6 +253,20 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Updated Necromancer Foe";
     case "necromancer_foe_removed":
       return "Removed Necromancer Foe";
+    case "necromancer_wizard_foe_escaped":
+      return "Escaped Necromancer Wizard Foe";
+    case "necromancer_wizard_foe_truth_added":
+      return "Added Necromancer Wizard Foe Truth";
+    case "necromancer_wizard_foe_truth_updated":
+      return "Updated Necromancer Wizard Foe Truth";
+    case "necromancer_wizard_foe_truth_removed":
+      return "Removed Necromancer Wizard Foe Truth";
+    case "necromancer_wizard_traversal_added":
+      return "Added Necromancer Wizard traversal";
+    case "necromancer_wizard_traversal_updated":
+      return "Updated Necromancer Wizard traversal";
+    case "necromancer_wizard_traversal_removed":
+      return "Removed Necromancer Wizard traversal";
     case "necromancer_ally_added":
       return "Added Necromancer Ally";
     case "necromancer_ally_updated":
@@ -365,6 +419,26 @@ export function mapEventToActivityEntry(
     case "wizard_sanctum_changed":
     case "wizard_companion_changed":
     case "companion_description_changed":
+    case "wizard_mortality_state_changed":
+    case "denizen_mortality_state_changed":
+    case "powerful_denizen_profile_created":
+    case "powerful_denizen_profile_removed":
+    case "powerful_denizen_taxonomies_changed":
+    case "powerful_denizen_status_changed":
+    case "powerful_denizen_goal_changed":
+    case "powerful_denizen_method_added":
+    case "powerful_denizen_method_updated":
+    case "powerful_denizen_method_removed":
+    case "powerful_denizen_truth_added":
+    case "powerful_denizen_truth_updated":
+    case "powerful_denizen_truth_removed":
+    case "campaign_powerful_denizen_taxonomy_created":
+    case "campaign_powerful_denizen_taxonomy_updated":
+    case "campaign_powerful_denizen_taxonomy_removed":
+    case "treasure_created":
+    case "treasure_details_updated":
+    case "treasure_state_updated":
+    case "pact_fragment_operational_state_changed":
     case "hierophant_initialized":
     case "temple_resources_adjusted":
     case "temple_created":
@@ -406,6 +480,13 @@ export function mapEventToActivityEntry(
     case "necromancer_foe_added":
     case "necromancer_foe_updated":
     case "necromancer_foe_removed":
+    case "necromancer_wizard_foe_escaped":
+    case "necromancer_wizard_foe_truth_added":
+    case "necromancer_wizard_foe_truth_updated":
+    case "necromancer_wizard_foe_truth_removed":
+    case "necromancer_wizard_traversal_added":
+    case "necromancer_wizard_traversal_updated":
+    case "necromancer_wizard_traversal_removed":
     case "necromancer_ally_added":
     case "necromancer_ally_updated":
     case "necromancer_ally_removed":

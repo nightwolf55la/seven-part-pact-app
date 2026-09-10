@@ -26,6 +26,7 @@ export function useDemoCampaign(enabled: boolean) {
   const setSetupOrreryPosition = useMutation(api.m3Commands.setSetupOrreryPosition);
   const createPlace = useMutation(api.m3Commands.createPlace);
   const createDenizen = useMutation(api.m3Commands.createDenizen);
+  const createPowerfulDenizenProfile = useMutation(api.m3Commands.createPowerfulDenizenProfile);
   const initializeHierophant = useMutation(api.m3Commands.initializeHierophant);
   const addSupplicant = useMutation(api.m3Commands.addSupplicant);
   const addProphet = useMutation(api.m3Commands.addProphet);
@@ -52,6 +53,7 @@ export function useDemoCampaign(enabled: boolean) {
       setSetupOrreryPosition: (args) => setSetupOrreryPosition(args),
       createPlace: (args) => createPlace(args),
       createDenizen: (args) => createDenizen(args),
+      createPowerfulDenizenProfile: (args) => createPowerfulDenizenProfile(args),
       initializeHierophant: (args) => initializeHierophant(args),
       addSupplicant: (args) => addSupplicant(args),
       addProphet: (args) => addProphet(args),
@@ -90,6 +92,7 @@ export function useDemoCampaign(enabled: boolean) {
     setSetupOrreryPosition,
     createPlace,
     createDenizen,
+    createPowerfulDenizenProfile,
     initializeHierophant,
     addSupplicant,
     addProphet,

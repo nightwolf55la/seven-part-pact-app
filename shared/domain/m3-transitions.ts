@@ -266,6 +266,7 @@ export function applyCreateWizard(
     character: { ...BLANK_WIZARD_CHARACTER, publicChangesOfMagic: [] },
     homeIsleId: null,
     sanctumPlaceId: null,
+    mortalityState: "not_deceased",
   };
   const nextState: CurrentCampaignState = {
     ...state,

@@ -21,6 +21,7 @@ import {
   CURRENT_STATE_SCHEMA_VERSION,
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 import {
   verifyBackupImportRevisionStructure,
@@ -55,6 +56,7 @@ function validState(): CurrentCampaignState {
       sage: { status: null, wizardId: null, watcherPlayerId: null },
       sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
     },
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "play" as const,
       phase: "new_moon" as const,
@@ -62,8 +64,8 @@ function validState(): CurrentCampaignState {
       currentMonth: { timeParticipants: [], engagements: [], wizardmootAttendance: null },
     },
     wizardmootHistory: [],
-    world: { denizens: [], isles: [], places: [], companionRelationships: [] },
-    hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] }, mariner: { shipPlaceId: null, selectedLawOfSeaIds: [], boardIsles: [], routes: [], seaRegions: [], beasts: [] }, necromancer: { gates: [], pathSpaces: [], steps: [], souls: [], foes: [], allies: [], ghoulCallers: [], selectedLaws: [], depth: null },
+    world: { denizens: [], isles: [], places: [], companionRelationships: [], campaignPowerfulDenizenTaxonomies: [], treasures: [] },
+    hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] }, mariner: { shipPlaceId: null, selectedLawOfSeaIds: [], boardIsles: [], routes: [], seaRegions: [], beasts: [] }, necromancer: { gates: [], pathSpaces: [], steps: [], souls: [], foes: [], allies: [], ghoulCallers: [], selectedLaws: [], depth: null, wizardTraversals: [] },
   };
 }
 

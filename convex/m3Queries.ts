@@ -63,6 +63,7 @@ export const getCampaignSetup = query({
         },
         homeIsleId: w.homeIsleId as string | null,
         sanctumPlaceId: w.sanctumPlaceId as string | null,
+        mortalityState: w.mortalityState,
       })),
       pactSeats: Object.fromEntries(
         Object.entries(current.pactSeats).map(([seatId, seat]) => [
@@ -74,6 +75,7 @@ export const getCampaignSetup = query({
           },
         ]),
       ),
+      pactFragmentOperationalState: current.pactFragmentOperationalState,
       monthOrdinal: monthOrdinal as number | null,
       monthDisplayName,
       orreryPositions,
@@ -467,6 +469,7 @@ export const getPlayReference = query({
         },
         homeIsleId: w.homeIsleId as string | null,
         sanctumPlaceId: w.sanctumPlaceId as string | null,
+        mortalityState: w.mortalityState,
       })),
       pactSeats: Object.fromEntries(
         Object.entries(current.pactSeats).map(([seatId, seat]) => [
@@ -478,6 +481,7 @@ export const getPlayReference = query({
           },
         ]),
       ),
+      pactFragmentOperationalState: current.pactFragmentOperationalState,
     };
   },
 });
@@ -509,6 +513,8 @@ export const getWorldReference = query({
         name: d.name,
         representation: d.representation,
         description: d.description,
+        mortalityState: d.mortalityState,
+        powerfulProfile: d.powerfulProfile,
       })),
       isles: world.isles.map((i) => ({
         isleId: i.isleId as string,
@@ -528,6 +534,22 @@ export const getWorldReference = query({
         denizenId: r.denizenId as string,
         description: r.description,
         status: r.status,
+      })),
+      campaignPowerfulDenizenTaxonomies: world.campaignPowerfulDenizenTaxonomies.map((t) => ({
+        taxonomyId: t.taxonomyId as string,
+        name: t.name,
+        description: t.description,
+      })),
+      treasures: world.treasures.map((t) => ({
+        treasureId: t.treasureId as string,
+        name: t.name,
+        description: t.description,
+        condition: t.condition,
+        custody: t.custody,
+      })),
+      wizards: current.wizards.map((w) => ({
+        wizardId: w.wizardId as string,
+        name: w.name,
       })),
     };
   },

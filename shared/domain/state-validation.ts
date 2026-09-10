@@ -19,6 +19,10 @@ import {
   isValidPlaceId,
   isValidDenizenId,
   isValidCompanionRelationshipId,
+  isValidTreasureId,
+  isValidCampaignPowerfulDenizenTaxonomyId,
+  isValidPowerfulDenizenMethodEntryId,
+  isValidPowerfulDenizenTruthId,
 } from "./ids";
 import { PACT_SEAT_IDS } from "./pact-seats";
 import type { PactSeatId } from "./pact-seats";
@@ -34,6 +38,13 @@ import { ENGAGEMENT_RESOLUTIONS, ENGAGEMENT_TARGET_KINDS_V4, ENGAGEMENT_TARGET_K
 import type { EngagementResolution, EngagementTargetKind } from "./engagement";
 import { TIME_DESTINATION_KINDS } from "./time-model";
 import { ELEMENT_IDS } from "./shared-world";
+import {
+  isValidBuiltinPowerfulDenizenTaxonomyId,
+  isValidPowerfulDenizenStandardStatus,
+  isValidStandardPowerfulDenizenMethod,
+  powerfulDenizenTaxonomyRefKey,
+} from "./powerful-denizen";
+import { PACT_FRAGMENT_CONDITIONS } from "./campaign-state";
 import { DomainError } from "./errors";
 import { validateV5WorldReferenceIntegrity } from "./v5-reference-validation";
 import { validateHierophantReferenceIntegrity } from "./hierophant-validation";
@@ -160,6 +171,9 @@ function validatePlayersAndWizards(
         if (typeof wizard.sanctumPlaceId !== "string" || !isValidPlaceId(wizard.sanctumPlaceId)) {
           throw new DomainError("INVALID_CAMPAIGN_STATE", `wizards[${i}].sanctumPlaceId is invalid: ${JSON.stringify(wizard.sanctumPlaceId)}`);
         }
+      }
+      if (wizard.mortalityState !== "not_deceased" && wizard.mortalityState !== "deceased") {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `wizards[${i}].mortalityState is invalid: ${JSON.stringify(wizard.mortalityState)}`);
       }
     }
   }
@@ -860,7 +874,243 @@ export function validateAnyCampaignState(state: unknown): AnyCampaignState {
 const VALID_PLACEMENT_KINDS = new Set(["unspecified", "on_isle", "mobile"]);
 const VALID_REPRESENTATIONS = new Set(["individual", "collective"]);
 const VALID_COMPANION_STATUSES = new Set(["current", "ended"]);
+const VALID_MORTALITY_STATES = new Set(["not_deceased", "deceased"]);
+const VALID_TREASURE_CONDITIONS = new Set(["intact", "destroyed"]);
+const VALID_TREASURE_CUSTODY_KINDS = new Set(["subject", "place", "unlocated", "none"]);
+const VALID_SUBJECT_REF_KINDS = new Set(["wizard", "denizen"]);
+const VALID_PACT_FRAGMENT_CONDITIONS = new Set<string>(PACT_FRAGMENT_CONDITIONS);
+const VALID_PACT_FRAGMENT_CUSTODY_KINDS = new Set(["wizard", "devil", "unlocated", "none"]);
+const VALID_POWERFUL_ENTRY_ORIGINS = new Set(["source", "campaign"]);
 const ELEMENT_ID_SET = new Set<string>(ELEMENT_IDS);
+
+function assertNonEmptyString(path: string, value: unknown): asserts value is string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be a non-empty string`);
+  }
+}
+
+function assertNullableString(path: string, value: unknown): void {
+  if (value !== null && typeof value !== "string") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be a string or null`);
+  }
+}
+
+function validateWizardOrDenizenSubjectRef(ref: unknown, path: string): void {
+  if (ref === null || ref === undefined || typeof ref !== "object") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be an object`);
+  }
+  const subject = ref as Record<string, unknown>;
+  if (!VALID_SUBJECT_REF_KINDS.has(subject.kind as string)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.kind is invalid: ${JSON.stringify(subject.kind)}`);
+  }
+  if (subject.kind === "wizard") {
+    if (typeof subject.wizardId !== "string" || !isValidWizardId(subject.wizardId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.wizardId is invalid: ${JSON.stringify(subject.wizardId)}`);
+    }
+  }
+  if (subject.kind === "denizen") {
+    if (typeof subject.denizenId !== "string" || !isValidDenizenId(subject.denizenId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId is invalid: ${JSON.stringify(subject.denizenId)}`);
+    }
+  }
+}
+
+function validatePowerfulDenizenTaxonomyRef(ref: unknown, path: string): string {
+  if (ref === null || ref === undefined || typeof ref !== "object") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be an object`);
+  }
+  const taxonomy = ref as Record<string, unknown>;
+  if (taxonomy.kind === "builtin") {
+    if (typeof taxonomy.taxonomyId !== "string" || !isValidBuiltinPowerfulDenizenTaxonomyId(taxonomy.taxonomyId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.taxonomyId is not a known builtin taxonomy: ${JSON.stringify(taxonomy.taxonomyId)}`);
+    }
+    return powerfulDenizenTaxonomyRefKey({ kind: "builtin", taxonomyId: taxonomy.taxonomyId });
+  }
+  if (taxonomy.kind === "campaign") {
+    if (typeof taxonomy.taxonomyId !== "string" || !isValidCampaignPowerfulDenizenTaxonomyId(taxonomy.taxonomyId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.taxonomyId is invalid: ${JSON.stringify(taxonomy.taxonomyId)}`);
+    }
+    return powerfulDenizenTaxonomyRefKey({ kind: "campaign", taxonomyId: taxonomy.taxonomyId });
+  }
+  throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.kind is invalid: ${JSON.stringify(taxonomy.kind)}`);
+}
+
+function validatePowerfulDenizenStatus(status: unknown, path: string): void {
+  if (status === null || status === undefined || typeof status !== "object") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be an object`);
+  }
+  const statusObj = status as Record<string, unknown>;
+  if (statusObj.kind === "standard") {
+    if (typeof statusObj.value !== "string" || !isValidPowerfulDenizenStandardStatus(statusObj.value)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.value is invalid: ${JSON.stringify(statusObj.value)}`);
+    }
+    return;
+  }
+  if (statusObj.kind === "other") {
+    assertNonEmptyString(`${path}.label`, statusObj.label);
+    return;
+  }
+  throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.kind is invalid: ${JSON.stringify(statusObj.kind)}`);
+}
+
+function validatePowerfulDenizenMethodEntry(entry: unknown, path: string, methodEntryIds: Set<string>): void {
+  if (entry === null || entry === undefined || typeof entry !== "object") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} is not a valid object`);
+  }
+  const method = entry as Record<string, unknown>;
+  if (typeof method.methodEntryId !== "string" || !isValidPowerfulDenizenMethodEntryId(method.methodEntryId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.methodEntryId is invalid: ${JSON.stringify(method.methodEntryId)}`);
+  }
+  if (methodEntryIds.has(method.methodEntryId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate powerful denizen methodEntryId: ${method.methodEntryId}`);
+  }
+  methodEntryIds.add(method.methodEntryId);
+
+  if (method.definition === null || method.definition === undefined || typeof method.definition !== "object") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.definition must be an object`);
+  }
+  const definition = method.definition as Record<string, unknown>;
+  if (definition.kind === "standard") {
+    if (typeof definition.method !== "string" || !isValidStandardPowerfulDenizenMethod(definition.method)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.definition.method is invalid: ${JSON.stringify(definition.method)}`);
+    }
+  } else if (definition.kind === "named") {
+    assertNonEmptyString(`${path}.definition.name`, definition.name);
+    assertNullableString(`${path}.definition.description`, definition.description);
+  } else {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.definition.kind is invalid: ${JSON.stringify(definition.kind)}`);
+  }
+
+  if (!VALID_POWERFUL_ENTRY_ORIGINS.has(method.origin as string)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.origin is invalid: ${JSON.stringify(method.origin)}`);
+  }
+}
+
+function validatePowerfulDenizenTruthEntry(entry: unknown, path: string, truthIds: Set<string>): void {
+  if (entry === null || entry === undefined || typeof entry !== "object") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} is not a valid object`);
+  }
+  const truth = entry as Record<string, unknown>;
+  if (typeof truth.truthId !== "string" || !isValidPowerfulDenizenTruthId(truth.truthId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.truthId is invalid: ${JSON.stringify(truth.truthId)}`);
+  }
+  if (truthIds.has(truth.truthId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate powerful denizen truthId: ${truth.truthId}`);
+  }
+  truthIds.add(truth.truthId);
+  assertNonEmptyString(`${path}.text`, truth.text);
+  if (!VALID_POWERFUL_ENTRY_ORIGINS.has(truth.origin as string)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.origin is invalid: ${JSON.stringify(truth.origin)}`);
+  }
+}
+
+function validatePowerfulDenizenProfile(profile: unknown, path: string, methodEntryIds: Set<string>, truthIds: Set<string>): void {
+  if (profile === null || profile === undefined || typeof profile !== "object") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be an object`);
+  }
+  const profileObj = profile as Record<string, unknown>;
+  if (!Array.isArray(profileObj.taxonomies)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.taxonomies must be an array`);
+  }
+  const taxonomies = profileObj.taxonomies as unknown[];
+  if (taxonomies.length === 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} requires at least one taxonomy`);
+  }
+  const taxonomyKeys = new Set<string>();
+  for (let i = 0; i < taxonomies.length; i++) {
+    const key = validatePowerfulDenizenTaxonomyRef(taxonomies[i], `${path}.taxonomies[${i}]`);
+    if (taxonomyKeys.has(key)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.taxonomies contains a duplicate taxonomy ref: ${key}`);
+    }
+    taxonomyKeys.add(key);
+  }
+
+  validatePowerfulDenizenStatus(profileObj.status, `${path}.status`);
+  assertNullableString(`${path}.goal`, profileObj.goal);
+
+  if (!Array.isArray(profileObj.methods)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.methods must be an array`);
+  }
+  for (let i = 0; i < (profileObj.methods as unknown[]).length; i++) {
+    validatePowerfulDenizenMethodEntry((profileObj.methods as unknown[])[i], `${path}.methods[${i}]`, methodEntryIds);
+  }
+
+  if (!Array.isArray(profileObj.truths)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.truths must be an array`);
+  }
+  for (let i = 0; i < (profileObj.truths as unknown[]).length; i++) {
+    validatePowerfulDenizenTruthEntry((profileObj.truths as unknown[])[i], `${path}.truths[${i}]`, truthIds);
+  }
+}
+
+function validateTreasureCustody(custody: unknown, path: string, condition: string): void {
+  if (custody === null || custody === undefined || typeof custody !== "object") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be an object`);
+  }
+  const custodyObj = custody as Record<string, unknown>;
+  if (!VALID_TREASURE_CUSTODY_KINDS.has(custodyObj.kind as string)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.kind is invalid: ${JSON.stringify(custodyObj.kind)}`);
+  }
+  if (condition === "destroyed" && custodyObj.kind !== "none") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be none when the treasure is destroyed`);
+  }
+  if (custodyObj.kind === "subject") {
+    validateWizardOrDenizenSubjectRef(custodyObj.subject, `${path}.subject`);
+  }
+  if (custodyObj.kind === "place") {
+    if (typeof custodyObj.placeId !== "string" || !isValidPlaceId(custodyObj.placeId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.placeId is invalid: ${JSON.stringify(custodyObj.placeId)}`);
+    }
+  }
+}
+
+function validatePactFragmentOperationalStructure(s: Record<string, unknown>): void {
+  if (s.pactFragmentOperationalState === null || s.pactFragmentOperationalState === undefined || typeof s.pactFragmentOperationalState !== "object") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Missing or invalid pactFragmentOperationalState");
+  }
+  const fragments = s.pactFragmentOperationalState as Record<string, unknown>;
+  const keys = Object.keys(fragments);
+  if (keys.length !== PACT_SEAT_IDS.length) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `pactFragmentOperationalState must have exactly ${PACT_SEAT_IDS.length} entries, got ${keys.length}`);
+  }
+  for (const seatId of PACT_SEAT_IDS) {
+    if (!(seatId in fragments)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Missing pact fragment operational state for seat: ${seatId}`);
+    }
+  }
+  for (const key of keys) {
+    if (!(PACT_SEAT_IDS as readonly string[]).includes(key)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown pact fragment operational key: ${key}`);
+    }
+  }
+
+  for (const seatId of PACT_SEAT_IDS) {
+    const fragment = fragments[seatId];
+    const path = `pactFragmentOperationalState.${seatId}`;
+    if (fragment === null || fragment === undefined || typeof fragment !== "object") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} is not a valid object`);
+    }
+    const fragmentObj = fragment as Record<string, unknown>;
+    if (!VALID_PACT_FRAGMENT_CONDITIONS.has(fragmentObj.condition as string)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.condition is invalid: ${JSON.stringify(fragmentObj.condition)}`);
+    }
+    if (fragmentObj.custody === null || fragmentObj.custody === undefined || typeof fragmentObj.custody !== "object") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.custody must be an object`);
+    }
+    const custody = fragmentObj.custody as Record<string, unknown>;
+    if (!VALID_PACT_FRAGMENT_CUSTODY_KINDS.has(custody.kind as string)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.custody.kind is invalid: ${JSON.stringify(custody.kind)}`);
+    }
+    if (fragmentObj.condition === "destroyed" && custody.kind !== "none") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.custody must be none when the fragment is destroyed`);
+    }
+    if (custody.kind === "wizard") {
+      if (typeof custody.wizardId !== "string" || !isValidWizardId(custody.wizardId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.custody.wizardId is invalid: ${JSON.stringify(custody.wizardId)}`);
+      }
+    }
+  }
+}
 
 function validateWorldStructure(s: Record<string, unknown>): void {
   if (s.world === null || s.world === undefined || typeof s.world !== "object") {
@@ -880,6 +1130,15 @@ function validateWorldStructure(s: Record<string, unknown>): void {
   if (!Array.isArray(world.companionRelationships)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "world.companionRelationships must be an array");
   }
+  if (!Array.isArray(world.campaignPowerfulDenizenTaxonomies)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "world.campaignPowerfulDenizenTaxonomies must be an array");
+  }
+  if (!Array.isArray(world.treasures)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "world.treasures must be an array");
+  }
+
+  const methodEntryIds = new Set<string>();
+  const truthIds = new Set<string>();
 
   for (let i = 0; i < (world.denizens as unknown[]).length; i++) {
     const d = (world.denizens as unknown[])[i];
@@ -899,6 +1158,16 @@ function validateWorldStructure(s: Record<string, unknown>): void {
     }
     if (dObj.description !== null && typeof dObj.description !== "string") {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.description must be a string or null`);
+    }
+    if (dObj.representation === "individual") {
+      if (!VALID_MORTALITY_STATES.has(dObj.mortalityState as string)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.mortalityState is required for individual denizens: ${JSON.stringify(dObj.mortalityState)}`);
+      }
+    } else if (dObj.mortalityState !== null) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.mortalityState must be null for collective denizens`);
+    }
+    if (dObj.powerfulProfile !== null) {
+      validatePowerfulDenizenProfile(dObj.powerfulProfile, `${path}.powerfulProfile`, methodEntryIds, truthIds);
     }
   }
 
@@ -983,6 +1252,38 @@ function validateWorldStructure(s: Record<string, unknown>): void {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.status is invalid: ${JSON.stringify(crObj.status)}`);
     }
   }
+
+  for (let i = 0; i < (world.campaignPowerfulDenizenTaxonomies as unknown[]).length; i++) {
+    const taxonomy = (world.campaignPowerfulDenizenTaxonomies as unknown[])[i];
+    const path = `world.campaignPowerfulDenizenTaxonomies[${i}]`;
+    if (taxonomy === null || taxonomy === undefined || typeof taxonomy !== "object") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} is not a valid object`);
+    }
+    const taxonomyObj = taxonomy as Record<string, unknown>;
+    if (typeof taxonomyObj.taxonomyId !== "string" || !isValidCampaignPowerfulDenizenTaxonomyId(taxonomyObj.taxonomyId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.taxonomyId is invalid: ${JSON.stringify(taxonomyObj.taxonomyId)}`);
+    }
+    assertNonEmptyString(`${path}.name`, taxonomyObj.name);
+    assertNullableString(`${path}.description`, taxonomyObj.description);
+  }
+
+  for (let i = 0; i < (world.treasures as unknown[]).length; i++) {
+    const treasure = (world.treasures as unknown[])[i];
+    const path = `world.treasures[${i}]`;
+    if (treasure === null || treasure === undefined || typeof treasure !== "object") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} is not a valid object`);
+    }
+    const treasureObj = treasure as Record<string, unknown>;
+    if (typeof treasureObj.treasureId !== "string" || !isValidTreasureId(treasureObj.treasureId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.treasureId is invalid: ${JSON.stringify(treasureObj.treasureId)}`);
+    }
+    assertNonEmptyString(`${path}.name`, treasureObj.name);
+    assertNullableString(`${path}.description`, treasureObj.description);
+    if (!VALID_TREASURE_CONDITIONS.has(treasureObj.condition as string)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.condition is invalid: ${JSON.stringify(treasureObj.condition)}`);
+    }
+    validateTreasureCustody(treasureObj.custody, `${path}.custody`, treasureObj.condition as string);
+  }
 }
 
 export function validateCampaignStateV5Candidate(state: unknown): CampaignStateV5 {
@@ -1001,6 +1302,7 @@ export function validateCampaignStateV5Candidate(state: unknown): CampaignStateV
 
   validateCommonShape(s, 5);
   validateWorldStructure(s);
+  validatePactFragmentOperationalStructure(s);
   validateV5WorldReferenceIntegrity(state as CampaignStateV5);
   validateHierophantReferenceIntegrity(state as CampaignStateV5);
   validateMarinerReferenceIntegrity(state as CampaignStateV5);

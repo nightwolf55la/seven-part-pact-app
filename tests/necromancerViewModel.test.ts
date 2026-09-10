@@ -64,7 +64,19 @@ const denizens: readonly DenizenRef[] = [
   { denizenId: "den_far_1", name: "Far Foe One", representation: "individual", description: null },
   { denizenId: "den_far_2", name: "Far Foe Two", representation: "collective", description: null },
   { denizenId: "den_ally", name: "Bound Ally", representation: "collective", description: null },
-  { denizenId: "den_ghoul", name: "Ghoul Caller", representation: "individual", description: null },
+  {
+    denizenId: "den_ghoul",
+    name: "Ghoul Caller",
+    representation: "individual",
+    description: null,
+    powerfulProfile: {
+      taxonomies: [{ kind: "builtin", taxonomyId: "ghoul_caller" }],
+      status: { kind: "standard", value: "disruptive" },
+      goal: null,
+      methods: [],
+      truths: [],
+    },
+  },
   { denizenId: "den_collective_ghoul", name: "Crowd", representation: "collective", description: null },
 ];
 
@@ -344,20 +356,19 @@ describe("labels and pieces", () => {
       { location: { kind: "path", pathSpaceId: "edge_sage" }, count: 1 },
     ],
     foes: [
-      { denizenId: "den_deep" as DenizenId, location: { kind: "gate", gateId: "deep" } },
+      { subject: { kind: "denizen", denizenId: "den_deep" as DenizenId }, location: { kind: "gate", gateId: "deep" } },
       {
-        denizenId: "den_far_1" as DenizenId,
+        subject: { kind: "denizen", denizenId: "den_far_1" as DenizenId },
         location: { kind: "escaped", seatId: "hierophant", abominationKind: "occult" },
       },
       {
-        denizenId: "den_far_2" as DenizenId,
+        subject: { kind: "denizen", denizenId: "den_far_2" as DenizenId },
         location: { kind: "escaped", seatId: "mariner", abominationKind: "brutal" },
       },
     ],
     allies: [{ denizenId: "den_ally" as DenizenId, location: { kind: "gate", gateId: "amber" } }],
     ghoulCallers: [{
       denizenId: "den_ghoul" as DenizenId,
-      disposition: "disruptive",
       location: { kind: "path", pathSpaceId: "edge_sage" },
       pettyDeadCount: 2,
       primaryElement: "fire",
@@ -376,7 +387,7 @@ describe("labels and pieces", () => {
     const amber = piecesAtSpace(state, { kind: "gate", gateId: "amber" });
     expect(amber.souls).toBe(3);
     expect(amber.allies.map((ally) => ally.denizenId)).toEqual(["den_ally"]);
-    expect(foesAtSpace(state.foes, { kind: "gate", gateId: "deep" }).map((foe) => foe.denizenId)).toEqual(["den_deep"]);
+    expect(foesAtSpace(state.foes, { kind: "gate", gateId: "deep" }).map((foe) => foe.subject.kind === "denizen" ? foe.subject.denizenId : foe.subject.wizardId)).toEqual(["den_deep"]);
     const edge = piecesAtSpace(state, { kind: "path", pathSpaceId: "edge_sage" });
     expect(edge.ghoulCallers.map((ghoul) => ghoul.denizenId)).toEqual(["den_ghoul"]);
   });
@@ -389,7 +400,7 @@ describe("labels and pieces", () => {
   it("labels escaped Foes by destination Pact Domain", () => {
     const groups = escapedFoesGroupedBySeat(state.foes);
     expect(groups.map((group) => group.domainLabel)).toEqual(["Hierophant", "Mariner"]);
-    expect(groups[0]?.foes[0]?.denizenId).toBe("den_far_1");
+    expect(groups[0]?.foes[0]?.subject).toEqual({ kind: "denizen", denizenId: "den_far_1" });
   });
 });
 
@@ -508,13 +519,13 @@ describe("expected-current payloads", () => {
     expect(buildUpdateNecromancerFoePayload({
       commandId: "cmd_fu",
       expectedCampaignId: "camp_1",
-      denizenId: "den_deep",
+      subject: { kind: "denizen", denizenId: "den_deep" as DenizenId },
       expectedLocation: { kind: "gate", gateId: "deep" },
       location: { kind: "escaped", seatId: "hierophant", abominationKind: "occult" },
     })).toEqual({
       commandId: "cmd_fu",
       expectedCampaignId: "camp_1",
-      denizenId: "den_deep",
+      subject: { kind: "denizen", denizenId: "den_deep" as DenizenId },
       fields: {
         location: {
           expected: { kind: "gate", gateId: "deep" },
@@ -650,7 +661,6 @@ describe("campaign structure inspector selection", () => {
 describe("Ghoul-Caller profile payloads and presentation", () => {
   const ghoul = {
     denizenId: "den_ghoul" as DenizenId,
-    disposition: "disruptive" as const,
     location: { kind: "path" as const, pathSpaceId: "edge_sage" as const },
     pettyDeadCount: 0,
     primaryElement: "fire" as const,
@@ -675,7 +685,6 @@ describe("Ghoul-Caller profile payloads and presentation", () => {
       denizenId: ghoul.denizenId,
       expected: ghoul,
       location: ghoul.location,
-      disposition: ghoul.disposition,
       pettyDeadCount: ghoul.pettyDeadCount,
       primaryElement: "water",
       aesthetic: "  river silt  ",
