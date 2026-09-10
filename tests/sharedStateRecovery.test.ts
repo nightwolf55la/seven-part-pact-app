@@ -29,13 +29,16 @@ import {
   buildExportBackup,
   deriveRedoTransition,
   deriveUndoTransition,
+  checkpointRestoreFingerprint,
   fullyValidateBackup,
   statesDeepEqual,
   validateCampaignState,
   validateCampaignStateV5Candidate,
   validateV5WorldReferenceIntegrity,
+  verifyCheckpointRestoreRevision,
 } from "../shared/domain";
 import type { CampaignHistoryControlV1 } from "../shared/domain";
+import { snapshotRecord } from "../convex/persistence";
 
 const CAMPAIGN_ID = "cmp_00000000-0000-0000-0000-000000000001";
 const PLR_A = "plr_00000000-0000-0000-0000-00000000000a" as PlayerId;
@@ -45,6 +48,7 @@ const PLC_1 = "plc_00000000-0000-0000-0000-000000000001" as PlaceId;
 const TRS_1 = "trs_00000000-0000-0000-0000-000000000001" as TreasureId;
 const TAX_1 = "pdtax_00000000-0000-0000-0000-000000000001" as CampaignPowerfulDenizenTaxonomyId;
 const TRU_1 = "pdtru_00000000-0000-0000-0000-000000000001" as PowerfulDenizenTruthId;
+const CHK_1 = "chk_00000000-0000-0000-0000-000000000001";
 
 const EMPTY_PACT_SEATS = {
   necromancer: { status: null, wizardId: null, watcherPlayerId: null },
@@ -129,19 +133,42 @@ function makeControl(undoStack: number[], redoStack: number[] = []): CampaignHis
   };
 }
 
+function checkpointRestoreInput(
+  sourceSnapshotState: CampaignStateV5,
+  resultSnapshotState: CampaignStateV5,
+) {
+  return {
+    campaignRevision: 7,
+    commandFingerprint: checkpointRestoreFingerprint(CHK_1, 6),
+    eventType: "checkpoint_restored",
+    eventVersion: 1,
+    eventCheckpointId: CHK_1,
+    eventSourceRevision: 4,
+    eventLabelAtRestore: "After shared state",
+    sourceSnapshotExists: true,
+    sourceSnapshotState,
+    resultSnapshotExists: true,
+    resultSnapshotState,
+    sourceRevisionCommandType: "set_wizard_mortality_state" as const,
+  };
+}
+
 describe("M5.2D D1B snapshot / undo / redo / checkpoint / backup / verifier", () => {
-  it("accepted logical command snapshot contains the new shared state", () => {
-    const prior = applyCreateWizard(baseState(), WIZ_A, "Thalion", PLR_A, "necromancer").nextState;
-    const accepted = applySetWizardMortalityState(prior, WIZ_A, {
-      expected: "not_deceased",
-      value: "deceased",
+  it("snapshotRecord preserves representative shared state in the snapshot payload", () => {
+    const state = representativeState();
+    const record = snapshotRecord(CAMPAIGN_ID, 6, state);
+    expect(record.campaignId).toBe(CAMPAIGN_ID);
+    expect(record.campaignRevision).toBe(6);
+    expect(statesDeepEqual(record.state, state)).toBe(true);
+    expect(record.state.wizards[0].mortalityState).toBe("deceased");
+    expect(record.state.world.denizens[0].powerfulProfile?.truths[0].truthId).toBe(TRU_1);
+    expect(record.state.world.denizens[0].powerfulProfile?.truths[0].text).toBe("The moon remembers");
+    expect(record.state.world.treasures[0].treasureId).toBe(TRS_1);
+    expect(record.state.world.treasures[0].condition).toBe("intact");
+    expect(record.state.pactFragmentOperationalState.necromancer).toEqual({
+      condition: "intact",
+      custody: { kind: "wizard", wizardId: WIZ_A },
     });
-    expect(() => validateCampaignState(accepted.nextState)).not.toThrow();
-    expect(accepted.nextState.wizards[0].mortalityState).toBe("deceased");
-    expect(statesDeepEqual(accepted.nextState, {
-      ...prior,
-      wizards: [{ ...prior.wizards[0], mortalityState: "deceased" }],
-    })).toBe(true);
   });
 
   it("Undo restores the previous complete state including new structures", () => {
@@ -186,25 +213,29 @@ describe("M5.2D D1B snapshot / undo / redo / checkpoint / backup / verifier", ()
     expect(redo.nextState.wizards[0].mortalityState).toBe("not_deceased");
   });
 
-  it("checkpoint restore copies representative wizard mortality, profile/Truth, treasure, and fragment", () => {
-    const checkpointState = representativeState();
-    const later = applySetWizardMortalityState(checkpointState, WIZ_A, {
+  it("checkpoint restore revision verifies representative shared state is copied intact", () => {
+    const state = representativeState();
+    const errors = verifyCheckpointRestoreRevision(checkpointRestoreInput(state, state));
+    expect(errors).toEqual([]);
+    expect(state.wizards[0].mortalityState).toBe("deceased");
+    expect(state.world.denizens[0].powerfulProfile?.truths[0].truthId).toBe(TRU_1);
+    expect(state.world.denizens[0].powerfulProfile?.truths[0].text).toBe("The moon remembers");
+    expect(state.world.treasures[0].treasureId).toBe(TRS_1);
+    expect(state.world.treasures[0].condition).toBe("intact");
+    expect(state.pactFragmentOperationalState.necromancer).toEqual({
+      condition: "intact",
+      custody: { kind: "wizard", wizardId: WIZ_A },
+    });
+  });
+
+  it("checkpoint restore revision rejects a result snapshot that changed representative shared state", () => {
+    const source = representativeState();
+    const result = applySetWizardMortalityState(source, WIZ_A, {
       expected: "deceased",
       value: "not_deceased",
     }).nextState;
-    const restored = deriveUndoTransition({
-      control: makeControl([0, 1]),
-      campaignRevision: 1,
-      campaignState: later,
-      targetSnapshotState: checkpointState,
-      currentLogicalSnapshotState: later,
-      targetRevisionCommandType: "set_wizard_mortality_state",
-    }, CAMPAIGN_ID);
-    expect(restored.nextState.wizards[0].mortalityState).toBe("deceased");
-    expect(restored.nextState.world.denizens[0].powerfulProfile?.truths[0].text).toBe("The moon remembers");
-    expect(restored.nextState.world.treasures[0].name).toBe("Black Chalice");
-    expect(restored.nextState.pactFragmentOperationalState.necromancer.condition).toBe("intact");
-    expect(statesDeepEqual(restored.nextState, checkpointState)).toBe(true);
+    const errors = verifyCheckpointRestoreRevision(checkpointRestoreInput(source, result));
+    expect(errors.some((error) => error.includes("result snapshot state does not match"))).toBe(true);
   });
 
   it("portable backup export/import preserves representative V5 state", async () => {
