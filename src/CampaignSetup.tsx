@@ -11,7 +11,9 @@ import {
 } from "./setup-view-model";
 import AddWizardDialog from "./AddWizardDialog";
 import WizardCharacterSheet from "./WizardCharacterSheet";
+import { PactFragmentControls } from "./PactFragmentControls";
 import type { WizardCharacterData } from "../shared/domain/campaign-state";
+import type { PactFragmentOperationalMap } from "../shared/domain";
 
 function generateCommandId(): string {
   return `cmd_${crypto.randomUUID()}`;
@@ -47,6 +49,7 @@ interface SetupWizard {
   readonly name: string;
   readonly portrayedByPlayerId: string | null;
   readonly character: WizardCharacterData;
+  readonly mortalityState?: "not_deceased" | "deceased";
 }
 
 export default function CampaignSetup() {
@@ -63,6 +66,8 @@ export default function CampaignSetup() {
   const setPactSeatStatus = useMutation(api.m3Commands.setPactSeatStatus);
   const setWatcher = useMutation(api.m3Commands.setWatcher);
   const updateWizardCharacter = useMutation(api.m3Commands.updateWizardCharacter);
+  const setWizardMortalityState = useMutation(api.m3Commands.setWizardMortalityState);
+  const updatePactFragmentOperationalState = useMutation(api.m3Commands.updatePactFragmentOperationalState);
 
   const [newPlayerName, setNewPlayerName] = useState("");
   const [pending, setPending] = useState(false);
@@ -91,11 +96,13 @@ export default function CampaignSetup() {
     }
   }
 
-  const { configuration, players, wizards, pactSeats } = setup as {
+  const { configuration, players, wizards, pactSeats, campaignId, pactFragmentOperationalState } = setup as {
     configuration: { ageId: string | null; facilitatorPlayerId: string | null };
     players: { playerId: string; name: string }[];
     wizards: SetupWizard[];
     pactSeats: Record<string, { status: string | null; wizardId: string | null; watcherPlayerId: string | null }>;
+    campaignId: string;
+    pactFragmentOperationalState: PactFragmentOperationalMap;
   };
 
   const assignedWizardIds = new Set(
@@ -295,8 +302,8 @@ export default function CampaignSetup() {
               ? wizards.find((w) => w.wizardId === seat.wizardId)
               : null;
             return (
+              <div key={seatId} className="flex flex-col gap-2">
               <PactSeatRow
-                key={seatId}
                 seatId={seatId}
                 seat={seat}
                 currentWizard={currentWizard ?? null}
@@ -360,6 +367,24 @@ export default function CampaignSetup() {
                   )
                 }
               />
+              <PactFragmentControls
+                seatId={seatId}
+                fragment={pactFragmentOperationalState[seatId]}
+                wizards={wizards.map((wizard) => ({ wizardId: wizard.wizardId, name: wizard.name }))}
+                pending={pending}
+                onSave={(next) =>
+                  act(() =>
+                    updatePactFragmentOperationalState({
+                      commandId: generateCommandId(),
+                      expectedCampaignId: campaignId,
+                      seatId,
+                      expected: pactFragmentOperationalState[seatId],
+                      next,
+                    }),
+                  )
+                }
+              />
+              </div>
             );
           })}
         </div>
@@ -424,6 +449,17 @@ export default function CampaignSetup() {
           character={characterWizard.character}
           pending={pending}
           error={characterError}
+          mortalityState={characterWizard.mortalityState ?? "not_deceased"}
+          onSetMortality={(change) =>
+            act(() =>
+              setWizardMortalityState({
+                commandId: generateCommandId(),
+                expectedCampaignId: campaignId,
+                wizardId: characterWizard.wizardId,
+                change,
+              }),
+            )
+          }
           onSave={(patch) => {
             setPending(true);
             setCharacterError(null);

@@ -23,6 +23,7 @@ export interface WizardRef {
   readonly character: WizardCharacterRef;
   readonly homeIsleId: string | null;
   readonly sanctumPlaceId: string | null;
+  readonly mortalityState?: "not_deceased" | "deceased";
 }
 
 export interface SeatRef {

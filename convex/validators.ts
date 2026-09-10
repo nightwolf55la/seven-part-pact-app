@@ -1751,6 +1751,187 @@ export const engagementRescheduledEventV2Validator = v.object({
   }),
 });
 
+const wizardMortalityStateChangedEventV1Validator = v.object({
+  type: v.literal("wizard_mortality_state_changed"),
+  version: v.literal(1),
+  data: v.object({
+    wizardId: v.string(),
+    previousMortalityState: v.union(v.literal("not_deceased"), v.literal("deceased")),
+    newMortalityState: v.union(v.literal("not_deceased"), v.literal("deceased")),
+  }),
+});
+
+const denizenMortalityStateChangedEventV1Validator = v.object({
+  type: v.literal("denizen_mortality_state_changed"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    previousMortalityState: v.union(v.literal("not_deceased"), v.literal("deceased")),
+    newMortalityState: v.union(v.literal("not_deceased"), v.literal("deceased")),
+  }),
+});
+
+const powerfulDenizenProfileCreatedEventV1Validator = v.object({
+  type: v.literal("powerful_denizen_profile_created"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    profile: powerfulDenizenProfileValidator,
+  }),
+});
+
+const powerfulDenizenProfileRemovedEventV1Validator = v.object({
+  type: v.literal("powerful_denizen_profile_removed"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    profile: powerfulDenizenProfileValidator,
+  }),
+});
+
+const powerfulDenizenTaxonomiesChangedEventV1Validator = v.object({
+  type: v.literal("powerful_denizen_taxonomies_changed"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    previous: v.array(powerfulDenizenTaxonomyRefValidator),
+    updated: v.array(powerfulDenizenTaxonomyRefValidator),
+  }),
+});
+
+const powerfulDenizenStatusChangedEventV1Validator = v.object({
+  type: v.literal("powerful_denizen_status_changed"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    previous: powerfulDenizenStatusValidator,
+    updated: powerfulDenizenStatusValidator,
+  }),
+});
+
+const powerfulDenizenGoalChangedEventV1Validator = v.object({
+  type: v.literal("powerful_denizen_goal_changed"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    previousGoal: v.union(v.string(), v.null()),
+    newGoal: v.union(v.string(), v.null()),
+  }),
+});
+
+const powerfulDenizenMethodAddedEventV1Validator = v.object({
+  type: v.literal("powerful_denizen_method_added"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    method: powerfulDenizenMethodEntryValidator,
+  }),
+});
+
+const powerfulDenizenMethodUpdatedEventV1Validator = v.object({
+  type: v.literal("powerful_denizen_method_updated"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    previous: powerfulDenizenMethodEntryValidator,
+    updated: powerfulDenizenMethodEntryValidator,
+  }),
+});
+
+const powerfulDenizenMethodRemovedEventV1Validator = v.object({
+  type: v.literal("powerful_denizen_method_removed"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    method: powerfulDenizenMethodEntryValidator,
+  }),
+});
+
+const powerfulDenizenTruthAddedEventV1Validator = v.object({
+  type: v.literal("powerful_denizen_truth_added"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    truth: powerfulDenizenTruthEntryValidator,
+  }),
+});
+
+const powerfulDenizenTruthUpdatedEventV1Validator = v.object({
+  type: v.literal("powerful_denizen_truth_updated"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    previous: powerfulDenizenTruthEntryValidator,
+    updated: powerfulDenizenTruthEntryValidator,
+  }),
+});
+
+const powerfulDenizenTruthRemovedEventV1Validator = v.object({
+  type: v.literal("powerful_denizen_truth_removed"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    truth: powerfulDenizenTruthEntryValidator,
+  }),
+});
+
+const campaignPowerfulDenizenTaxonomyCreatedEventV1Validator = v.object({
+  type: v.literal("campaign_powerful_denizen_taxonomy_created"),
+  version: v.literal(1),
+  data: v.object({ taxonomy: campaignPowerfulDenizenTaxonomyValidator }),
+});
+
+const campaignPowerfulDenizenTaxonomyUpdatedEventV1Validator = v.object({
+  type: v.literal("campaign_powerful_denizen_taxonomy_updated"),
+  version: v.literal(1),
+  data: v.object({
+    previous: campaignPowerfulDenizenTaxonomyValidator,
+    updated: campaignPowerfulDenizenTaxonomyValidator,
+  }),
+});
+
+const campaignPowerfulDenizenTaxonomyRemovedEventV1Validator = v.object({
+  type: v.literal("campaign_powerful_denizen_taxonomy_removed"),
+  version: v.literal(1),
+  data: v.object({ taxonomy: campaignPowerfulDenizenTaxonomyValidator }),
+});
+
+const treasureCreatedEventV1Validator = v.object({
+  type: v.literal("treasure_created"),
+  version: v.literal(1),
+  data: v.object({ treasure: treasureValidator }),
+});
+
+const treasureDetailsUpdatedEventV1Validator = v.object({
+  type: v.literal("treasure_details_updated"),
+  version: v.literal(1),
+  data: v.object({
+    treasureId: v.string(),
+    previous: treasureValidator,
+    updated: treasureValidator,
+  }),
+});
+
+const treasureStateUpdatedEventV1Validator = v.object({
+  type: v.literal("treasure_state_updated"),
+  version: v.literal(1),
+  data: v.object({
+    treasureId: v.string(),
+    previous: treasureValidator,
+    updated: treasureValidator,
+  }),
+});
+
+const pactFragmentOperationalStateChangedEventV1Validator = v.object({
+  type: v.literal("pact_fragment_operational_state_changed"),
+  version: v.literal(1),
+  data: v.object({
+    seatId: v.string(),
+    previous: pactFragmentOperationalStateValidator,
+    updated: pactFragmentOperationalStateValidator,
+  }),
+});
+
 export const campaignEventValidator = v.union(
   historicalMonthChangedEventV1Validator,
   undoAppliedEventV1Validator,
@@ -1852,6 +2033,26 @@ export const campaignEventValidator = v.union(
   necromancerCampaignPathSpaceRemovedEventV1Validator,
   necromancerStepAddedEventV1Validator,
   necromancerStepRemovedEventV1Validator,
+  wizardMortalityStateChangedEventV1Validator,
+  denizenMortalityStateChangedEventV1Validator,
+  powerfulDenizenProfileCreatedEventV1Validator,
+  powerfulDenizenProfileRemovedEventV1Validator,
+  powerfulDenizenTaxonomiesChangedEventV1Validator,
+  powerfulDenizenStatusChangedEventV1Validator,
+  powerfulDenizenGoalChangedEventV1Validator,
+  powerfulDenizenMethodAddedEventV1Validator,
+  powerfulDenizenMethodUpdatedEventV1Validator,
+  powerfulDenizenMethodRemovedEventV1Validator,
+  powerfulDenizenTruthAddedEventV1Validator,
+  powerfulDenizenTruthUpdatedEventV1Validator,
+  powerfulDenizenTruthRemovedEventV1Validator,
+  campaignPowerfulDenizenTaxonomyCreatedEventV1Validator,
+  campaignPowerfulDenizenTaxonomyUpdatedEventV1Validator,
+  campaignPowerfulDenizenTaxonomyRemovedEventV1Validator,
+  treasureCreatedEventV1Validator,
+  treasureDetailsUpdatedEventV1Validator,
+  treasureStateUpdatedEventV1Validator,
+  pactFragmentOperationalStateChangedEventV1Validator,
 );
 
 export const anyCampaignStateValidator = campaignStateV5Validator;

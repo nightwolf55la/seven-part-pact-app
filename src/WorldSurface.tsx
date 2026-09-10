@@ -2,11 +2,19 @@ import { useState, useRef } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api.js";
 
+import { CampaignTaxonomyPanel, DenizenSharedStatePanel, TreasurePanel } from "./WorldSharedStatePanels";
+import type {
+  MortalityState,
+  PowerfulDenizenProfile,
+} from "../shared/domain";
+
 export interface DenizenRef {
   readonly denizenId: string;
   readonly name: string;
   readonly representation: "individual" | "collective";
   readonly description: string | null;
+  readonly mortalityState?: MortalityState | null;
+  readonly powerfulProfile?: PowerfulDenizenProfile | null;
 }
 
 export interface IsleRef {
@@ -36,19 +44,49 @@ export interface CompanionRelationshipRef {
   readonly status: "current" | "ended";
 }
 
+export interface CampaignTaxonomyRef {
+  readonly taxonomyId: string;
+  readonly name: string;
+  readonly description: string | null;
+}
+
+export type TreasureCustodyRef =
+  | { readonly kind: "none" }
+  | { readonly kind: "unlocated" }
+  | { readonly kind: "place"; readonly placeId: string }
+  | {
+      readonly kind: "subject";
+      readonly subject:
+        | { readonly kind: "wizard"; readonly wizardId: string }
+        | { readonly kind: "denizen"; readonly denizenId: string };
+    };
+
+export interface TreasureRef {
+  readonly treasureId: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly condition: "intact" | "destroyed";
+  readonly custody: TreasureCustodyRef;
+}
+
 export interface WorldReference {
   readonly denizens: readonly DenizenRef[];
   readonly isles: readonly IsleRef[];
   readonly places: readonly PlaceRef[];
   readonly companionRelationships?: readonly CompanionRelationshipRef[];
+  readonly campaignPowerfulDenizenTaxonomies?: readonly CampaignTaxonomyRef[];
+  readonly treasures?: readonly TreasureRef[];
+  readonly wizards?: readonly { readonly wizardId: string; readonly name: string }[];
 }
 
-type WorldTab = "denizens" | "isles" | "places";
+type WorldTab = "denizens" | "isles" | "places" | "taxonomies" | "treasures";
 
 const TAB_LABELS: Record<WorldTab, string> = {
   denizens: "Denizens",
   isles: "Isles",
   places: "Places",
+  taxonomies: "Taxonomies",
+  treasures: "Treasures",
 };
 
 type EditorKind = "denizen-create" | "denizen-edit" | "isle-create" | "isle-edit" | "place-create" | "place-edit";
@@ -144,6 +182,7 @@ export default function WorldSurface({ world, campaignId }: { world: WorldRefere
   }
 
   function openCreate(): void {
+    if (activeTab === "taxonomies" || activeTab === "treasures") return;
     setError(null);
     setEditor(blankEditor(activeTab, campaignId));
   }
@@ -337,7 +376,7 @@ export default function WorldSurface({ world, campaignId }: { world: WorldRefere
     : world.places;
 
   const addButtonLabel =
-    activeTab === "denizens" ? "Add Denizen" : activeTab === "isles" ? "Add Isle" : "Add Place";
+    activeTab === "denizens" ? "Add Denizen" : activeTab === "isles" ? "Add Isle" : activeTab === "places" ? "Add Place" : null;
   const saveLabel =
     editor?.kind.endsWith("create") ? "Create" : "Save";
 
@@ -359,6 +398,7 @@ export default function WorldSurface({ world, campaignId }: { world: WorldRefere
             {TAB_LABELS[tab]}
           </button>
         ))}
+        {addButtonLabel !== null && (
         <button
           onClick={openCreate}
           disabled={pending}
@@ -366,6 +406,7 @@ export default function WorldSurface({ world, campaignId }: { world: WorldRefere
         >
           {addButtonLabel}
         </button>
+        )}
         <input
           type="text"
           value={filter}
@@ -374,6 +415,10 @@ export default function WorldSurface({ world, campaignId }: { world: WorldRefere
           className="ml-auto text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-slate-600"
         />
       </div>
+
+      {error && editor === null && (
+        <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>
+      )}
 
       {editor && (
         <div className="rounded-lg border border-slate-300 dark:border-slate-600 p-4 mb-4 bg-slate-50 dark:bg-slate-800">
@@ -485,6 +530,16 @@ export default function WorldSurface({ world, campaignId }: { world: WorldRefere
                 Cancel
               </button>
             </div>
+            {editor.kind === "denizen-edit" && editor.original !== null && "denizenId" in editor.original && (
+              <DenizenSharedStatePanel
+                campaignId={campaignId}
+                denizen={editor.original as DenizenRef}
+                taxonomies={world.campaignPowerfulDenizenTaxonomies ?? []}
+                pending={pending}
+                setPending={setPending}
+                setError={setError}
+              />
+            )}
           </div>
         </div>
       )}
@@ -503,6 +558,8 @@ export default function WorldSurface({ world, campaignId }: { world: WorldRefere
                   <span className="font-medium text-slate-800 dark:text-slate-100">{d.name}</span>
                   <span className="text-xs text-slate-400 dark:text-slate-500">
                     {representationLabel(d.representation)}
+                    {d.representation === "individual" && d.mortalityState === "deceased" ? " · deceased" : ""}
+                    {d.powerfulProfile ? " · Powerful" : ""}
                   </span>
                   <button
                     onClick={() => openEditDenizen(d)}
@@ -580,6 +637,29 @@ export default function WorldSurface({ world, campaignId }: { world: WorldRefere
             ))
           )}
         </div>
+      )}
+
+      {activeTab === "taxonomies" && (
+        <CampaignTaxonomyPanel
+          campaignId={campaignId}
+          taxonomies={world.campaignPowerfulDenizenTaxonomies ?? []}
+          pending={pending}
+          setPending={setPending}
+          setError={setError}
+        />
+      )}
+
+      {activeTab === "treasures" && (
+        <TreasurePanel
+          campaignId={campaignId}
+          treasures={world.treasures ?? []}
+          denizens={world.denizens}
+          places={world.places}
+          wizards={world.wizards ?? []}
+          pending={pending}
+          setPending={setPending}
+          setError={setError}
+        />
       )}
     </section>
   );

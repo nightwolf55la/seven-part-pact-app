@@ -27,6 +27,10 @@ vi.mock("../convex/_generated/api.js", () => ({
       updateWizardCharacter: "m3Commands.updateWizardCharacter",
       setWizardHomeIsle: "m3Commands.setWizardHomeIsle",
       setWizardSanctum: "m3Commands.setWizardSanctum",
+      setWizardCompanion: "m3Commands.setWizardCompanion",
+      updateCompanionDescription: "m3Commands.updateCompanionDescription",
+      setWizardMortalityState: "m3Commands.setWizardMortalityState",
+      updatePactFragmentOperationalState: "m3Commands.updatePactFragmentOperationalState",
     },
   },
 }));

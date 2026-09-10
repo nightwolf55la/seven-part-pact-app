@@ -46,7 +46,7 @@ const SURFACE_LABELS: Record<SurfaceId, string> = {
 
 function renderSurface(
   surface: SurfaceId,
-  ref: { campaignId: string; monthOrdinal: number; orreryPositions: Record<string, number>; phase: LunarPhase; pactSeats: Record<string, { status: string | null; wizardId: string | null; watcherPlayerId: string | null }>; players: { playerId: string; name: string }[]; wizards: { wizardId: string; name: string; portrayedByPlayerId: string | null; character: { elements: { air: number; fire: number; earth: number; water: number } | null; pactFragmentPersonalForm: string | null; familiarDescription: string | null; ageYears: number | null; publicChangesOfMagic: readonly string[]; importantNotes: string | null }; homeIsleId: string | null; sanctumPlaceId: string | null }[] },
+  ref: { campaignId: string; monthOrdinal: number; orreryPositions: Record<string, number>; phase: LunarPhase; pactSeats: Record<string, { status: string | null; wizardId: string | null; watcherPlayerId: string | null }>; pactFragmentOperationalState?: import("../shared/domain").PactFragmentOperationalMap; players: { playerId: string; name: string }[]; wizards: { wizardId: string; name: string; portrayedByPlayerId: string | null; character: { elements: { air: number; fire: number; earth: number; water: number } | null; pactFragmentPersonalForm: string | null; familiarDescription: string | null; ageYears: number | null; publicChangesOfMagic: readonly string[]; importantNotes: string | null }; homeIsleId: string | null; sanctumPlaceId: string | null; mortalityState?: "not_deceased" | "deceased" }[] },
   worldRef: { readonly denizens: readonly { readonly denizenId: string; readonly name: string; readonly representation: "individual" | "collective"; readonly description: string | null }[]; readonly isles: readonly { readonly isleId: string; readonly name: string; readonly description: string | null }[]; readonly places: readonly { readonly placeId: string; readonly name: string; readonly description: string | null; readonly placement: { readonly kind: "unspecified" } | { readonly kind: "on_isle"; readonly isleId: string } | { readonly kind: "mobile"; readonly associatedIsleId: string | null } }[] } | null | undefined,
 ) {
   switch (surface) {
@@ -67,7 +67,7 @@ function renderSurface(
     case "orrery":
       return <OrreryView monthOrdinal={ref.monthOrdinal} orreryPositions={ref.orreryPositions} />;
     case "table_wizards":
-      return <TableWizards pactSeats={ref.pactSeats} players={ref.players} wizards={ref.wizards} worldRef={worldRef} campaignId={ref.campaignId} />;
+      return <TableWizards pactSeats={ref.pactSeats} players={ref.players} wizards={ref.wizards} worldRef={worldRef} campaignId={ref.campaignId} pactFragmentOperationalState={ref.pactFragmentOperationalState} />;
     case "world":
     case "hierophant":
     case "mariner":

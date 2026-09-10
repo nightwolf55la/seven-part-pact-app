@@ -742,6 +742,189 @@ export function removeNecromancerStepFingerprint(expectedCampaignId: string, exp
   return `remove_necromancer_step:v1:${canonicalJsonStringify({ expectedCampaignId, expectedStep })}`;
 }
 
+export function setWizardMortalityStateFingerprint(
+  expectedCampaignId: string,
+  wizardId: string,
+  change: unknown,
+): string {
+  return `set_wizard_mortality_state:v1:${canonicalJsonStringify({ expectedCampaignId, wizardId, change })}`;
+}
+
+export function setDenizenMortalityStateFingerprint(
+  expectedCampaignId: string,
+  denizenId: string,
+  change: unknown,
+): string {
+  return `set_denizen_mortality_state:v1:${canonicalJsonStringify({ expectedCampaignId, denizenId, change })}`;
+}
+
+export function createPowerfulDenizenProfileFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `create_powerful_denizen_profile:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function removePowerfulDenizenProfileFingerprint(
+  expectedCampaignId: string,
+  denizenId: string,
+  expectedProfile: unknown,
+): string {
+  return `remove_powerful_denizen_profile:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    denizenId,
+    expectedProfile,
+  })}`;
+}
+
+export function setPowerfulDenizenTaxonomiesFingerprint(
+  expectedCampaignId: string,
+  denizenId: string,
+  change: unknown,
+): string {
+  return `set_powerful_denizen_taxonomies:v1:${canonicalJsonStringify({ expectedCampaignId, denizenId, change })}`;
+}
+
+export function setPowerfulDenizenStatusFingerprint(
+  expectedCampaignId: string,
+  denizenId: string,
+  change: unknown,
+): string {
+  return `set_powerful_denizen_status:v1:${canonicalJsonStringify({ expectedCampaignId, denizenId, change })}`;
+}
+
+export function setPowerfulDenizenGoalFingerprint(
+  expectedCampaignId: string,
+  denizenId: string,
+  change: unknown,
+): string {
+  return `set_powerful_denizen_goal:v1:${canonicalJsonStringify({ expectedCampaignId, denizenId, change })}`;
+}
+
+export function addPowerfulDenizenMethodFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `add_powerful_denizen_method:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function updatePowerfulDenizenMethodFingerprint(
+  expectedCampaignId: string,
+  denizenId: string,
+  methodEntryId: string,
+  change: unknown,
+): string {
+  return `update_powerful_denizen_method:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    denizenId,
+    methodEntryId,
+    change,
+  })}`;
+}
+
+export function removePowerfulDenizenMethodFingerprint(
+  expectedCampaignId: string,
+  denizenId: string,
+  methodEntryId: string,
+  expectedMethod: unknown,
+): string {
+  return `remove_powerful_denizen_method:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    denizenId,
+    methodEntryId,
+    expectedMethod,
+  })}`;
+}
+
+export function addPowerfulDenizenTruthFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `add_powerful_denizen_truth:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function updatePowerfulDenizenTruthFingerprint(
+  expectedCampaignId: string,
+  denizenId: string,
+  truthId: string,
+  change: unknown,
+): string {
+  return `update_powerful_denizen_truth:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    denizenId,
+    truthId,
+    change,
+  })}`;
+}
+
+export function removePowerfulDenizenTruthFingerprint(
+  expectedCampaignId: string,
+  denizenId: string,
+  truthId: string,
+  expectedTruth: unknown,
+): string {
+  return `remove_powerful_denizen_truth:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    denizenId,
+    truthId,
+    expectedTruth,
+  })}`;
+}
+
+export function createCampaignPowerfulDenizenTaxonomyFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `create_campaign_powerful_denizen_taxonomy:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function updateCampaignPowerfulDenizenTaxonomyFingerprint(
+  expectedCampaignId: string,
+  taxonomyId: string,
+  fields: unknown,
+): string {
+  return `update_campaign_powerful_denizen_taxonomy:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    taxonomyId,
+    fields,
+  })}`;
+}
+
+export function removeCampaignPowerfulDenizenTaxonomyFingerprint(
+  expectedCampaignId: string,
+  taxonomyId: string,
+  expectedTaxonomy: unknown,
+): string {
+  return `remove_campaign_powerful_denizen_taxonomy:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    taxonomyId,
+    expectedTaxonomy,
+  })}`;
+}
+
+export function createTreasureFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `create_treasure:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function updateTreasureDetailsFingerprint(
+  expectedCampaignId: string,
+  treasureId: string,
+  fields: unknown,
+): string {
+  return `update_treasure_details:v1:${canonicalJsonStringify({ expectedCampaignId, treasureId, fields })}`;
+}
+
+export function updateTreasureStateFingerprint(
+  expectedCampaignId: string,
+  treasureId: string,
+  expected: unknown,
+  next: unknown,
+): string {
+  return `update_treasure_state:v1:${canonicalJsonStringify({ expectedCampaignId, treasureId, expected, next })}`;
+}
+
+export function updatePactFragmentOperationalStateFingerprint(
+  expectedCampaignId: string,
+  seatId: string,
+  expected: unknown,
+  next: unknown,
+): string {
+  return `update_pact_fragment_operational_state:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    seatId,
+    expected,
+    next,
+  })}`;
+}
+
 /**
  * Pure deterministic idempotency match for command replay.
  * Given a previously committed command record and an incoming attempt,

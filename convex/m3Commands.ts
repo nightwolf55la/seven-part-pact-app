@@ -204,11 +204,55 @@ import {
   applyRemoveNecromancerCampaignPathSpace,
   applyAddNecromancerStep,
   applyRemoveNecromancerStep,
+  setWizardMortalityStateFingerprint,
+  setDenizenMortalityStateFingerprint,
+  createPowerfulDenizenProfileFingerprint,
+  removePowerfulDenizenProfileFingerprint,
+  setPowerfulDenizenTaxonomiesFingerprint,
+  setPowerfulDenizenStatusFingerprint,
+  setPowerfulDenizenGoalFingerprint,
+  addPowerfulDenizenMethodFingerprint,
+  updatePowerfulDenizenMethodFingerprint,
+  removePowerfulDenizenMethodFingerprint,
+  addPowerfulDenizenTruthFingerprint,
+  updatePowerfulDenizenTruthFingerprint,
+  removePowerfulDenizenTruthFingerprint,
+  createCampaignPowerfulDenizenTaxonomyFingerprint,
+  updateCampaignPowerfulDenizenTaxonomyFingerprint,
+  removeCampaignPowerfulDenizenTaxonomyFingerprint,
+  createTreasureFingerprint,
+  updateTreasureDetailsFingerprint,
+  updateTreasureStateFingerprint,
+  updatePactFragmentOperationalStateFingerprint,
+  applySetWizardMortalityState,
+  applySetDenizenMortalityState,
+  applyCreatePowerfulDenizenProfile,
+  applyRemovePowerfulDenizenProfile,
+  applySetPowerfulDenizenTaxonomies,
+  applySetPowerfulDenizenStatus,
+  applySetPowerfulDenizenGoal,
+  applyAddPowerfulDenizenMethod,
+  applyUpdatePowerfulDenizenMethod,
+  applyRemovePowerfulDenizenMethod,
+  applyAddPowerfulDenizenTruth,
+  applyUpdatePowerfulDenizenTruth,
+  applyRemovePowerfulDenizenTruth,
+  applyCreateCampaignPowerfulDenizenTaxonomy,
+  applyUpdateCampaignPowerfulDenizenTaxonomy,
+  applyRemoveCampaignPowerfulDenizenTaxonomy,
+  applyCreateTreasure,
+  applyUpdateTreasureDetails,
+  applyUpdateTreasureState,
+  applyUpdatePactFragmentOperationalState,
+  isValidTreasureId,
+  isValidCampaignPowerfulDenizenTaxonomyId,
+  isValidPowerfulDenizenMethodEntryId,
+  isValidPowerfulDenizenTruthId,
   isValidHierophantFlameLawId,
   isValidHierophantStartingTempleId,
   isValidHierophantTempleId,
 } from "../shared/domain";
-import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange, CompanionRelationshipId, HierophantFlameLawId, HierophantStartingTempleId, HierophantTempleId, HierophantCampaignClassId, HierophantCampaignDoctrineId, HierophantDogmaEntryId, HierophantSupplicant, HierophantProphet, HierophantCult, HierophantCultDogma, HierophantCampaignClass, HierophantCampaignDoctrine, CreateTempleInput, OrdinaryTempleDoctrineState, InitializeMarinerInput, MarinerBeastState, MarinerIsleMarket, MarinerRouteOccupancy, MarinerBoardIsleId, MarinerLawOfSeaId, MarinerRouteId, MarinerSeaRegionId, MarinerArrangementId, UpdateMarinerBeastFields, InitializeNecromancerInput, NecromancerArrangementId, NecromancerLawOfDeathId, NecromancerBuiltinGateId, NecromancerBuiltinPathSpaceId, NecromancerDepthState, NecromancerSelectedLaw, NecromancerGateId, NecromancerGateStatus, NecromancerOccupiableSpaceRef, NecromancerFoeState, NecromancerAllyState, NecromancerGhoulCallerState, UpdateNecromancerFoeFields, UpdateNecromancerAllyFields, UpdateNecromancerGhoulCallerFields, NecromancerCampaignGateId, NecromancerGateBand, UpdateNecromancerCampaignGateFields, NecromancerCampaignPathSpaceId, NecromancerPathRegion, NecromancerCampaignPathSpaceState, NecromancerDirectedStep } from "../shared/domain";
+import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange, CompanionRelationshipId, HierophantFlameLawId, HierophantStartingTempleId, HierophantTempleId, HierophantCampaignClassId, HierophantCampaignDoctrineId, HierophantDogmaEntryId, HierophantSupplicant, HierophantProphet, HierophantCult, HierophantCultDogma, HierophantCampaignClass, HierophantCampaignDoctrine, CreateTempleInput, OrdinaryTempleDoctrineState, InitializeMarinerInput, MarinerBeastState, MarinerIsleMarket, MarinerRouteOccupancy, MarinerBoardIsleId, MarinerLawOfSeaId, MarinerRouteId, MarinerSeaRegionId, MarinerArrangementId, UpdateMarinerBeastFields, InitializeNecromancerInput, NecromancerArrangementId, NecromancerLawOfDeathId, NecromancerBuiltinGateId, NecromancerBuiltinPathSpaceId, NecromancerDepthState, NecromancerSelectedLaw, NecromancerGateId, NecromancerGateStatus, NecromancerOccupiableSpaceRef, NecromancerFoeState, NecromancerAllyState, NecromancerGhoulCallerState, UpdateNecromancerFoeFields, UpdateNecromancerAllyFields, UpdateNecromancerGhoulCallerFields, NecromancerCampaignGateId, NecromancerGateBand, UpdateNecromancerCampaignGateFields, NecromancerCampaignPathSpaceId, NecromancerPathRegion, NecromancerCampaignPathSpaceState, NecromancerDirectedStep, MortalityState, PowerfulDenizenTaxonomyRef, PowerfulDenizenStatus, PowerfulDenizenMethodDefinition, PowerfulDenizenMethodEntry, PowerfulDenizenTruthEntry, PowerfulDenizenProfile, CampaignPowerfulDenizenTaxonomy, CampaignPowerfulDenizenTaxonomyId, PowerfulDenizenMethodEntryId, PowerfulDenizenTruthId, TreasureId, TreasureCondition, TreasureCustody, PactFragmentOperationalState } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
 import type { WizardInitIds } from "../shared/domain/begin-play";
 import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
@@ -3454,6 +3498,809 @@ export const removeNecromancerStep = mutation({
           args.expectedStep as NecromancerDirectedStep,
         ),
       }),
+    );
+  },
+});
+
+const mortalityStateArg = v.union(v.literal("not_deceased"), v.literal("deceased"));
+const taxonomyRefArg = v.union(
+  v.object({ kind: v.literal("builtin"), taxonomyId: v.string() }),
+  v.object({ kind: v.literal("campaign"), taxonomyId: v.string() }),
+);
+const powerfulStatusArg = v.union(
+  v.object({
+    kind: v.literal("standard"),
+    value: v.union(
+      v.literal("companion"),
+      v.literal("reliable"),
+      v.literal("disruptive"),
+      v.literal("malignant"),
+    ),
+  }),
+  v.object({ kind: v.literal("other"), label: v.string() }),
+);
+const methodDefinitionArg = v.union(
+  v.object({
+    kind: v.literal("standard"),
+    method: v.union(
+      v.literal("rampaging"),
+      v.literal("manipulating"),
+      v.literal("conjuring"),
+      v.literal("occupying"),
+    ),
+  }),
+  v.object({
+    kind: v.literal("named"),
+    name: v.string(),
+    description: v.union(v.string(), v.null()),
+  }),
+);
+const methodEntryArg = v.object({
+  methodEntryId: v.string(),
+  definition: methodDefinitionArg,
+  origin: v.union(v.literal("source"), v.literal("campaign")),
+});
+const truthEntryArg = v.object({
+  truthId: v.string(),
+  text: v.string(),
+  origin: v.union(v.literal("source"), v.literal("campaign")),
+});
+const powerfulProfileArg = v.object({
+  taxonomies: v.array(taxonomyRefArg),
+  status: powerfulStatusArg,
+  goal: v.union(v.string(), v.null()),
+  methods: v.array(methodEntryArg),
+  truths: v.array(truthEntryArg),
+});
+const campaignTaxonomyArg = v.object({
+  taxonomyId: v.string(),
+  name: v.string(),
+  description: v.union(v.string(), v.null()),
+});
+const treasureCustodyArg = v.union(
+  v.object({
+    kind: v.literal("subject"),
+    subject: v.union(
+      v.object({ kind: v.literal("wizard"), wizardId: v.string() }),
+      v.object({ kind: v.literal("denizen"), denizenId: v.string() }),
+    ),
+  }),
+  v.object({ kind: v.literal("place"), placeId: v.string() }),
+  v.object({ kind: v.literal("unlocated") }),
+  v.object({ kind: v.literal("none") }),
+);
+const treasureConditionArg = v.union(v.literal("intact"), v.literal("destroyed"));
+const pactFragmentOperationalArg = v.object({
+  condition: v.union(v.literal("intact"), v.literal("damaged"), v.literal("destroyed")),
+  custody: v.union(
+    v.object({ kind: v.literal("wizard"), wizardId: v.string() }),
+    v.object({ kind: v.literal("devil") }),
+    v.object({ kind: v.literal("unlocated") }),
+    v.object({ kind: v.literal("none") }),
+  ),
+});
+
+export const setWizardMortalityState = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    wizardId: v.string(),
+    change: v.object({ expected: mortalityStateArg, value: mortalityStateArg }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidWizardId(args.wizardId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${args.wizardId}`);
+        }
+        return {
+          commandType: "set_wizard_mortality_state",
+          commandFingerprint: setWizardMortalityStateFingerprint(
+            args.expectedCampaignId,
+            args.wizardId,
+            args.change,
+          ),
+          apply: (state) => applySetWizardMortalityState(
+            state,
+            args.wizardId as WizardId,
+            args.change,
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const setDenizenMortalityState = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    change: v.object({ expected: mortalityStateArg, value: mortalityStateArg }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidDenizenId(args.denizenId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
+        }
+        return {
+          commandType: "set_denizen_mortality_state",
+          commandFingerprint: setDenizenMortalityStateFingerprint(
+            args.expectedCampaignId,
+            args.denizenId,
+            args.change,
+          ),
+          apply: (state) => applySetDenizenMortalityState(
+            state,
+            args.denizenId as DenizenId,
+            args.change,
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const createPowerfulDenizenProfile = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    taxonomies: v.array(taxonomyRefArg),
+    status: powerfulStatusArg,
+    goal: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const input = {
+      denizenId: args.denizenId,
+      taxonomies: args.taxonomies,
+      status: args.status,
+      goal: args.goal,
+    };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidDenizenId(args.denizenId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
+        }
+        return {
+          commandType: "create_powerful_denizen_profile",
+          commandFingerprint: createPowerfulDenizenProfileFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyCreatePowerfulDenizenProfile(state, {
+            denizenId: args.denizenId as DenizenId,
+            taxonomies: args.taxonomies as unknown as PowerfulDenizenTaxonomyRef[],
+            status: args.status as PowerfulDenizenStatus,
+            goal: args.goal,
+          }),
+        };
+      },
+    );
+  },
+});
+
+export const removePowerfulDenizenProfile = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    expectedProfile: powerfulProfileArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidDenizenId(args.denizenId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
+        }
+        return {
+          commandType: "remove_powerful_denizen_profile",
+          commandFingerprint: removePowerfulDenizenProfileFingerprint(
+            args.expectedCampaignId,
+            args.denizenId,
+            args.expectedProfile,
+          ),
+          apply: (state) => applyRemovePowerfulDenizenProfile(
+            state,
+            args.denizenId as DenizenId,
+            args.expectedProfile as unknown as PowerfulDenizenProfile,
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const setPowerfulDenizenTaxonomies = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    change: v.object({
+      expected: v.array(taxonomyRefArg),
+      value: v.array(taxonomyRefArg),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidDenizenId(args.denizenId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
+        }
+        return {
+          commandType: "set_powerful_denizen_taxonomies",
+          commandFingerprint: setPowerfulDenizenTaxonomiesFingerprint(
+            args.expectedCampaignId,
+            args.denizenId,
+            args.change,
+          ),
+          apply: (state) => applySetPowerfulDenizenTaxonomies(
+            state,
+            args.denizenId as DenizenId,
+            args.change as unknown as ExpectedFieldChange<readonly PowerfulDenizenTaxonomyRef[]>,
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const setPowerfulDenizenStatus = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    change: v.object({ expected: powerfulStatusArg, value: powerfulStatusArg }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidDenizenId(args.denizenId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
+        }
+        return {
+          commandType: "set_powerful_denizen_status",
+          commandFingerprint: setPowerfulDenizenStatusFingerprint(
+            args.expectedCampaignId,
+            args.denizenId,
+            args.change,
+          ),
+          apply: (state) => applySetPowerfulDenizenStatus(
+            state,
+            args.denizenId as DenizenId,
+            args.change as ExpectedFieldChange<PowerfulDenizenStatus>,
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const setPowerfulDenizenGoal = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    change: v.object({
+      expected: v.union(v.string(), v.null()),
+      value: v.union(v.string(), v.null()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidDenizenId(args.denizenId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
+        }
+        return {
+          commandType: "set_powerful_denizen_goal",
+          commandFingerprint: setPowerfulDenizenGoalFingerprint(
+            args.expectedCampaignId,
+            args.denizenId,
+            args.change,
+          ),
+          apply: (state) => applySetPowerfulDenizenGoal(
+            state,
+            args.denizenId as DenizenId,
+            args.change,
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const addPowerfulDenizenMethod = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    methodEntryId: v.string(),
+    definition: methodDefinitionArg,
+  },
+  handler: async (ctx, args) => {
+    const input = {
+      denizenId: args.denizenId,
+      methodEntryId: args.methodEntryId,
+      definition: args.definition,
+    };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidDenizenId(args.denizenId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
+        }
+        if (!isValidPowerfulDenizenMethodEntryId(args.methodEntryId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid methodEntryId: ${args.methodEntryId}`);
+        }
+        return {
+          commandType: "add_powerful_denizen_method",
+          commandFingerprint: addPowerfulDenizenMethodFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyAddPowerfulDenizenMethod(state, {
+            denizenId: args.denizenId as DenizenId,
+            methodEntryId: args.methodEntryId as PowerfulDenizenMethodEntryId,
+            definition: args.definition as PowerfulDenizenMethodDefinition,
+          }),
+        };
+      },
+    );
+  },
+});
+
+export const updatePowerfulDenizenMethod = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    methodEntryId: v.string(),
+    change: v.object({ expected: methodDefinitionArg, value: methodDefinitionArg }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidDenizenId(args.denizenId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
+        }
+        if (!isValidPowerfulDenizenMethodEntryId(args.methodEntryId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid methodEntryId: ${args.methodEntryId}`);
+        }
+        return {
+          commandType: "update_powerful_denizen_method",
+          commandFingerprint: updatePowerfulDenizenMethodFingerprint(
+            args.expectedCampaignId,
+            args.denizenId,
+            args.methodEntryId,
+            args.change,
+          ),
+          apply: (state) => applyUpdatePowerfulDenizenMethod(
+            state,
+            args.denizenId as DenizenId,
+            args.methodEntryId as PowerfulDenizenMethodEntryId,
+            args.change as ExpectedFieldChange<PowerfulDenizenMethodDefinition>,
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const removePowerfulDenizenMethod = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    methodEntryId: v.string(),
+    expectedMethod: methodEntryArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidDenizenId(args.denizenId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
+        }
+        if (!isValidPowerfulDenizenMethodEntryId(args.methodEntryId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid methodEntryId: ${args.methodEntryId}`);
+        }
+        return {
+          commandType: "remove_powerful_denizen_method",
+          commandFingerprint: removePowerfulDenizenMethodFingerprint(
+            args.expectedCampaignId,
+            args.denizenId,
+            args.methodEntryId,
+            args.expectedMethod,
+          ),
+          apply: (state) => applyRemovePowerfulDenizenMethod(
+            state,
+            args.denizenId as DenizenId,
+            args.methodEntryId as PowerfulDenizenMethodEntryId,
+            args.expectedMethod as unknown as PowerfulDenizenMethodEntry,
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const addPowerfulDenizenTruth = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    truthId: v.string(),
+    text: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const input = { denizenId: args.denizenId, truthId: args.truthId, text: args.text };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidDenizenId(args.denizenId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
+        }
+        if (!isValidPowerfulDenizenTruthId(args.truthId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid truthId: ${args.truthId}`);
+        }
+        return {
+          commandType: "add_powerful_denizen_truth",
+          commandFingerprint: addPowerfulDenizenTruthFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyAddPowerfulDenizenTruth(state, {
+            denizenId: args.denizenId as DenizenId,
+            truthId: args.truthId as PowerfulDenizenTruthId,
+            text: args.text,
+          }),
+        };
+      },
+    );
+  },
+});
+
+export const updatePowerfulDenizenTruth = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    truthId: v.string(),
+    change: v.object({ expected: v.string(), value: v.string() }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidDenizenId(args.denizenId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
+        }
+        if (!isValidPowerfulDenizenTruthId(args.truthId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid truthId: ${args.truthId}`);
+        }
+        return {
+          commandType: "update_powerful_denizen_truth",
+          commandFingerprint: updatePowerfulDenizenTruthFingerprint(
+            args.expectedCampaignId,
+            args.denizenId,
+            args.truthId,
+            args.change,
+          ),
+          apply: (state) => applyUpdatePowerfulDenizenTruth(
+            state,
+            args.denizenId as DenizenId,
+            args.truthId as PowerfulDenizenTruthId,
+            args.change,
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const removePowerfulDenizenTruth = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    truthId: v.string(),
+    expectedTruth: truthEntryArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidDenizenId(args.denizenId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${args.denizenId}`);
+        }
+        if (!isValidPowerfulDenizenTruthId(args.truthId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid truthId: ${args.truthId}`);
+        }
+        return {
+          commandType: "remove_powerful_denizen_truth",
+          commandFingerprint: removePowerfulDenizenTruthFingerprint(
+            args.expectedCampaignId,
+            args.denizenId,
+            args.truthId,
+            args.expectedTruth,
+          ),
+          apply: (state) => applyRemovePowerfulDenizenTruth(
+            state,
+            args.denizenId as DenizenId,
+            args.truthId as PowerfulDenizenTruthId,
+            args.expectedTruth as unknown as PowerfulDenizenTruthEntry,
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const createCampaignPowerfulDenizenTaxonomy = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    taxonomyId: v.string(),
+    name: v.string(),
+    description: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const input = { taxonomyId: args.taxonomyId, name: args.name, description: args.description };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidCampaignPowerfulDenizenTaxonomyId(args.taxonomyId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid taxonomyId: ${args.taxonomyId}`);
+        }
+        return {
+          commandType: "create_campaign_powerful_denizen_taxonomy",
+          commandFingerprint: createCampaignPowerfulDenizenTaxonomyFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyCreateCampaignPowerfulDenizenTaxonomy(state, {
+            taxonomyId: args.taxonomyId as CampaignPowerfulDenizenTaxonomyId,
+            name: args.name,
+            description: args.description,
+          }),
+        };
+      },
+    );
+  },
+});
+
+export const updateCampaignPowerfulDenizenTaxonomy = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    taxonomyId: v.string(),
+    fields: v.object({
+      name: v.optional(v.object({ expected: v.string(), value: v.string() })),
+      description: v.optional(v.object({
+        expected: v.union(v.string(), v.null()),
+        value: v.union(v.string(), v.null()),
+      })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidCampaignPowerfulDenizenTaxonomyId(args.taxonomyId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid taxonomyId: ${args.taxonomyId}`);
+        }
+        return {
+          commandType: "update_campaign_powerful_denizen_taxonomy",
+          commandFingerprint: updateCampaignPowerfulDenizenTaxonomyFingerprint(
+            args.expectedCampaignId,
+            args.taxonomyId,
+            args.fields,
+          ),
+          apply: (state) => applyUpdateCampaignPowerfulDenizenTaxonomy(
+            state,
+            args.taxonomyId as CampaignPowerfulDenizenTaxonomyId,
+            args.fields,
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const removeCampaignPowerfulDenizenTaxonomy = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    taxonomyId: v.string(),
+    expectedTaxonomy: campaignTaxonomyArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidCampaignPowerfulDenizenTaxonomyId(args.taxonomyId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid taxonomyId: ${args.taxonomyId}`);
+        }
+        return {
+          commandType: "remove_campaign_powerful_denizen_taxonomy",
+          commandFingerprint: removeCampaignPowerfulDenizenTaxonomyFingerprint(
+            args.expectedCampaignId,
+            args.taxonomyId,
+            args.expectedTaxonomy,
+          ),
+          apply: (state) => applyRemoveCampaignPowerfulDenizenTaxonomy(
+            state,
+            args.taxonomyId as CampaignPowerfulDenizenTaxonomyId,
+            args.expectedTaxonomy as unknown as CampaignPowerfulDenizenTaxonomy,
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const createTreasure = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    treasureId: v.string(),
+    name: v.string(),
+    description: v.union(v.string(), v.null()),
+    condition: treasureConditionArg,
+    custody: treasureCustodyArg,
+  },
+  handler: async (ctx, args) => {
+    const input = {
+      treasureId: args.treasureId,
+      name: args.name,
+      description: args.description,
+      condition: args.condition,
+      custody: args.custody,
+    };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidTreasureId(args.treasureId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid treasureId: ${args.treasureId}`);
+        }
+        return {
+          commandType: "create_treasure",
+          commandFingerprint: createTreasureFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyCreateTreasure(state, {
+            treasureId: args.treasureId as TreasureId,
+            name: args.name,
+            description: args.description,
+            condition: args.condition as TreasureCondition,
+            custody: args.custody as unknown as TreasureCustody,
+          }),
+        };
+      },
+    );
+  },
+});
+
+export const updateTreasureDetails = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    treasureId: v.string(),
+    fields: v.object({
+      name: v.optional(v.object({ expected: v.string(), value: v.string() })),
+      description: v.optional(v.object({
+        expected: v.union(v.string(), v.null()),
+        value: v.union(v.string(), v.null()),
+      })),
+    }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidTreasureId(args.treasureId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid treasureId: ${args.treasureId}`);
+        }
+        return {
+          commandType: "update_treasure_details",
+          commandFingerprint: updateTreasureDetailsFingerprint(
+            args.expectedCampaignId,
+            args.treasureId,
+            args.fields,
+          ),
+          apply: (state) => applyUpdateTreasureDetails(
+            state,
+            args.treasureId as TreasureId,
+            args.fields,
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const updateTreasureState = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    treasureId: v.string(),
+    expected: v.object({ condition: treasureConditionArg, custody: treasureCustodyArg }),
+    next: v.object({ condition: treasureConditionArg, custody: treasureCustodyArg }),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidTreasureId(args.treasureId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid treasureId: ${args.treasureId}`);
+        }
+        return {
+          commandType: "update_treasure_state",
+          commandFingerprint: updateTreasureStateFingerprint(
+            args.expectedCampaignId,
+            args.treasureId,
+            args.expected,
+            args.next,
+          ),
+          apply: (state) => applyUpdateTreasureState(
+            state,
+            args.treasureId as TreasureId,
+            args.expected as unknown as { condition: TreasureCondition; custody: TreasureCustody },
+            args.next as unknown as { condition: TreasureCondition; custody: TreasureCustody },
+          ),
+        };
+      },
+    );
+  },
+});
+
+export const updatePactFragmentOperationalState = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    seatId: v.string(),
+    expected: pactFragmentOperationalArg,
+    next: pactFragmentOperationalArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (!isValidPactSeatId(args.seatId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid seat id: ${args.seatId}`);
+        }
+        return {
+          commandType: "update_pact_fragment_operational_state",
+          commandFingerprint: updatePactFragmentOperationalStateFingerprint(
+            args.expectedCampaignId,
+            args.seatId,
+            args.expected,
+            args.next,
+          ),
+          apply: (state) => applyUpdatePactFragmentOperationalState(
+            state,
+            args.seatId as PactSeatId,
+            args.expected as unknown as PactFragmentOperationalState,
+            args.next as unknown as PactFragmentOperationalState,
+          ),
+        };
+      },
     );
   },
 });

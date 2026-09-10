@@ -172,6 +172,8 @@ describe("V5 Runtime Activation", () => {
       isles: [],
       places: [],
       companionRelationships: [],
+      campaignPowerfulDenizenTaxonomies: [],
+      treasures: [],
     });
   });
 

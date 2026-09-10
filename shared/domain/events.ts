@@ -1,11 +1,40 @@
 import type { MonthOrdinal } from "./calendar";
 import type { MonthDirection } from "./calendar";
 import type { MovablePlanetId, CentidegreePosition } from "./orrery";
-import type { LunarPhase, WizardCharacterDataV4, WizardCharacterDataV5 } from "./campaign-state";
+import type {
+  LunarPhase,
+  PactFragmentOperationalState,
+  WizardCharacterDataV4,
+  WizardCharacterDataV5,
+} from "./campaign-state";
+import type { PactSeatId } from "./pact-seats";
 import type { TimeDestination } from "./time-model";
 import type { EngagementTargetV4, EngagementTargetV5 } from "./engagement";
-import type { Denizen, Isle, WorldPlace, CompanionRelationship, ElementId } from "./shared-world";
-import type { DenizenId, IsleId, PlaceId, WizardId, CompanionRelationshipId } from "./ids";
+import type {
+  Denizen,
+  Isle,
+  MortalityState,
+  Treasure,
+  WorldPlace,
+  CompanionRelationship,
+  ElementId,
+} from "./shared-world";
+import type {
+  CampaignPowerfulDenizenTaxonomy,
+  PowerfulDenizenMethodEntry,
+  PowerfulDenizenProfile,
+  PowerfulDenizenStatus,
+  PowerfulDenizenTaxonomyRef,
+  PowerfulDenizenTruthEntry,
+} from "./powerful-denizen";
+import type {
+  CompanionRelationshipId,
+  DenizenId,
+  IsleId,
+  PlaceId,
+  TreasureId,
+  WizardId,
+} from "./ids";
 import type { HierophantFlameLawId, HierophantTempleId } from "./hierophant-catalogs";
 import type {
   HierophantCampaignClass,
@@ -865,6 +894,237 @@ export type WorldEvent =
   | WizardCompanionChangedEventV1
   | CompanionDescriptionChangedEventV1;
 
+// --- Shared Wizard / Denizen state events (M5.2D D1) ---
+
+export interface WizardMortalityStateChangedDataV1 {
+  readonly wizardId: WizardId;
+  readonly previousMortalityState: MortalityState;
+  readonly newMortalityState: MortalityState;
+}
+export interface WizardMortalityStateChangedEventV1 {
+  readonly type: "wizard_mortality_state_changed";
+  readonly version: 1;
+  readonly data: WizardMortalityStateChangedDataV1;
+}
+
+export interface DenizenMortalityStateChangedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly previousMortalityState: MortalityState;
+  readonly newMortalityState: MortalityState;
+}
+export interface DenizenMortalityStateChangedEventV1 {
+  readonly type: "denizen_mortality_state_changed";
+  readonly version: 1;
+  readonly data: DenizenMortalityStateChangedDataV1;
+}
+
+export interface PowerfulDenizenProfileCreatedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly profile: PowerfulDenizenProfile;
+}
+export interface PowerfulDenizenProfileCreatedEventV1 {
+  readonly type: "powerful_denizen_profile_created";
+  readonly version: 1;
+  readonly data: PowerfulDenizenProfileCreatedDataV1;
+}
+
+export interface PowerfulDenizenProfileRemovedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly profile: PowerfulDenizenProfile;
+}
+export interface PowerfulDenizenProfileRemovedEventV1 {
+  readonly type: "powerful_denizen_profile_removed";
+  readonly version: 1;
+  readonly data: PowerfulDenizenProfileRemovedDataV1;
+}
+
+export interface PowerfulDenizenTaxonomiesChangedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly previous: readonly PowerfulDenizenTaxonomyRef[];
+  readonly updated: readonly PowerfulDenizenTaxonomyRef[];
+}
+export interface PowerfulDenizenTaxonomiesChangedEventV1 {
+  readonly type: "powerful_denizen_taxonomies_changed";
+  readonly version: 1;
+  readonly data: PowerfulDenizenTaxonomiesChangedDataV1;
+}
+
+export interface PowerfulDenizenStatusChangedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly previous: PowerfulDenizenStatus;
+  readonly updated: PowerfulDenizenStatus;
+}
+export interface PowerfulDenizenStatusChangedEventV1 {
+  readonly type: "powerful_denizen_status_changed";
+  readonly version: 1;
+  readonly data: PowerfulDenizenStatusChangedDataV1;
+}
+
+export interface PowerfulDenizenGoalChangedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly previousGoal: string | null;
+  readonly newGoal: string | null;
+}
+export interface PowerfulDenizenGoalChangedEventV1 {
+  readonly type: "powerful_denizen_goal_changed";
+  readonly version: 1;
+  readonly data: PowerfulDenizenGoalChangedDataV1;
+}
+
+export interface PowerfulDenizenMethodAddedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly method: PowerfulDenizenMethodEntry;
+}
+export interface PowerfulDenizenMethodAddedEventV1 {
+  readonly type: "powerful_denizen_method_added";
+  readonly version: 1;
+  readonly data: PowerfulDenizenMethodAddedDataV1;
+}
+
+export interface PowerfulDenizenMethodUpdatedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly previous: PowerfulDenizenMethodEntry;
+  readonly updated: PowerfulDenizenMethodEntry;
+}
+export interface PowerfulDenizenMethodUpdatedEventV1 {
+  readonly type: "powerful_denizen_method_updated";
+  readonly version: 1;
+  readonly data: PowerfulDenizenMethodUpdatedDataV1;
+}
+
+export interface PowerfulDenizenMethodRemovedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly method: PowerfulDenizenMethodEntry;
+}
+export interface PowerfulDenizenMethodRemovedEventV1 {
+  readonly type: "powerful_denizen_method_removed";
+  readonly version: 1;
+  readonly data: PowerfulDenizenMethodRemovedDataV1;
+}
+
+export interface PowerfulDenizenTruthAddedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly truth: PowerfulDenizenTruthEntry;
+}
+export interface PowerfulDenizenTruthAddedEventV1 {
+  readonly type: "powerful_denizen_truth_added";
+  readonly version: 1;
+  readonly data: PowerfulDenizenTruthAddedDataV1;
+}
+
+export interface PowerfulDenizenTruthUpdatedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly previous: PowerfulDenizenTruthEntry;
+  readonly updated: PowerfulDenizenTruthEntry;
+}
+export interface PowerfulDenizenTruthUpdatedEventV1 {
+  readonly type: "powerful_denizen_truth_updated";
+  readonly version: 1;
+  readonly data: PowerfulDenizenTruthUpdatedDataV1;
+}
+
+export interface PowerfulDenizenTruthRemovedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly truth: PowerfulDenizenTruthEntry;
+}
+export interface PowerfulDenizenTruthRemovedEventV1 {
+  readonly type: "powerful_denizen_truth_removed";
+  readonly version: 1;
+  readonly data: PowerfulDenizenTruthRemovedDataV1;
+}
+
+export interface CampaignPowerfulDenizenTaxonomyCreatedDataV1 {
+  readonly taxonomy: CampaignPowerfulDenizenTaxonomy;
+}
+export interface CampaignPowerfulDenizenTaxonomyCreatedEventV1 {
+  readonly type: "campaign_powerful_denizen_taxonomy_created";
+  readonly version: 1;
+  readonly data: CampaignPowerfulDenizenTaxonomyCreatedDataV1;
+}
+
+export interface CampaignPowerfulDenizenTaxonomyUpdatedDataV1 {
+  readonly previous: CampaignPowerfulDenizenTaxonomy;
+  readonly updated: CampaignPowerfulDenizenTaxonomy;
+}
+export interface CampaignPowerfulDenizenTaxonomyUpdatedEventV1 {
+  readonly type: "campaign_powerful_denizen_taxonomy_updated";
+  readonly version: 1;
+  readonly data: CampaignPowerfulDenizenTaxonomyUpdatedDataV1;
+}
+
+export interface CampaignPowerfulDenizenTaxonomyRemovedDataV1 {
+  readonly taxonomy: CampaignPowerfulDenizenTaxonomy;
+}
+export interface CampaignPowerfulDenizenTaxonomyRemovedEventV1 {
+  readonly type: "campaign_powerful_denizen_taxonomy_removed";
+  readonly version: 1;
+  readonly data: CampaignPowerfulDenizenTaxonomyRemovedDataV1;
+}
+
+export interface TreasureCreatedDataV1 {
+  readonly treasure: Treasure;
+}
+export interface TreasureCreatedEventV1 {
+  readonly type: "treasure_created";
+  readonly version: 1;
+  readonly data: TreasureCreatedDataV1;
+}
+
+export interface TreasureDetailsUpdatedDataV1 {
+  readonly treasureId: TreasureId;
+  readonly previous: Treasure;
+  readonly updated: Treasure;
+}
+export interface TreasureDetailsUpdatedEventV1 {
+  readonly type: "treasure_details_updated";
+  readonly version: 1;
+  readonly data: TreasureDetailsUpdatedDataV1;
+}
+
+export interface TreasureStateUpdatedDataV1 {
+  readonly treasureId: TreasureId;
+  readonly previous: Treasure;
+  readonly updated: Treasure;
+}
+export interface TreasureStateUpdatedEventV1 {
+  readonly type: "treasure_state_updated";
+  readonly version: 1;
+  readonly data: TreasureStateUpdatedDataV1;
+}
+
+export interface PactFragmentOperationalStateChangedDataV1 {
+  readonly seatId: PactSeatId;
+  readonly previous: PactFragmentOperationalState;
+  readonly updated: PactFragmentOperationalState;
+}
+export interface PactFragmentOperationalStateChangedEventV1 {
+  readonly type: "pact_fragment_operational_state_changed";
+  readonly version: 1;
+  readonly data: PactFragmentOperationalStateChangedDataV1;
+}
+
+export type SharedStateEvent =
+  | WizardMortalityStateChangedEventV1
+  | DenizenMortalityStateChangedEventV1
+  | PowerfulDenizenProfileCreatedEventV1
+  | PowerfulDenizenProfileRemovedEventV1
+  | PowerfulDenizenTaxonomiesChangedEventV1
+  | PowerfulDenizenStatusChangedEventV1
+  | PowerfulDenizenGoalChangedEventV1
+  | PowerfulDenizenMethodAddedEventV1
+  | PowerfulDenizenMethodUpdatedEventV1
+  | PowerfulDenizenMethodRemovedEventV1
+  | PowerfulDenizenTruthAddedEventV1
+  | PowerfulDenizenTruthUpdatedEventV1
+  | PowerfulDenizenTruthRemovedEventV1
+  | CampaignPowerfulDenizenTaxonomyCreatedEventV1
+  | CampaignPowerfulDenizenTaxonomyUpdatedEventV1
+  | CampaignPowerfulDenizenTaxonomyRemovedEventV1
+  | TreasureCreatedEventV1
+  | TreasureDetailsUpdatedEventV1
+  | TreasureStateUpdatedEventV1
+  | PactFragmentOperationalStateChangedEventV1;
+
 export type HierophantEvent =
   | HierophantInitializedEventV1
   | TempleResourcesAdjustedEventV1
@@ -1275,7 +1535,8 @@ export type CampaignEvent =
   | WorldEvent
   | HierophantEvent
   | MarinerEvent
-  | NecromancerEvent;
+  | NecromancerEvent
+  | SharedStateEvent;
 
 export type PhaseAdvancedEvent = PhaseAdvancedEventV1 | PhaseAdvancedEventV2;
 
