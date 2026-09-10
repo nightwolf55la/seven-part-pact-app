@@ -1,6 +1,6 @@
 export type { Brand } from "./brand";
 
-export type { CampaignId, CommandId, CheckpointId, PlayerId, WizardId, AllocationId, EngagementId, DenizenId, IsleId, PlaceId, CompanionRelationshipId } from "./ids";
+export type { CampaignId, CommandId, CheckpointId, PlayerId, WizardId, AllocationId, EngagementId, DenizenId, IsleId, PlaceId, CompanionRelationshipId, TreasureId, CampaignPowerfulDenizenTaxonomyId, PowerfulDenizenMethodEntryId, PowerfulDenizenTruthId } from "./ids";
 export {
   isValidCampaignId,
   parseCampaignId,
@@ -26,6 +26,14 @@ export {
   parsePlaceId,
   isValidCompanionRelationshipId,
   parseCompanionRelationshipId,
+  isValidTreasureId,
+  parseTreasureId,
+  isValidCampaignPowerfulDenizenTaxonomyId,
+  parseCampaignPowerfulDenizenTaxonomyId,
+  isValidPowerfulDenizenMethodEntryId,
+  parsePowerfulDenizenMethodEntryId,
+  isValidPowerfulDenizenTruthId,
+  parsePowerfulDenizenTruthId,
 } from "./ids";
 
 export type {
@@ -198,8 +206,21 @@ export type {
   CampaignLifecycle,
   CurrentCampaignState,
   AnyCampaignState,
+  PactFragmentCondition,
+  PactFragmentCustody,
+  PactFragmentOperationalState,
+  PactFragmentOperationalMap,
 } from "./campaign-state";
-export { CURRENT_STATE_SCHEMA_VERSION, LUNAR_PHASES, BLANK_WIZARD_CHARACTER, BLANK_WIZARD_CHARACTER_V4, BLANK_WIZARD_CHARACTER_V5 } from "./campaign-state";
+export {
+  CURRENT_STATE_SCHEMA_VERSION,
+  LUNAR_PHASES,
+  BLANK_WIZARD_CHARACTER,
+  BLANK_WIZARD_CHARACTER_V4,
+  BLANK_WIZARD_CHARACTER_V5,
+  PACT_FRAGMENT_CONDITIONS,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  initializePactFragmentOperationalState,
+} from "./campaign-state";
 
 export type { WizardCharacterPatch } from "./wizard-character";
 export { normalizeWizardCharacterPatch, applyWizardCharacterPatch } from "./wizard-character";
@@ -622,6 +643,8 @@ export {
 
 export type {
   ElementId,
+  MortalityState,
+  WizardOrDenizenSubjectRef,
   Denizen,
   Isle,
   UnspecifiedPlacement,
@@ -631,9 +654,37 @@ export type {
   WorldPlace,
   CompanionRelationshipStatus,
   CompanionRelationship,
+  TreasureCondition,
+  TreasureCustody,
+  Treasure,
   SharedWorldState,
 } from "./shared-world";
-export { ELEMENT_IDS, EMPTY_SHARED_WORLD_STATE } from "./shared-world";
+export { ELEMENT_IDS, MORTALITY_STATES, TREASURE_CONDITIONS, EMPTY_SHARED_WORLD_STATE } from "./shared-world";
+
+export type {
+  BuiltinPowerfulDenizenTaxonomyId,
+  PowerfulDenizenBuiltinTaxonomyDefinition,
+  PowerfulDenizenTaxonomyRef,
+  CampaignPowerfulDenizenTaxonomy,
+  PowerfulDenizenStandardStatus,
+  PowerfulDenizenStatus,
+  StandardPowerfulDenizenMethod,
+  PowerfulDenizenMethodDefinition,
+  PowerfulDenizenEntryOrigin,
+  PowerfulDenizenMethodEntry,
+  PowerfulDenizenTruthEntry,
+  PowerfulDenizenProfile,
+} from "./powerful-denizen";
+export {
+  POWERFUL_DENIZEN_BUILTIN_TAXONOMY_IDS,
+  POWERFUL_DENIZEN_BUILTIN_TAXONOMY_DEFINITIONS,
+  POWERFUL_DENIZEN_STANDARD_STATUS_VALUES,
+  STANDARD_POWERFUL_DENIZEN_METHODS,
+  isValidBuiltinPowerfulDenizenTaxonomyId,
+  isValidPowerfulDenizenStandardStatus,
+  isValidStandardPowerfulDenizenMethod,
+  powerfulDenizenTaxonomyRefKey,
+} from "./powerful-denizen";
 
 // --- V5 Reference Validation (candidate, not active) ---
 

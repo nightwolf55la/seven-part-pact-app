@@ -7,6 +7,7 @@ import {
   SEVEN_PART_PACT_DRAFT4_VERSION,
   verifyMigrationInvariants,
   isValidCampaignId,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 import type {
   RevisionRecord,
@@ -78,6 +79,7 @@ function makeInitialState(): SerializableCampaignState {
       sage: { status: null, wizardId: null, watcherPlayerId: null },
       sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
     },
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup" as const,
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
@@ -88,6 +90,8 @@ function makeInitialState(): SerializableCampaignState {
       isles: [],
       places: [],
       companionRelationships: [],
+      campaignPowerfulDenizenTaxonomies: [],
+      treasures: [],
     },
     hierophant: {
       selectedFlameLawIds: [],

@@ -49,6 +49,7 @@ import {
   isLogicalStateCommandType,
   validateCampaignState,
   validateCampaignStateV5Candidate,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 import { validateEventCoherenceForTest } from "../convex/canonicalCommit";
 import type { CanonicalCommitInput } from "../convex/canonicalCommit";
@@ -117,8 +118,10 @@ function baseV5(): CampaignStateV5 {
       },
       homeIsleId: null,
       sanctumPlaceId: null,
+      mortalityState: "not_deceased",
     }],
     pactSeats: EMPTY_PACT_SEATS,
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup",
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },

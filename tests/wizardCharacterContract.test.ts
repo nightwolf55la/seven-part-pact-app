@@ -11,6 +11,7 @@ import {
   type WizardCharacterData,
   type CurrentCampaignState,
   type CampaignEvent,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 import {
   validateEventCoherenceForTest,
@@ -114,6 +115,7 @@ function makeState(): CurrentCampaignState {
       sage: { status: null, wizardId: null, watcherPlayerId: null },
       sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
     },
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "play" as const,
       phase: "new_moon" as const,
@@ -126,6 +128,8 @@ function makeState(): CurrentCampaignState {
       isles: [],
       places: [],
       companionRelationships: [],
+      campaignPowerfulDenizenTaxonomies: [],
+      treasures: [],
     },
     hierophant: {
       selectedFlameLawIds: [],

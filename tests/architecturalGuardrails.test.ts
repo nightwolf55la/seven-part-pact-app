@@ -11,6 +11,7 @@ import {
   CURRENT_STATE_SCHEMA_VERSION,
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 import type { PersistableCampaignState } from "../shared/domain";
 import type { CampaignStateV5 } from "../shared/domain/campaign-state";
@@ -104,6 +105,7 @@ describe("assertPortableCampaignState: validates without transforming", () => {
       sage: { status: null, wizardId: null, watcherPlayerId: null },
       sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
     },
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: { kind: "setup", orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } },
     wizardmootHistory: [],
     world: {
@@ -111,6 +113,8 @@ describe("assertPortableCampaignState: validates without transforming", () => {
       isles: [],
       places: [],
       companionRelationships: [],
+      campaignPowerfulDenizenTaxonomies: [],
+      treasures: [],
     },
     hierophant: {
       selectedFlameLawIds: [],
@@ -289,6 +293,7 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
         sage: { status: null, wizardId: null, watcherPlayerId: null },
         sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
       },
+      pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
       lifecycle: { kind: "setup", orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } },
       wizardmootHistory: [],
       world: {
@@ -296,6 +301,8 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
         isles: [],
         places: [],
         companionRelationships: [],
+      campaignPowerfulDenizenTaxonomies: [],
+      treasures: [],
       },
       hierophant: {
         selectedFlameLawIds: [],
@@ -348,6 +355,7 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
         sage: { status: null, wizardId: null, watcherPlayerId: null },
         sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
       },
+      pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
       lifecycle: { kind: "setup", orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } } as any,
       wizardmootHistory: [],
       world: {
@@ -355,6 +363,8 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
         isles: [],
         places: [],
         companionRelationships: [],
+      campaignPowerfulDenizenTaxonomies: [],
+      treasures: [],
       },
       hierophant: {
         selectedFlameLawIds: [],

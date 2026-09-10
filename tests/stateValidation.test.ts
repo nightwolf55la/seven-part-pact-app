@@ -5,6 +5,7 @@ import {
   CURRENT_STATE_SCHEMA_VERSION,
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 
 function validState(monthOrdinal: number = 0) {
@@ -24,6 +25,7 @@ function validState(monthOrdinal: number = 0) {
       sage: { status: null, wizardId: null, watcherPlayerId: null },
       sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
     },
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup" as const,
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
@@ -34,6 +36,8 @@ function validState(monthOrdinal: number = 0) {
       isles: [],
       places: [],
       companionRelationships: [],
+      campaignPowerfulDenizenTaxonomies: [],
+      treasures: [],
     },
     hierophant: {
       selectedFlameLawIds: [],

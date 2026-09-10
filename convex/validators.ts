@@ -583,6 +583,7 @@ const wizardV5Validator = v.object({
   character: wizardCharacterDataV5Validator,
   homeIsleId: v.union(v.string(), v.null()),
   sanctumPlaceId: v.union(v.string(), v.null()),
+  mortalityState: v.union(v.literal("not_deceased"), v.literal("deceased")),
 });
 
 const engagementTargetV5Validator = v.union(
@@ -616,11 +617,73 @@ const playLifecycleV5Validator = v.object({
 
 const lifecycleV5Validator = v.union(setupLifecycleValidator, playLifecycleV5Validator);
 
+const wizardOrDenizenSubjectRefValidator = v.union(
+  v.object({ kind: v.literal("wizard"), wizardId: v.string() }),
+  v.object({ kind: v.literal("denizen"), denizenId: v.string() }),
+);
+
+const powerfulDenizenTaxonomyRefValidator = v.union(
+  v.object({ kind: v.literal("builtin"), taxonomyId: v.string() }),
+  v.object({ kind: v.literal("campaign"), taxonomyId: v.string() }),
+);
+
+const powerfulDenizenStatusValidator = v.union(
+  v.object({
+    kind: v.literal("standard"),
+    value: v.union(
+      v.literal("companion"),
+      v.literal("reliable"),
+      v.literal("disruptive"),
+      v.literal("malignant"),
+    ),
+  }),
+  v.object({ kind: v.literal("other"), label: v.string() }),
+);
+
+const powerfulDenizenMethodDefinitionValidator = v.union(
+  v.object({
+    kind: v.literal("standard"),
+    method: v.union(
+      v.literal("rampaging"),
+      v.literal("manipulating"),
+      v.literal("conjuring"),
+      v.literal("occupying"),
+    ),
+  }),
+  v.object({
+    kind: v.literal("named"),
+    name: v.string(),
+    description: v.union(v.string(), v.null()),
+  }),
+);
+
+const powerfulDenizenMethodEntryValidator = v.object({
+  methodEntryId: v.string(),
+  definition: powerfulDenizenMethodDefinitionValidator,
+  origin: v.union(v.literal("source"), v.literal("campaign")),
+});
+
+const powerfulDenizenTruthEntryValidator = v.object({
+  truthId: v.string(),
+  text: v.string(),
+  origin: v.union(v.literal("source"), v.literal("campaign")),
+});
+
+const powerfulDenizenProfileValidator = v.object({
+  taxonomies: v.array(powerfulDenizenTaxonomyRefValidator),
+  status: powerfulDenizenStatusValidator,
+  goal: v.union(v.string(), v.null()),
+  methods: v.array(powerfulDenizenMethodEntryValidator),
+  truths: v.array(powerfulDenizenTruthEntryValidator),
+});
+
 const denizenValidator = v.object({
   denizenId: v.string(),
   name: v.string(),
   representation: v.union(v.literal("individual"), v.literal("collective")),
   description: v.union(v.string(), v.null()),
+  mortalityState: v.union(v.literal("not_deceased"), v.literal("deceased"), v.null()),
+  powerfulProfile: v.union(powerfulDenizenProfileValidator, v.null()),
 });
 
 const denizenCreatedEventV1Validator = v.object({
@@ -764,11 +827,34 @@ const companionDescriptionChangedEventV1Validator = v.object({
   }),
 });
 
+const campaignPowerfulDenizenTaxonomyValidator = v.object({
+  taxonomyId: v.string(),
+  name: v.string(),
+  description: v.union(v.string(), v.null()),
+});
+
+const treasureCustodyValidator = v.union(
+  v.object({ kind: v.literal("subject"), subject: wizardOrDenizenSubjectRefValidator }),
+  v.object({ kind: v.literal("place"), placeId: v.string() }),
+  v.object({ kind: v.literal("unlocated") }),
+  v.object({ kind: v.literal("none") }),
+);
+
+const treasureValidator = v.object({
+  treasureId: v.string(),
+  name: v.string(),
+  description: v.union(v.string(), v.null()),
+  condition: v.union(v.literal("intact"), v.literal("destroyed")),
+  custody: treasureCustodyValidator,
+});
+
 const sharedWorldStateValidator = v.object({
   denizens: v.array(denizenValidator),
   isles: v.array(isleValidator),
   places: v.array(placeValidator),
   companionRelationships: v.array(companionRelationshipValidator),
+  campaignPowerfulDenizenTaxonomies: v.array(campaignPowerfulDenizenTaxonomyValidator),
+  treasures: v.array(treasureValidator),
 });
 
 const ordinaryTempleDoctrineValidator = v.union(
@@ -1591,6 +1677,22 @@ const campaignDoctrineUpdatedEventV1Validator = v.object({
   }),
 });
 
+const pactFragmentOperationalStateValidator = v.object({
+  condition: v.union(v.literal("intact"), v.literal("damaged"), v.literal("destroyed")),
+  custody: v.union(
+    v.object({ kind: v.literal("wizard"), wizardId: v.string() }),
+    v.object({ kind: v.literal("devil") }),
+    v.object({ kind: v.literal("unlocated") }),
+    v.object({ kind: v.literal("none") }),
+  ),
+});
+
+const pactFragmentOperationalMapValidator = v.object(
+  Object.fromEntries(
+    PACT_SEAT_IDS.map((id) => [id, pactFragmentOperationalStateValidator]),
+  ) as Record<string, typeof pactFragmentOperationalStateValidator>,
+);
+
 export const campaignStateV5Validator = v.object({
   schemaVersion: v.literal(5),
   ruleset: v.object({
@@ -1607,6 +1709,7 @@ export const campaignStateV5Validator = v.object({
   players: v.array(playerValidator),
   wizards: v.array(wizardV5Validator),
   pactSeats: pactSeatsValidator,
+  pactFragmentOperationalState: pactFragmentOperationalMapValidator,
   lifecycle: lifecycleV5Validator,
   wizardmootHistory: v.array(wizardmootHistoryEntryValidator),
   world: sharedWorldStateValidator,

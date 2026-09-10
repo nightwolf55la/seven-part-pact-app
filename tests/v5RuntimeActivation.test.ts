@@ -215,7 +215,7 @@ describe("V5 Runtime Activation", () => {
       ...state,
       world: {
         ...state.world,
-        denizens: [{ denizenId: D1, name: "Goblin", representation: "individual" as const, description: null }],
+        denizens: [{ denizenId: D1, name: "Goblin", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null }],
       },
     };
     if (state.lifecycle.kind !== "play") throw new Error("Expected play lifecycle");
@@ -242,7 +242,7 @@ describe("V5 Runtime Activation", () => {
       ...state,
       world: {
         ...state.world,
-        denizens: [{ denizenId: D2, name: "Dragon", representation: "individual" as const, description: null }],
+        denizens: [{ denizenId: D2, name: "Dragon", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null }],
       },
     };
     if (state.lifecycle.kind !== "play") throw new Error("unreachable");

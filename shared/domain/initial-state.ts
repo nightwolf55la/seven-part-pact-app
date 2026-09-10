@@ -1,5 +1,5 @@
 import type { CurrentCampaignState, PactSeatState } from "./campaign-state";
-import { CURRENT_STATE_SCHEMA_VERSION } from "./campaign-state";
+import { CURRENT_STATE_SCHEMA_VERSION, EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE } from "./campaign-state";
 import {
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
@@ -37,6 +37,7 @@ export function initialCampaignState(): CurrentCampaignState {
     players: [],
     wizards: [],
     pactSeats: emptyPactSeats(),
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup",
       orrery: emptySetupOrrery(),

@@ -35,6 +35,7 @@ import {
   validateCampaignState,
   validateCampaignStateV5Candidate,
   validateMarinerStructure,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 import type {
   MarinerBoardIsleId,
@@ -102,9 +103,11 @@ function defaultWorld(options?: {
     name: string;
     representation: "individual" | "collective";
     description: null;
+    mortalityState: "not_deceased" | null;
+    powerfulProfile: null;
   }> = [
-    { denizenId: DEN_1, name: "Beast One", representation: "individual", description: null },
-    { denizenId: DEN_2, name: "Beast Two", representation: "individual", description: null },
+    { denizenId: DEN_1, name: "Beast One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
+    { denizenId: DEN_2, name: "Beast Two", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
   ];
   if (options?.extraCollective) {
     denizens.push({
@@ -112,6 +115,8 @@ function defaultWorld(options?: {
       name: "A Flock",
       representation: "collective",
       description: null,
+      mortalityState: null,
+      powerfulProfile: null,
     });
   }
   return {
@@ -119,6 +124,8 @@ function defaultWorld(options?: {
     isles,
     places,
     companionRelationships: [],
+    campaignPowerfulDenizenTaxonomies: [],
+    treasures: [],
   };
 }
 
@@ -143,8 +150,10 @@ function baseV5(mariner: MarinerState = EMPTY_MARINER_STATE, world = { ...EMPTY_
       },
       homeIsleId: null,
       sanctumPlaceId: null,
+      mortalityState: "not_deceased",
     }],
     pactSeats: EMPTY_PACT_SEATS,
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup",
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },

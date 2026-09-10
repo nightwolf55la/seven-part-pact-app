@@ -181,6 +181,8 @@ export function applyCreateDenizenV5Candidate(
     name: normalizeName(input.name),
     representation: input.representation,
     description: normalizeDescription(input.description),
+    mortalityState: input.representation === "individual" ? "not_deceased" : null,
+    powerfulProfile: null,
   };
 
   const world: SharedWorldState = {
@@ -239,7 +241,19 @@ export function applyUpdateDenizenV5Candidate(
     description = normalizeDescription(fields.description.value);
   }
 
-  const updated: Denizen = { denizenId, name, representation, description };
+  const updated: Denizen = {
+    denizenId,
+    name,
+    representation,
+    description,
+    mortalityState:
+      representation === "collective"
+        ? null
+        : current.representation === "individual"
+          ? current.mortalityState
+          : "not_deceased",
+    powerfulProfile: current.powerfulProfile,
+  };
 
   if (
     updated.name === current.name &&

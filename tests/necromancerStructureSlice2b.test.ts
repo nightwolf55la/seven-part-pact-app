@@ -70,6 +70,7 @@ import {
   updateNecromancerCampaignGateFingerprint,
   updateNecromancerFoeFingerprint,
   updateNecromancerGhoulCallerFingerprint,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 import { campaignEventValidator } from "../convex/validators";
 import { validateEventCoherenceForTest } from "../convex/canonicalCommit";
@@ -197,6 +198,7 @@ function wizard(wizardId: WizardId, name: string) {
     },
     homeIsleId: null,
     sanctumPlaceId: null,
+    mortalityState: "not_deceased" as const,
   };
 }
 
@@ -212,6 +214,7 @@ function baseV5(): CampaignStateV5 {
       ...EMPTY_PACT_SEATS,
       necromancer: { status: "present", wizardId: WIZ_A, watcherPlayerId: null },
     },
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup",
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
@@ -219,17 +222,19 @@ function baseV5(): CampaignStateV5 {
     wizardmootHistory: [],
     world: {
       denizens: [
-        { denizenId: DEN_1, name: "Deep Foe", representation: "individual", description: null },
-        { denizenId: DEN_2, name: "Terminus Foe", representation: "individual", description: null },
-        { denizenId: DEN_3, name: "Far Foe One", representation: "individual", description: null },
-        { denizenId: DEN_4, name: "Far Foe Two", representation: "individual", description: null },
-        { denizenId: DEN_5, name: "Near Ally", representation: "individual", description: null },
-        { denizenId: DEN_6, name: "Ghoul-Caller", representation: "individual", description: null },
-        { denizenId: DEN_COLLECTIVE, name: "A Host of Dead", representation: "collective", description: null },
+        { denizenId: DEN_1, name: "Deep Foe", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
+        { denizenId: DEN_2, name: "Terminus Foe", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
+        { denizenId: DEN_3, name: "Far Foe One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
+        { denizenId: DEN_4, name: "Far Foe Two", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
+        { denizenId: DEN_5, name: "Near Ally", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
+        { denizenId: DEN_6, name: "Ghoul-Caller", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
+        { denizenId: DEN_COLLECTIVE, name: "A Host of Dead", representation: "collective", description: null, mortalityState: null, powerfulProfile: null },
       ],
       isles: [],
       places: [],
       companionRelationships: [],
+      campaignPowerfulDenizenTaxonomies: [],
+      treasures: [],
     },
     hierophant: { ...EMPTY_HIEROPHANT_STATE },
     mariner: { ...EMPTY_MARINER_STATE },

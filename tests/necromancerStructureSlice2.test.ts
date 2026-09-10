@@ -47,6 +47,7 @@ import {
   canonicalizeUpdateNecromancerGhoulCallerFields,
   necromancerDefaultInternalOutgoingTarget,
   validateCampaignStateV5Candidate,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 import * as Domain from "../shared/domain";
 
@@ -114,23 +115,26 @@ function wizard(wizardId: WizardId, name: string, portrayedByPlayerId: PlayerId 
     },
     homeIsleId: null,
     sanctumPlaceId: null,
+    mortalityState: "not_deceased" as const,
   };
 }
 
 function defaultWorld() {
   return {
     denizens: [
-      { denizenId: DEN_1, name: "Deep Foe", representation: "individual" as const, description: null },
-      { denizenId: DEN_2, name: "Terminus Foe", representation: "individual" as const, description: null },
-      { denizenId: DEN_3, name: "Far Foe One", representation: "individual" as const, description: null },
-      { denizenId: DEN_4, name: "Far Foe Two", representation: "individual" as const, description: null },
-      { denizenId: DEN_5, name: "Near Ally", representation: "individual" as const, description: null },
-      { denizenId: DEN_6, name: "Ghoul-Caller", representation: "individual" as const, description: null },
-      { denizenId: DEN_COLLECTIVE, name: "A Host of Dead", representation: "collective" as const, description: null },
+      { denizenId: DEN_1, name: "Deep Foe", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null },
+      { denizenId: DEN_2, name: "Terminus Foe", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null },
+      { denizenId: DEN_3, name: "Far Foe One", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null },
+      { denizenId: DEN_4, name: "Far Foe Two", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null },
+      { denizenId: DEN_5, name: "Near Ally", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null },
+      { denizenId: DEN_6, name: "Ghoul-Caller", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null },
+      { denizenId: DEN_COLLECTIVE, name: "A Host of Dead", representation: "collective" as const, description: null, mortalityState: null, powerfulProfile: null },
     ],
     isles: [],
     places: [],
     companionRelationships: [],
+    campaignPowerfulDenizenTaxonomies: [],
+    treasures: [],
   };
 }
 
@@ -146,6 +150,7 @@ function baseV5(overrides?: Partial<CampaignStateV5>): CampaignStateV5 {
     ],
     wizards: [wizard(WIZ_A, "Wizard A")],
     pactSeats: { ...EMPTY_PACT_SEATS },
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup",
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },

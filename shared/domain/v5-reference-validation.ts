@@ -1,9 +1,16 @@
 import type { CampaignStateV5 } from "./campaign-state";
-import { isValidDenizenId, isValidIsleId, isValidPlaceId, isValidCompanionRelationshipId } from "./ids";
+import {
+  isValidDenizenId,
+  isValidIsleId,
+  isValidPlaceId,
+  isValidCompanionRelationshipId,
+  isValidTreasureId,
+  isValidCampaignPowerfulDenizenTaxonomyId,
+} from "./ids";
 import { DomainError } from "./errors";
 
 export function validateV5WorldReferenceIntegrity(state: CampaignStateV5): void {
-  const { world, wizards, lifecycle } = state;
+  const { world, wizards, lifecycle, pactFragmentOperationalState } = state;
 
   const denizenIds = new Set<string>();
   for (let i = 0; i < world.denizens.length; i++) {
@@ -82,6 +89,66 @@ export function validateV5WorldReferenceIntegrity(state: CampaignStateV5): void 
     }
   }
 
+  const campaignTaxonomyIds = new Set<string>();
+  for (let i = 0; i < world.campaignPowerfulDenizenTaxonomies.length; i++) {
+    const taxonomy = world.campaignPowerfulDenizenTaxonomies[i];
+    if (!isValidCampaignPowerfulDenizenTaxonomyId(taxonomy.taxonomyId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `world.campaignPowerfulDenizenTaxonomies[${i}].taxonomyId is malformed: "${taxonomy.taxonomyId}"`);
+    }
+    if (campaignTaxonomyIds.has(taxonomy.taxonomyId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate campaign powerful denizen taxonomyId: ${taxonomy.taxonomyId}`);
+    }
+    campaignTaxonomyIds.add(taxonomy.taxonomyId);
+  }
+
+  for (let i = 0; i < world.denizens.length; i++) {
+    const profile = world.denizens[i].powerfulProfile;
+    if (profile === null) continue;
+    for (let j = 0; j < profile.taxonomies.length; j++) {
+      const ref = profile.taxonomies[j];
+      if (ref.kind === "campaign" && !campaignTaxonomyIds.has(ref.taxonomyId)) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `world.denizens[${i}].powerfulProfile.taxonomies[${j}] references nonexistent campaign taxonomy: ${ref.taxonomyId}`,
+        );
+      }
+    }
+  }
+
+  const treasureIds = new Set<string>();
+  for (let i = 0; i < world.treasures.length; i++) {
+    const treasure = world.treasures[i];
+    if (!isValidTreasureId(treasure.treasureId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `world.treasures[${i}].treasureId is malformed: "${treasure.treasureId}"`);
+    }
+    if (treasureIds.has(treasure.treasureId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate treasureId: ${treasure.treasureId}`);
+    }
+    treasureIds.add(treasure.treasureId);
+
+    const custody = treasure.custody;
+    if (custody.kind === "subject") {
+      if (custody.subject.kind === "wizard" && !wizardIds.has(custody.subject.wizardId)) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `world.treasures[${i}].custody.subject.wizardId references nonexistent wizard: ${custody.subject.wizardId}`,
+        );
+      }
+      if (custody.subject.kind === "denizen" && !denizenIds.has(custody.subject.denizenId)) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `world.treasures[${i}].custody.subject.denizenId references nonexistent denizen: ${custody.subject.denizenId}`,
+        );
+      }
+    }
+    if (custody.kind === "place" && !placeIds.has(custody.placeId)) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `world.treasures[${i}].custody.placeId references nonexistent place: ${custody.placeId}`,
+      );
+    }
+  }
+
   for (let i = 0; i < wizards.length; i++) {
     const w = wizards[i];
     if (w.homeIsleId !== null && !isleIds.has(w.homeIsleId)) {
@@ -89,6 +156,15 @@ export function validateV5WorldReferenceIntegrity(state: CampaignStateV5): void 
     }
     if (w.sanctumPlaceId !== null && !placeIds.has(w.sanctumPlaceId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `wizards[${i}].sanctumPlaceId references nonexistent place: ${w.sanctumPlaceId}`);
+    }
+  }
+
+  for (const [seatId, fragment] of Object.entries(pactFragmentOperationalState)) {
+    if (fragment.custody.kind === "wizard" && !wizardIds.has(fragment.custody.wizardId)) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `pactFragmentOperationalState.${seatId}.custody.wizardId references nonexistent wizard: ${fragment.custody.wizardId}`,
+      );
     }
   }
 

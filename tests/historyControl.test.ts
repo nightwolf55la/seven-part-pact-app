@@ -21,6 +21,7 @@ import {
   type InitializationEventInfo,
   type InitializationSnapshotInfo,
   type CampaignCommandType,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 import { migrationCommandFingerprint, moveMonthFingerprint } from "../shared/domain/command-ids";
 
@@ -41,6 +42,7 @@ function makeSerializableState(monthOrdinal: number): SerializableCampaignState 
       sage: { status: null, wizardId: null, watcherPlayerId: null },
       sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
     },
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: { kind: "setup", orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null } },
     wizardmootHistory: [],
     world: {
@@ -48,6 +50,8 @@ function makeSerializableState(monthOrdinal: number): SerializableCampaignState 
       isles: [],
       places: [],
       companionRelationships: [],
+      campaignPowerfulDenizenTaxonomies: [],
+      treasures: [],
     },
     hierophant: {
       selectedFlameLawIds: [],

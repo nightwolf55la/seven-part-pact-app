@@ -45,6 +45,7 @@ import {
   setSelectedSeaLawsFingerprint,
   updateMarinerBeastFingerprint,
   validateCampaignStateV5Candidate,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 import { validateEventCoherenceForTest } from "../convex/canonicalCommit";
 import type { CanonicalCommitInput } from "../convex/canonicalCommit";
@@ -123,9 +124,9 @@ function defaultWorld(options?: { extraShip?: boolean; extraDenizen?: boolean })
   const bindings = worldIsleIds();
   return {
     denizens: [
-      { denizenId: DEN_1, name: "Beast One", representation: "individual" as const, description: null },
+      { denizenId: DEN_1, name: "Beast One", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null },
       ...(options?.extraDenizen
-        ? [{ denizenId: DEN_2, name: "Beast Two", representation: "individual" as const, description: null }]
+        ? [{ denizenId: DEN_2, name: "Beast Two", representation: "individual" as const, description: null, mortalityState: "not_deceased" as const, powerfulProfile: null }]
         : []),
     ],
     isles: MARINER_BOARD_ISLE_IDS.map((id) => ({
@@ -141,6 +142,8 @@ function defaultWorld(options?: { extraShip?: boolean; extraDenizen?: boolean })
       { placeId: FIXED_PLACE, name: "A hut", description: null, placement: { kind: "on_isle" as const, isleId: bindings.ishana } },
     ],
     companionRelationships: [],
+    campaignPowerfulDenizenTaxonomies: [],
+    treasures: [],
   };
 }
 
@@ -165,8 +168,10 @@ function baseV5(world = defaultWorld()): CampaignStateV5 {
       },
       homeIsleId: null,
       sanctumPlaceId: null,
+      mortalityState: "not_deceased",
     }],
     pactSeats: { ...EMPTY_PACT_SEATS },
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup",
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },

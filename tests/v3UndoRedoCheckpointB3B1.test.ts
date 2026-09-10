@@ -19,6 +19,7 @@ import {
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
   DomainError,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 import type {
   CurrentCampaignState,
@@ -62,12 +63,13 @@ function v3SetupState(): CurrentCampaignState {
     players: [],
     wizards: [],
     pactSeats: emptyPactSeats(),
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup",
       orrery: { saturn: asCentidegreePosition(500), jupiter: null, mars: null, venus: null, mercury: null },
     },
     wizardmootHistory: [],
-    world: { denizens: [], isles: [], places: [], companionRelationships: [] },
+    world: { denizens: [], isles: [], places: [], companionRelationships: [], campaignPowerfulDenizenTaxonomies: [], treasures: [] },
     hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] }, mariner: { shipPlaceId: null, selectedLawOfSeaIds: [], boardIsles: [], routes: [], seaRegions: [], beasts: [] }, necromancer: { gates: [], pathSpaces: [], steps: [], souls: [], foes: [], allies: [], ghoulCallers: [], selectedLaws: [], depth: null },
   } as CurrentCampaignState;
 }
@@ -107,11 +109,12 @@ function v3PlayState(): CurrentCampaignState {
     calendar: { monthOrdinal: 5 as MonthOrdinal },
     configuration: { ageId: "awakening", facilitatorPlayerId: PLR },
     players: [{ playerId: PLR, name: "Alice" }],
-    wizards: [{ wizardId: WIZ, name: "Valdris", portrayedByPlayerId: PLR, character: { elements: null, pactFragmentPersonalForm: null, familiarDescription: null, ageYears: null, publicChangesOfMagic: [], importantNotes: null }, homeIsleId: null, sanctumPlaceId: null }],
+    wizards: [{ wizardId: WIZ, name: "Valdris", portrayedByPlayerId: PLR, character: { elements: null, pactFragmentPersonalForm: null, familiarDescription: null, ageYears: null, publicChangesOfMagic: [], importantNotes: null }, homeIsleId: null, sanctumPlaceId: null, mortalityState: "not_deceased" }],
     pactSeats: {
       ...emptyPactSeats(),
       necromancer: { status: "present", wizardId: WIZ, watcherPlayerId: null },
     },
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "play",
       phase: "meeting",
@@ -128,7 +131,7 @@ function v3PlayState(): CurrentCampaignState {
       { monthOrdinal: 3 as MonthOrdinal, attendance: [{ wizardId: WIZ, attended: true }] },
       { monthOrdinal: 4 as MonthOrdinal, attendance: [{ wizardId: WIZ, attended: false }] },
     ],
-    world: { denizens: [], isles: [], places: [], companionRelationships: [] },
+    world: { denizens: [], isles: [], places: [], companionRelationships: [], campaignPowerfulDenizenTaxonomies: [], treasures: [] },
     hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] }, mariner: { shipPlaceId: null, selectedLawOfSeaIds: [], boardIsles: [], routes: [], seaRegions: [], beasts: [] }, necromancer: { gates: [], pathSpaces: [], steps: [], souls: [], foes: [], allies: [], ghoulCallers: [], selectedLaws: [], depth: null },
   } as CurrentCampaignState;
 }

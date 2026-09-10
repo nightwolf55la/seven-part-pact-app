@@ -58,6 +58,7 @@ import {
   parseCompanionRelationshipId,
   validateV5WorldReferenceIntegrity,
   ENGAGEMENT_TARGET_KINDS,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 
 // ---------------------------------------------------------------------------
@@ -123,11 +124,12 @@ function baseV5Wizard(): CampaignWizardV5 {
     },
     homeIsleId: null,
     sanctumPlaceId: null,
+    mortalityState: "not_deceased",
   };
 }
 
 function baseDenizen(id: DenizenId, name: string): Denizen {
-  return { denizenId: id, name, representation: "individual", description: null };
+  return { denizenId: id, name, representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null };
 }
 
 function baseIsle(id: IsleId, name: string): Isle {
@@ -143,6 +145,7 @@ function minimalV5State(): CampaignStateV5 {
     players: [{ playerId: PLR_A, name: "Alice" }],
     wizards: [baseV5Wizard()],
     pactSeats: EMPTY_PACT_SEATS,
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup",
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
@@ -155,6 +158,8 @@ function minimalV5State(): CampaignStateV5 {
         { placeId: PLC_1, name: "The Sanctum", description: null, placement: { kind: "on_isle", isleId: ISL_1 } },
       ],
       companionRelationships: [],
+      campaignPowerfulDenizenTaxonomies: [],
+      treasures: [],
     },
     hierophant: {
       selectedFlameLawIds: [],
@@ -509,7 +514,7 @@ describe("V5 world reference integrity", () => {
 
   it("rejects malformed DenizenId in world.denizens", () => {
     const state = withWorld(minimalV5State(), {
-      denizens: [{ denizenId: "bad_id" as any, name: "Broken", representation: "individual" as const, description: null }],
+      denizens: [{ denizenId: "bad_id" as any, name: "Broken", representation: "individual" as const, description: null, mortalityState: "not_deceased", powerfulProfile: null }],
     });
     expect(() => validateV5WorldReferenceIntegrity(state)).toThrow(DomainError);
   });

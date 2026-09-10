@@ -22,6 +22,7 @@ import {
   EMPTY_HIEROPHANT_STATE,
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
 import {
   applyCreateDenizenV5Candidate,
@@ -73,6 +74,7 @@ function blankV5Wizard(overrides?: Partial<CampaignWizardV5>): CampaignWizardV5 
     character: { ...BLANK_WIZARD_CHARACTER_V5 },
     homeIsleId: null,
     sanctumPlaceId: null,
+    mortalityState: "not_deceased",
     ...overrides,
   };
 }
@@ -86,6 +88,7 @@ function baseV5(): CampaignStateV5 {
     players: [{ playerId: PLR_A, name: "Alice" }],
     wizards: [blankV5Wizard()],
     pactSeats: EMPTY_PACT_SEATS,
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup",
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
@@ -98,8 +101,13 @@ function baseV5(): CampaignStateV5 {
   };
 }
 
-function withDenizen(state: CampaignStateV5, d: Denizen): CampaignStateV5 {
-  return { ...state, world: { ...state.world, denizens: [...state.world.denizens, d] } };
+function withDenizen(state: CampaignStateV5, d: Omit<Denizen, "mortalityState" | "powerfulProfile"> & Partial<Pick<Denizen, "mortalityState" | "powerfulProfile">>): CampaignStateV5 {
+  const denizen: Denizen = {
+    ...d,
+    mortalityState: d.mortalityState ?? (d.representation === "individual" ? "not_deceased" : null),
+    powerfulProfile: d.powerfulProfile ?? null,
+  };
+  return { ...state, world: { ...state.world, denizens: [...state.world.denizens, denizen] } };
 }
 
 function withIsle(state: CampaignStateV5, isle: Isle): CampaignStateV5 {

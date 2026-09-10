@@ -13,6 +13,7 @@ import {
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
   EMPTY_SHARED_WORLD_STATE,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
   NECROMANCER_ARRANGEMENT_DEFINITIONS,
   NECROMANCER_BUILTIN_GATE_DEFINITIONS,
   NECROMANCER_BUILTIN_GATE_IDS,
@@ -148,13 +149,15 @@ function defaultWorld(options?: { extraCollective?: boolean; omitDenizen1?: bool
     name: string;
     representation: "individual" | "collective";
     description: null;
+    mortalityState: "not_deceased" | null;
+    powerfulProfile: null;
   }> = [];
   if (!options?.omitDenizen1) {
-    denizens.push({ denizenId: DEN_1, name: "Foe One", representation: "individual", description: null });
+    denizens.push({ denizenId: DEN_1, name: "Foe One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null });
   }
   denizens.push(
-    { denizenId: DEN_2, name: "Ally One", representation: "individual", description: null },
-    { denizenId: DEN_3, name: "Ghoul One", representation: "individual", description: null },
+    { denizenId: DEN_2, name: "Ally One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
+    { denizenId: DEN_3, name: "Ghoul One", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
   );
   if (options?.extraCollective) {
     denizens.push({
@@ -162,6 +165,8 @@ function defaultWorld(options?: { extraCollective?: boolean; omitDenizen1?: bool
       name: "A Host of Dead",
       representation: "collective",
       description: null,
+      mortalityState: null,
+      powerfulProfile: null,
     });
   }
   return {
@@ -169,6 +174,8 @@ function defaultWorld(options?: { extraCollective?: boolean; omitDenizen1?: bool
     isles: [],
     places: [],
     companionRelationships: [],
+    campaignPowerfulDenizenTaxonomies: [],
+    treasures: [],
   };
 }
 
@@ -196,8 +203,10 @@ function baseV5(
       },
       homeIsleId: null,
       sanctumPlaceId: null,
+      mortalityState: "not_deceased",
     }],
     pactSeats: EMPTY_PACT_SEATS,
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup",
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },

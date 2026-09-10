@@ -20,6 +20,7 @@ import {
   EMPTY_HIEROPHANT_STATE,
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
+  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
   isValidDenizenId,
   isValidWizardId,
   createDenizenFingerprint,
@@ -67,6 +68,7 @@ function blankV5Wizard(overrides?: Partial<CampaignWizardV5>): CampaignWizardV5 
     character: { ...BLANK_WIZARD_CHARACTER_V5 },
     homeIsleId: null,
     sanctumPlaceId: null,
+    mortalityState: "not_deceased",
     ...overrides,
   };
 }
@@ -80,6 +82,7 @@ function baseV5(world?: Partial<CampaignStateV5["world"]>): CampaignStateV5 {
     players: [{ playerId: PLR_A, name: "Alice" }],
     wizards: [blankV5Wizard()],
     pactSeats: EMPTY_PACT_SEATS,
+    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
     lifecycle: {
       kind: "setup",
       orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
@@ -378,7 +381,7 @@ describe("ordinary logical command executor", () => {
 
     it("does not commit when the authoritative transition fails", async () => {
       const state = baseV5({
-        denizens: [{ denizenId: DEN_1, name: "Existing", representation: "individual", description: null }],
+        denizens: [{ denizenId: DEN_1, name: "Existing", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
       });
       const { io, commits } = recordingIo({ campaign: campaignOf(CAMPAIGN_A, state) });
       const tracked = trackApply(() => prepareCreateDenizen(createArgs));
@@ -421,7 +424,7 @@ describe("ordinary logical command executor", () => {
 
     it("leaves unrelated CampaignState intact", async () => {
       const state = baseV5({
-        denizens: [{ denizenId: DEN_2, name: "Orin", representation: "collective", description: "Keep me" }],
+        denizens: [{ denizenId: DEN_2, name: "Orin", representation: "collective", description: "Keep me", mortalityState: null, powerfulProfile: null }],
       });
       const { io, commits } = recordingIo({ campaign: campaignOf(CAMPAIGN_A, state) });
 
@@ -443,7 +446,7 @@ describe("ordinary logical command executor", () => {
   describe("updateDenizen", () => {
     it("retains field-level expected-value rejection and does not commit", async () => {
       const state = baseV5({
-        denizens: [{ denizenId: DEN_1, name: "Mara the Red", representation: "individual", description: null }],
+        denizens: [{ denizenId: DEN_1, name: "Mara the Red", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
       });
       const { io, commits } = recordingIo({ campaign: campaignOf(CAMPAIGN_A, state) });
       const tracked = trackApply(() =>
@@ -475,8 +478,10 @@ describe("ordinary logical command executor", () => {
             name: "Mara",
             representation: "individual",
             description: "Written by another client",
+            mortalityState: "not_deceased",
+            powerfulProfile: null,
           },
-          { denizenId: DEN_2, name: "Orin", representation: "collective", description: null },
+          { denizenId: DEN_2, name: "Orin", representation: "collective", description: null, mortalityState: null, powerfulProfile: null },
         ],
       });
       const { io, commits } = recordingIo({ campaign: campaignOf(CAMPAIGN_A, state) });
@@ -504,7 +509,7 @@ describe("ordinary logical command executor", () => {
 
     it("compares expectedCampaignId before accepted replay", async () => {
       const state = baseV5({
-        denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+        denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
       });
       const { io, calls, commits } = recordingIo({ campaign: campaignOf(CAMPAIGN_B, state) });
 
@@ -531,8 +536,8 @@ describe("ordinary logical command executor", () => {
     it("replaces the current relationship without mutating Denizen records", async () => {
       const state = baseV5({
         denizens: [
-          { denizenId: DEN_1, name: "Mara", representation: "individual", description: null },
-          { denizenId: DEN_2, name: "Orin", representation: "individual", description: null },
+          { denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
+          { denizenId: DEN_2, name: "Orin", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null },
         ],
         companionRelationships: [
           {
@@ -575,7 +580,7 @@ describe("ordinary logical command executor", () => {
 
     it("rejects a stale companion slot precondition without commit", async () => {
       const state = baseV5({
-        denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+        denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
         companionRelationships: [
           {
             companionRelationshipId: CMPREL_1,
@@ -615,7 +620,7 @@ describe("ordinary logical command executor", () => {
 
     it("replays an accepted companion command without transition or commit", async () => {
       const state = baseV5({
-        denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null }],
+        denizens: [{ denizenId: DEN_1, name: "Mara", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: null }],
       });
       const companionArgs = {
         expectedCampaignId: CAMPAIGN_A,
