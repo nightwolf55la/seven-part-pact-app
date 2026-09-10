@@ -12,6 +12,7 @@ import { EMPTY_HIEROPHANT_STATE } from "./hierophant-state";
 import { EMPTY_MARINER_STATE } from "./mariner-state";
 import { EMPTY_NECROMANCER_STATE } from "./necromancer-state";
 import { EMPTY_FAUSTIAN_STATE } from "./faustian-state";
+import { EMPTY_SAGE_STATE } from "./sage-state";
 
 function emptyPactSeats(): { readonly [K in PactSeatId]: PactSeatState } {
   const seats = {} as Record<PactSeatId, PactSeatState>;
@@ -49,5 +50,6 @@ export function initialCampaignState(): CurrentCampaignState {
     mariner: EMPTY_MARINER_STATE,
     necromancer: EMPTY_NECROMANCER_STATE,
     faustian: EMPTY_FAUSTIAN_STATE,
+    sage: EMPTY_SAGE_STATE,
   };
 }

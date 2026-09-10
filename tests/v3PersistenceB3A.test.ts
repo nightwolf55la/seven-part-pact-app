@@ -12,6 +12,7 @@ import {
   canonicalJsonStringify,
   asCentidegreePosition,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_SAGE_STATE,
   EMPTY_FAUSTIAN_STATE,
 } from "../shared/domain";
 import { initialCampaignState } from "../shared/domain/initial-state";
@@ -58,6 +59,7 @@ function baseV3Setup(overrides?: Partial<CampaignStateV5>): CampaignStateV5 {
     world: { denizens: [], isles: [], places: [], companionRelationships: [], campaignPowerfulDenizenTaxonomies: [], treasures: [] },
     hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] }, mariner: { shipPlaceId: null, selectedLawOfSeaIds: [], boardIsles: [], routes: [], seaRegions: [], beasts: [] }, necromancer: { gates: [], pathSpaces: [], steps: [], souls: [], foes: [], allies: [], ghoulCallers: [], selectedLaws: [], depth: null, wizardTraversals: [] },
     faustian: EMPTY_FAUSTIAN_STATE,
+    sage: EMPTY_SAGE_STATE,
     ...overrides,
   };
 }
@@ -122,6 +124,7 @@ function richPlayState(): CampaignStateV5 {
     world: { denizens: [], isles: [], places: [], companionRelationships: [], campaignPowerfulDenizenTaxonomies: [], treasures: [] },
     hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] }, mariner: { shipPlaceId: null, selectedLawOfSeaIds: [], boardIsles: [], routes: [], seaRegions: [], beasts: [] }, necromancer: { gates: [], pathSpaces: [], steps: [], souls: [], foes: [], allies: [], ghoulCallers: [], selectedLaws: [], depth: null, wizardTraversals: [] },
     faustian: EMPTY_FAUSTIAN_STATE,
+    sage: EMPTY_SAGE_STATE,
   };
 }
 

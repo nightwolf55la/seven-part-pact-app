@@ -21,6 +21,7 @@ import {
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_SAGE_STATE,
   isValidDenizenId,
   isValidWizardId,
   createDenizenFingerprint,
@@ -94,6 +95,7 @@ function baseV5(world?: Partial<CampaignStateV5["world"]>): CampaignStateV5 {
     mariner: { ...EMPTY_MARINER_STATE },
     necromancer: { ...EMPTY_NECROMANCER_STATE },
     faustian: { ...EMPTY_FAUSTIAN_STATE },
+    sage: { ...EMPTY_SAGE_STATE },
   };
 }
 

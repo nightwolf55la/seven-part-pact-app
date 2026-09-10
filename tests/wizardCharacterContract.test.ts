@@ -12,6 +12,7 @@ import {
   type CurrentCampaignState,
   type CampaignEvent,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_SAGE_STATE,
   EMPTY_FAUSTIAN_STATE,
 } from "../shared/domain";
 import {
@@ -163,6 +164,7 @@ function makeState(): CurrentCampaignState {
       wizardTraversals: [],
     },
     faustian: EMPTY_FAUSTIAN_STATE,
+    sage: EMPTY_SAGE_STATE,
   };
 }
 

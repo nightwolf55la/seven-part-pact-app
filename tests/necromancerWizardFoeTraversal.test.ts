@@ -17,6 +17,7 @@ import {
   EMPTY_NECROMANCER_STATE,
   EMPTY_FAUSTIAN_STATE,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_SAGE_STATE,
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
   addNecromancerFoeFingerprint,
@@ -136,6 +137,7 @@ function baseV5(): CampaignStateV5 {
     mariner: { ...EMPTY_MARINER_STATE },
     necromancer: EMPTY_NECROMANCER_STATE,
     faustian: EMPTY_FAUSTIAN_STATE,
+    sage: EMPTY_SAGE_STATE,
   };
 }
 

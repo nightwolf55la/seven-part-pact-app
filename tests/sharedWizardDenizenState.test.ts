@@ -20,6 +20,7 @@ import {
   EMPTY_NECROMANCER_STATE,
   EMPTY_FAUSTIAN_STATE,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_SAGE_STATE,
   EMPTY_SHARED_WORLD_STATE,
   PACT_SEAT_IDS,
   POWERFUL_DENIZEN_BUILTIN_TAXONOMY_IDS,
@@ -102,6 +103,7 @@ function baseState(overrides?: Partial<CampaignStateV5>): CampaignStateV5 {
     mariner: { ...EMPTY_MARINER_STATE },
     necromancer: { ...EMPTY_NECROMANCER_STATE },
     faustian: { ...EMPTY_FAUSTIAN_STATE },
+    sage: { ...EMPTY_SAGE_STATE },
     ...overrides,
   };
 }
@@ -292,6 +294,9 @@ describe("M5.2D D1A shared wizard and denizen state", () => {
       "conspiracy",
       "occultist",
       "demon",
+      "fairy",
+      "druid",
+      "angel",
     ]);
     expectInvalid(
       {
@@ -726,6 +731,7 @@ describe("M5.2D D1A shared wizard and denizen state", () => {
       mariner: { ...EMPTY_MARINER_STATE },
       necromancer: { ...EMPTY_NECROMANCER_STATE },
     faustian: { ...EMPTY_FAUSTIAN_STATE },
+    sage: { ...EMPTY_SAGE_STATE },
     };
 
     expect(() => validateCampaignState(preM52d)).toThrow(DomainError);

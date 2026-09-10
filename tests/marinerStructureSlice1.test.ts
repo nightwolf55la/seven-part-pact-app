@@ -38,6 +38,7 @@ import {
   validateCampaignStateV5Candidate,
   validateMarinerStructure,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_SAGE_STATE,
 } from "../shared/domain";
 import type {
   MarinerBoardIsleId,
@@ -182,6 +183,7 @@ function baseV5(mariner: MarinerState = EMPTY_MARINER_STATE, world = { ...EMPTY_
     mariner,
     necromancer: { ...EMPTY_NECROMANCER_STATE },
     faustian: { ...EMPTY_FAUSTIAN_STATE },
+    sage: { ...EMPTY_SAGE_STATE },
   };
 }
 

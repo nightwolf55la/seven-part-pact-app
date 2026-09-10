@@ -35,6 +35,7 @@ import {
   validateCampaignState,
   validateCampaignStateV5Candidate,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_SAGE_STATE,
 } from "../shared/domain";
 import { CAMPAIGN_COMMAND_TYPES } from "../shared/domain";
 import { validateEventCoherenceForTest } from "../convex/canonicalCommit";
@@ -101,6 +102,7 @@ function baseV5(): CampaignStateV5 {
     mariner: { ...EMPTY_MARINER_STATE },
     necromancer: { ...EMPTY_NECROMANCER_STATE },
     faustian: { ...EMPTY_FAUSTIAN_STATE },
+    sage: { ...EMPTY_SAGE_STATE },
   };
 }
 

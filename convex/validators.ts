@@ -1266,6 +1266,76 @@ const faustianDevilObligationValidator = v.union(
     weeks: v.number(),
   }),
 );
+const sageCharacterRefValidator = v.union(
+  v.object({ kind: v.literal("wizard"), wizardId: v.string() }),
+  v.object({ kind: v.literal("denizen"), denizenId: v.string() }),
+);
+const sageOmenLocationValidator = v.union(
+  v.object({ kind: v.literal("future_of_the_pact") }),
+  v.object({ kind: v.literal("destiny"), destinyInstanceId: v.string() }),
+  v.object({ kind: v.literal("character"), characterRef: sageCharacterRefValidator }),
+  v.object({ kind: v.literal("dreamscape"), segmentId: v.string() }),
+);
+const sageFairyNameValidator = v.union(
+  v.object({ kind: v.literal("ordinary"), name: v.string(), glyph: v.string() }),
+  v.object({ kind: v.literal("true"), name: v.string() }),
+);
+const sageLostDreamerValidator = v.union(
+  v.object({ kind: v.literal("lost"), wizardId: v.string() }),
+  v.object({
+    kind: v.literal("returned_recovering"),
+    wizardId: v.string(),
+    recoveryWeeksRemaining: v.number(),
+  }),
+);
+const sageStateValidator = v.object({
+  selectedDreamingLawIds: v.array(v.string()),
+  dreamingCondition: v.union(
+    v.literal("calm"),
+    v.literal("uncertain"),
+    v.literal("chaotic"),
+    v.null(),
+  ),
+  futureCondition: v.union(v.literal("certain"), v.literal("bleak"), v.null()),
+  destinyInstances: v.array(v.object({
+    destinyInstanceId: v.string(),
+    definitionId: v.string(),
+  })),
+  destinyDeck: v.array(v.string()),
+  setAsideDestinyInstanceIds: v.array(v.string()),
+  assignedDestinies: v.array(v.object({
+    destinyInstanceId: v.string(),
+    characterRef: sageCharacterRefValidator,
+    status: v.union(v.literal("hidden"), v.literal("accepted"), v.literal("rejected")),
+  })),
+  omenLedger: v.array(v.object({
+    location: sageOmenLocationValidator,
+    count: v.number(),
+  })),
+  dreamscapeAssociations: v.array(v.object({
+    denizenId: v.string(),
+    segmentIds: v.array(v.string()),
+  })),
+  earnedCycles: v.array(v.string()),
+  fairies: v.array(v.object({
+    denizenId: v.string(),
+    form: v.union(v.literal("cadre"), v.literal("individual")),
+    ordinaryNames: v.array(v.object({
+      name: v.string(),
+      glyph: v.string(),
+    })),
+    trueName: v.union(v.null(), v.object({ name: v.string() })),
+  })),
+  druids: v.array(v.object({
+    denizenId: v.string(),
+    grade: v.union(v.literal("ovate"), v.literal("eremite"), v.literal("archdruid")),
+    fairyNames: v.array(sageFairyNameValidator),
+    changesOfMagic: v.array(v.string()),
+    familiarDescription: v.union(v.string(), v.null()),
+  })),
+  lostDreamers: v.array(sageLostDreamerValidator),
+});
+
 const faustianStateValidator = v.object({
   faustianDeck: v.array(v.string()),
   devilDeck: v.array(v.string()),
@@ -1951,6 +2021,7 @@ export const campaignStateV5Validator = v.object({
   mariner: marinerStateValidator,
   necromancer: necromancerStateValidator,
   faustian: faustianStateValidator,
+  sage: sageStateValidator,
 });
 
 export const wizardCharacterUpdatedEventV2Validator = v.object({

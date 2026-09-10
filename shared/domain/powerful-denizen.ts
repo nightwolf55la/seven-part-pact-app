@@ -13,6 +13,9 @@ export const POWERFUL_DENIZEN_BUILTIN_TAXONOMY_IDS = [
   "conspiracy",
   "occultist",
   "demon",
+  "fairy",
+  "druid",
+  "angel",
 ] as const;
 
 export type BuiltinPowerfulDenizenTaxonomyId =
@@ -33,6 +36,9 @@ export const POWERFUL_DENIZEN_BUILTIN_TAXONOMY_DEFINITIONS: readonly PowerfulDen
   { taxonomyId: "conspiracy", name: "Conspiracy", description: null },
   { taxonomyId: "occultist", name: "Occultist", description: null },
   { taxonomyId: "demon", name: "Demon", description: null },
+  { taxonomyId: "fairy", name: "Fairy", description: null },
+  { taxonomyId: "druid", name: "Druid", description: null },
+  { taxonomyId: "angel", name: "Angel", description: null },
 ];
 
 export function isValidBuiltinPowerfulDenizenTaxonomyId(

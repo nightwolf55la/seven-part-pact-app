@@ -18,6 +18,7 @@ import {
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_SAGE_STATE,
   EMPTY_SHARED_WORLD_STATE,
   FAUSTIAN_DEVIL_FORM_IDS,
   FAUSTIAN_DEVIL_LAW_IDS,
@@ -179,6 +180,7 @@ function baseV5(faustian: FaustianState = initializedFaustian()): CampaignStateV
     mariner: { ...EMPTY_MARINER_STATE },
     necromancer: { ...EMPTY_NECROMANCER_STATE },
     faustian,
+    sage: { ...EMPTY_SAGE_STATE },
   };
 }
 

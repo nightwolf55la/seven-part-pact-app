@@ -8,6 +8,7 @@ import {
   verifyMigrationInvariants,
   isValidCampaignId,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_SAGE_STATE,
   EMPTY_FAUSTIAN_STATE,
 } from "../shared/domain";
 import type {
@@ -125,6 +126,7 @@ function makeInitialState(): SerializableCampaignState {
       wizardTraversals: [],
     },
     faustian: EMPTY_FAUSTIAN_STATE,
+    sage: EMPTY_SAGE_STATE,
   };
 }
 

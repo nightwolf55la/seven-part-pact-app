@@ -22,6 +22,7 @@ import {
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_SAGE_STATE,
   EMPTY_SHARED_WORLD_STATE,
   FAUSTIAN_ANTAGONIST_GOAL_DEFINITIONS,
   FAUSTIAN_ANTAGONIST_GOALS,
@@ -169,6 +170,7 @@ function baseV5(faustian: FaustianState = EMPTY_FAUSTIAN_STATE, world = { ...EMP
     mariner: { ...EMPTY_MARINER_STATE },
     necromancer: { ...EMPTY_NECROMANCER_STATE },
     faustian,
+    sage: { ...EMPTY_SAGE_STATE },
   };
 }
 
@@ -725,6 +727,9 @@ describe("Faustian source-integrity corrections", () => {
       "conspiracy",
       "occultist",
       "demon",
+      "fairy",
+      "druid",
+      "angel",
     ]);
     expect(POWERFUL_DENIZEN_BUILTIN_TAXONOMY_IDS).not.toContain("antagonist");
     expect(POWERFUL_DENIZEN_BUILTIN_TAXONOMY_IDS).not.toContain("unbound_demon");

@@ -1227,6 +1227,80 @@ export {
 
 export { validateFaustianStructure, validateFaustianReferenceIntegrity } from "./faustian-validation";
 
+export type {
+  SageLawOfDreamingId,
+  SageLawOfDreamingDefinition,
+  SageDestinySuit,
+  SageDestinyRank,
+  SageDestinyDefinitionId,
+  SageDestinyDefinition,
+  SageDreamscapeSegmentId,
+  SageDreamscapeSegmentDefinition,
+  SageCycleId,
+  SageCycleDefinition,
+  SageOrdinaryFairyNameGlyph,
+  SageDreamingCondition,
+  SageFutureCondition,
+  SageDestinyAssignmentStatus,
+  SageFairyForm,
+  SageDruidGrade,
+} from "./sage-catalogs";
+export {
+  SAGE_LAW_OF_DREAMING_IDS,
+  SAGE_LAW_OF_DREAMING_DEFINITIONS,
+  isValidSageLawOfDreamingId,
+  SAGE_DESTINY_SUITS,
+  SAGE_DESTINY_RANKS,
+  SAGE_DESTINY_DEFINITIONS,
+  SAGE_DESTINY_DEFINITION_IDS,
+  isValidSageDestinyDefinitionId,
+  isValidSageDestinySuit,
+  isValidSageDestinyRank,
+  sageDestinyDefinition,
+  SAGE_DREAMSCAPE_SEGMENT_IDS,
+  SAGE_DREAMSCAPE_SEGMENT_DEFINITIONS,
+  isValidSageDreamscapeSegmentId,
+  SAGE_CYCLE_IDS,
+  SAGE_CYCLE_DEFINITIONS,
+  isValidSageCycleId,
+  sageCycleDefinition,
+  SAGE_ORDINARY_FAIRY_NAME_GLYPHS,
+  isValidSageOrdinaryFairyNameGlyph,
+  SAGE_DREAMING_CONDITIONS,
+  isValidSageDreamingCondition,
+  SAGE_FUTURE_CONDITIONS,
+  isValidSageFutureCondition,
+  SAGE_DESTINY_ASSIGNMENT_STATUSES,
+  isValidSageDestinyAssignmentStatus,
+  SAGE_FAIRY_FORMS,
+  isValidSageFairyForm,
+  SAGE_DRUID_GRADES,
+  isValidSageDruidGrade,
+} from "./sage-catalogs";
+
+export type {
+  SageDestinyInstanceId,
+  SageDestinyInstance,
+  SageAssignedDestiny,
+  SageOmenLocation,
+  SageOmenEntry,
+  SageDreamscapeDenizenAssociation,
+  SageOrdinaryFairyName,
+  SageFairyTrueName,
+  SageFairyName,
+  SageFairyOverlay,
+  SageDruidOverlay,
+  SageLostDreamerState,
+  SageState,
+} from "./sage-state";
+export {
+  EMPTY_SAGE_STATE,
+  isValidSageDestinyInstanceId,
+  sageOmenLocationKey,
+} from "./sage-state";
+
+export { validateSageStructure, validateSageReferenceIntegrity } from "./sage-validation";
+
 export type { FaustianTransitionResult } from "./faustian-transitions";
 export {
   applyInvestigateFaustianCommunity,
