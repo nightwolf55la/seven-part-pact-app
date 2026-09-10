@@ -6,6 +6,7 @@ import {
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_FAUSTIAN_STATE,
 } from "../shared/domain";
 
 function validState(monthOrdinal: number = 0) {
@@ -69,6 +70,7 @@ function validState(monthOrdinal: number = 0) {
       depth: null,
       wizardTraversals: [],
     },
+    faustian: EMPTY_FAUSTIAN_STATE,
   };
 }
 

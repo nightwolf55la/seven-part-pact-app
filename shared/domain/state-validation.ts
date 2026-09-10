@@ -50,6 +50,7 @@ import { validateV5WorldReferenceIntegrity } from "./v5-reference-validation";
 import { validateHierophantReferenceIntegrity } from "./hierophant-validation";
 import { validateMarinerReferenceIntegrity } from "./mariner-validation";
 import { validateNecromancerReferenceIntegrity } from "./necromancer-validation";
+import { validateFaustianReferenceIntegrity } from "./faustian-validation";
 
 const VALID_PACT_SEAT_STATUSES: readonly (PactSeatStatus | null)[] = [
   "present",
@@ -876,7 +877,7 @@ const VALID_REPRESENTATIONS = new Set(["individual", "collective"]);
 const VALID_COMPANION_STATUSES = new Set(["current", "ended"]);
 const VALID_MORTALITY_STATES = new Set(["not_deceased", "deceased"]);
 const VALID_TREASURE_CONDITIONS = new Set(["intact", "destroyed"]);
-const VALID_TREASURE_CUSTODY_KINDS = new Set(["subject", "place", "unlocated", "none"]);
+const VALID_TREASURE_CUSTODY_KINDS = new Set(["subject", "place", "unlocated", "none", "devil"]);
 const VALID_SUBJECT_REF_KINDS = new Set(["wizard", "denizen"]);
 const VALID_PACT_FRAGMENT_CONDITIONS = new Set<string>(PACT_FRAGMENT_CONDITIONS);
 const VALID_PACT_FRAGMENT_CUSTODY_KINDS = new Set(["wizard", "devil", "unlocated", "none"]);
@@ -1307,6 +1308,7 @@ export function validateCampaignStateV5Candidate(state: unknown): CampaignStateV
   validateHierophantReferenceIntegrity(state as CampaignStateV5);
   validateMarinerReferenceIntegrity(state as CampaignStateV5);
   validateNecromancerReferenceIntegrity(state as CampaignStateV5);
+  validateFaustianReferenceIntegrity(state as CampaignStateV5);
 
   return state as CampaignStateV5;
 }

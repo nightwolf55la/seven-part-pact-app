@@ -18,6 +18,7 @@ import {
   EMPTY_HIEROPHANT_STATE,
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
+  EMPTY_FAUSTIAN_STATE,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
   EMPTY_SHARED_WORLD_STATE,
   PACT_SEAT_IDS,
@@ -100,6 +101,7 @@ function baseState(overrides?: Partial<CampaignStateV5>): CampaignStateV5 {
     hierophant: { ...EMPTY_HIEROPHANT_STATE },
     mariner: { ...EMPTY_MARINER_STATE },
     necromancer: { ...EMPTY_NECROMANCER_STATE },
+    faustian: { ...EMPTY_FAUSTIAN_STATE },
     ...overrides,
   };
 }
@@ -287,6 +289,9 @@ describe("M5.2D D1A shared wizard and denizen state", () => {
       "cult",
       "beast",
       "foe_of_death",
+      "conspiracy",
+      "antagonist",
+      "unbound_demon",
     ]);
     expectInvalid(
       {
@@ -541,6 +546,22 @@ describe("M5.2D D1A shared wizard and denizen state", () => {
     );
   });
 
+  it("accepts intact treasure in Devil custody", () => {
+    const valid = baseState({
+      world: {
+        ...EMPTY_SHARED_WORLD_STATE,
+        treasures: [{
+          treasureId: TRS_1,
+          name: "Devil Chalice",
+          description: null,
+          condition: "intact",
+          custody: { kind: "devil" },
+        }],
+      },
+    });
+    expect(() => validateCampaignStateV5Candidate(valid)).not.toThrow();
+  });
+
   it("rejects destroyed treasure with non-none custody", () => {
     expectInvalid(
       {
@@ -704,6 +725,7 @@ describe("M5.2D D1A shared wizard and denizen state", () => {
       hierophant: { ...EMPTY_HIEROPHANT_STATE },
       mariner: { ...EMPTY_MARINER_STATE },
       necromancer: { ...EMPTY_NECROMANCER_STATE },
+    faustian: { ...EMPTY_FAUSTIAN_STATE },
     };
 
     expect(() => validateCampaignState(preM52d)).toThrow(DomainError);

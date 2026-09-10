@@ -3863,6 +3863,7 @@ const treasureCustodyArg = v.union(
   v.object({ kind: v.literal("place"), placeId: v.string() }),
   v.object({ kind: v.literal("unlocated") }),
   v.object({ kind: v.literal("none") }),
+  v.object({ kind: v.literal("devil") }),
 );
 const treasureConditionArg = v.union(v.literal("intact"), v.literal("destroyed"));
 const pactFragmentOperationalArg = v.object({

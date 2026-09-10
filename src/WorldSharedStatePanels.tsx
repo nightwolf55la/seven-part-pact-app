@@ -631,6 +631,7 @@ export function TreasurePanel({
   function parseCustody(key: string): TreasureCustodyRef {
     if (key === "none") return { kind: "none" };
     if (key === "unlocated") return { kind: "unlocated" };
+    if (key === "devil") return { kind: "devil" };
     if (key.startsWith("place:")) return { kind: "place", placeId: key.slice("place:".length) };
     if (key.startsWith("wizard:")) return { kind: "subject", subject: { kind: "wizard", wizardId: key.slice("wizard:".length) } };
     if (key.startsWith("denizen:")) return { kind: "subject", subject: { kind: "denizen", denizenId: key.slice("denizen:".length) } };
@@ -640,6 +641,7 @@ export function TreasurePanel({
   function custodyKeyOf(custody: TreasureCustodyRef): string {
     if (custody.kind === "none") return "none";
     if (custody.kind === "unlocated") return "unlocated";
+    if (custody.kind === "devil") return "devil";
     if (custody.kind === "place") return `place:${custody.placeId}`;
     if (custody.subject.kind === "wizard") return `wizard:${custody.subject.wizardId}`;
     return `denizen:${custody.subject.denizenId}`;
@@ -653,6 +655,7 @@ export function TreasurePanel({
         <select value={custodyKey} onChange={(e) => setCustodyKey(e.target.value)} className="text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1">
           <option value="unlocated">Unlocated</option>
           <option value="none">None</option>
+          <option value="devil">Devil</option>
           {wizards.map((wizard) => (
             <option key={wizard.wizardId} value={`wizard:${wizard.wizardId}`}>Wizard: {wizard.name}</option>
           ))}
@@ -747,6 +750,7 @@ export function TreasurePanel({
             >
               <option value="unlocated">Unlocated</option>
               <option value="none">None</option>
+              <option value="devil">Devil</option>
               {wizards.map((wizard) => (
                 <option key={wizard.wizardId} value={`wizard:${wizard.wizardId}`}>Wizard: {wizard.name}</option>
               ))}

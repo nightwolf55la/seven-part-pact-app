@@ -59,6 +59,7 @@ import {
   validateV5WorldReferenceIntegrity,
   ENGAGEMENT_TARGET_KINDS,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_FAUSTIAN_STATE,
 } from "../shared/domain";
 
 // ---------------------------------------------------------------------------
@@ -191,6 +192,7 @@ function minimalV5State(): CampaignStateV5 {
       depth: null,
       wizardTraversals: [],
     },
+    faustian: EMPTY_FAUSTIAN_STATE,
   };
 }
 

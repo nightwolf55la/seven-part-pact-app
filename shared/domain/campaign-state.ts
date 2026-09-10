@@ -12,6 +12,7 @@ import type { SharedWorldState } from "./shared-world";
 import type { HierophantState } from "./hierophant-state";
 import type { MarinerState } from "./mariner-state";
 import type { NecromancerState } from "./necromancer-state";
+import type { FaustianState } from "./faustian-state";
 import type { WizardmootAttendance, WizardmootHistoryEntry } from "./wizardmoot";
 import {
   SEVEN_PART_PACT_DRAFT4_ID,
@@ -318,4 +319,5 @@ export interface CampaignStateV5 {
   readonly hierophant: HierophantState;
   readonly mariner: MarinerState;
   readonly necromancer: NecromancerState;
+  readonly faustian: FaustianState;
 }

@@ -26,6 +26,7 @@ import {
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_FAUSTIAN_STATE,
 } from "../shared/domain";
 import {
   applyUpdateWizardCharacterV5Candidate,
@@ -101,6 +102,7 @@ function baseV5Setup(wizards?: CampaignWizardV5[]): CampaignStateV5 {
     hierophant: { ...EMPTY_HIEROPHANT_STATE },
     mariner: { ...EMPTY_MARINER_STATE },
     necromancer: { ...EMPTY_NECROMANCER_STATE },
+    faustian: { ...EMPTY_FAUSTIAN_STATE },
   };
 }
 

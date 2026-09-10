@@ -20,6 +20,7 @@ import {
   computeBackupPayloadDigest,
   verifyMigrationInvariants,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_FAUSTIAN_STATE,
 } from "../shared/domain";
 import type {
   CampaignStateV1,
@@ -87,6 +88,7 @@ function makeV2State(monthOrdinal: number = 3): CurrentCampaignState {
     wizardmootHistory: [],
     world: { denizens: [], isles: [], places: [], companionRelationships: [], campaignPowerfulDenizenTaxonomies: [], treasures: [] },
     hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] }, mariner: { shipPlaceId: null, selectedLawOfSeaIds: [], boardIsles: [], routes: [], seaRegions: [], beasts: [] }, necromancer: { gates: [], pathSpaces: [], steps: [], souls: [], foes: [], allies: [], ghoulCallers: [], selectedLaws: [], depth: null, wizardTraversals: [] },
+    faustian: EMPTY_FAUSTIAN_STATE,
   };
 }
 

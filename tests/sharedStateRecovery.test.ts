@@ -36,6 +36,7 @@ import {
   validateCampaignStateV5Candidate,
   validateV5WorldReferenceIntegrity,
   verifyCheckpointRestoreRevision,
+  EMPTY_FAUSTIAN_STATE,
 } from "../shared/domain";
 import type { CampaignHistoryControlV1 } from "../shared/domain";
 import { snapshotRecord } from "../convex/persistence";
@@ -83,6 +84,7 @@ function baseState(): CampaignStateV5 {
     hierophant: { ...EMPTY_HIEROPHANT_STATE },
     mariner: { ...EMPTY_MARINER_STATE },
     necromancer: { ...EMPTY_NECROMANCER_STATE },
+    faustian: { ...EMPTY_FAUSTIAN_STATE },
   };
 }
 
@@ -320,6 +322,7 @@ describe("M5.2D D1B snapshot / undo / redo / checkpoint / backup / verifier", ()
       hierophant: { ...EMPTY_HIEROPHANT_STATE },
       mariner: { ...EMPTY_MARINER_STATE },
       necromancer: { ...EMPTY_NECROMANCER_STATE },
+    faustian: { ...EMPTY_FAUSTIAN_STATE },
     };
     expect(() => validateCampaignState(pre)).toThrow(DomainError);
     expect(() => validateCampaignStateV5Candidate(pre)).toThrow(DomainError);

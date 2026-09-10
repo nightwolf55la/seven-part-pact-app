@@ -21,6 +21,7 @@ import {
   EMPTY_HIEROPHANT_STATE,
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
+  EMPTY_FAUSTIAN_STATE,
   addNecromancerAllyFingerprint,
   addNecromancerFoeFingerprint,
   addNecromancerGhoulCallerFingerprint,
@@ -293,6 +294,7 @@ function baseV5(): CampaignStateV5 {
     hierophant: { ...EMPTY_HIEROPHANT_STATE },
     mariner: { ...EMPTY_MARINER_STATE },
     necromancer: EMPTY_NECROMANCER_STATE,
+    faustian: EMPTY_FAUSTIAN_STATE,
   };
 }
 

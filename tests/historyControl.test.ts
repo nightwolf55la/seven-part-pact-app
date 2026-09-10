@@ -22,6 +22,7 @@ import {
   type InitializationSnapshotInfo,
   type CampaignCommandType,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_FAUSTIAN_STATE,
 } from "../shared/domain";
 import { migrationCommandFingerprint, moveMonthFingerprint } from "../shared/domain/command-ids";
 
@@ -83,6 +84,7 @@ function makeSerializableState(monthOrdinal: number): SerializableCampaignState 
       depth: null,
       wizardTraversals: [],
     },
+    faustian: EMPTY_FAUSTIAN_STATE,
   };
 }
 

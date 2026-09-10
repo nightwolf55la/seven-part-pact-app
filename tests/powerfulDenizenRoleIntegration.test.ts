@@ -19,6 +19,7 @@ import {
   EMPTY_HIEROPHANT_STATE,
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
+  EMPTY_FAUSTIAN_STATE,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
   HIEROPHANT_STARTING_TEMPLE_IDS,
   MARINER_BOARD_ISLE_IDS,
@@ -183,6 +184,7 @@ function baseV5(denizens: ReturnType<typeof denizen>[] = []): CampaignStateV5 {
     hierophant: { ...EMPTY_HIEROPHANT_STATE },
     mariner: { ...EMPTY_MARINER_STATE },
     necromancer: { ...EMPTY_NECROMANCER_STATE },
+    faustian: { ...EMPTY_FAUSTIAN_STATE },
   };
 }
 

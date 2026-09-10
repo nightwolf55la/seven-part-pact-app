@@ -26,6 +26,7 @@ import {
   createDenizenFingerprint,
   updateDenizenFingerprint,
   setWizardCompanionFingerprint,
+  EMPTY_FAUSTIAN_STATE,
 } from "../shared/domain";
 import { applyCreateDenizenV5Candidate } from "../shared/domain/world-subject-transitions";
 import { applyUpdateDenizenV5Candidate } from "../shared/domain/world-subject-transitions";
@@ -92,6 +93,7 @@ function baseV5(world?: Partial<CampaignStateV5["world"]>): CampaignStateV5 {
     hierophant: { ...EMPTY_HIEROPHANT_STATE },
     mariner: { ...EMPTY_MARINER_STATE },
     necromancer: { ...EMPTY_NECROMANCER_STATE },
+    faustian: { ...EMPTY_FAUSTIAN_STATE },
   };
 }
 

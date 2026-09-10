@@ -838,6 +838,7 @@ const treasureCustodyValidator = v.union(
   v.object({ kind: v.literal("place"), placeId: v.string() }),
   v.object({ kind: v.literal("unlocated") }),
   v.object({ kind: v.literal("none") }),
+  v.object({ kind: v.literal("devil") }),
 );
 
 const treasureValidator = v.object({
@@ -1185,6 +1186,86 @@ const necromancerStateValidator = v.object({
     }),
   ),
   wizardTraversals: v.array(necromancerWizardTraversalValidator),
+});
+
+const faustianCardFacingValidator = v.union(v.literal("face_down"), v.literal("face_up"));
+const faustianSchemeValidator = v.object({
+  cardId: v.string(),
+  facing: faustianCardFacingValidator,
+});
+const faustianCommunityValidator = v.object({
+  communityId: v.string(),
+  pawnCount: v.number(),
+  schemes: v.array(faustianSchemeValidator),
+  accompliceCardId: v.union(v.string(), v.null()),
+});
+const faustianPossessionRepresentationValidator = v.union(
+  v.object({ kind: v.literal("none") }),
+  v.object({ kind: v.literal("denizen"), denizenId: v.string() }),
+  v.object({ kind: v.literal("treasure"), treasureId: v.string() }),
+);
+const faustianDemonOccupancyValidator = v.union(
+  v.object({ kind: v.literal("isha") }),
+  v.object({ kind: v.literal("pact_domain"), seatId: v.string() }),
+);
+const faustianDevilObligationValidator = v.union(
+  v.object({ kind: v.literal("wizard_owes_week_next_month"), wizardId: v.string() }),
+  v.object({
+    kind: v.literal("wizard_owes_week_monthly_while_denizen_alive"),
+    wizardId: v.string(),
+    denizenId: v.string(),
+  }),
+  v.object({ kind: v.literal("monthly_card_drain_while_powerful_in_isha"), denizenId: v.string() }),
+  v.object({ kind: v.literal("recurring_devil_time_while_magic_trace"), traceDescription: v.string() }),
+  v.object({
+    kind: v.literal("recurring_devil_time_in_domain_while_companion_care"),
+    wizardId: v.string(),
+    companionRelationshipId: v.string(),
+  }),
+  v.object({ kind: v.literal("monthly_card_drain_while_wizard_alive"), wizardId: v.string() }),
+);
+const faustianStateValidator = v.object({
+  faustianDeck: v.array(v.string()),
+  devilDeck: v.array(v.string()),
+  communities: v.array(faustianCommunityValidator),
+  machinations: v.array(faustianSchemeValidator),
+  defeatedSchemes: v.array(v.string()),
+  entrustedCards: v.array(v.object({
+    cardId: v.string(),
+    wizardId: v.string(),
+  })),
+  beneathAntagonists: v.array(v.object({
+    cardId: v.string(),
+    denizenId: v.string(),
+  })),
+  possessions: v.array(v.object({
+    cardId: v.string(),
+    wizardId: v.string(),
+    represented: faustianPossessionRepresentationValidator,
+  })),
+  activeTwistCardIds: v.array(v.string()),
+  conspiracies: v.array(v.object({ denizenId: v.string() })),
+  antagonists: v.array(v.object({
+    denizenId: v.string(),
+    suitGoal: v.string(),
+  })),
+  demons: v.array(v.object({
+    denizenId: v.string(),
+    malignance: v.string(),
+    occupancy: faustianDemonOccupancyValidator,
+    monthsInCurrentDomain: v.number(),
+  })),
+  domainSeizures: v.array(v.object({
+    seatId: v.string(),
+    conduitDenizenId: v.string(),
+  })),
+  selectedDevilLawIds: v.array(v.string()),
+  selectedDevilFormIds: v.array(v.string()),
+  originClaims: v.array(v.object({
+    claimId: v.string(),
+    status: v.string(),
+  })),
+  devilObligations: v.array(faustianDevilObligationValidator),
 });
 
 const marinerIsleBindingValidator = v.object({
@@ -1791,6 +1872,7 @@ export const campaignStateV5Validator = v.object({
   hierophant: hierophantStateValidator,
   mariner: marinerStateValidator,
   necromancer: necromancerStateValidator,
+  faustian: faustianStateValidator,
 });
 
 export const wizardCharacterUpdatedEventV2Validator = v.object({

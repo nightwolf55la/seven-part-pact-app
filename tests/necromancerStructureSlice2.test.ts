@@ -17,6 +17,7 @@ import {
   EMPTY_HIEROPHANT_STATE,
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
+  EMPTY_FAUSTIAN_STATE,
   EMPTY_SHARED_WORLD_STATE,
   NECROMANCER_BUILTIN_GATE_IDS,
   NECROMANCER_QUIET_ARRANGEMENT_SOUL_LOCATIONS,
@@ -176,6 +177,7 @@ function baseV5(overrides?: Partial<CampaignStateV5>): CampaignStateV5 {
     hierophant: { ...EMPTY_HIEROPHANT_STATE },
     mariner: { ...EMPTY_MARINER_STATE },
     necromancer: EMPTY_NECROMANCER_STATE,
+    faustian: EMPTY_FAUSTIAN_STATE,
     ...overrides,
   };
 }

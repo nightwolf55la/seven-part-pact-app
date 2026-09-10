@@ -12,6 +12,7 @@ import {
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_FAUSTIAN_STATE,
 } from "../shared/domain";
 import type { PersistableCampaignState } from "../shared/domain";
 import type { CampaignStateV5 } from "../shared/domain/campaign-state";
@@ -146,6 +147,7 @@ describe("assertPortableCampaignState: validates without transforming", () => {
       depth: null,
       wizardTraversals: [],
     },
+    faustian: EMPTY_FAUSTIAN_STATE,
   } as unknown as CampaignStateV5;
 
   it("returns the same object reference (no copy/transform)", () => {
@@ -335,6 +337,7 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
         depth: null,
         wizardTraversals: [],
       },
+      faustian: EMPTY_FAUSTIAN_STATE,
     };
     expect(ps.calendar.monthOrdinal).toBe(5);
     expect(typeof ps.calendar.monthOrdinal).toBe("number");
@@ -398,6 +401,7 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
         depth: null,
         wizardTraversals: [],
       },
+      faustian: EMPTY_FAUSTIAN_STATE,
     };
     const ps: PersistableCampaignState = state;
     expect(ps.schemaVersion).toBe(5);

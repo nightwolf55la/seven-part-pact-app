@@ -17,6 +17,7 @@ import {
   EMPTY_HIEROPHANT_STATE,
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
+  EMPTY_FAUSTIAN_STATE,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
   EMPTY_SHARED_WORLD_STATE,
   SEVEN_PART_PACT_DRAFT4_ID,
@@ -124,6 +125,7 @@ function baseState(overrides?: Partial<CampaignStateV5>): CampaignStateV5 {
     hierophant: { ...EMPTY_HIEROPHANT_STATE },
     mariner: { ...EMPTY_MARINER_STATE },
     necromancer: { ...EMPTY_NECROMANCER_STATE },
+    faustian: { ...EMPTY_FAUSTIAN_STATE },
     ...overrides,
   };
 }

@@ -300,6 +300,7 @@ function normalizeTreasureCustody(
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Destroyed treasure custody must be none");
   }
   if (custody.kind === "none") return { kind: "none" };
+  if (custody.kind === "devil") return { kind: "devil" };
   if (custody.kind === "unlocated") return { kind: "unlocated" };
   if (custody.kind === "place") {
     if (!isValidPlaceId(custody.placeId) || !placeExists(state, custody.placeId)) {

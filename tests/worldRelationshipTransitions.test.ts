@@ -22,6 +22,7 @@ import {
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_FAUSTIAN_STATE,
 } from "../shared/domain";
 import {
   applySetWizardHomeIsleV5Candidate,
@@ -93,6 +94,7 @@ function baseV5(wizards?: CampaignWizardV5[], world?: Partial<SharedWorldState>)
     hierophant: { ...EMPTY_HIEROPHANT_STATE },
     mariner: { ...EMPTY_MARINER_STATE },
     necromancer: { ...EMPTY_NECROMANCER_STATE },
+    faustian: { ...EMPTY_FAUSTIAN_STATE },
   };
 }
 
