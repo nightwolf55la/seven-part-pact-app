@@ -121,6 +121,8 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "update_treasure_details",
   "update_treasure_state",
   "update_pact_fragment_operational_state",
+  "investigate_faustian_community",
+  "blackmail_faustian_community",
 ] as const;
 
 // Historical command types that may appear in persisted revision records but
@@ -256,6 +258,8 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "update_treasure_details":
     case "update_treasure_state":
     case "update_pact_fragment_operational_state":
+    case "investigate_faustian_community":
+    case "blackmail_faustian_community":
     case "move_month":
     case "legacy_month_change":
       return true;

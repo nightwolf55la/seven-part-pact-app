@@ -164,6 +164,11 @@ export type {
   NecromancerCampaignPathSpaceRemovedEventV1,
   NecromancerStepAddedEventV1,
   NecromancerStepRemovedEventV1,
+  FaustianEvent,
+  FaustianCommunityInvestigatedDataV1,
+  FaustianCommunityInvestigatedEventV1,
+  FaustianCommunityBlackmailedDataV1,
+  FaustianCommunityBlackmailedEventV1,
   CampaignEvent,
 } from "./events";
 
@@ -401,6 +406,8 @@ export {
   updateTreasureDetailsFingerprint,
   updateTreasureStateFingerprint,
   updatePactFragmentOperationalStateFingerprint,
+  investigateFaustianCommunityFingerprint,
+  blackmailFaustianCommunityFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
@@ -1181,6 +1188,12 @@ export {
 } from "./faustian-state";
 
 export { validateFaustianStructure, validateFaustianReferenceIntegrity } from "./faustian-validation";
+
+export type { FaustianTransitionResult } from "./faustian-transitions";
+export {
+  applyInvestigateFaustianCommunity,
+  applyBlackmailFaustianCommunity,
+} from "./faustian-transitions";
 
 export type {
   NecromancerTransitionResult,

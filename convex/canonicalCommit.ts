@@ -244,6 +244,8 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   update_treasure_details: { required: ["treasure_details_updated"] },
   update_treasure_state: { required: ["treasure_state_updated"] },
   update_pact_fragment_operational_state: { required: ["pact_fragment_operational_state_changed"] },
+  investigate_faustian_community: { required: ["faustian_community_investigated"] },
+  blackmail_faustian_community: { required: ["faustian_community_blackmailed"] },
 };
 
 const CURRENT_V5_EVENT_VERSION_REQUIREMENTS: Record<string, { type: string; version: number }> = {

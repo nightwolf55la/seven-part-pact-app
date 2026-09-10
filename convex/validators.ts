@@ -2124,6 +2124,25 @@ const pactFragmentOperationalStateChangedEventV1Validator = v.object({
   }),
 });
 
+const faustianCommunityInvestigatedEventV1Validator = v.object({
+  type: v.literal("faustian_community_investigated"),
+  version: v.literal(1),
+  data: v.object({
+    communityId: v.string(),
+    schemeCardId: v.string(),
+    revealedSchemeCardIds: v.array(v.string()),
+  }),
+});
+
+const faustianCommunityBlackmailedEventV1Validator = v.object({
+  type: v.literal("faustian_community_blackmailed"),
+  version: v.literal(1),
+  data: v.object({
+    communityId: v.string(),
+    drawnCardId: v.string(),
+  }),
+});
+
 export const campaignEventValidator = v.union(
   historicalMonthChangedEventV1Validator,
   undoAppliedEventV1Validator,
@@ -2252,6 +2271,8 @@ export const campaignEventValidator = v.union(
   treasureDetailsUpdatedEventV1Validator,
   treasureStateUpdatedEventV1Validator,
   pactFragmentOperationalStateChangedEventV1Validator,
+  faustianCommunityInvestigatedEventV1Validator,
+  faustianCommunityBlackmailedEventV1Validator,
 );
 
 export const anyCampaignStateValidator = campaignStateV5Validator;

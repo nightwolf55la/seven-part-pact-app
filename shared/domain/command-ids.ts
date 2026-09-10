@@ -1009,6 +1009,28 @@ export function updatePactFragmentOperationalStateFingerprint(
   })}`;
 }
 
+export function investigateFaustianCommunityFingerprint(
+  expectedCampaignId: string,
+  communityId: string,
+  schemeCardId: string,
+): string {
+  return `investigate_faustian_community:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    communityId,
+    schemeCardId,
+  })}`;
+}
+
+export function blackmailFaustianCommunityFingerprint(
+  expectedCampaignId: string,
+  communityId: string,
+): string {
+  return `blackmail_faustian_community:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    communityId,
+  })}`;
+}
+
 /**
  * Pure deterministic idempotency match for command replay.
  * Given a previously committed command record and an incoming attempt,
