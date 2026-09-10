@@ -296,7 +296,7 @@ function AllocationCard({
         commandId: generateCommandId(),
         expectedMonthOrdinal: monthOrdinal,
         allocationId: allocation.allocationId,
-        destination: dest as TimeDestination | null,
+        destination: dest,
         note: draftNote,
       });
     } catch (err) {

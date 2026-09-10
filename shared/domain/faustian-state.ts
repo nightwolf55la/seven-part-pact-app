@@ -155,9 +155,45 @@ export type FaustianDevilObligation =
       readonly wizardId: WizardId;
       readonly companionRelationshipId: CompanionRelationshipId;
     }
-  | {
+    | {
       readonly kind: "monthly_card_drain_while_wizard_alive";
       readonly wizardId: WizardId;
+    }
+  | {
+      readonly kind: "permanent_devil_time_from_wizard";
+      readonly wizardId: WizardId;
+      readonly weeks: number;
+    };
+
+export const FAUSTIAN_PERSISTENT_FULL_HOUSE_RANKS = [
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "9",
+  "10",
+  "jack",
+  "queen",
+  "king",
+] as const;
+
+export type FaustianPersistentFullHouseRank = (typeof FAUSTIAN_PERSISTENT_FULL_HOUSE_RANKS)[number];
+
+export function isValidFaustianPersistentFullHouseRank(
+  value: string,
+): value is FaustianPersistentFullHouseRank {
+  return (FAUSTIAN_PERSISTENT_FULL_HOUSE_RANKS as readonly string[]).includes(value);
+}
+
+export type FaustianPersistentMachinationEffect =
+  | {
+      readonly kind: "flush";
+      readonly suit: FaustianSuit;
+    }
+  | {
+      readonly kind: "full_house";
+      readonly rank: FaustianPersistentFullHouseRank;
     };
 
 export interface FaustianState {
@@ -181,6 +217,8 @@ export interface FaustianState {
   readonly originClaims: readonly FaustianOriginClaimState[];
   readonly customOriginClaim: FaustianCustomOriginClaim | null;
   readonly devilObligations: readonly FaustianDevilObligation[];
+  readonly resolvedFlushSuits: readonly FaustianSuit[];
+  readonly persistentMachinationEffects: readonly FaustianPersistentMachinationEffect[];
 }
 
 function emptyCommunities(): readonly FaustianCommunityState[] {
@@ -226,6 +264,8 @@ export const EMPTY_FAUSTIAN_STATE: FaustianState = {
   originClaims: openOriginClaims(),
   customOriginClaim: null,
   devilObligations: [],
+  resolvedFlushSuits: [],
+  persistentMachinationEffects: [],
 };
 
 export interface InitializedDefaultFaustianInput {

@@ -246,7 +246,7 @@ export { migrateToCurrentVersion, loadHistoricalState, isHistoricalStateLogicall
 export type { DomainErrorCode } from "./errors";
 export { DomainError } from "./errors";
 
-export { validateCampaignState, validateAnyCampaignState, validateCampaignStateV5Candidate } from "./state-validation";
+export { validateCampaignState, validateAnyCampaignState, validateCampaignStateV4Candidate, validateCampaignStateV5Candidate } from "./state-validation";
 
 export { initialCampaignState } from "./initial-state";
 
@@ -586,7 +586,8 @@ export {
 
 // --- Participants ---
 
-export type { WizardParticipantRef, TimeParticipantRef } from "./participants";
+export type { WizardParticipantRef, DevilParticipantRef, TimeParticipantRef } from "./participants";
+export { isWizardParticipantRef, isDevilParticipantRef, wizardIdOfParticipant } from "./participants";
 
 // --- Time Model ---
 
@@ -600,12 +601,39 @@ export type {
   DomainDestination,
   EngagementDestination,
   SpecialUseDestination,
+  TimeDestinationV4,
+  TimeDestinationKindV4,
+  DevilCommunityDestination,
+  DevilSchemesDestination,
+  DevilCompanionDestination,
+  DevilGrimoireDestination,
+  DevilWizardDestination,
+  DevilDenizenDestination,
+  DevilSeizedDomainDestination,
+  DevilOnlyTimeDestination,
+  DevilTimeDestination,
+  DevilOnlyTimeDestinationKind,
+  TimeDestinationV5,
+  TimeDestinationKindV5,
   TimeDestination,
   TimeDestinationKind,
+  TimeAllocationV4,
+  TimeAllocationV5,
   TimeAllocation,
+  TimeParticipantV4,
+  TimeParticipantV5,
   TimeParticipant,
 } from "./time-model";
-export { ALLOCATION_RESOLUTIONS, TIME_DESTINATION_KINDS } from "./time-model";
+export {
+  ALLOCATION_RESOLUTIONS,
+  TIME_DESTINATION_KINDS_V4,
+  DEVIL_ONLY_TIME_DESTINATION_KINDS,
+  TIME_DESTINATION_KINDS_V5,
+  TIME_DESTINATION_KINDS,
+  isDevilOnlyTimeDestination,
+  isWizardTimeDestination,
+  isDevilTimeDestination,
+} from "./time-model";
 
 // --- Engagement ---
 
@@ -1179,6 +1207,8 @@ export type {
   FaustianCustomOriginClaim,
   FaustianSelectedDevilForms,
   FaustianDevilObligation,
+  FaustianPersistentFullHouseRank,
+  FaustianPersistentMachinationEffect,
   FaustianState,
   InitializedDefaultFaustianInput,
 } from "./faustian-state";
@@ -1186,11 +1216,13 @@ export {
   EMPTY_FAUSTIAN_STATE,
   EMPTY_SELECTED_DEVIL_FORMS,
   FAUSTIAN_DEMON_CONDITIONS,
+  FAUSTIAN_PERSISTENT_FULL_HOUSE_RANKS,
   buildInitializedDefaultFaustianState,
   faustianDeckMissingSuits,
   devilWeeksOwedForMissingSuits,
   isFaustianDeckEmpty,
   isValidFaustianDemonCondition,
+  isValidFaustianPersistentFullHouseRank,
 } from "./faustian-state";
 
 export { validateFaustianStructure, validateFaustianReferenceIntegrity } from "./faustian-validation";

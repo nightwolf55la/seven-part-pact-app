@@ -302,6 +302,12 @@ const participantRefValidator = v.object({
   wizardId: v.string(),
 });
 
+const devilParticipantRefValidator = v.object({
+  kind: v.literal("devil"),
+});
+
+const participantRefV5Validator = v.union(participantRefValidator, devilParticipantRefValidator);
+
 const timeDestinationValidator = v.union(
   v.object({ kind: v.literal("companion"), element: v.string() }),
   v.object({ kind: v.literal("map_isle_sanctum") }),
@@ -313,9 +319,28 @@ const timeDestinationValidator = v.union(
   v.object({ kind: v.literal("special_use"), description: v.string() }),
 );
 
+const devilTimeDestinationValidator = v.union(
+  v.object({ kind: v.literal("devil_community"), communityId: v.string() }),
+  v.object({ kind: v.literal("devil_schemes"), cardIds: v.array(v.string()) }),
+  v.object({ kind: v.literal("devil_companion"), companionRelationshipId: v.string() }),
+  v.object({ kind: v.literal("devil_grimoire") }),
+  v.object({ kind: v.literal("devil_wizard"), wizardId: v.string() }),
+  v.object({ kind: v.literal("devil_denizen"), denizenId: v.string() }),
+  v.object({ kind: v.literal("devil_seized_domain"), seatId: v.string() }),
+);
+
+export const timeDestinationV5Validator = v.union(timeDestinationValidator, devilTimeDestinationValidator);
+
 const timeAllocationValidator = v.object({
   allocationId: v.string(),
   destination: v.union(timeDestinationValidator, v.null()),
+  note: v.union(v.string(), v.null()),
+  resolution: v.union(v.literal("pending"), v.literal("spent"), v.literal("wasted")),
+});
+
+const timeAllocationV5Validator = v.object({
+  allocationId: v.string(),
+  destination: v.union(timeDestinationV5Validator, v.null()),
   note: v.union(v.string(), v.null()),
   resolution: v.union(v.literal("pending"), v.literal("spent"), v.literal("wasted")),
 });
@@ -326,6 +351,14 @@ const timeParticipantValidator = v.object({
   rescheduleAllowance: v.number(),
   reschedulesUsed: v.number(),
   allocations: v.array(timeAllocationValidator),
+});
+
+const timeParticipantV5Validator = v.object({
+  participant: participantRefV5Validator,
+  effectiveBudget: v.number(),
+  rescheduleAllowance: v.number(),
+  reschedulesUsed: v.number(),
+  allocations: v.array(timeAllocationV5Validator),
 });
 
 const engagementTargetValidator = v.union(
@@ -449,8 +482,8 @@ export const timeAllocationScheduledEventV1Validator = v.object({
   data: v.object({
     monthOrdinal: v.number(),
     allocationId: v.string(),
-    previousDestination: v.union(timeDestinationValidator, v.null()),
-    newDestination: v.union(timeDestinationValidator, v.null()),
+    previousDestination: v.union(timeDestinationV5Validator, v.null()),
+    newDestination: v.union(timeDestinationV5Validator, v.null()),
     note: v.union(v.string(), v.null()),
   }),
 });
@@ -473,8 +506,8 @@ export const timeRescheduledEventV1Validator = v.object({
   data: v.object({
     monthOrdinal: v.number(),
     allocationId: v.string(),
-    previousDestination: v.union(timeDestinationValidator, v.null()),
-    newDestination: v.union(timeDestinationValidator, v.null()),
+    previousDestination: v.union(timeDestinationV5Validator, v.null()),
+    newDestination: v.union(timeDestinationV5Validator, v.null()),
     note: v.union(v.string(), v.null()),
   }),
 });
@@ -485,7 +518,7 @@ export const timeSpentEventV1Validator = v.object({
   data: v.object({
     monthOrdinal: v.number(),
     allocationId: v.string(),
-    destination: timeDestinationValidator,
+    destination: timeDestinationV5Validator,
   }),
 });
 
@@ -495,7 +528,7 @@ export const timeWastedEventV1Validator = v.object({
   data: v.object({
     monthOrdinal: v.number(),
     allocationId: v.string(),
-    destination: v.union(timeDestinationValidator, v.null()),
+    destination: v.union(timeDestinationV5Validator, v.null()),
     note: v.union(v.string(), v.null()),
   }),
 });
@@ -520,7 +553,7 @@ export const engagementTimeCommittedEventV1Validator = v.object({
     monthOrdinal: v.number(),
     allocationId: v.string(),
     engagementId: v.string(),
-    previousDestination: v.union(timeDestinationValidator, v.null()),
+    previousDestination: v.union(timeDestinationV5Validator, v.null()),
   }),
 });
 
@@ -603,7 +636,7 @@ const engagementRecordV5Validator = v.object({
 });
 
 const monthlyPlayStateV5Validator = v.object({
-  timeParticipants: v.array(timeParticipantValidator),
+  timeParticipants: v.array(timeParticipantV5Validator),
   engagements: v.array(engagementRecordV5Validator),
   wizardmootAttendance: v.union(v.array(wizardmootAttendanceValidator), v.null()),
 });
@@ -1227,6 +1260,11 @@ const faustianDevilObligationValidator = v.union(
     companionRelationshipId: v.string(),
   }),
   v.object({ kind: v.literal("monthly_card_drain_while_wizard_alive"), wizardId: v.string() }),
+  v.object({
+    kind: v.literal("permanent_devil_time_from_wizard"),
+    wizardId: v.string(),
+    weeks: v.number(),
+  }),
 );
 const faustianStateValidator = v.object({
   faustianDeck: v.array(v.string()),
@@ -1301,6 +1339,11 @@ const faustianStateValidator = v.object({
     }),
   ),
   devilObligations: v.array(faustianDevilObligationValidator),
+  resolvedFlushSuits: v.array(v.string()),
+  persistentMachinationEffects: v.array(v.union(
+    v.object({ kind: v.literal("flush"), suit: v.string() }),
+    v.object({ kind: v.literal("full_house"), rank: v.string() }),
+  )),
 });
 
 const marinerIsleBindingValidator = v.object({

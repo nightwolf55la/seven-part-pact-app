@@ -33,6 +33,7 @@ import {
   applySetPactSeatWizard,
   applySetPactSeatStatus,
   applySetWatcher,
+  wizardIdOfParticipant,
   movePlanetByArc,
   isLegalPosition,
   asCentidegreePosition,
@@ -185,7 +186,7 @@ function getEngagement(state: CurrentCampaignState, engagementId: string) {
 
 function firstAllocId(state: CurrentCampaignState, wizardId: WizardId): AllocationId {
   if (state.lifecycle.kind !== "play") throw new Error("not play");
-  const tp = state.lifecycle.currentMonth.timeParticipants.find((t) => t.participant.wizardId === wizardId);
+  const tp = state.lifecycle.currentMonth.timeParticipants.find((t) => wizardIdOfParticipant(t.participant) === wizardId);
   if (!tp) throw new Error(`no time participant for ${wizardId}`);
   return tp.allocations[0].allocationId;
 }
@@ -199,7 +200,7 @@ function firstEngagementId(state: CurrentCampaignState, wizardId: WizardId): Eng
 
 function getReschedulesUsed(state: CurrentCampaignState, wizardId: WizardId): number {
   if (state.lifecycle.kind !== "play") throw new Error("not play");
-  const tp = state.lifecycle.currentMonth.timeParticipants.find((t) => t.participant.wizardId === wizardId);
+  const tp = state.lifecycle.currentMonth.timeParticipants.find((t) => wizardIdOfParticipant(t.participant) === wizardId);
   if (!tp) throw new Error(`no time participant for ${wizardId}`);
   return tp.reschedulesUsed;
 }

@@ -27,6 +27,7 @@ import {
   applySetWatcher,
   MOVABLE_PLANET_IDS,
   PACT_SEAT_IDS,
+  wizardIdOfParticipant,
 } from "../shared/domain";
 import type {
   CurrentCampaignState,
@@ -161,7 +162,7 @@ function getAlloc(state: CurrentCampaignState, allocationId: string) {
 
 function firstAllocId(state: CurrentCampaignState, wizardId: WizardId): AllocationId {
   if (state.lifecycle.kind !== "play") throw new Error("not play");
-  const tp = state.lifecycle.currentMonth.timeParticipants.find((t) => t.participant.wizardId === wizardId);
+  const tp = state.lifecycle.currentMonth.timeParticipants.find((t) => wizardIdOfParticipant(t.participant) === wizardId);
   if (!tp) throw new Error(`no participant for ${wizardId}`);
   return tp.allocations[0].allocationId;
 }

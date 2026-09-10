@@ -23,6 +23,7 @@ import {
   generateAllocationId,
   generateEngagementId,
   isValidAllocationId,
+  wizardIdOfParticipant,
   isValidEngagementId,
 } from "../shared/domain";
 import type { AdvancePhaseInput } from "../shared/domain";
@@ -171,7 +172,7 @@ describe("applyBeginPlay", () => {
       expect(engagements.length).toBe(PRESENT_WIZARD_IDS.length);
 
       for (const wid of PRESENT_WIZARD_IDS) {
-        expect(timeParticipants.find((t) => t.participant.wizardId === wid)).toBeDefined();
+        expect(timeParticipants.find((t) => wizardIdOfParticipant(t.participant) === wid)).toBeDefined();
         expect(engagements.find((e) => e.actingWizardId === wid)).toBeDefined();
       }
     });
@@ -179,7 +180,7 @@ describe("applyBeginPlay", () => {
     it("Silent Wizard does not get monthly state", () => {
       if (next.lifecycle.kind !== "play") throw new Error("unreachable");
       const { timeParticipants, engagements } = next.lifecycle.currentMonth;
-      expect(timeParticipants.find((t) => t.participant.wizardId === SILENT_WIZARD_ID)).toBeUndefined();
+      expect(timeParticipants.find((t) => wizardIdOfParticipant(t.participant) === SILENT_WIZARD_ID)).toBeUndefined();
       expect(engagements.find((e) => e.actingWizardId === SILENT_WIZARD_ID)).toBeUndefined();
     });
 

@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
+import { timeDestinationV5Validator } from "./validators";
 import {
   DomainError,
   parseLiveCommandId,
@@ -776,17 +777,7 @@ export const scheduleTime = mutation({
     commandId: v.string(),
     expectedMonthOrdinal: v.number(),
     allocationId: v.string(),
-    destination: v.union(
-      v.object({ kind: v.literal("companion"), element: v.string() }),
-      v.object({ kind: v.literal("map_isle_sanctum") }),
-      v.object({ kind: v.literal("familiar") }),
-      v.object({ kind: v.literal("orrery") }),
-      v.object({ kind: v.literal("meeting") }),
-      v.object({ kind: v.literal("domain") }),
-      v.object({ kind: v.literal("engagement"), engagementId: v.string() }),
-      v.object({ kind: v.literal("special_use"), description: v.string() }),
-      v.null(),
-    ),
+    destination: v.union(timeDestinationV5Validator, v.null()),
     note: v.union(v.string(), v.null()),
   },
   handler: async (ctx, args) => {

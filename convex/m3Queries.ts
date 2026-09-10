@@ -1,5 +1,5 @@
 import { query } from "./_generated/server";
-import { validateCampaignState, evaluateSetupReadiness, displayNameFromOrdinal } from "../shared/domain";
+import { validateCampaignState, evaluateSetupReadiness, displayNameFromOrdinal, wizardIdOfParticipant } from "../shared/domain";
 import type { MovablePlanetId } from "../shared/domain";
 import type { LunarPhase } from "../shared/domain";
 
@@ -125,13 +125,14 @@ export const getPlanningWorkspace = query({
       wizardNameById.set(w.wizardId as string, w.name);
     }
 
-    const timeParticipants = current.lifecycle.currentMonth.timeParticipants.map((tp) => {
-      const wizardId = tp.participant.wizardId as string;
+    const timeParticipants = current.lifecycle.currentMonth.timeParticipants.flatMap((tp) => {
+      const wizardId = wizardIdOfParticipant(tp.participant) as string | null;
+      if (wizardId === null) return [];
       const wizardName = wizardNameById.get(wizardId);
       if (!wizardName) {
         throw new Error(`Unresolved wizard for time participant: ${wizardId}`);
       }
-      return {
+      return [{
         wizardId,
         wizardName,
         effectiveBudget: tp.effectiveBudget,
@@ -143,7 +144,7 @@ export const getPlanningWorkspace = query({
           note: a.note,
           resolution: a.resolution,
         })),
-      };
+      }];
     });
 
     const engagements = current.lifecycle.currentMonth.engagements.map((e) => ({
@@ -199,13 +200,14 @@ export const getStoryWorkspace = query({
       wizardNameById.set(w.wizardId as string, w.name);
     }
 
-    const timeParticipants = current.lifecycle.currentMonth.timeParticipants.map((tp) => {
-      const wizardId = tp.participant.wizardId as string;
+    const timeParticipants = current.lifecycle.currentMonth.timeParticipants.flatMap((tp) => {
+      const wizardId = wizardIdOfParticipant(tp.participant) as string | null;
+      if (wizardId === null) return [];
       const wizardName = wizardNameById.get(wizardId);
       if (!wizardName) {
         throw new Error(`Unresolved wizard for time participant: ${wizardId}`);
       }
-      return {
+      return [{
         wizardId,
         wizardName,
         effectiveBudget: tp.effectiveBudget,
@@ -217,7 +219,7 @@ export const getStoryWorkspace = query({
           note: a.note,
           resolution: a.resolution,
         })),
-      };
+      }];
     });
 
     const engagements = current.lifecycle.currentMonth.engagements.map((e) => ({
@@ -295,7 +297,7 @@ export const getMeetingWorkspace = query({
         throw new Error(`Unresolved wizard for attendance: ${wizardId}`);
       }
       const tp = timeParticipants.find(
-        (t) => t.participant.wizardId as string === wizardId,
+        (t) => wizardIdOfParticipant(t.participant) === wizardId,
       );
       const meetingAllocs = tp
         ? tp.allocations.filter(
@@ -355,13 +357,14 @@ export const getQuietWorkspace = query({
       wizardNameById.set(w.wizardId as string, w.name);
     }
 
-    const timeParticipants = current.lifecycle.currentMonth.timeParticipants.map((tp) => {
-      const wizardId = tp.participant.wizardId as string;
+    const timeParticipants = current.lifecycle.currentMonth.timeParticipants.flatMap((tp) => {
+      const wizardId = wizardIdOfParticipant(tp.participant) as string | null;
+      if (wizardId === null) return [];
       const wizardName = wizardNameById.get(wizardId);
       if (!wizardName) {
         throw new Error(`Unresolved wizard for time participant: ${wizardId}`);
       }
-      return {
+      return [{
         wizardId,
         wizardName,
         allocations: tp.allocations.map((a) => ({
@@ -370,7 +373,7 @@ export const getQuietWorkspace = query({
           note: a.note,
           resolution: a.resolution,
         })),
-      };
+      }];
     });
 
     const engagements = current.lifecycle.currentMonth.engagements.map((e) => ({

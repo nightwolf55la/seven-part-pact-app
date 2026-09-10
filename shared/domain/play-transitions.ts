@@ -1,8 +1,15 @@
 import type { CurrentCampaignState, LunarPhase, PlayLifecycle, MonthlyPlayState } from "./campaign-state";
 import type { MonthOrdinal } from "./calendar";
 import type { AllocationId, WizardId, EngagementId, DenizenId } from "./ids";
-import { isValidAllocationId, isValidEngagementId, isValidWizardId, isValidDenizenId } from "./ids";
+import { isValidAllocationId, isValidEngagementId, isValidWizardId, isValidDenizenId, isValidCompanionRelationshipId } from "./ids";
 import type { TimeDestination, TimeAllocation, TimeParticipant } from "./time-model";
+import {
+  DEVIL_ONLY_TIME_DESTINATION_KINDS,
+  isDevilOnlyTimeDestination,
+} from "./time-model";
+import { isValidPactSeatId } from "./pact-seats";
+import { isValidFaustianCardId, isValidFaustianCommunityId } from "./faustian-catalogs";
+import { wizardIdOfParticipant } from "./participants";
 import type { EngagementRecord, EngagementTarget } from "./engagement";
 import type {
   CampaignEvent,
@@ -120,7 +127,7 @@ export function computePhaseTransitionWarnings(
 }
 
 function deriveExpectedAttendance(wizardId: WizardId, month: MonthlyPlayState): boolean {
-  const tp = month.timeParticipants.find((t) => t.participant.wizardId === wizardId);
+  const tp = month.timeParticipants.find((t) => wizardIdOfParticipant(t.participant) === wizardId);
   if (!tp) return false;
   return tp.allocations.some((a) => a.destination !== null && a.destination.kind === "meeting");
 }
@@ -128,11 +135,37 @@ function deriveExpectedAttendance(wizardId: WizardId, month: MonthlyPlayState): 
 function initializeWizardmootAttendance(
   month: MonthlyPlayState,
 ): readonly WizardmootAttendance[] {
-  return month.timeParticipants.map((tp) => {
-    const wizardId = tp.participant.wizardId as WizardId;
+  return month.timeParticipants.flatMap((tp) => {
+    if (tp.participant.kind !== "wizard") return [];
+    const wizardId = tp.participant.wizardId;
     const attended = deriveExpectedAttendance(wizardId, month);
-    return { wizardId, attended, exceptionReason: null };
+    return [{ wizardId, attended, exceptionReason: null }];
   });
+}
+
+function locateAllocation(
+  timeParticipants: readonly TimeParticipant[],
+  allocationId: AllocationId,
+): { tpIndex: number; allocIndex: number } | null {
+  for (let i = 0; i < timeParticipants.length; i++) {
+    const tp = timeParticipants[i];
+    for (let j = 0; j < tp.allocations.length; j++) {
+      if (tp.allocations[j].allocationId === allocationId) {
+        return { tpIndex: i, allocIndex: j };
+      }
+    }
+  }
+  return null;
+}
+
+function requireWizardParticipant(tp: TimeParticipant, allocationId: AllocationId): WizardId {
+  if (tp.participant.kind !== "wizard") {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Allocation ${allocationId} belongs to the Devil, not a Wizard`,
+    );
+  }
+  return tp.participant.wizardId;
 }
 
 export interface AdvancePhaseInput {
@@ -235,13 +268,6 @@ export function applyScheduleTime(
     throw new DomainError("INVALID_CAMPAIGN_STATE", "schedule_time requires lifecycle kind 'play'");
   }
 
-  if (state.lifecycle.phase !== "planning") {
-    throw new DomainError(
-      "INVALID_CAMPAIGN_STATE",
-      `schedule_time is only allowed during planning, current phase is "${state.lifecycle.phase}"`,
-    );
-  }
-
   const currentMonth = state.calendar.monthOrdinal;
   if (currentMonth === null || currentMonth !== input.expectedMonthOrdinal) {
     throw new DomainError(
@@ -254,31 +280,16 @@ export function applyScheduleTime(
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid allocationId: ${input.allocationId}`);
   }
 
-  validateTimeDestination(input.destination);
-
   const { timeParticipants, engagements } = state.lifecycle.currentMonth;
-
-  let tpIndex = -1;
-  let allocIndex = -1;
-  for (let i = 0; i < timeParticipants.length; i++) {
-    const tp = timeParticipants[i];
-    for (let j = 0; j < tp.allocations.length; j++) {
-      if (tp.allocations[j].allocationId === input.allocationId) {
-        tpIndex = i;
-        allocIndex = j;
-        break;
-      }
-    }
-    if (tpIndex >= 0) break;
-  }
-
-  if (tpIndex < 0) {
+  const located = locateAllocation(timeParticipants, input.allocationId);
+  if (located === null) {
     throw new DomainError(
       "INVALID_CAMPAIGN_STATE",
       `Allocation ${input.allocationId} not found in current month`,
     );
   }
 
+  const { tpIndex, allocIndex } = located;
   const tp = timeParticipants[tpIndex];
   const alloc = tp.allocations[allocIndex];
 
@@ -289,7 +300,25 @@ export function applyScheduleTime(
     );
   }
 
-  const wizardId = tp.participant.wizardId as WizardId;
+  if (tp.participant.kind === "wizard") {
+    if (state.lifecycle.phase !== "planning") {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `schedule_time is only allowed during planning, current phase is "${state.lifecycle.phase}"`,
+      );
+    }
+  } else if (tp.participant.kind === "devil") {
+    if (state.lifecycle.phase !== "visions") {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `Devil schedule_time is only allowed during visions, current phase is "${state.lifecycle.phase}"`,
+      );
+    }
+  }
+
+  validateScheduledDestination(state, tp, input.destination);
+
+  const wizardId = wizardIdOfParticipant(tp.participant);
   const previousDestination = alloc.destination;
 
   const newAllocations: TimeAllocation[] = tp.allocations.map((a, j) =>
@@ -304,7 +333,6 @@ export function applyScheduleTime(
 
   let newEngagements = engagements;
 
-  // Handle engagement linking
   if (previousDestination !== null && previousDestination.kind === "engagement") {
     const oldEngId = previousDestination.engagementId;
     const isStillSameEngagement =
@@ -317,6 +345,12 @@ export function applyScheduleTime(
   }
 
   if (input.destination !== null && input.destination.kind === "engagement") {
+    if (wizardId === null) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `Devil allocation ${input.allocationId} cannot be linked as a Wizard Engagement`,
+      );
+    }
     const engId = input.destination.engagementId;
     if (!isValidEngagementId(engId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid engagementId in destination: ${engId}`);
@@ -409,6 +443,7 @@ function validateTimeDestination(dest: TimeDestination | null): void {
     case "orrery":
     case "meeting":
     case "domain":
+    case "devil_grimoire":
       break;
     case "engagement":
       if (!isValidEngagementId(dest.engagementId)) {
@@ -420,7 +455,151 @@ function validateTimeDestination(dest: TimeDestination | null): void {
         throw new DomainError("INVALID_CAMPAIGN_STATE", "special_use destination requires non-empty description");
       }
       break;
+    case "devil_community":
+      if (!isValidFaustianCommunityId(dest.communityId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid Devil Community destination: ${dest.communityId}`);
+      }
+      break;
+    case "devil_schemes":
+      if (dest.cardIds.length === 0) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", "Devil Schemes destination requires a non-empty cardIds array");
+      }
+      for (const cardId of dest.cardIds) {
+        if (!isValidFaustianCardId(cardId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid Faustian card in Devil Schemes destination: ${cardId}`);
+        }
+      }
+      break;
+    case "devil_companion":
+      if (!isValidCompanionRelationshipId(dest.companionRelationshipId)) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `Invalid companionRelationshipId in Devil Companion destination: ${dest.companionRelationshipId}`,
+        );
+      }
+      break;
+    case "devil_wizard":
+      if (!isValidWizardId(dest.wizardId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId in Devil Wizard destination: ${dest.wizardId}`);
+      }
+      break;
+    case "devil_denizen":
+      if (!isValidDenizenId(dest.denizenId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId in Devil Denizen destination: ${dest.denizenId}`);
+      }
+      break;
+    case "devil_seized_domain":
+      if (!isValidPactSeatId(dest.seatId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid PactSeatId in Devil seized Domain destination: ${dest.seatId}`);
+      }
+      break;
   }
+}
+
+function validateScheduledDestination(
+  state: CurrentCampaignState,
+  tp: TimeParticipant,
+  dest: TimeDestination | null,
+): void {
+  validateTimeDestination(dest);
+  if (dest === null) return;
+
+  if (tp.participant.kind === "wizard") {
+    if (isDevilOnlyTimeDestination(dest)) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `Wizard scheduling cannot use Devil Time destination kind "${dest.kind}"`,
+      );
+    }
+    return;
+  }
+
+  if (!isDevilTimeDestinationKind(dest.kind)) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Devil scheduling cannot use Wizard Time destination kind "${dest.kind}"`,
+    );
+  }
+
+  switch (dest.kind) {
+    case "orrery":
+    case "devil_grimoire":
+      return;
+    case "devil_community":
+      if (!isValidFaustianCommunityId(dest.communityId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown Faustian Community: ${dest.communityId}`);
+      }
+      return;
+    case "devil_schemes": {
+      const schemeIds = new Set<string>();
+      for (const community of state.faustian.communities) {
+        for (const scheme of community.schemes) schemeIds.add(scheme.cardId);
+      }
+      for (const cardId of dest.cardIds) {
+        if (!schemeIds.has(cardId)) {
+          throw new DomainError(
+            "INVALID_CAMPAIGN_STATE",
+            `Devil Schemes destination card ${cardId} is not currently a Scheme`,
+          );
+        }
+      }
+      return;
+    }
+    case "devil_companion":
+      if (!state.world.companionRelationships.some((rel) => rel.companionRelationshipId === dest.companionRelationshipId)) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `Devil Companion destination does not resolve: ${dest.companionRelationshipId}`,
+        );
+      }
+      return;
+    case "devil_wizard":
+      if (!state.wizards.some((wizard) => wizard.wizardId === dest.wizardId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Devil Wizard destination does not resolve: ${dest.wizardId}`);
+      }
+      return;
+    case "devil_denizen": {
+      const hasDiamondsFlush = state.faustian.persistentMachinationEffects.some(
+        (effect) => effect.kind === "flush" && effect.suit === "diamonds",
+      );
+      if (!hasDiamondsFlush) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          "Devil Denizen Time requires an active persistent Diamonds Flush",
+        );
+      }
+      if (!state.world.denizens.some((denizen) => denizen.denizenId === dest.denizenId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Devil Denizen destination does not resolve: ${dest.denizenId}`);
+      }
+      const isCurrentCompanion = state.world.companionRelationships.some(
+        (rel) => rel.denizenId === dest.denizenId && rel.status === "current",
+      );
+      if (isCurrentCompanion) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `Devil Denizen destination ${dest.denizenId} is currently a Companion`,
+        );
+      }
+      return;
+    }
+    case "devil_seized_domain":
+      if (!state.faustian.domainSeizures.some((seizure) => seizure.seatId === dest.seatId)) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `Devil seized Domain destination ${dest.seatId} is not currently seized`,
+        );
+      }
+      return;
+    default:
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `Devil scheduling cannot use destination kind "${dest.kind}"`,
+      );
+  }
+}
+
+function isDevilTimeDestinationKind(kind: TimeDestination["kind"]): boolean {
+  return kind === "orrery" || (DEVIL_ONLY_TIME_DESTINATION_KINDS as readonly string[]).includes(kind);
 }
 
 // ============================================================
@@ -628,13 +807,20 @@ export function applyRescheduleTime(
   }
 
   if (tp.reschedulesUsed >= tp.rescheduleAllowance) {
+    const wizardId = requireWizardParticipant(tp, input.allocationId);
     throw new DomainError(
       "INVALID_CAMPAIGN_STATE",
-      `Wizard ${tp.participant.wizardId} has exhausted reschedule allowance (${tp.reschedulesUsed}/${tp.rescheduleAllowance})`,
+      `Wizard ${wizardId} has exhausted reschedule allowance (${tp.reschedulesUsed}/${tp.rescheduleAllowance})`,
     );
   }
 
-  const wizardId = tp.participant.wizardId as WizardId;
+  const wizardId = requireWizardParticipant(tp, input.allocationId);
+  if (input.destination !== null && isDevilOnlyTimeDestination(input.destination)) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Wizard scheduling cannot use Devil Time destination kind "${input.destination.kind}"`,
+    );
+  }
   const previousDestination = alloc.destination;
 
   const newAllocations: TimeAllocation[] = tp.allocations.map((a, j) =>
@@ -738,7 +924,7 @@ export interface SpendManualTimeInput {
   readonly allocationId: AllocationId;
 }
 
-const MANUAL_SPEND_KINDS = new Set([
+const MANUAL_SPEND_KINDS: ReadonlySet<string> = new Set([
   "companion",
   "map_isle_sanctum",
   "familiar",
@@ -798,6 +984,7 @@ export function applySpendManualTime(
 
   const tp = timeParticipants[tpIndex];
   const alloc = tp.allocations[allocIndex];
+  requireWizardParticipant(tp, input.allocationId);
 
   if (alloc.resolution !== "pending") {
     throw new DomainError(
@@ -917,6 +1104,7 @@ export function applyWasteTime(
 
   const tp = timeParticipants[tpIndex];
   const alloc = tp.allocations[allocIndex];
+  requireWizardParticipant(tp, input.allocationId);
 
   if (alloc.resolution !== "pending") {
     throw new DomainError(
@@ -1032,6 +1220,7 @@ export function applySpendOrreryTime(
 
   const tp = timeParticipants[tpIndex];
   const alloc = tp.allocations[allocIndex];
+  requireWizardParticipant(tp, input.allocationId);
 
   if (alloc.resolution !== "pending") {
     throw new DomainError(
@@ -1169,14 +1358,14 @@ export function applyCommitTimeToEngagement(
     );
   }
 
+  const wizardId = requireWizardParticipant(tp, input.allocationId);
+
   if (tp.reschedulesUsed >= tp.rescheduleAllowance) {
     throw new DomainError(
       "INVALID_CAMPAIGN_STATE",
-      `Wizard ${tp.participant.wizardId} has exhausted reschedule allowance (${tp.reschedulesUsed}/${tp.rescheduleAllowance})`,
+      `Wizard ${wizardId} has exhausted reschedule allowance (${tp.reschedulesUsed}/${tp.rescheduleAllowance})`,
     );
   }
-
-  const wizardId = tp.participant.wizardId as WizardId;
 
   const engIdx = engagements.findIndex((e) => e.engagementId === input.engagementId);
   if (engIdx < 0) {
@@ -1366,11 +1555,12 @@ export function applyResolveEngagement(
 
     const tp = timeParticipants[tpIndex];
     const alloc = tp.allocations[allocIndex];
+    const ownerWizardId = wizardIdOfParticipant(tp.participant);
 
-    if (tp.participant.wizardId !== eng.actingWizardId) {
+    if (ownerWizardId !== eng.actingWizardId) {
       throw new DomainError(
         "INVALID_CAMPAIGN_STATE",
-        `Linked allocation ${linkedAllocationId} belongs to wizard ${tp.participant.wizardId}, not ${eng.actingWizardId}`,
+        `Linked allocation ${linkedAllocationId} belongs to ${ownerWizardId === null ? "the Devil" : `wizard ${ownerWizardId}`}, not ${eng.actingWizardId}`,
       );
     }
 

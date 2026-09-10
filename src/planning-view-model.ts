@@ -1,4 +1,4 @@
-import type { TimeDestination } from "../shared/domain/time-model";
+import type { TimeDestination, TimeDestinationV4 } from "../shared/domain/time-model";
 import type { EngagementTarget } from "../shared/domain/engagement";
 import type { WizardId, DenizenId } from "../shared/domain/ids";
 
@@ -101,6 +101,20 @@ export function destinationLabel(
       return `Engagement: ${data ? engagementDisplay(data, dest.engagementId) : dest.engagementId}`;
     case "special_use":
       return `Special Use: ${dest.description}`;
+    case "devil_community":
+      return `Devil Community: ${dest.communityId}`;
+    case "devil_schemes":
+      return `Devil Schemes: ${dest.cardIds.join(", ")}`;
+    case "devil_companion":
+      return `Devil Companion: ${dest.companionRelationshipId}`;
+    case "devil_grimoire":
+      return "Devil Grimoire";
+    case "devil_wizard":
+      return `Devil Wizard: ${dest.wizardId}`;
+    case "devil_denizen":
+      return `Devil Denizen: ${dest.denizenId}`;
+    case "devil_seized_domain":
+      return `Devil Domain: ${dest.seatId}`;
   }
 }
 
@@ -175,7 +189,7 @@ export function buildTimeDestination(
   companionElement: string,
   specialUseDescription: string,
   engagementId?: string,
-): TimeDestination | null {
+): TimeDestinationV4 | null {
   switch (choice) {
     case "unscheduled":
       return null;

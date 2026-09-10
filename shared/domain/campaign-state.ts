@@ -6,7 +6,7 @@ import { PACT_SEAT_IDS } from "./pact-seats";
 import type { MortalityState } from "./shared-world";
 import type { AgeDefinitionId } from "./ages";
 import type { SetupOrreryState, OrreryState } from "./orrery";
-import type { TimeParticipant } from "./time-model";
+import type { TimeParticipant, TimeParticipantV4 } from "./time-model";
 import type { EngagementRecordV4, EngagementRecordV5 } from "./engagement";
 import type { SharedWorldState } from "./shared-world";
 import type { HierophantState } from "./hierophant-state";
@@ -85,7 +85,7 @@ export const LUNAR_PHASES: readonly LunarPhase[] = [
 ] as const;
 
 export interface MonthlyPlayStateV4 {
-  readonly timeParticipants: readonly TimeParticipant[];
+  readonly timeParticipants: readonly TimeParticipantV4[];
   readonly engagements: readonly EngagementRecordV4[];
   readonly wizardmootAttendance: readonly WizardmootAttendance[] | null;
 }

@@ -21,13 +21,16 @@ import {
   isValidFaustianMalignance,
   isValidFaustianOriginClaimId,
   isValidFaustianOriginClaimStatus,
+  isValidFaustianSuit,
 } from "./faustian-catalogs";
-import type { FaustianCardId, FaustianDevilFormId } from "./faustian-catalogs";
+import type { FaustianCardId, FaustianDevilFormId, FaustianSuit } from "./faustian-catalogs";
 import {
   isValidFaustianDemonCondition,
+  isValidFaustianPersistentFullHouseRank,
   type FaustianCommunityState,
   type FaustianDevilObligation,
   type FaustianMachinationCard,
+  type FaustianPersistentMachinationEffect,
   type FaustianPossessionRepresentation,
   type FaustianSelectedDevilForms,
   type FaustianState,
@@ -189,6 +192,8 @@ function obligationKey(obligation: FaustianDevilObligation): string {
       return `${obligation.kind}:${obligation.wizardId}:${obligation.companionRelationshipId}`;
     case "monthly_card_drain_while_wizard_alive":
       return `${obligation.kind}:${obligation.wizardId}`;
+    case "permanent_devil_time_from_wizard":
+      return `${obligation.kind}:${obligation.wizardId}`;
   }
 }
 
@@ -242,7 +247,40 @@ function validateObligation(path: string, value: unknown): FaustianDevilObligati
       companionRelationshipId: obligation.companionRelationshipId,
     };
   }
+  if (obligation.kind === "permanent_devil_time_from_wizard") {
+    if (typeof obligation.wizardId !== "string" || !isValidWizardId(obligation.wizardId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.wizardId is invalid: ${JSON.stringify(obligation.wizardId)}`);
+    }
+    if (typeof obligation.weeks !== "number" || !Number.isSafeInteger(obligation.weeks) || obligation.weeks < 1) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.weeks must be a positive safe integer`);
+    }
+    return {
+      kind: "permanent_devil_time_from_wizard",
+      wizardId: obligation.wizardId,
+      weeks: obligation.weeks,
+    };
+  }
   throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.kind is invalid: ${JSON.stringify(obligation.kind)}`);
+}
+
+function validatePersistentMachinationEffect(path: string, value: unknown): FaustianPersistentMachinationEffect {
+  if (value === null || value === undefined || typeof value !== "object") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be an object`);
+  }
+  const effect = value as Record<string, unknown>;
+  if (effect.kind === "flush") {
+    if (typeof effect.suit !== "string" || !isValidFaustianSuit(effect.suit)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.suit is invalid: ${JSON.stringify(effect.suit)}`);
+    }
+    return { kind: "flush", suit: effect.suit as FaustianSuit };
+  }
+  if (effect.kind === "full_house") {
+    if (typeof effect.rank !== "string" || !isValidFaustianPersistentFullHouseRank(effect.rank)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.rank is not a persistent Full-House rank: ${JSON.stringify(effect.rank)}`);
+    }
+    return { kind: "full_house", rank: effect.rank };
+  }
+  throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.kind is invalid: ${JSON.stringify(effect.kind)}`);
 }
 
 function collectLocatedCards(faustian: FaustianState): string[] {
@@ -587,6 +625,29 @@ export function validateFaustianStructure(faustian: unknown): void {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate Faustian Devil obligation: ${key}`);
     }
     obligationKeys.add(key);
+  }
+
+  if (!Array.isArray(f.resolvedFlushSuits)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "faustian.resolvedFlushSuits must be an array");
+  }
+  const flushSuits = new Set<string>();
+  for (let i = 0; i < f.resolvedFlushSuits.length; i++) {
+    const path = `faustian.resolvedFlushSuits[${i}]`;
+    const suit = f.resolvedFlushSuits[i];
+    if (typeof suit !== "string" || !isValidFaustianSuit(suit)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} is not a valid Faustian Flush suit: ${JSON.stringify(suit)}`);
+    }
+    if (flushSuits.has(suit)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate Faustian Flush suit history entry: ${suit}`);
+    }
+    flushSuits.add(suit);
+  }
+
+  if (!Array.isArray(f.persistentMachinationEffects)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "faustian.persistentMachinationEffects must be an array");
+  }
+  for (let i = 0; i < f.persistentMachinationEffects.length; i++) {
+    validatePersistentMachinationEffect(`faustian.persistentMachinationEffects[${i}]`, f.persistentMachinationEffects[i]);
   }
 
   const located = collectLocatedCards({
