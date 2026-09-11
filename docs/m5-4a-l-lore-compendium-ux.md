@@ -1,8 +1,16 @@
 # M5.4A-L — Lore & Compendium UX
 
-**Status:** Pass 1 COMPLETE — derived presentation contract and read model. Pass 2 (React) is not started.
+**Status:** COMPLETE — Pass 1 presentation/read-model and Pass 2 Compendium/contextual UI are implemented. Real browser/Convex Development closure succeeded. M5.4A-L is complete. ALL OF M5.4 is NOT complete.
 **Workstream boundary:** Lore presentation only. This document does **not** mark all of M5.4 complete.
-**Schema:** CampaignState V5 remains PRE-ACTIVATION. Pass 1 adds no persisted Lore fields and does not create V6.
+**Schema:** CampaignState V5 remains PRE-ACTIVATION. This Workstream adds no persisted Lore fields and does not create V6.
+
+## Implemented / closure
+
+- First-class PlayShell **Compendium** destination with subject-oriented effective Lore, human labels, and source attribution.
+- **Add Lore** / **Revise** through existing canonical commands, including stale-conflict draft preservation.
+- Reusable `LoreContextPanel`.
+- Necromancer Gate representative integration in the existing Gate inspector.
+- Fresh disposable Convex Development + real browser proof: Compendium write → campaign state → shared presentation → Necromancer contextual consumer, including refresh persistence.
 
 ## Purpose
 
