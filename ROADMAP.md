@@ -1,263 +1,352 @@
-# Seven-Part Pact — Roadmap
+# Seven-Part Pact App Roadmap
 
-## Milestone 1 (Complete)
+## Roadmap Status
 
-Initial application scaffold. React + Vite + TypeScript frontend, Convex
-backend, Vercel hosting. Basic campaign state with month ordinal and legacy
-event log.
+This roadmap supersedes the earlier provisional M3+ outline.
 
-## Milestone 2 (Complete)
+The project has completed its persistence/core-play foundations and all seven Wizard Domain structural foundations. The next phase moves from representability toward shared Lore, practical Domain operability, realistic full-Pact use, complex magic, usability, and production readiness.
 
-Canonical commit architecture with full audit trail:
+The roadmap describes dependency order and milestone intent. Exact Workstream boundaries remain subject to Master/human approval as source and repository evidence develops.
 
-- CampaignState V1: `schemaVersion: 1`, `calendar.monthOrdinal`.
-- Canonical commit with idempotent commands and immutable revision/event/snapshot
-  records.
-- History control (undo/redo stacks).
-- Checkpoint create/restore.
-- Portable application backup/import (current CampaignState + integrity digest).
-- Full-fidelity disaster recovery via Convex operational export/restore.
-- Campaign health verifier.
+## Guiding Principles
 
-## Milestone 3 — Campaign Identity & Pact Roles Foundation (Complete)
+- Preserve CampaignState safety over convenience.
+- Keep clients intent-driven and server results authoritative.
+- Preserve canonical transactions, complete snapshots, immutable audit, idempotency, fail-closed validation, whole-state Undo/Redo, backups, checkpoints, and recovery.
+- Distinguish structural representability from command automation and UI.
+- Automate deterministic bookkeeping; preserve table interpretation where the game expects human judgment.
+- Prefer specific Seven-Part-Pact models over generic TTRPG abstractions.
+- Use the V5 pre-activation window deliberately; do not create unnecessary compatibility/migration burden while current V5 artifacts remain disposable.
+- Use realistic integrated play to discover remaining representability gaps rather than repeatedly performing speculative exhaustive audits.
 
-V2 campaign state: entity model for campaign setup and wizard seat management.
+---
 
-**Bounded scope:**
+## M1 — Realtime Foundation
 
-- CampaignState V2: adds `configuration`, `players`, `wizards`, `pactSeats`.
-- 11 M3 commands (add/rename/remove player, create/rename wizard, set portrayal,
-  set seat wizard/status/watcher, set age, set facilitator).
-- Pre-transition idempotency for all M3 commands.
-- Explicit admin-only V1-to-V2 current-state migration.
-- Historical snapshot in-memory migration at load boundaries
-  (`loadHistoricalState`).
-- Campaign setup UI for players, wizards, and pact seats.
-- Retained wizard reassignment (unassigned wizards can be assigned to empty
-  seats).
+**STATUS: COMPLETE**
 
-**Not in M3 scope:**
+Established the initial realtime shared campaign/Orrery foundation.
 
-- Wizard hard-delete (future deletion semantics are unsettled).
-- Social/auth integration (players are campaign-level, not account-level).
-- Calendar/orrery mechanics beyond existing month ordinal.
-- Game-phase automation or domain-specific event processing.
-- Multi-campaign or campaign-fork operations.
+---
 
-**Deployment status:**
+## M2 — Persistence Foundation
 
-- EXPAND phase implemented and merged to main.
-- Disposable rehearsal completed successfully.
-- Production EXPAND deployed; production MIGRATE completed and verified
-  (campaignRevision remained 0; verifier valid including history-control and
-  checkpoint status; browser smoke nominal).
-- Historical revision-0 V1 snapshot remains physically immutable.
-- Retained dev/bolt and dev/vercel deployments reseeded from fresh valid
-  production V2 export (old development histories were disposable).
-- Disposable dev/m3-rehearsal and preview/bolt-milestone-3 deployments removed.
-- CONTRACT code implemented (narrows authoritative campaign record validator to
-  V2-only). Historical V1 support intentionally retained for
-  snapshots/recovery/undo-redo/checkpoints/legacy backup import/verifier paths.
-- CONTRACT validator narrowing was merged and deployed to production.
-- CONTRACT was rehearsed successfully on the retained V2 development deployment.
-- Post-CONTRACT production verification remained valid:
-  `status`, `historyControlStatus`, and `checkpointStatus` all `valid`;
-  campaignRevision 0, 0 revisions/events, 1 historical snapshot, 0 checkpoints.
-- Production browser smoke after CONTRACT completed with no unexpected behavior.
-- Historical V1 support remains intentionally retained for
-  snapshots/recovery/undo-redo/checkpoints/legacy backup import/verifier paths.
-- **M3 COMPLETE.**
-- See `docs/v1-to-v2-migration-procedure.md` for staged rollout.
+**STATUS: COMPLETE**
 
-## Milestone 4 — Shared Monthly Play Loop (Complete)
+Tag: `v0.2-persistence-foundation`
 
-Normal shared monthly play is implemented end-to-end as a thin complete vertical
-slice:
+Established the canonical persistence architecture:
 
-```
-New Moon -> Visions -> Planning -> Story -> Meeting -> Quiet -> next New Moon
-```
+- authoritative current CampaignState;
+- transactional gameplay writes;
+- monotonic revisions;
+- immutable audit events;
+- complete snapshots;
+- idempotent commands;
+- Undo/Redo;
+- Checkpoints/Restore;
+- portable Backup/Import;
+- operational recovery;
+- campaign-health verification;
+- schema-evolution safeguards.
 
-**Delivered:**
+---
 
-- CampaignState V3: discriminated Setup/Play lifecycle, Orrery state, monthly
-  Time/Engagement state, Wizardmoot attendance history.
-- Intentional retirement of V1 and V2 CampaignState (one-time pre-release
-  compatibility break; pre-M4 campaign data were explicitly disposable).
-- Campaign lifecycle: explicit creation, Setup, atomic Begin Play, Play,
-  explicit destructive deletion.
-- Orrery: authoritative planetary model with discrete printed-track positions,
-  full Orrery Time mechanical resolution.
-- Monthly Time system: participant budgets, allocation scheduling during
-  Planning, Story rescheduling with allowance, spend/waste resolution.
-- Monthly Engagements: per-Wizard scheduling, avoiding-Denizen linked Time.
-- Six-phase monthly cycle with authoritative shared phase progression.
-- Atomic month transition (advance calendar/planets, archive attendance,
-  initialize new month state).
-- Campaign creation and destructive deletion with full persistence-graph
-  cleanup.
-- Surface-based UI shell for Play with phase-aware defaults.
-- Recovery UI moved under Campaign Tools with global/shared wording.
+## M3 — Core Campaign Model
 
-**Closeout verification:**
+**STATUS: COMPLETE**
 
-- Final deterministic repository check passed after the last M4 fixes.
-- Real Convex multi-batch campaign deletion was exercised beyond the 200-record
-  batch limit.
-- Real interrupted deletion/resumption and duplicate concurrent deletion
-  requests converged safely.
-- Actual Convex V3 partial-Setup serialization and multi-client realtime
-  propagation were exercised.
-- A normal browser monthly loop was exercised end-to-end.
-- Real browser portable-backup download/import was exercised.
-- Integration testing exposed a Quiet React hook-order defect; it was fixed with
-  an automated regression test.
-- The permanent campaign-health verifier (`verifyMigration:verifyMigration`)
-  reported valid after the final runtime/schema deployment.
-- Deterministic stale-context/concurrency semantics are covered by automated
-  tests; imprecise manual simultaneous-button races were intentionally not used.
+Established the campaign, Player/Pact-seat, core shared identity, and semantic command foundation.
 
-**Known deferred usability work:**
-- The core loop is usable, but the UI is not considered polished or fully
-  responsive.
-- Orrery presentation and general UI/layout polish remain future work. Their
-  roadmap placement is intentionally left to the Master/user rather than being
-  assigned a new milestone here.
+---
 
-**Not in M4 scope:**
+## M4 — Shared Monthly Play Loop
 
-- Domain engines, full Wizard character systems, Watcher system UI, magic,
-  Lore, Notes, generic Impact, persistent Scene records, generic TTRPG
-  frameworks.
-- Social/auth integration, multi-campaign, per-player Undo.
+**STATUS: COMPLETE**
 
-**Design document:** [docs/m4-shared-monthly-play-loop.md](docs/m4-shared-monthly-play-loop.md)
+Established the shared month lifecycle and table loop, including Orrery, lunar phases, Time, Engagements, Wizardmoot, and shared play-shell behavior.
 
-## Milestone 5 — Wizard, World, Domain, and Campaign Knowledge Systems (In Progress)
+---
 
-Milestone 5 builds the Seven-Part Pact-specific game structures required for
-normal campaign operation while preserving the generic persistence/recovery
-foundation established in earlier milestones.
+## M5 — Seven-Part-Pact World and Domain Systems
 
-### M5.1 — Wizard Character Foundation (Complete)
+### Wizard Character Foundation
 
-Established the shared Wizard character foundation and CampaignState V4.
+**STATUS: COMPLETE**
 
-**Delivered:**
+Established stable Wizard identity and shared character-sheet state.
 
-- CampaignState V4 as the sole supported current and historical runtime
-  baseline after an explicitly approved disposable pre-release V3 retirement.
-- Required Wizard character state with incomplete configuration supported.
-- Elements, Pact-Fragment personal form, Familiar description, age, public
-  Changes of Magic, Important Notes, and interim Element-keyed Companion
-  descriptions.
-- Canonical `update_wizard_character` command and versioned audit event.
-- Wizard character editing integrated into setup/play presentation.
-- Existing snapshot, Undo/Redo, checkpoint, backup/import, equality, and
-  verification mechanics continue to carry complete Wizard character state.
+### M5.2B — Shared World Foundation
 
-The M5.1 Companion descriptions are explicitly interim and are replaced by the
-shared Denizen/Companion relationship model in M5.2.
+**STATUS: COMPLETE**
 
-**Design document:** [docs/m5-wizard-character-foundation.md](docs/m5-wizard-character-foundation.md)
+Established shared Denizens, Isles, Places, and CompanionRelationships.
 
-### M5.2 — Shared World + Active Domain Structures (In Progress)
+### M5.2C-H — Hierophant Structural Foundation
 
-M5.2 establishes shared world identity first, then implements the five active
-Domain structures for structured manual operation before significant rules
-automation.
+**STATUS: COMPLETE**
 
-#### M5.2B — Shared World Foundation
+### M5.2C-M — Mariner Structural Foundation
 
-**Approved scope:**
+**STATUS: COMPLETE**
 
-- CampaignState V5 with embedded shared-world state.
-- Stable lightweight Denizen identity, including collective characters.
-- Stable Isle and meaningful place identity without a universal geographic
-  tree.
-- Changeable Wizard home-Isle and Sanctum-place associations; changing an
-  association preserves the previous place.
-- Explicit current/ended Companion relationships between Wizard, Element, and
-  Denizen; replacing a Companion preserves the previous relationship and
-  Denizen.
-- Existing-Denizen Engagement targets alongside legitimate manual named
-  targets.
-- Existing persisted Time destinations remain unchanged, with any concrete
-  world links presented only as current context.
-- Minimal World directory/detail/picker UI and Wizard-sheet integration.
-- No hard-delete operations for shared world subjects in this slice.
-- No automatic world seeding and no new Begin Play blockers.
-- Existing canonical persistence, snapshots, audit history, idempotency,
-  Undo/Redo, checkpoints, backup/import, verification, and campaign-deletion
-  semantics remain authoritative.
+### M5.2C-N — Necromancer Structural Foundation
 
-V4 is not redefined or silently migrated. V5 runtime activation requires the
-separately approved disposable-data cutover procedure for each actual target.
+**STATUS: COMPLETE**
 
-#### M5.2C — Five Active Domain Structures
+### M5.2D — Shared Wizard & Denizen State Foundation
 
-Implement in this order unless later evidence requires an approved change:
+**STATUS: COMPLETE**
 
-1. **Hierophant — Temples of the Flame**
-2. **Mariner — Storming Seas**
-3. **Necromancer — Gates of Death**
-4. **Faustian — Devil's Chains**
-5. **Sorcerer — Truth of Magic**
+PR #17 merged.
 
-These slices establish persistent structures and manual operations first.
-Significant automatic rule resolution remains deferred until the relevant
-mechanics have a demonstrated need and an approved design.
+Established shared mortality, Powerful-Denizen, Treasure, Pact-Fragment, and related cross-Domain foundations.
 
-Warlock and Sage Domain boards are deferred. Their people, places, and
-reference concepts may still be represented when an active system needs them.
+### M5.2E — Faustian + Sage + Warlock Structural Foundations
 
-**Known M5.2 deferred decisions / boundaries:**
+**STATUS: COMPLETE**
 
-- The Faustian Codex and Materials disagree on the Capricorn/Pisces Community
-  mapping. Do not seed a definitive mapping until the source conflict is
-  adjudicated.
-- Treasure identity/holding is deferred to its first concrete Domain consumer
-  within M5.2; it must remain a bounded manual model, not a generic inventory or
-  magic engine.
-- Familiar remains Wizard-associated descriptive state for now.
-- Do not prematurely generalize these structures into a generic TTRPG
-  framework.
+PR #18 merged.
 
-### M5.3 — Campaign Knowledge & Compendium (Planned)
+Established structural CampaignState foundations for Faustian, Sage, and Warlock plus required narrow shared integrations.
 
-Build campaign knowledge on top of stable M5.2 subjects.
+### M5.2F — Sorcerer Structural Foundation
 
-**Planned scope:**
+**STATUS: COMPLETE**
 
-- Contextual Lore, specialized knowledge, and notes attached to resolvable
-  campaign subjects.
-- Search across subjects and their attached knowledge.
-- Fast unattached capture as a fallback when a subject is not yet established.
-- Lore history that can show additions, edits, and removals.
-- Historical knowledge must not appear as current truth by default.
-- Lore-history presentation should use or cooperate with canonical history,
-  rather than establish a competing historical authority.
-- Note history is related but secondary to Lore history.
+PR #20 merged.
 
-Existing descriptions are not automatically Lore.
+Final feature HEAD before merge:
 
-### M5.4 — Optional Shared Table View (Planned)
+`1b2e94415b6d55b0241a774a19afb53271709f17`
 
-Explore an optional shared spatial/table presentation for groups that benefit
-from it while preserving the application's efficient textual, tabular, and
-side-by-side views.
+Established the final Wizard Domain structural foundation, including Sorcerer Tower/Research/Knowledge state, stable Grimoire spell references, typed cross-Domain Research Positions, shared Powerful Arcanist/Construct/Witch taxonomies, and narrow shared Tome/Reagent custody.
 
-M5.4 is not a prerequisite for normal M5.2/M5.3 operation and is not a map
-canvas requirement for the shared-world foundation.
+**Milestone consequence:** all seven Wizard Domains now have structural CampaignState representation.
 
-## Milestone 6 — Magic and Complex Resolution (Provisional / TBD)
+---
 
-TBD.
+## M5.3 — Knowledge & Compendium
 
-## Milestone 7 — Campaign Usability / Multiplayer Ergonomics (Provisional / TBD)
+**STATUS: NEXT / NOT YET CHARTERED**
 
-TBD.
+### Objective
 
-## Milestone 8 — Production Readiness (Provisional / TBD)
+Establish a shared durable model for mutable Lore/Compendium knowledge that is used across actual Seven-Part-Pact systems rather than hidden in Domain-local notes.
 
-TBD.
+### Design questions
+
+The Workstream should determine:
+
+- stable identity for mutable Lore entries;
+- attachment/subject model grounded in real Seven-Part-Pact entities;
+- source-defined initial Lore versus campaign-created Lore;
+- current truth versus superseded/historical truth;
+- how adding/changing Lore interacts with existing immutable audit without making CampaignState event-sourced;
+- visibility/knowledge where the source distinguishes Wizard/Watcher/Audience knowledge;
+- integration with Map/Isle/Sanctum Lore;
+- Research and Sorcerer Discoveries;
+- Denizen/Domain facts;
+- Truth-Watcher responsibilities and precedent;
+- future magic consumers.
+
+### Boundaries
+
+Do not make M5.3:
+
+- a generic wiki;
+- a generic knowledge graph;
+- a generic notes platform;
+- full Sorcerer Research automation;
+- spellcasting;
+- broad UI.
+
+M5.3 should first close the shared state/semantic contract. Minimum editing UI may be included only when explicitly chartered.
+
+---
+
+## M5.4 — Minimum Domain Operability & Board Views
+
+**STATUS: PLANNED**
+
+### Objective
+
+Turn the seven completed structural Domain models into practical table-facing tools without attempting exhaustive rules automation.
+
+### Expected shape
+
+For each Domain:
+
+- define the smallest coherent semantic command/editor surface required for normal state maintenance;
+- provide a useful owner/operator board or view;
+- provide simpler non-owner/read presentation where useful;
+- expose shared references coherently;
+- preserve manual interpretation when the rules expect it.
+
+### Explicit anti-goal
+
+Do not implement every Codex action one command at a time.
+
+A Domain is not incomplete merely because some narrative or table-resolved actions remain manual.
+
+---
+
+## M5.5 — Full-Pact Integration & Pre-V5-Activation Review
+
+**STATUS: PLANNED**
+
+### Objective
+
+Run one representative seven-Domain campaign through realistic play-like use and make an explicit decision about remaining structural debt before valuable V5 data exists.
+
+### Verify
+
+- normal campaign setup;
+- all seven Domain views/editing surfaces;
+- cross-Domain references;
+- shared monthly loop;
+- role-aware normal-use visibility;
+- refresh/realtime behavior;
+- realistic state-size performance;
+- backup/export/import;
+- Undo/Redo;
+- checkpoints/recovery/health verification where appropriate.
+
+### Architecture review
+
+Explicitly review source-valid deferred capabilities that may be expensive to add after schema activation:
+
+- additional Wizards;
+- additional Sorcerers/Towers;
+- arbitrary/multiple Domain-instance implications;
+- Wicker-Ways;
+- Pact-Law sanctions/anathema;
+- any other representability gap exposed by realistic integrated use.
+
+Do not implement every exotic rule merely because it appears in source. Decide which capabilities need representability before V5 freeze.
+
+---
+
+## CampaignState V5 Activation Gate
+
+**STATUS: PRE-ACTIVATION**
+
+This is an explicit decision gate, not an automatic milestone transition.
+
+Before V5 is activated/frozen:
+
+1. perform the M5.5 integrated review;
+2. revisit known pre-activation architecture items;
+3. decide whether any incompatible representation change should be made while V5 artifacts are still disposable;
+4. decide whether the project is ready to preserve valuable campaign state/backups/checkpoints.
+
+If the project proceeds directly into M6 and no valuable V5 campaign data needs preservation, the Master/human may deliberately keep V5 pre-activation longer to avoid unnecessary migration work.
+
+Once V5 is activated/frozen, incompatible changes require explicit schema evolution and migration analysis.
+
+---
+
+## M6 — Magic & Complex Resolution
+
+**STATUS: PLANNED**
+
+### Objective
+
+Implement the software-helpful portions of magic and other complex resolution on top of the established Domain/Lore foundations.
+
+### Expected areas
+
+- spellcasting flow;
+- Grimoire spell identity/selection;
+- Glyph/dice mechanics;
+- Limits;
+- Patient casting;
+- Tome/Reagent use;
+- Innovation interaction;
+- persistent magical consequences;
+- Witches/other magic-users where necessary;
+- complex deterministic resolution that benefits from software.
+
+### Boundary
+
+Do not turn narrative Impact or Celestial Audience judgment into rigid automation unless the written rules genuinely define deterministic behavior.
+
+---
+
+## M7 — Campaign Usability & Multiplayer Ergonomics
+
+**STATUS: PLANNED**
+
+### Objective
+
+Make the whole product comfortable for sustained real-table use.
+
+Likely areas:
+
+- campaign setup/onboarding;
+- navigation across shared and Domain state;
+- role-aware owner/non-owner views;
+- Watcher role handoffs;
+- fewer-player support;
+- secret/revealed information presentation;
+- scene/session flow;
+- tablet/desktop ergonomics;
+- accessibility;
+- interaction consistency;
+- reducing clicks and bookkeeping friction.
+
+Normal-use visibility is in scope.
+
+An adversarial player-vs-player security model or a particular authentication mechanism is not implied unless later requirements establish one.
+
+---
+
+## M8 — Production Readiness
+
+**STATUS: PLANNED**
+
+### Objective
+
+Harden the application for trusted long-running campaigns.
+
+Likely areas:
+
+- production environment/deployment controls;
+- observability/diagnostics;
+- performance;
+- accessibility/cross-browser verification;
+- production permissions/security appropriate to the product;
+- migration/recovery rehearsal for the active schema;
+- backup/recovery UX;
+- operational runbooks;
+- release/readiness review.
+
+---
+
+## Current Next Action
+
+Charter **M5.3 — Knowledge & Compendium** as a design-first Workstream.
+
+The Workstream should inspect authoritative source and current merged repository state, return a bounded shared-state design for Master approval, and only then direct Cursor.
+
+### Overnight execution guidance
+
+A longer Cursor batch is acceptable when the implementation contract is already approved and the work has one coherent responsibility.
+
+Good overnight work has:
+
+- approved design;
+- bounded repository search space;
+- explicit exclusions;
+- explicit escalation/stop conditions;
+- proportional verification;
+- one coherent implementation responsibility;
+- a clean checkpoint/report for morning review.
+
+Do **not** use an overnight window as justification for unsupervised architecture discovery plus implementation.
+
+For M5.3, an approved base implementation pass such as shared Lore state + validator + CampaignState integration + representative tests may be an appropriate larger overnight body once the architecture is settled.
+
+If the M5.3 design is not approved before the human stops interacting, use the overnight window for read-only source/repository analysis or design synthesis, not architecture-changing implementation.
+
+Do not repeat the M5.2E failure mode of broad speculative searches, command-by-command micro-slicing, repeated giant gates, or unrelated subsystem work merely to keep Cursor occupied.
