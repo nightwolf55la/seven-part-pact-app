@@ -1763,7 +1763,6 @@ export {
   LORE_CONTEXT_LABEL_CAMPAIGN,
   LORE_WRITE_UNAVAILABLE_NOT_READY,
   readLoreCompendiumReference,
-  readLoreCompendiumReferenceForRuleset,
   loreAddTargetFromDescriptor,
 } from "./lore-presentation";
 

@@ -126,7 +126,9 @@ Implemented as:
 
 The presentation layer is **derived state only**. It is not a second source of truth, a persisted Lore structure, or a new CampaignState field.
 
-Unsupported ruleset/source inconsistency fails closed. There is no fall-forward to `CURRENT_RULESET` or a latest catalog.
+Unsupported ruleset/source inconsistency fails closed. There is no fall-forward to `CURRENT_RULESET` or a latest catalog. `CampaignState.ruleset` is the sole compatibility identity for presentation lookup.
+
+Each source context carries the catalog's `SourceLoreAttribution` (`work`, `pages`, `anchor`) so Pass 2 never reconstructs or reopens the source catalog. Attribution is per context, because one subject may have multiple contexts from different source material. Campaign Lore contexts do not invent printed-source attribution.
 
 ## Contextual Lore panel contract
 
@@ -165,9 +167,18 @@ Operation descriptors on the presentation model are implementation data, not vis
 
 `expectedText` semantics are unchanged from M5.3.
 
-If another accepted write changed the current text, Save fails closed with the existing stale-precondition behavior.
+If another accepted write changed the current text, Save fails closed with the existing stale-precondition behavior. Pass 2 must treat that as a realtime/server conflict:
 
-Pass 2 should then offer an explicit **Use latest as base** rebase: reload the current effective text into the editor as the new base, and retry Save with that text as `expectedText`. Do not auto-merge prose. Do not invent a new command.
+- preserve the user's current draft;
+- expose the latest effective server text for review;
+- ordinary Save remains blocked while conflicted;
+- **Use latest as base** updates the editor's captured/base `expectedText` to the latest server text;
+- the user's draft text remains intact;
+- a subsequent Save attempts that preserved draft against the newly accepted base;
+- never silently overwrite the user's draft;
+- never auto-merge prose.
+
+Do not invent a new command.
 
 ## Modest search / filter direction
 
@@ -177,9 +188,17 @@ Keep this modest: shelf + presence (`has_lore` vs `empty_eligible`) + simple tex
 
 ## Necromancer Gate representative integration
 
-This Workstream’s sole representative UI consumer is Necromancer Gate, in Pass 2.
+This Workstream’s sole representative Domain-board integration is Necromancer Gate, in Pass 2.
 
-Other Domain boards, Sorcerer Research resolution, and a full Compendium shell are later Workstreams that should reuse this contract rather than invent a second Lore presentation model.
+M5.4A-L Pass 2 itself owns:
+
+- the first-class PlayShell Compendium destination;
+- the subject-oriented Compendium surface;
+- LoreContextPanel;
+- Add/Revise interaction;
+- Necromancer Gate representative integration.
+
+Later Domain Workstreams should reuse/refine that common Lore pattern in their own Domain boards. Sorcerer Research resolution remains later work. Do not invent a second Lore presentation model.
 
 ## Explicit exclusions
 
@@ -203,11 +222,12 @@ Pass 1 does not implement or change:
 Pass 2 should:
 
 1. consume `getLoreCompendiumReference` / `readLoreCompendiumReference`;
-2. render a subject-oriented Compendium that can hide `empty_eligible` by default;
-3. render a subject-aware, context-preserving Lore panel;
-4. wire Add/Revise Save/Cancel through the provided operation descriptors;
-5. handle stale `expectedText` with explicit **Use latest as base**;
-6. integrate Necromancer Gate as the representative consumer.
+2. add a first-class PlayShell Compendium destination;
+3. render a subject-oriented Compendium that can hide `empty_eligible` by default;
+4. render a subject-aware, context-preserving `LoreContextPanel`;
+5. wire Add/Revise Save/Cancel through the provided operation descriptors;
+6. handle stale `expectedText` with explicit **Use latest as base** without overwriting the user's draft;
+7. integrate Necromancer Gate as the representative Domain-board consumer.
 
 Do not begin reconstructing catalogs, effective Lore, labels, bindings, Mariner policy, or write targets in React.
 

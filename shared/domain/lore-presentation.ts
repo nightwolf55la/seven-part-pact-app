@@ -1,5 +1,4 @@
 import type { CampaignStateV5, PactSeatStatus } from "./campaign-state";
-import type { RulesetRef } from "./ruleset";
 import type { LoreCollectionId, LoreEntryId } from "./ids";
 import type { PactSeatId } from "./pact-seats";
 import { isValidPactSeatId, PACT_SEAT_IDS, pactSeatDisplayName } from "./pact-seats";
@@ -18,7 +17,7 @@ import {
   MARINER_BOARD_ISLE_DEFINITIONS,
   type MarinerBoardIsleId,
 } from "./mariner-catalogs";
-import type { SourceLoreCollectionDefinition, SourceLoreCollectionId } from "./lore-catalog";
+import type { SourceLoreAttribution, SourceLoreCollectionDefinition, SourceLoreCollectionId } from "./lore-catalog";
 import { lookupSourceLoreCatalog } from "./lore-catalog";
 import type { AddLoreEntryTarget, ReviseLoreEntryTarget } from "./lore-transitions";
 import {
@@ -132,6 +131,7 @@ export type LorePresentationContext =
       readonly sourceCollectionId: SourceLoreCollectionId;
       readonly contextLabel: string;
       readonly headingLabel: string;
+      readonly attribution: SourceLoreAttribution;
       readonly readable: true;
       readonly entries: readonly LorePresentationEntry[];
       readonly write: LoreWriteAvailability;
@@ -245,14 +245,7 @@ interface SubjectAccumulator {
  * Never writes, repairs, rebinds, or falls forward to another ruleset catalog.
  */
 export function readLoreCompendiumReference(state: CampaignStateV5): LoreCompendiumReference {
-  return readLoreCompendiumReferenceForRuleset(state.ruleset, state);
-}
-
-export function readLoreCompendiumReferenceForRuleset(
-  ruleset: RulesetRef,
-  state: CampaignStateV5,
-): LoreCompendiumReference {
-  const lookup = lookupSourceLoreCatalog(ruleset);
+  const lookup = lookupSourceLoreCatalog(state.ruleset);
   if (!lookup.ok) {
     return { ok: false, reason: "unsupported_ruleset" };
   }
@@ -842,6 +835,7 @@ function buildSourceContext(
     sourceCollectionId: definition.sourceCollectionId,
     contextLabel,
     headingLabel: headingLabel(subjectLabel, contextLabel),
+    attribution: definition.attribution,
     readable: true,
     entries: presentSourceEntries(definition, instance, expectedSubject),
     write: sourceWriteAvailability(definition.sourceCollectionId, expectedSubject),

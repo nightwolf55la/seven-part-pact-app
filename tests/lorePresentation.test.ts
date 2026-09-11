@@ -8,7 +8,6 @@ import type {
   LoreEntryId,
   PlaceId,
   PlayerId,
-  RulesetRef,
   WizardId,
 } from "../shared/domain";
 import {
@@ -26,7 +25,6 @@ import {
   loreAddTargetFromDescriptor,
   readEffectiveSourceLore,
   readLoreCompendiumReference,
-  readLoreCompendiumReferenceForRuleset,
   selectMarinerIsleLoreContext,
   selectedMarinerIsleLoreAvailability,
 } from "../shared/domain";
@@ -241,6 +239,7 @@ describe("M5.4A-L Lore presentation read model", () => {
       contextLabel: LORE_CONTEXT_LABEL_CAMPAIGN,
       ordinaryAddPath: true,
     });
+    expect(subject!.contexts[0]).not.toHaveProperty("attribution");
     expect(subject!.contexts[0]?.entries[0]).toMatchObject({
       provenance: "added_in_play",
       text: "The Driftwood Isle appeared after a storm.",
@@ -338,20 +337,46 @@ describe("M5.4A-L Lore presentation read model", () => {
     }
   });
 
-  it("never silently resolves an unsupported ruleset to another catalog", () => {
-    const state = makeTestCampaignStateV5();
-    const unsupported: RulesetRef = { id: "not_seven_part_pact", version: 1 };
-    const wrongVersion: RulesetRef = { id: SEVEN_PART_PACT_DRAFT4_ID, version: 99 };
-    expect(readLoreCompendiumReferenceForRuleset(unsupported, state)).toEqual({
+  it("never silently resolves an unsupported CampaignState.ruleset to another catalog", () => {
+    const unsupported = {
+      ...makeTestCampaignStateV5(),
+      ruleset: { id: "not_seven_part_pact", version: 1 },
+    } as unknown as CampaignStateV5;
+    expect(unsupported.ruleset).toEqual({ id: "not_seven_part_pact", version: 1 });
+    expect(readLoreCompendiumReference(unsupported)).toEqual({
       ok: false,
       reason: "unsupported_ruleset",
     });
-    expect(readLoreCompendiumReferenceForRuleset(wrongVersion, state)).toEqual({
+
+    const wrongVersion = {
+      ...makeTestCampaignStateV5(),
+      ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: 99 },
+    } as unknown as CampaignStateV5;
+    expect(wrongVersion.ruleset).toEqual({ id: SEVEN_PART_PACT_DRAFT4_ID, version: 99 });
+    expect(readLoreCompendiumReference(wrongVersion)).toEqual({
       ok: false,
       reason: "unsupported_ruleset",
     });
     expect(CURRENT_RULESET).toEqual({ id: SEVEN_PART_PACT_DRAFT4_ID, version: 1 });
-    expect(readLoreCompendiumReference(state).ok).toBe(true);
+  });
+
+  it("exposes exact catalog attribution on each distinct source context, not the grouped subject", () => {
+    const presentation = requireOk(readLoreCompendiumReference(makeTestCampaignStateV5()));
+    const subject = subjectWithSource(presentation, "necromancer.home.graven_isle");
+    const owner = sourceContext(subject, "necromancer.home.graven_isle");
+    const delegated = sourceContext(subject, "mariner.delegated.graven_isle");
+    expect(owner.attribution).toEqual({
+      work: "Codex 1. Necromancer [Draft 4]",
+      pages: "10-11",
+      anchor: "Secrets of the Graven Isle",
+    });
+    expect(delegated.attribution).toEqual({
+      work: "Codex 4. Mariner [Draft 4]",
+      pages: "45",
+      anchor: "The Graven Isle, the Land of the Dead",
+    });
+    expect(owner.attribution).not.toEqual(delegated.attribution);
+    expect(subject).not.toHaveProperty("attribution");
   });
 
   it("preserves Mariner Present / Silent / Absent / null selection with no fallback", () => {
