@@ -19,6 +19,7 @@ import {
   initReviseEditor,
   isStaleLoreCommandError,
   LORE_EMPTY_ELIGIBLE_STATUS,
+  markReviseEditorStaleFromServer,
   newLoreCommandId,
   reviseDraftUnchanged,
   syncReviseEditorWithPresentation,
@@ -118,7 +119,7 @@ export default function LoreContextPanel({
           if (current === null) {
             return current;
           }
-          return { ...current, conflicted: true, latestServerText: null };
+          return markReviseEditorStaleFromServer(current, null);
         });
         setInlineError("Lore changed while you were editing. Your draft has been kept.");
       } else {

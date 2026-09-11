@@ -416,6 +416,97 @@ describe("mutation failure presentation", () => {
     container.remove();
   });
 
+  it("preserves already-known latest server text when stale rejection arrives after reactive presentation", async () => {
+    const base = boundState({
+      lore: {
+        sourceCollections: [{
+          sourceCollectionId: "necromancer.home.graven_isle",
+          boundSubject: GRAVEN_SUBJECT,
+          overrides: [],
+          additions: [],
+        }],
+        campaignCollections: [],
+      },
+    });
+    const presentationBefore = presentationFrom(base);
+    const gravenBefore = presentationBefore.subjects.find((subject) =>
+      subject.contexts.some((context) => context.kind === "source" && context.sourceCollectionId === "necromancer.home.graven_isle"),
+    )!;
+    const revised = applyReviseLoreEntry(base, {
+      target: {
+        kind: "source_entry",
+        sourceCollectionId: "necromancer.home.graven_isle",
+        sourceEntryId: "e01",
+        expectedSubject: GRAVEN_SUBJECT,
+      },
+      expectedText: GRAVEN_E01,
+      text: "Server moved on.",
+    }).nextState;
+    const gravenAfter = presentationFrom(revised).subjects.find((subject) =>
+      subject.contexts.some((context) => context.kind === "source" && context.sourceCollectionId === "necromancer.home.graven_isle"),
+    )!;
+
+    const draft = "Draft after pending stale reject.";
+    let rejectRevise!: (reason: Error) => void;
+    const reviseDeferred = new Promise<never>((_, reject) => {
+      rejectRevise = reject;
+    });
+    mockMutations["m3Commands.reviseLoreEntry"] = vi.fn(() => reviseDeferred);
+
+    function ReactiveThenStaleRejectHarness() {
+      const [subject, setSubject] = useState(gravenBefore);
+      return createElement("div", null,
+        createElement("button", { type: "button", onClick: () => setSubject(gravenAfter) }, "Apply server change"),
+        createElement(LoreContextPanel, { subject, campaignId: CAMPAIGN_ID }),
+      );
+    }
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    flushSync(() => {
+      root.render(createElement(ReactiveThenStaleRejectHarness));
+    });
+    flushSync(() => {
+      button(container, "Revise").click();
+    });
+    setInputValue(container.querySelector(`textarea[aria-label="Revise Lore text"]`) as HTMLTextAreaElement, draft);
+    await act(async () => {
+      button(container, "Save").click();
+      await Promise.resolve();
+    });
+    expect(mockMutations["m3Commands.reviseLoreEntry"]).toHaveBeenCalledTimes(1);
+
+    flushSync(() => {
+      button(container, "Apply server change").click();
+    });
+    expect((container.querySelector(`textarea[aria-label="Revise Lore text"]`) as HTMLTextAreaElement).value).toBe(draft);
+    expect(button(container, "Save").disabled).toBe(true);
+    expect(container.textContent).toContain("Server moved on.");
+    expect(useLatestAsBaseButton(container)).not.toBeNull();
+    expect(container.textContent).not.toContain("Waiting for the latest Lore text…");
+
+    await act(async () => {
+      rejectRevise(new Error("STALE_COMMAND_PRECONDITION Lore text: expected current text does not match"));
+      await Promise.resolve();
+    });
+    expect((container.querySelector(`textarea[aria-label="Revise Lore text"]`) as HTMLTextAreaElement).value).toBe(draft);
+    expect(container.textContent).toContain("Your draft is preserved");
+    expect(button(container, "Save").disabled).toBe(true);
+    expect(container.textContent).toContain("Server moved on.");
+    expect(useLatestAsBaseButton(container)).not.toBeNull();
+    expect(container.textContent).not.toContain("Waiting for the latest Lore text…");
+
+    flushSync(() => {
+      useLatestAsBaseButton(container)!.click();
+    });
+    expect((container.querySelector(`textarea[aria-label="Revise Lore text"]`) as HTMLTextAreaElement).value).toBe(draft);
+    expect(button(container, "Save").disabled).toBe(false);
+
+    root.unmount();
+    container.remove();
+  });
+
   it("shows a human generic error for ordinary mutation failures", async () => {
     mockMutations["m3Commands.reviseLoreEntry"] = vi.fn(async () => {
       throw new Error("ConvexError: [Request ID: abc] internal mutation transport failure");
