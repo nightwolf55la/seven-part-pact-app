@@ -24,6 +24,8 @@ import {
   researchOutpostGroupLabel,
   schoolPresentation,
   tutorAcademicOrderAfterDestination,
+  resolveTransferSelection,
+  transferableConsumableOptions,
   visualTowerBands,
   visualTowerOccupants,
   wizardConsumableCount,
@@ -388,6 +390,132 @@ describe("consumable movement payloads", () => {
     });
     expect(JSON.stringify(take)).not.toContain("denizen");
     expect(JSON.stringify(giveBack)).not.toContain("subject");
+  });
+
+  it("offers Wizard-only Tomes and Reagents when returning to the Tower", () => {
+    const towerTomes = [{
+      school: { kind: "source" as const, schoolId: "enchantment" as const },
+      schoolLabel: "Enchantment",
+      count: 3,
+    }];
+    const towerReagents = [{ reagentId: "gold" as const, reagentLabel: "Gold", count: 2 }];
+    const holdings: readonly SorcererBoardWizardConsumables[] = [
+      {
+        wizardId: WIZ_A,
+        wizardName: "Mira",
+        tomes: [{
+          school: { kind: "source", schoolId: "artifice" },
+          schoolLabel: "Artifice",
+          count: 2,
+        }],
+        reagents: [{ reagentId: "lead", reagentLabel: "Lead", count: 4 }],
+      },
+      {
+        wizardId: WIZ_B,
+        wizardName: "Caleb",
+        tomes: [],
+        reagents: [{ reagentId: "salt", reagentLabel: "Salt", count: 1 }],
+      },
+    ];
+
+    const takeOptions = transferableConsumableOptions({
+      direction: "tower_to_wizard",
+      towerTomes,
+      towerReagents,
+      wizardConsumables: holdings,
+      wizardId: WIZ_A,
+    });
+    expect(takeOptions.map((option) => option.key)).toEqual([
+      "tome:source:enchantment",
+      "reagent:gold",
+    ]);
+    expect(takeOptions.map((option) => option.item)).not.toEqual(
+      expect.arrayContaining([{ kind: "tome", school: { kind: "source", schoolId: "artifice" } }]),
+    );
+    expect(takeOptions.some((option) => option.item.kind === "reagent" && option.item.reagentId === "lead")).toBe(false);
+
+    const returnOptions = transferableConsumableOptions({
+      direction: "wizard_to_tower",
+      towerTomes,
+      towerReagents,
+      wizardConsumables: holdings,
+      wizardId: WIZ_A,
+    });
+    const artifice = returnOptions.find((option) => option.key === "tome:source:artifice");
+    const lead = returnOptions.find((option) => option.key === "reagent:lead");
+    expect(artifice?.item).toEqual({ kind: "tome", school: { kind: "source", schoolId: "artifice" } });
+    expect(artifice?.count).toBe(2);
+    expect(lead?.item).toEqual({ kind: "reagent", reagentId: "lead" });
+    expect(lead?.count).toBe(4);
+    expect(returnOptions.some((option) => option.key === "tome:source:enchantment")).toBe(false);
+    expect(JSON.stringify(returnOptions)).not.toContain("denizen");
+
+    const payload = buildMoveConsumablePayload({
+      direction: "wizard_to_tower",
+      wizardId: WIZ_A,
+      item: artifice!.item,
+      amount: 2,
+      towerCount: 0,
+      wizardConsumables: holdings,
+    });
+    expect(payload).toEqual({
+      direction: "wizard_to_tower",
+      wizardId: WIZ_A,
+      item: { kind: "tome", school: { kind: "source", schoolId: "artifice" } },
+      amount: 2,
+      expectedSourceCount: 2,
+      expectedDestinationCount: 0,
+    });
+  });
+
+  it("clears a stale transfer selection when the Wizard or direction changes", () => {
+    const holdings: readonly SorcererBoardWizardConsumables[] = [
+      {
+        wizardId: WIZ_A,
+        wizardName: "Mira",
+        tomes: [{
+          school: { kind: "source", schoolId: "artifice" },
+          schoolLabel: "Artifice",
+          count: 2,
+        }],
+        reagents: [],
+      },
+      {
+        wizardId: WIZ_B,
+        wizardName: "Caleb",
+        tomes: [],
+        reagents: [{ reagentId: "lead", reagentLabel: "Lead", count: 1 }],
+      },
+    ];
+    const miraReturn = transferableConsumableOptions({
+      direction: "wizard_to_tower",
+      towerTomes: [],
+      towerReagents: [],
+      wizardConsumables: holdings,
+      wizardId: WIZ_A,
+    });
+    const calebReturn = transferableConsumableOptions({
+      direction: "wizard_to_tower",
+      towerTomes: [],
+      towerReagents: [],
+      wizardConsumables: holdings,
+      wizardId: WIZ_B,
+    });
+    const takeOptions = transferableConsumableOptions({
+      direction: "tower_to_wizard",
+      towerTomes: [{
+        school: { kind: "source", schoolId: "enchantment" },
+        schoolLabel: "Enchantment",
+        count: 3,
+      }],
+      towerReagents: [],
+      wizardConsumables: holdings,
+      wizardId: WIZ_A,
+    });
+    expect(resolveTransferSelection(miraReturn, "tome:source:artifice")).toBe("tome:source:artifice");
+    expect(resolveTransferSelection(calebReturn, "tome:source:artifice")).toBeNull();
+    expect(resolveTransferSelection(takeOptions, "tome:source:artifice")).toBeNull();
+    expect(resolveTransferSelection(takeOptions, "tome:source:enchantment")).toBe("tome:source:enchantment");
   });
 
   it("presents School and Reagent glyphs with human names from catalogs", () => {

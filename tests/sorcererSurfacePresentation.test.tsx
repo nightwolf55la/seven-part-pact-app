@@ -10,6 +10,7 @@ import type { LoreCompendiumUiState } from "../src/lore-view-model";
 
 const CAMPAIGN_ID = "cmp_00000000-0000-0000-0000-000000000001";
 const WIZ_A = "wiz_00000000-0000-0000-0000-00000000000a" as WizardId;
+const WIZ_B = "wiz_00000000-0000-0000-0000-00000000000b" as WizardId;
 
 function denizenId(n: number): DenizenId {
   return `den_00000000-0000-0000-0000-${String(n).padStart(12, "0")}` as DenizenId;
@@ -122,19 +123,50 @@ const PRESENTATION: SorcererBoardReference = {
 
 const LORE: LoreCompendiumUiState = { status: "unavailable" };
 
-function renderSurface(layout: "full" | "narrow" = "full") {
+const RETURN_PRESENTATION: SorcererBoardReference = {
+  ...PRESENTATION,
+  wizardConsumables: [
+    {
+      wizardId: WIZ_A,
+      wizardName: "Mira",
+      tomes: [{
+        school: { kind: "source", schoolId: "artifice" },
+        schoolLabel: "Artifice",
+        count: 2,
+      }],
+      reagents: [{ reagentId: "lead", reagentLabel: "Lead", count: 4 }],
+    },
+    {
+      wizardId: WIZ_B,
+      wizardName: "Caleb",
+      tomes: [],
+      reagents: [{ reagentId: "salt", reagentLabel: "Salt", count: 1 }],
+    },
+  ],
+};
+
+function renderSurface(
+  layout: "full" | "narrow" = "full",
+  presentation: SorcererBoardReference = PRESENTATION,
+) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
   flushSync(() => {
     root.render(createElement(SorcererSurface, {
-      presentation: PRESENTATION,
+      presentation,
       campaignId: CAMPAIGN_ID,
       layout,
       loreCompendium: LORE,
     }));
   });
   return { container, root };
+}
+
+function clickNamedButton(container: HTMLElement, name: string) {
+  const button = [...container.querySelectorAll("button")].find((entry) => entry.textContent?.trim() === name);
+  expect(button).toBeDefined();
+  flushSync(() => button!.click());
 }
 
 describe("Sorcerer surface presentation", () => {
@@ -179,6 +211,32 @@ describe("Sorcerer surface presentation", () => {
     expect(html).toContain("Research Knowledge — Now");
     expect(html).toContain("Aries");
     expect(html).not.toMatch(/Rearrange Tower/);
+    root.unmount();
+    container.remove();
+  });
+
+  it("lets a Wizard return a Tome or Reagent the Tower does not hold", () => {
+    const { container, root } = renderSurface("full", RETURN_PRESENTATION);
+    expect(container.querySelector('[aria-label="Artifice tome, 2 held by Mira"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Lead reagent, 4 held by Mira"]')).toBeNull();
+    clickNamedButton(container, "Return to Tower");
+    expect(container.querySelector('[aria-label="Artifice tome, 2 held by Mira"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Lead reagent, 4 held by Mira"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Enchantment tome, 3 in the Tower"]')).not.toBeNull();
+    flushSync(() => {
+      (container.querySelector('[aria-label="Artifice tome, 2 held by Mira"]') as HTMLButtonElement).click();
+    });
+    expect(container.textContent).toContain("Return 1 from the chosen Wizard to the Tower.");
+    root.unmount();
+    container.remove();
+  });
+
+  it("does not offer Wizard-only items as Take from Tower sources", () => {
+    const { container, root } = renderSurface("full", RETURN_PRESENTATION);
+    expect(container.querySelector('[aria-label^="Artifice tome"]')).toBeNull();
+    expect(container.querySelector('[aria-label^="Lead reagent"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Enchantment tome, 3 in the Tower"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Gold reagent, 2 in the Tower"]')).not.toBeNull();
     root.unmount();
     container.remove();
   });

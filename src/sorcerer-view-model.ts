@@ -463,6 +463,72 @@ export function towerConsumableCount(
     .find((stack) => stack.reagentId === item.reagentId)?.count ?? 0;
 }
 
+export function consumableItemKey(item: SorcererTowerMagicConsumableItem): string {
+  return item.kind === "tome"
+    ? `tome:${item.school.kind}:${item.school.schoolId}`
+    : `reagent:${item.reagentId}`;
+}
+
+export interface TransferableConsumableOption {
+  readonly key: string;
+  readonly item: SorcererTowerMagicConsumableItem;
+  readonly label: string;
+  readonly count: number;
+}
+
+export function transferableConsumableOptions(args: {
+  readonly direction: SorcererTowerMagicConsumableDirection;
+  readonly towerTomes: readonly SorcererBoardTomeStack[];
+  readonly towerReagents: readonly SorcererBoardReagentStack[];
+  readonly wizardConsumables: readonly SorcererBoardWizardConsumables[];
+  readonly wizardId: WizardId | string;
+}): readonly TransferableConsumableOption[] {
+  if (args.direction === "tower_to_wizard") {
+    return [
+      ...args.towerTomes.map((stack) => ({
+        key: consumableItemKey({ kind: "tome", school: stack.school }),
+        item: { kind: "tome" as const, school: stack.school },
+        label: stack.schoolLabel,
+        count: stack.count,
+      })),
+      ...args.towerReagents.map((stack) => ({
+        key: consumableItemKey({ kind: "reagent", reagentId: stack.reagentId }),
+        item: { kind: "reagent" as const, reagentId: stack.reagentId },
+        label: stack.reagentLabel,
+        count: stack.count,
+      })),
+    ];
+  }
+  const wizard = args.wizardConsumables.find((entry) => entry.wizardId === args.wizardId);
+  if (wizard === undefined) {
+    return [];
+  }
+  return [
+    ...wizard.tomes.map((stack) => ({
+      key: consumableItemKey({ kind: "tome", school: stack.school }),
+      item: { kind: "tome" as const, school: stack.school },
+      label: stack.schoolLabel,
+      count: stack.count,
+    })),
+    ...wizard.reagents.map((stack) => ({
+      key: consumableItemKey({ kind: "reagent", reagentId: stack.reagentId }),
+      item: { kind: "reagent" as const, reagentId: stack.reagentId },
+      label: stack.reagentLabel,
+      count: stack.count,
+    })),
+  ];
+}
+
+export function resolveTransferSelection(
+  options: readonly TransferableConsumableOption[],
+  selectedKey: string | null,
+): string | null {
+  if (selectedKey === null) {
+    return null;
+  }
+  return options.some((option) => option.key === selectedKey) ? selectedKey : null;
+}
+
 export function buildMoveConsumablePayload(args: {
   readonly direction: SorcererTowerMagicConsumableDirection;
   readonly wizardId: WizardId;

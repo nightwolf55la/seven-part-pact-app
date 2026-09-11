@@ -8,7 +8,6 @@ import type {
   SorcererKnowledgePoolId,
   SorcererResearcherRefocusDestination,
   SorcererTowerMagicConsumableDirection,
-  SorcererTowerMagicConsumableItem,
 } from "../shared/domain";
 import LoreContextPanel from "./LoreContextPanel";
 import { findPresentationSubjectByRef, type LoreCompendiumUiState } from "./lore-view-model";
@@ -24,13 +23,16 @@ import {
   buildRefocusToAcademicPayload,
   buildRefocusToPositionPayload,
   buildTutorPayload,
+  consumableItemKey,
   knowledgePoolPresentation,
   newCommandId,
   newDenizenId,
   reagentPresentation,
+  resolveTransferSelection,
   schoolPresentation,
   sorcererMutationErrorMessage,
-  wizardConsumableCount,
+  towerConsumableCount,
+  transferableConsumableOptions,
 } from "./sorcerer-view-model";
 
 const btnClass =
@@ -106,17 +108,24 @@ export default function SorcererSurface({
       })
     : undefined;
 
-  const selectedItem = selectedConsumable(presentation, takeItemKey);
   const selectedDirection: SorcererTowerMagicConsumableDirection = returnMode ? "wizard_to_tower" : "tower_to_wizard";
+  const transferOptions = transferableConsumableOptions({
+    direction: selectedDirection,
+    towerTomes: presentation.towerTomes,
+    towerReagents: presentation.towerReagents,
+    wizardConsumables: presentation.wizardConsumables,
+    wizardId: takeWizardId,
+  });
+  const selectedKey = resolveTransferSelection(transferOptions, takeItemKey);
+  const selectedOption = transferOptions.find((option) => option.key === selectedKey) ?? null;
+  const selectedItem = selectedOption?.item ?? null;
   const selectedTowerCount = selectedItem === null
     ? 0
     : selectedItem.kind === "tome"
-      ? presentation.towerTomes.find((stack) => stack.school.kind === selectedItem.school.kind && stack.school.schoolId === selectedItem.school.schoolId)?.count ?? 0
-      : presentation.towerReagents.find((stack) => stack.reagentId === selectedItem.reagentId)?.count ?? 0;
-  const selectedWizardCount = selectedItem === null || takeWizardId.length === 0
-    ? 0
-    : wizardConsumableCount(presentation.wizardConsumables, takeWizardId as never, selectedItem);
-  const maxTake = selectedDirection === "tower_to_wizard" ? selectedTowerCount : selectedWizardCount;
+      ? towerConsumableCount(presentation.towerTomes, selectedItem)
+      : towerConsumableCount(presentation.towerReagents, selectedItem);
+  const maxTake = selectedOption?.count ?? 0;
+  const selectedWizard = presentation.wizardConsumables.find((wizard) => wizard.wizardId === takeWizardId);
 
   const archivesAndLore = (
     <div className="flex flex-wrap items-start gap-3">
@@ -260,13 +269,16 @@ export default function SorcererSurface({
           <ul className="flex flex-wrap gap-2">
             {presentation.towerTomes.map((stack) => {
               const meta = schoolPresentation(stack.school, stack.schoolLabel);
-              const key = `tome:${stack.school.kind}:${stack.school.schoolId}`;
+              const key = consumableItemKey({ kind: "tome", school: stack.school });
+              const selected = !returnMode && selectedKey === key;
               return (
                 <li key={key}>
                   <button
                     type="button"
-                    className={`h-16 w-16 rounded-sm border-2 text-center ${takeItemKey === key ? "border-[#7F6000] ring-2 ring-[#7F6000]/40" : "border-[#BF9000]"} bg-[#FFE599]`}
-                    onClick={() => setTakeItemKey(key)}
+                    className={`h-16 w-16 rounded-sm border-2 text-center ${selected ? "border-[#7F6000] ring-2 ring-[#7F6000]/40" : "border-[#BF9000]"} bg-[#FFE599]`}
+                    onClick={() => {
+                      if (!returnMode) setTakeItemKey(key);
+                    }}
                     aria-label={`${meta.name} tome, ${stack.count} in the Tower`}
                   >
                     <span aria-hidden="true" className="block text-lg leading-none">{meta.glyph}</span>
@@ -283,14 +295,17 @@ export default function SorcererSurface({
           <ul className="flex flex-wrap gap-2">
             {presentation.towerReagents.map((stack) => {
               const meta = reagentPresentation(stack.reagentId);
-              const key = `reagent:${stack.reagentId}`;
+              const key = consumableItemKey({ kind: "reagent", reagentId: stack.reagentId });
+              const selected = !returnMode && selectedKey === key;
               return (
                 <li key={key}>
                   <button
                     type="button"
-                    className={`h-16 w-16 rounded-full border-2 text-center ${takeItemKey === key ? "ring-2 ring-[#7F6000]/40" : ""}`}
+                    className={`h-16 w-16 rounded-full border-2 text-center ${selected ? "ring-2 ring-[#7F6000]/40" : ""}`}
                     style={{ background: meta.fill, borderColor: meta.border, color: meta.ink }}
-                    onClick={() => setTakeItemKey(key)}
+                    onClick={() => {
+                      if (!returnMode) setTakeItemKey(key);
+                    }}
                     aria-label={`${meta.name} reagent, ${stack.count} in the Tower`}
                   >
                     <span aria-hidden="true" className="block text-lg leading-none">{meta.glyph}</span>
@@ -303,64 +318,131 @@ export default function SorcererSurface({
           </ul>
         </div>
       </div>
-      {selectedItem !== null && (
-        <form
-          className="mt-4 rounded-md border border-[#BF9000] bg-[#FFFDF5] p-3 space-y-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (takeWizardId.length === 0 || takeAmount < 1) return;
-            handleAction(() => moveConsumable({
-              commandId: newCommandId(),
-              expectedCampaignId: campaignId,
-              ...buildMoveConsumablePayload({
-                direction: selectedDirection,
-                wizardId: takeWizardId as never,
-                item: selectedItem,
-                amount: takeAmount,
-                towerCount: selectedTowerCount,
-                wizardConsumables: presentation.wizardConsumables,
-              }),
-            }));
+      <div className="mt-4 space-y-3">
+        <button
+          type="button"
+          className={ghostBtn}
+          onClick={() => {
+            setReturnMode(!returnMode);
+            setTakeItemKey(null);
           }}
         >
-          <p className="text-sm font-semibold text-[#3d2a00]">
-            {returnMode ? "Return to Tower" : "Take from Tower"}
-          </p>
-          <label className="block text-xs">
-            Wizard
-            <select className={fieldClass} value={takeWizardId} onChange={(event) => setTakeWizardId(event.target.value)}>
-              {presentation.wizardConsumables.map((wizard) => (
-                <option key={wizard.wizardId} value={wizard.wizardId}>{wizard.wizardName}</option>
-              ))}
-            </select>
-          </label>
-          <label className="block text-xs">
-            Amount
-            <input
-              type="number"
-              min={1}
-              max={Math.max(1, maxTake)}
-              className={fieldClass}
-              value={takeAmount}
-              onChange={(event) => setTakeAmount(Number(event.target.value))}
-            />
-          </label>
-          <p className="text-xs text-[#5c4300]">
-            {returnMode
-              ? `Return ${takeAmount} from the chosen Wizard to the Tower.`
-              : `Take ${takeAmount} from the Tower for the chosen Wizard.`}
-          </p>
-          <div className="flex flex-wrap gap-2">
+          {returnMode ? "Take from Tower" : "Return to Tower"}
+        </button>
+        {returnMode && (
+          <div className="rounded-md border border-[#BF9000] bg-[#FFFDF5] p-3 space-y-2">
+            <p className="text-sm font-semibold text-[#3d2a00]">Return to Tower</p>
+            <label className="block text-xs">
+              Wizard
+              <select
+                className={fieldClass}
+                value={takeWizardId}
+                onChange={(event) => {
+                  setTakeWizardId(event.target.value);
+                  setTakeItemKey(null);
+                }}
+              >
+                {presentation.wizardConsumables.map((wizard) => (
+                  <option key={wizard.wizardId} value={wizard.wizardId}>{wizard.wizardName}</option>
+                ))}
+              </select>
+            </label>
+            <p className="text-xs text-[#5c4300]">
+              {selectedWizard === undefined
+                ? "Choose a Wizard who holds Tomes or Reagents."
+                : `Items held by ${selectedWizard.wizardName}.`}
+            </p>
+            <ul className="flex flex-wrap gap-2">
+              {transferOptions.map((option) => {
+                const meta = option.item.kind === "tome"
+                  ? schoolPresentation(option.item.school, option.label)
+                  : reagentPresentation(option.item.reagentId);
+                const heldBy = selectedWizard?.wizardName ?? "the chosen Wizard";
+                const kindLabel = option.item.kind === "tome" ? "tome" : "reagent";
+                return (
+                  <li key={option.key}>
+                    <button
+                      type="button"
+                      className={option.item.kind === "tome"
+                        ? `h-16 w-16 rounded-sm border-2 text-center ${selectedKey === option.key ? "border-[#7F6000] ring-2 ring-[#7F6000]/40" : "border-[#BF9000]"} bg-[#FFE599]`
+                        : `h-16 w-16 rounded-full border-2 text-center ${selectedKey === option.key ? "ring-2 ring-[#7F6000]/40" : ""}`}
+                      style={option.item.kind === "reagent" ? {
+                        background: reagentPresentation(option.item.reagentId).fill,
+                        borderColor: reagentPresentation(option.item.reagentId).border,
+                        color: reagentPresentation(option.item.reagentId).ink,
+                      } : undefined}
+                      onClick={() => setTakeItemKey(option.key)}
+                      aria-label={`${meta.name} ${kindLabel}, ${option.count} held by ${heldBy}`}
+                    >
+                      <span aria-hidden="true" className="block text-lg leading-none">{meta.glyph}</span>
+                      <span className="block text-[10px] leading-tight">{meta.name}</span>
+                      <span className="block text-xs font-semibold">{option.count}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            {transferOptions.length === 0 && (
+              <p className="text-xs text-[#5c4300]">This Wizard has no Tomes or Reagents to return.</p>
+            )}
+          </div>
+        )}
+        {selectedItem !== null && (
+          <form
+            className="rounded-md border border-[#BF9000] bg-[#FFFDF5] p-3 space-y-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (takeWizardId.length === 0 || takeAmount < 1) return;
+              handleAction(() => moveConsumable({
+                commandId: newCommandId(),
+                expectedCampaignId: campaignId,
+                ...buildMoveConsumablePayload({
+                  direction: selectedDirection,
+                  wizardId: takeWizardId as never,
+                  item: selectedItem,
+                  amount: takeAmount,
+                  towerCount: selectedTowerCount,
+                  wizardConsumables: presentation.wizardConsumables,
+                }),
+              }));
+            }}
+          >
+            {!returnMode && (
+              <>
+                <p className="text-sm font-semibold text-[#3d2a00]">Take from Tower</p>
+                <label className="block text-xs">
+                  Wizard
+                  <select className={fieldClass} value={takeWizardId} onChange={(event) => setTakeWizardId(event.target.value)}>
+                    {presentation.wizardConsumables.map((wizard) => (
+                      <option key={wizard.wizardId} value={wizard.wizardId}>{wizard.wizardName}</option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
+            <label className="block text-xs">
+              Amount
+              <input
+                type="number"
+                min={1}
+                max={Math.max(1, maxTake)}
+                className={fieldClass}
+                value={takeAmount}
+                onChange={(event) => setTakeAmount(Number(event.target.value))}
+              />
+            </label>
+            <p className="text-xs text-[#5c4300]">
+              {returnMode
+                ? `Return ${takeAmount} from the chosen Wizard to the Tower.`
+                : `Take ${takeAmount} from the Tower for the chosen Wizard.`}
+            </p>
             <button type="submit" className={btnClass} disabled={pending || takeAmount < 1 || takeAmount > maxTake || maxTake === 0}>
               Save
             </button>
-            <button type="button" className={ghostBtn} onClick={() => setReturnMode(!returnMode)}>
-              {returnMode ? "Take from Tower" : "Return to Tower"}
-            </button>
-          </div>
-          {actionError !== null && <p className="text-xs text-[#990000]" role="alert">{actionError}</p>}
-        </form>
-      )}
+            {actionError !== null && <p className="text-xs text-[#990000]" role="alert">{actionError}</p>}
+          </form>
+        )}
+      </div>
     </section>
   );
 
@@ -510,21 +592,4 @@ export default function SorcererSurface({
       <div className="mt-3">{laws}</div>
     </div>
   );
-}
-
-function selectedConsumable(
-  presentation: SorcererBoardReference,
-  key: string | null,
-): SorcererTowerMagicConsumableItem | null {
-  if (key === null) return null;
-  if (key.startsWith("tome:")) {
-    const stack = presentation.towerTomes.find((entry) => `tome:${entry.school.kind}:${entry.school.schoolId}` === key);
-    return stack === undefined ? null : { kind: "tome", school: stack.school };
-  }
-  if (key.startsWith("reagent:")) {
-    const reagentId = key.slice("reagent:".length);
-    const stack = presentation.towerReagents.find((entry) => entry.reagentId === reagentId);
-    return stack === undefined ? null : { kind: "reagent", reagentId: stack.reagentId };
-  }
-  return null;
 }

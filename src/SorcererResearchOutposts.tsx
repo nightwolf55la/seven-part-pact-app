@@ -5,6 +5,11 @@ import type {
   SorcererBoardResearchPosition,
   SorcererResearcherRefocusDestination,
 } from "../shared/domain";
+import {
+  SORCERER_BUILTIN_ALCHEMICAL_RECIPE_IDS,
+  SORCERER_SOURCE_SCHOOL_IDS,
+  sorcererBuiltinAlchemicalRecipeDefinition,
+} from "../shared/domain";
 import LoreContextPanel from "./LoreContextPanel";
 import { findPresentationSubjectByRef, type LoreCompendiumUiState } from "./lore-view-model";
 import {
@@ -95,11 +100,8 @@ function ResearcherCard({
         templeId: position.target.templeId,
       })
     : undefined;
-  const sourceSchools = [
-    "enchantment", "metamorphosis", "oneirism", "divination",
-    "apotropaism", "thaumaturgy", "invocation", "artifice",
-  ] as const;
-  const builtinRecipes = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth"] as const;
+  const sourceSchools = SORCERER_SOURCE_SCHOOL_IDS;
+  const builtinRecipes = SORCERER_BUILTIN_ALCHEMICAL_RECIPE_IDS;
 
   if (position.occupant === null) {
     return (
@@ -259,7 +261,9 @@ function ResearcherCard({
                 }}
               >
                 {builtinRecipes.map((id) => (
-                  <option key={id} value={`builtin:${id}`}>{id[0]!.toUpperCase() + id.slice(1)} Alchemical Recipe</option>
+                  <option key={id} value={`builtin:${id}`}>
+                    {sorcererBuiltinAlchemicalRecipeDefinition(id).applicationLabel}
+                  </option>
                 ))}
                 {presentation.campaignRecipes.map((recipe) => (
                   <option key={recipe.recipeId} value={`campaign:${recipe.recipeId}`}>{recipe.name}</option>

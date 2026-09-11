@@ -2,6 +2,11 @@ import { useState, type ReactNode } from "react";
 import type { DenizenId } from "../shared/domain";
 import type { SorcererBoardReference, SorcererBoardTowerOccupant, SorcererStudentTutorDestination } from "../shared/domain";
 import {
+  SORCERER_BUILTIN_ALCHEMICAL_RECIPE_IDS,
+  SORCERER_SOURCE_SCHOOL_IDS,
+  sorcererBuiltinAlchemicalRecipeDefinition,
+} from "../shared/domain";
+import {
   academicOccupants,
   canMoveAcademic,
   isReliableArcanistOccupant,
@@ -107,17 +112,8 @@ export default function SorcererTowerBoard({
   const [tutorOrder, setTutorOrder] = useState<readonly DenizenId[]>([]);
 
   const vacantPositions = presentation.researchPositions.filter((position) => position.occupant === null);
-  const sourceSchools = [
-    "enchantment",
-    "metamorphosis",
-    "oneirism",
-    "divination",
-    "apotropaism",
-    "thaumaturgy",
-    "invocation",
-    "artifice",
-  ] as const;
-  const builtinRecipes = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth"] as const;
+  const sourceSchools = SORCERER_SOURCE_SCHOOL_IDS;
+  const builtinRecipes = SORCERER_BUILTIN_ALCHEMICAL_RECIPE_IDS;
 
   function currentTutorDestination(): SorcererStudentTutorDestination | null {
     if (tutorKind === "researcher") {
@@ -388,7 +384,7 @@ export default function SorcererTowerBoard({
               >
                 {builtinRecipes.map((recipeId) => (
                   <option key={recipeId} value={`builtin:${recipeId}`}>
-                    {recipeId[0]!.toUpperCase() + recipeId.slice(1)} Alchemical Recipe
+                    {sorcererBuiltinAlchemicalRecipeDefinition(recipeId).applicationLabel}
                   </option>
                 ))}
                 {presentation.campaignRecipes.map((recipe) => (
