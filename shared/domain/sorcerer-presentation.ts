@@ -6,7 +6,7 @@
  */
 
 import type { CampaignStateV5 } from "./campaign-state";
-import type { DenizenId, IsleId, PlaceId } from "./ids";
+import type { DenizenId, IsleId, PlaceId, WizardId } from "./ids";
 import type { HouseIndex } from "./orrery";
 import { HOUSE_NAMES } from "./orrery";
 import type { PactSeatId } from "./pact-seats";
@@ -109,6 +109,13 @@ export interface SorcererBoardReagentStack {
   readonly count: number;
 }
 
+export interface SorcererBoardWizardConsumables {
+  readonly wizardId: WizardId;
+  readonly wizardName: string;
+  readonly tomes: readonly SorcererBoardTomeStack[];
+  readonly reagents: readonly SorcererBoardReagentStack[];
+}
+
 export interface SorcererBoardLaw {
   readonly lawId: SorcererLawOfMagicId;
   readonly applicationLabel: string;
@@ -177,6 +184,7 @@ export interface SorcererBoardReference {
   readonly archivesSourceTiming: "wizardmoot";
   readonly towerTomes: readonly SorcererBoardTomeStack[];
   readonly towerReagents: readonly SorcererBoardReagentStack[];
+  readonly wizardConsumables: readonly SorcererBoardWizardConsumables[];
   readonly laws: readonly SorcererBoardLaw[];
   readonly arcanists: readonly SorcererBoardArcanist[];
   readonly constructs: readonly SorcererBoardConstruct[];
@@ -353,6 +361,7 @@ function emptyBoard(): SorcererBoardReference {
     archivesSourceTiming: "wizardmoot",
     towerTomes: [],
     towerReagents: [],
+    wizardConsumables: [],
     laws: [],
     arcanists: [],
     constructs: [],
@@ -498,6 +507,32 @@ export function readSorcererBoardReference(state: CampaignStateV5): SorcererBoar
         reagentLabel: sorcererSourceReagentDefinition(stack.reagentId).name,
         count: stack.count,
       })),
+    wizardConsumables: state.wizards.map((wizard) => ({
+      wizardId: wizard.wizardId,
+      wizardName: wizard.name,
+      tomes: state.magicConsumables.tomes
+        .filter((stack) => (
+          stack.custody.kind === "subject"
+          && stack.custody.subject.kind === "wizard"
+          && stack.custody.subject.wizardId === wizard.wizardId
+        ))
+        .map((stack) => ({
+          school: stack.school,
+          schoolLabel: schoolLabel(state, stack.school),
+          count: stack.count,
+        })),
+      reagents: state.magicConsumables.reagents
+        .filter((stack) => (
+          stack.custody.kind === "subject"
+          && stack.custody.subject.kind === "wizard"
+          && stack.custody.subject.wizardId === wizard.wizardId
+        ))
+        .map((stack) => ({
+          reagentId: stack.reagentId,
+          reagentLabel: sorcererSourceReagentDefinition(stack.reagentId).name,
+          count: stack.count,
+        })),
+    })),
     laws,
     arcanists,
     constructs: sorcerer.constructs.map((construct) => ({

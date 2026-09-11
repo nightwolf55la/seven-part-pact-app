@@ -23,6 +23,7 @@ import { makeTestCampaignStateV5 } from "./test-state";
 
 const PLR_A = "plr_00000000-0000-0000-0000-00000000000a" as PlayerId;
 const WIZ_A = "wiz_00000000-0000-0000-0000-00000000000a" as WizardId;
+const WIZ_B = "wiz_00000000-0000-0000-0000-00000000000b" as WizardId;
 const ISL_SPYR = "isl_00000000-0000-0000-0000-0000000000aa" as IsleId;
 const PLC_TOWER = "plc_00000000-0000-0000-0000-0000000000aa" as PlaceId;
 const PLC_UNIV = "plc_00000000-0000-0000-0000-0000000000ab" as PlaceId;
@@ -57,15 +58,26 @@ function baseState(people: ReturnType<typeof person>[]): CampaignStateV5 {
     calendar: { monthOrdinal: 0 as MonthOrdinal },
     configuration: { ageId: "awakening", facilitatorPlayerId: PLR_A },
     players: [{ playerId: PLR_A, name: "Alice" }],
-    wizards: [{
-      wizardId: WIZ_A,
-      name: "Mira",
-      portrayedByPlayerId: PLR_A,
-      character: { ...BLANK_WIZARD_CHARACTER_V5 },
-      homeIsleId: ISL_SPYR,
-      sanctumPlaceId: PLC_TOWER,
-      mortalityState: "not_deceased",
-    }],
+    wizards: [
+      {
+        wizardId: WIZ_A,
+        name: "Mira",
+        portrayedByPlayerId: PLR_A,
+        character: { ...BLANK_WIZARD_CHARACTER_V5 },
+        homeIsleId: ISL_SPYR,
+        sanctumPlaceId: PLC_TOWER,
+        mortalityState: "not_deceased",
+      },
+      {
+        wizardId: WIZ_B,
+        name: "Caleb",
+        portrayedByPlayerId: null,
+        character: { ...BLANK_WIZARD_CHARACTER_V5 },
+        homeIsleId: ISL_SPYR,
+        sanctumPlaceId: null,
+        mortalityState: "not_deceased",
+      },
+    ],
     pactSeats: {
       ...makeTestCampaignStateV5().pactSeats,
       sorcerer: { status: "present", wizardId: WIZ_A, watcherPlayerId: null },
@@ -249,6 +261,62 @@ describe("readSorcererBoardReference", () => {
       count: 2,
     }]);
     expect(board.archivesSourceTiming).toBe("wizardmoot");
+  });
+
+  it("derives Wizard consumables separately from Tower stacks and includes every Wizard", () => {
+    const quiet = initializedQuiet();
+    const state: CampaignStateV5 = {
+      ...quiet,
+      magicConsumables: {
+        tomes: [
+          { school: { kind: "source", schoolId: "enchantment" }, custody: { kind: "sorcerer_tower" }, count: 3 },
+          { school: { kind: "source", schoolId: "divination" }, custody: { kind: "subject", subject: { kind: "wizard", wizardId: WIZ_A } }, count: 5 },
+          { school: { kind: "source", schoolId: "artifice" }, custody: { kind: "subject", subject: { kind: "denizen", denizenId: denizenId(7) } }, count: 8 },
+        ],
+        reagents: [
+          { reagentId: "salt", custody: { kind: "sorcerer_tower" }, count: 2 },
+          { reagentId: "gold", custody: { kind: "subject", subject: { kind: "wizard", wizardId: WIZ_A } }, count: 1 },
+          { reagentId: "lead", custody: { kind: "subject", subject: { kind: "denizen", denizenId: denizenId(8) } }, count: 4 },
+        ],
+      },
+    };
+    const board = readSorcererBoardReference(state);
+
+    expect(board.towerTomes).toEqual([{
+      school: { kind: "source", schoolId: "enchantment" },
+      schoolLabel: "Enchantment",
+      count: 3,
+    }]);
+    expect(board.towerReagents).toEqual([{
+      reagentId: "salt",
+      reagentLabel: "Salt",
+      count: 2,
+    }]);
+
+    expect(board.wizardConsumables.map((wizard) => wizard.wizardId)).toEqual([WIZ_A, WIZ_B]);
+    expect(board.wizardConsumables.map((wizard) => wizard.wizardName)).toEqual(["Mira", "Caleb"]);
+
+    const mira = board.wizardConsumables.find((wizard) => wizard.wizardId === WIZ_A);
+    const caleb = board.wizardConsumables.find((wizard) => wizard.wizardId === WIZ_B);
+    expect(mira?.tomes).toEqual([{
+      school: { kind: "source", schoolId: "divination" },
+      schoolLabel: "Divination",
+      count: 5,
+    }]);
+    expect(mira?.reagents).toEqual([{
+      reagentId: "gold",
+      reagentLabel: "Gold",
+      count: 1,
+    }]);
+    expect(caleb?.tomes).toEqual([]);
+    expect(caleb?.reagents).toEqual([]);
+
+    const serialized = JSON.stringify(board.wizardConsumables);
+    expect(serialized).not.toContain(denizenId(7));
+    expect(serialized).not.toContain(denizenId(8));
+    expect(serialized).not.toContain("artifice");
+    expect(serialized).not.toContain("lead");
+    expect(serialized).not.toContain("sorcerer_tower");
   });
 });
 

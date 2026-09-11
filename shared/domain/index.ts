@@ -1835,6 +1835,7 @@ export type {
   SorcererBoardResearchPosition,
   SorcererBoardTomeStack,
   SorcererBoardReagentStack,
+  SorcererBoardWizardConsumables,
   SorcererBoardLaw,
   SorcererBoardArcanist,
   SorcererBoardConstruct,
