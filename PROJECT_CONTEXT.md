@@ -209,6 +209,8 @@ CampaignState V5 remains **PRE-ACTIVATION**. No migration occurred.
 
 **PLANNED**
 
+M5.4A-L Lore & Compendium UX Pass 1 adds a derived Lore presentation read model. See `docs/m5-4a-l-lore-compendium-ux.md`. This does **not** mark all of M5.4 complete.
+
 After shared Lore exists, shift from structural foundations to practical use.
 
 For each Domain:
