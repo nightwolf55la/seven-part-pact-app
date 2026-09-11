@@ -236,12 +236,119 @@ describe("Research Position references", () => {
   });
 });
 
+describe("Research Position ID/target coherence", () => {
+  it("rejects a source singleton ID paired with the wrong target kind", () => {
+    expectInvalid(
+      () => validateSorcererStructure(initializedShape({
+        researchPositions: sourcePositions().map((position) =>
+          position.positionId === "srp_faustian_devils_schemes"
+            ? { ...position, target: { kind: "sage_future_of_pact" } }
+            : position
+        ),
+      })),
+      /target does not match positionId srp_faustian_devils_schemes/,
+    );
+  });
+
+  it("rejects a named Temple Position paired with a different Temple", () => {
+    expectInvalid(
+      () => validateSorcererStructure(initializedShape({
+        researchPositions: sourcePositions().map((position) =>
+          position.positionId === "srp_temple_krolis"
+            ? { ...position, target: { kind: "hierophant_temple", templeId: "notor" } }
+            : position
+        ),
+      })),
+      /target does not match positionId srp_temple_krolis/,
+    );
+  });
+
+  it("rejects a campaign Position ID paired with a source target", () => {
+    expectInvalid(
+      () => validateSorcererStructure(initializedShape({
+        researchPositions: [
+          ...sourcePositions(),
+          {
+            positionId: CAMPAIGN_POSITION as SorcererState["researchPositions"][number]["positionId"],
+            target: { kind: "orrery_house", house: 0 },
+          },
+        ],
+      })),
+      /target does not match positionId/,
+    );
+  });
+
+  it("accepts a campaign Position ID paired with a resolving campaign Knowledge-method target", () => {
+    const extra = initializedShape({
+      campaignKnowledgeMethods: [{ knowledgeMethodId: CAMPAIGN_METHOD, name: "Star-count", description: "Count winter stars." }],
+      researchPositions: [
+        ...sourcePositions(),
+        {
+          positionId: CAMPAIGN_POSITION as SorcererState["researchPositions"][number]["positionId"],
+          target: { kind: "campaign_knowledge_method", knowledgeMethodId: CAMPAIGN_METHOD },
+        },
+      ],
+    });
+    expect(() => validateCampaignStateV5Candidate(campaign(extra))).not.toThrow();
+  });
+
+  it("keeps the existing normal source topology valid", () => {
+    expect(() => validateSorcererStructure(initializedShape({ researchPositions: sourcePositions() }))).not.toThrow();
+  });
+
+  it("keeps an initialized state with the normal positions plus one campaign Knowledge-method Position valid", () => {
+    const extra = initializedShape({
+      campaignKnowledgeMethods: [{ knowledgeMethodId: CAMPAIGN_METHOD, name: "Star-count", description: "Count winter stars." }],
+      researchPositions: [
+        ...sourcePositions(),
+        {
+          positionId: CAMPAIGN_POSITION as SorcererState["researchPositions"][number]["positionId"],
+          target: { kind: "campaign_knowledge_method", knowledgeMethodId: CAMPAIGN_METHOD },
+        },
+      ],
+    });
+    expect(extra.researchPositions).toHaveLength(16);
+    expect(() => validateCampaignStateV5Candidate(campaign(extra))).not.toThrow();
+  });
+});
+
+describe("Researcher operational state", () => {
+  it("preserves a Researcher with operationalThisMonth false in initialized current state", () => {
+    const researcher = denizen(denizenId(1), "Rook");
+    const sorcerer = initializedShape({
+      researchers: [{ denizenId: denizenId(1), positionId: "srp_orrery_1", operationalThisMonth: false }],
+    });
+    expect(() => validateCampaignStateV5Candidate(campaign(sorcerer, {
+      world: worldForInit([researcher]),
+    }))).not.toThrow();
+    expect(validateSorcererStructure(sorcerer).researchers[0]?.operationalThisMonth).toBe(false);
+  });
+
+  it("rejects missing or non-boolean Researcher operational state", () => {
+    const shape = initializedShape();
+    expectInvalid(
+      () => validateSorcererStructure({
+        ...shape,
+        researchers: [{ denizenId: denizenId(1), positionId: "srp_orrery_1" }],
+      } as unknown),
+      /operationalThisMonth must be a boolean/,
+    );
+    expectInvalid(
+      () => validateSorcererStructure({
+        ...shape,
+        researchers: [{ denizenId: denizenId(1), positionId: "srp_orrery_1", operationalThisMonth: "no" }],
+      } as unknown),
+      /operationalThisMonth must be a boolean/,
+    );
+  });
+});
+
 describe("Researchers, Academics, and Tower order", () => {
   it("resolves Researcher Denizens/Positions and rejects duplicate occupants or Academic overlap", () => {
     const researcher = denizen(denizenId(1), "Rook");
     const academic = denizen(denizenId(2), "Ada");
     const base = initializedShape({
-      researchers: [{ denizenId: denizenId(1), positionId: "srp_orrery_1" }],
+      researchers: [{ denizenId: denizenId(1), positionId: "srp_orrery_1", operationalThisMonth: true }],
       academics: [{ denizenId: denizenId(2), role: { kind: "student" } }],
       towerOrder: [denizenId(2)],
     });
@@ -252,15 +359,15 @@ describe("Researchers, Academics, and Tower order", () => {
     expectInvalid(
       () => validateSorcererStructure(initializedShape({
         researchers: [
-          { denizenId: denizenId(1), positionId: "srp_orrery_1" },
-          { denizenId: denizenId(3), positionId: "srp_orrery_1" },
+          { denizenId: denizenId(1), positionId: "srp_orrery_1", operationalThisMonth: true },
+          { denizenId: denizenId(3), positionId: "srp_orrery_1", operationalThisMonth: true },
         ],
       })),
       /Duplicate Researcher Position occupant/,
     );
     expectInvalid(
       () => validateSorcererStructure(initializedShape({
-        researchers: [{ denizenId: denizenId(2), positionId: "srp_orrery_1" }],
+        researchers: [{ denizenId: denizenId(2), positionId: "srp_orrery_1", operationalThisMonth: true }],
         academics: [{ denizenId: denizenId(2), role: { kind: "student" } }],
         towerOrder: [denizenId(2)],
       })),

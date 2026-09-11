@@ -59,6 +59,7 @@ import {
   isValidSorcererCampaignRecipeId,
   isValidSorcererInnovationId,
   isValidSorcererResearchPositionId,
+  researchPositionTargetAgreesWithId,
 } from "./sorcerer-state";
 
 const MAX_TEXT_LENGTH = 8000;
@@ -319,9 +320,16 @@ function validateResearchPosition(path: string, value: unknown): SorcererResearc
       `${path}.positionId is invalid: ${JSON.stringify(record.positionId)}`,
     );
   }
+  const target = validateResearchPositionTarget(`${path}.target`, record.target);
+  if (!researchPositionTargetAgreesWithId(record.positionId, target)) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `${path}.target does not match positionId ${record.positionId}`,
+    );
+  }
   return {
     positionId: record.positionId,
-    target: validateResearchPositionTarget(`${path}.target`, record.target),
+    target,
   };
 }
 
@@ -336,7 +344,12 @@ function validateResearcher(path: string, value: unknown): SorcererResearcher {
       `${path}.positionId is invalid: ${JSON.stringify(record.positionId)}`,
     );
   }
-  return { denizenId: record.denizenId, positionId: record.positionId };
+  assertBoolean(`${path}.operationalThisMonth`, record.operationalThisMonth);
+  return {
+    denizenId: record.denizenId,
+    positionId: record.positionId,
+    operationalThisMonth: record.operationalThisMonth,
+  };
 }
 
 function validateAcademic(path: string, value: unknown): SorcererAcademic {

@@ -225,6 +225,16 @@ describe("initialize_sorcerer age and arrangement", () => {
     expect(() => validateCampaignStateV5Candidate(result.nextState)).not.toThrow();
   });
 
+  it("creates every starting Researcher with operationalThisMonth true", () => {
+    const quiet = applyInitializeSorcerer(baseV5("awakening", quietPeople()), quietInput());
+    expect(quiet.nextState.sorcerer.researchers).toHaveLength(3);
+    expect(quiet.nextState.sorcerer.researchers.every((researcher) => researcher.operationalThisMonth === true)).toBe(true);
+
+    const explosive = applyInitializeSorcerer(baseV5("dominion", explosivePeople()), explosiveInput());
+    expect(explosive.nextState.sorcerer.researchers).toHaveLength(4);
+    expect(explosive.nextState.sorcerer.researchers.every((researcher) => researcher.operationalThisMonth === true)).toBe(true);
+  });
+
   it("initializes Awakening Dynamic with matching Librarian and Tower Arcanist Schools", () => {
     const result = applyInitializeSorcerer(baseV5("awakening", dynamicPeople()), dynamicInput());
     expect(result.nextState.sorcerer.academics.some((academic) => academic.role.kind === "librarian")).toBe(true);

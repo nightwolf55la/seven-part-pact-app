@@ -2250,6 +2250,7 @@ const sorcererStateValidator = v.object({
   researchers: v.array(v.object({
     denizenId: v.string(),
     positionId: v.string(),
+    operationalThisMonth: v.boolean(),
   })),
   academics: v.array(v.object({
     denizenId: v.string(),

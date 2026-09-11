@@ -357,7 +357,11 @@ export function applyInitializeSorcerer(
     if (isOrreryResearchPositionId(assignment.positionId)) {
       orreryResearcherCount += 1;
     }
-    researchers.push({ denizenId: assignment.denizenId, positionId: assignment.positionId });
+    researchers.push({
+      denizenId: assignment.denizenId,
+      positionId: assignment.positionId,
+      operationalThisMonth: true,
+    });
   }
   if (orreryResearcherCount !== 1) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Normal initialization requires exactly one Researcher at an Orrery House");

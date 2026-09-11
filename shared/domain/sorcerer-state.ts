@@ -139,6 +139,7 @@ export interface SorcererResearchPosition {
 export interface SorcererResearcher {
   readonly denizenId: DenizenId;
   readonly positionId: SorcererResearchPositionId;
+  readonly operationalThisMonth: boolean;
 }
 
 export type SorcererRecipeRef =
@@ -334,4 +335,41 @@ export function buildSourceResearchPositions(
     { positionId: "srp_faustian_devils_schemes", target: { kind: "faustian_devils_schemes" } },
     { positionId: "srp_necromancer_final_death", target: { kind: "necromancer_final_death" } },
   ];
+}
+
+/** Fail-closed identity: a Position ID may not be paired with an unrelated target. */
+export function researchPositionTargetAgreesWithId(
+  positionId: SorcererResearchPositionId,
+  target: SorcererResearchPositionTarget,
+): boolean {
+  if (isValidSorcererCampaignResearchPositionId(positionId)) {
+    return target.kind === "campaign_knowledge_method";
+  }
+  switch (positionId) {
+    case "srp_orrery_1":
+    case "srp_orrery_2":
+    case "srp_orrery_3":
+      return target.kind === "orrery_house";
+    case "srp_temple_krolis":
+      return target.kind === "hierophant_temple" && target.templeId === "krolis";
+    case "srp_temple_notor":
+      return target.kind === "hierophant_temple" && target.templeId === "notor";
+    case "srp_temple_ushin":
+      return target.kind === "hierophant_temple" && target.templeId === "ushin";
+    case "srp_temple_zephon":
+      return target.kind === "hierophant_temple" && target.templeId === "zephon";
+    case "srp_court_1":
+    case "srp_court_2":
+      return target.kind === "warlock_ideology";
+    case "srp_sea_1":
+    case "srp_sea_2":
+      return target.kind === "mariner_sea_region";
+    case "srp_sage_future_1":
+    case "srp_sage_future_2":
+      return target.kind === "sage_future_of_pact";
+    case "srp_faustian_devils_schemes":
+      return target.kind === "faustian_devils_schemes";
+    case "srp_necromancer_final_death":
+      return target.kind === "necromancer_final_death";
+  }
 }
