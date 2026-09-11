@@ -48,7 +48,13 @@ A golden catalog digest may be used in deterministic tests as a regression alarm
 
 Do not mutate the semantic Draft4/v1 catalog under the same ruleset key after persisted use without a later explicit Master compatibility/disposal decision. V5 being PRE-ACTIVATION does not by itself make two otherwise-identical same-key saved artifacts distinguishable.
 
-Exact source collection IDs, source-entry IDs, membership, normalized source text, printed order, subject/binding meaning, and delegation mappings live in `shared/domain/lore-catalog-collections.ts` and are looked up by `shared/domain/lore-catalog.ts`.
+Exact source collection IDs, source-entry IDs, membership, normalized source text, printed order, and subject/binding definitions live in `shared/domain/lore-catalog-collections.ts`.
+
+The Mariner delegation/context mapping lives in `shared/domain/lore-state.ts`.
+
+Exact ruleset catalog lookup and the non-persisted semantic catalog manifest live in `shared/domain/lore-catalog.ts`.
+
+The delegation mapping is baseline-semantic Draft4/v1 data and is guarded by deterministic regression coverage. It is not a persisted compatibility identifier.
 
 ## No staged source activation
 

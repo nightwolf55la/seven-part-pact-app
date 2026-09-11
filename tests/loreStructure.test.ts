@@ -18,6 +18,7 @@ import {
   DRAFT4_V1_SOURCE_LORE_COLLECTION_IDS,
   DomainError,
   EMPTY_LORE_STATE,
+  MARINER_FAR_REACH_SOURCE_COLLECTION_ID,
   MARINER_ISLE_LORE_DELEGATION,
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
@@ -206,7 +207,37 @@ describe("M5.3 Body A lore structural foundation", () => {
       .update(JSON.stringify(sourceLoreCatalogSemanticManifest(DRAFT4_V1_SOURCE_LORE_CATALOG)))
       .digest("hex");
     expect(digest).toBe(DRAFT4_V1_SOURCE_LORE_CATALOG_SEMANTIC_DIGEST);
-    expect(digest).toBe("5e6880d9a51e5942ee697578b4eea9bddd8b3364ef081c24f61ae8db9afb2554");
+    expect(digest).toBe("b67d9dac8d7cc73928eb7408dec5f5726147cb2d4c70d2eac872a9cf50cd38a2");
+  });
+
+  it("pins the complete approved Mariner delegation mapping", () => {
+    expect(MARINER_ISLE_LORE_DELEGATION).toEqual({
+      necromancer: {
+        ownerCollectionId: "necromancer.home.graven_isle",
+        delegatedCollectionId: "mariner.delegated.graven_isle",
+      },
+      hierophant: {
+        ownerCollectionId: "hierophant.home.ishana",
+        delegatedCollectionId: "mariner.delegated.ishana",
+      },
+      warlock: {
+        ownerCollectionId: "warlock.home.halcyon_isles",
+        delegatedCollectionId: "mariner.delegated.halcyon_isles",
+      },
+      faustian: {
+        ownerCollectionId: "faustian.home.scuttleport",
+        delegatedCollectionId: "mariner.delegated.scuttleport",
+      },
+      sage: {
+        ownerCollectionId: "sage.home.moonlit_atoll",
+        delegatedCollectionId: "mariner.delegated.sage_atoll",
+      },
+      sorcerer: {
+        ownerCollectionId: "sorcerer.home.spyrholm",
+        delegatedCollectionId: "mariner.delegated.spyrholm",
+      },
+    });
+    expect(MARINER_FAR_REACH_SOURCE_COLLECTION_ID).toBe("mariner.home.far_reach");
   });
 
   it("sparse override keeps source order and changes only the intended text", () => {

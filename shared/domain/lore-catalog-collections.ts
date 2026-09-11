@@ -1439,7 +1439,7 @@ export const DRAFT4_V1_SOURCE_LORE_COLLECTIONS_RAW = [
       },
       {
         sourceEntryId: "e10",
-        text: "The construction of the Gates of Death. Appendix",
+        text: "The construction of the Gates of Death.",
       },
     ],
   },
@@ -1758,7 +1758,7 @@ export const DRAFT4_V1_SOURCE_LORE_COLLECTIONS_RAW = [
       },
       {
         sourceEntryId: "e03",
-        text: "Ymosian Cults are common among the sailors and witches of Scuttleport, for it is hard to go out and witness the awe of the sea and still trust a sputtering flame to aid you against the Leviathan. Appendix",
+        text: "Ymosian Cults are common among the sailors and witches of Scuttleport, for it is hard to go out and witness the awe of the sea and still trust a sputtering flame to aid you against the Leviathan.",
       },
     ],
   },
@@ -2019,7 +2019,7 @@ export const DRAFT4_V1_SOURCE_LORE_COLLECTIONS_RAW = [
       },
       {
         sourceEntryId: "e03",
-        text: "The Diplomat says: The Druj-Lands are the home to many forgotten relics from the Tragedies, as well as occult tomes holding twisted secrets of old magic. Obtaining these resources could make an alliance with the Druj worth tolerating. Appendix",
+        text: "The Diplomat says: The Druj-Lands are the home to many forgotten relics from the Tragedies, as well as occult tomes holding twisted secrets of old magic. Obtaining these resources could make an alliance with the Druj worth tolerating.",
       },
     ],
   },
@@ -2754,7 +2754,7 @@ export const DRAFT4_V1_SOURCE_LORE_COLLECTIONS_RAW = [
       },
       {
         sourceEntryId: "e03",
-        text: "The Nemesis was originally the daughter of the last wizard-king before his experiments, and the betrayal of the agonies inflicted on her is the pulsing cruel heart of Misery. Appendix",
+        text: "The Nemesis was originally the daughter of the last wizard-king before his experiments, and the betrayal of the agonies inflicted on her is the pulsing cruel heart of Misery.",
       },
     ],
   },
@@ -3379,4 +3379,4 @@ export const DRAFT4_V1_SOURCE_LORE_COLLECTIONS_RAW = [
   },
 ];
 
-export const DRAFT4_V1_SOURCE_LORE_CATALOG_SEMANTIC_DIGEST = "5e6880d9a51e5942ee697578b4eea9bddd8b3364ef081c24f61ae8db9afb2554" as const;
+export const DRAFT4_V1_SOURCE_LORE_CATALOG_SEMANTIC_DIGEST = "b67d9dac8d7cc73928eb7408dec5f5726147cb2d4c70d2eac872a9cf50cd38a2" as const;
