@@ -209,6 +209,8 @@ CampaignState V5 remains **PRE-ACTIVATION**. No migration occurred.
 
 **PLANNED**
 
+M5.4A-L Lore & Compendium UX is **complete**. It delivered the shared Lore UX pattern: first-class PlayShell Compendium, subject-oriented effective Lore, Add/Revise, stale-conflict draft preservation, reusable `LoreContextPanel`, and Necromancer Gate representative integration, closed against a fresh disposable Convex Development deployment. See `docs/m5-4a-l-lore-compendium-ux.md`. This does **not** mark all of M5.4 complete. Next work remains the rest of M5.4 — Minimum Domain Operability & Board Views.
+
 After shared Lore exists, shift from structural foundations to practical use.
 
 For each Domain:

@@ -167,6 +167,8 @@ M5.3 should first close the shared state/semantic contract. Minimum editing UI m
 
 **STATUS: PLANNED**
 
+M5.4A-L Lore & Compendium UX is **completed**. The shared Lore UX pattern (PlayShell Compendium, subject-oriented effective Lore, Add/Revise, `LoreContextPanel`, Necromancer Gate representative integration) is recorded in `docs/m5-4a-l-lore-compendium-ux.md`. That work does **not** mark all of M5.4 complete.
+
 ### Objective
 
 Turn the seven completed structural Domain models into practical table-facing tools without attempting exhaustive rules automation.

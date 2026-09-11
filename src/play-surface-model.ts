@@ -1,6 +1,14 @@
 import type { LunarPhase } from "../shared/domain/campaign-state";
 
-export type SurfaceId = "current_phase" | "orrery" | "table_wizards" | "world" | "hierophant" | "mariner" | "necromancer";
+export type SurfaceId =
+  | "current_phase"
+  | "orrery"
+  | "table_wizards"
+  | "world"
+  | "hierophant"
+  | "mariner"
+  | "necromancer"
+  | "compendium";
 
 export interface SurfaceLayout {
   readonly primary: SurfaceId;

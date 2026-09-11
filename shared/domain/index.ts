@@ -1742,6 +1742,30 @@ export {
   expectedSubjectKindForBinding,
 } from "./lore-state";
 
+export type {
+  LorePresentationShelfId,
+  LorePresentationShelf,
+  LoreAddOperationDescriptor,
+  LoreReviseOperationDescriptor,
+  LorePresentationEntry,
+  LoreWriteAvailability,
+  LorePresentationMarinerContextInfo,
+  LorePresentationContext,
+  LorePresentationParallelCampaignCapability,
+  LorePresentationSubject,
+  LorePresentationMarinerSeatSelection,
+  LoreCompendiumReference,
+} from "./lore-presentation";
+export {
+  LORE_PROVENANCE_PRINTED,
+  LORE_PROVENANCE_CHANGED_IN_PLAY,
+  LORE_PROVENANCE_ADDED_IN_PLAY,
+  LORE_CONTEXT_LABEL_CAMPAIGN,
+  LORE_WRITE_UNAVAILABLE_NOT_READY,
+  readLoreCompendiumReference,
+  loreAddTargetFromDescriptor,
+} from "./lore-presentation";
+
 export { validateLoreStructure, validateLoreReferenceIntegrity, assertValidStoredLoreText, validateLoreSubjectRef, MAX_LORE_TEXT_LENGTH } from "./lore-validation";
 
 export type {
