@@ -15,6 +15,8 @@ export type TreasureId = Brand<string, "TreasureId">;
 export type CampaignPowerfulDenizenTaxonomyId = Brand<string, "CampaignPowerfulDenizenTaxonomyId">;
 export type PowerfulDenizenMethodEntryId = Brand<string, "PowerfulDenizenMethodEntryId">;
 export type PowerfulDenizenTruthId = Brand<string, "PowerfulDenizenTruthId">;
+export type LoreCollectionId = Brand<string, "LoreCollectionId">;
+export type LoreEntryId = Brand<string, "LoreEntryId">;
 
 
 const CAMPAIGN_ID_REGEX = /^cmp_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -32,6 +34,8 @@ const TREASURE_ID_REGEX = /^trs_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-
 const CAMPAIGN_POWERFUL_DENIZEN_TAXONOMY_ID_REGEX = /^pdtax_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const POWERFUL_DENIZEN_METHOD_ENTRY_ID_REGEX = /^pdmth_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const POWERFUL_DENIZEN_TRUTH_ID_REGEX = /^pdtru_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const LORE_COLLECTION_ID_REGEX = /^lcol_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const LORE_ENTRY_ID_REGEX = /^lore_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 function generateBrandedId(prefix: string): string {
   return `${prefix}_${crypto.randomUUID()}`;
@@ -206,6 +210,36 @@ export function isValidPowerfulDenizenTruthId(value: string): value is PowerfulD
 export function parsePowerfulDenizenTruthId(value: string): PowerfulDenizenTruthId {
   if (!isValidPowerfulDenizenTruthId(value)) {
     throw new Error(`Invalid PowerfulDenizenTruthId format: "${value}". Expected pdtru_<UUID>.`);
+  }
+  return value;
+}
+
+export function generateLoreCollectionId(): LoreCollectionId {
+  return generateBrandedId("lcol") as LoreCollectionId;
+}
+
+export function isValidLoreCollectionId(value: string): value is LoreCollectionId {
+  return LORE_COLLECTION_ID_REGEX.test(value);
+}
+
+export function parseLoreCollectionId(value: string): LoreCollectionId {
+  if (!isValidLoreCollectionId(value)) {
+    throw new Error(`Invalid LoreCollectionId format: "${value}". Expected lcol_<UUID>.`);
+  }
+  return value;
+}
+
+export function generateLoreEntryId(): LoreEntryId {
+  return generateBrandedId("lore") as LoreEntryId;
+}
+
+export function isValidLoreEntryId(value: string): value is LoreEntryId {
+  return LORE_ENTRY_ID_REGEX.test(value);
+}
+
+export function parseLoreEntryId(value: string): LoreEntryId {
+  if (!isValidLoreEntryId(value)) {
+    throw new Error(`Invalid LoreEntryId format: "${value}". Expected lore_<UUID>.`);
   }
   return value;
 }

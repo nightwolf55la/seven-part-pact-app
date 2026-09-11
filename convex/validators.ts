@@ -2294,6 +2294,92 @@ const sorcererInitializedEventV1Validator = v.object({
   }),
 });
 
+const loreSubjectRefValidator = v.union(
+  v.object({ kind: v.literal("isle"), isleId: v.string() }),
+  v.object({ kind: v.literal("place"), placeId: v.string() }),
+  v.object({ kind: v.literal("necromancer_gate"), gateId: v.string() }),
+  v.object({ kind: v.literal("hierophant_temple"), templeId: v.string() }),
+  v.object({ kind: v.literal("warlock_clan"), clanId: v.string() }),
+  v.object({ kind: v.literal("element"), elementId: v.string() }),
+  v.object({ kind: v.literal("pact_domain"), pactSeatId: v.string() }),
+  v.object({ kind: v.literal("mariner_horizon"), cardinalGroupId: v.string() }),
+  v.object({ kind: v.literal("source_topic"), topicId: v.string() }),
+);
+
+const loreEntryAddedEventV1Validator = v.object({
+  type: v.literal("lore_entry_added"),
+  version: v.literal(1),
+  data: v.object({
+    collection: v.union(
+      v.object({
+        kind: v.literal("source"),
+        sourceCollectionId: v.string(),
+        boundSubject: loreSubjectRefValidator,
+      }),
+      v.object({
+        kind: v.literal("campaign"),
+        collectionId: v.string(),
+        subject: loreSubjectRefValidator,
+      }),
+    ),
+    loreEntryId: v.string(),
+    text: v.string(),
+    collectionCreated: v.boolean(),
+  }),
+});
+
+const loreEntryRevisedEventV1Validator = v.object({
+  type: v.literal("lore_entry_revised"),
+  version: v.literal(1),
+  data: v.object({
+    target: v.union(
+      v.object({
+        kind: v.literal("source_entry"),
+        sourceCollectionId: v.string(),
+        sourceEntryId: v.string(),
+        boundSubject: loreSubjectRefValidator,
+      }),
+      v.object({
+        kind: v.literal("source_addition"),
+        sourceCollectionId: v.string(),
+        loreEntryId: v.string(),
+        boundSubject: loreSubjectRefValidator,
+      }),
+      v.object({
+        kind: v.literal("campaign_entry"),
+        collectionId: v.string(),
+        loreEntryId: v.string(),
+        subject: loreSubjectRefValidator,
+      }),
+    ),
+    previousText: v.string(),
+    text: v.string(),
+    sourceCollectionBound: v.boolean(),
+  }),
+});
+
+const campaignAuthoredLoreEntryValidator = v.object({
+  loreEntryId: v.string(),
+  text: v.string(),
+});
+
+const loreStateValidator = v.object({
+  sourceCollections: v.array(v.object({
+    sourceCollectionId: v.string(),
+    boundSubject: loreSubjectRefValidator,
+    overrides: v.array(v.object({
+      sourceEntryId: v.string(),
+      currentText: v.string(),
+    })),
+    additions: v.array(campaignAuthoredLoreEntryValidator),
+  })),
+  campaignCollections: v.array(v.object({
+    collectionId: v.string(),
+    subject: loreSubjectRefValidator,
+    entries: v.array(campaignAuthoredLoreEntryValidator),
+  })),
+});
+
 export const campaignStateV5Validator = v.object({
   schemaVersion: v.literal(5),
   ruleset: v.object({
@@ -2322,6 +2408,7 @@ export const campaignStateV5Validator = v.object({
   warlock: warlockStateValidator,
   magicConsumables: magicConsumablesStateValidator,
   sorcerer: sorcererStateValidator,
+  lore: loreStateValidator,
 });
 
 export const wizardCharacterUpdatedEventV2Validator = v.object({
@@ -2711,6 +2798,8 @@ export const campaignEventValidator = v.union(
   faustianAccompliceDirectedEventV1Validator,
   faustianPawnDisruptedEventV1Validator,
   sorcererInitializedEventV1Validator,
+  loreEntryAddedEventV1Validator,
+  loreEntryRevisedEventV1Validator,
 );
 
 export const anyCampaignStateValidator = campaignStateV5Validator;

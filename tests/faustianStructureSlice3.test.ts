@@ -31,6 +31,7 @@ import {
   EMPTY_WARLOCK_STATE,
   EMPTY_MAGIC_CONSUMABLES_STATE,
   EMPTY_SORCERER_STATE,
+  EMPTY_LORE_STATE,
   FAUSTIAN_DEVIL_FORM_IDS,
   FAUSTIAN_DEVIL_LAW_IDS,
   MOVABLE_PLANET_IDS,
@@ -805,7 +806,7 @@ describe("M5.2E Faustian durable structural state", () => {
       sage: { ...EMPTY_SAGE_STATE },
       warlock: { ...EMPTY_WARLOCK_STATE },
       magicConsumables: EMPTY_MAGIC_CONSUMABLES_STATE,
-      sorcerer: EMPTY_SORCERER_STATE,
+      sorcerer: EMPTY_SORCERER_STATE, lore: EMPTY_LORE_STATE,
     };
     expect(() => validateCampaignStateV5Candidate(state)).not.toThrow();
     expect(matchesValidator(campaignStateV5Validator, state)).toBe(true);
@@ -889,7 +890,7 @@ describe("M5.2E Faustian durable structural state", () => {
       sage: { ...EMPTY_SAGE_STATE },
       warlock: { ...EMPTY_WARLOCK_STATE },
       magicConsumables: EMPTY_MAGIC_CONSUMABLES_STATE,
-      sorcerer: EMPTY_SORCERER_STATE,
+      sorcerer: EMPTY_SORCERER_STATE, lore: EMPTY_LORE_STATE,
     };
     expect(() => validateCampaignStateV5Candidate(state)).not.toThrow();
     expect(state.faustian.resolvedFlushSuits).toEqual(["hearts", "diamonds"]);

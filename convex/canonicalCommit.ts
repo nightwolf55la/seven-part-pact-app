@@ -249,6 +249,8 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   direct_faustian_accomplice: { required: ["faustian_accomplice_directed"] },
   disrupt_faustian_pawn: { required: ["faustian_pawn_disrupted"] },
   initialize_sorcerer: { required: ["sorcerer_initialized"] },
+  add_lore_entry: { required: ["lore_entry_added"] },
+  revise_lore_entry: { required: ["lore_entry_revised"] },
 };
 
 const CURRENT_V5_EVENT_VERSION_REQUIREMENTS: Record<string, { type: string; version: number }> = {

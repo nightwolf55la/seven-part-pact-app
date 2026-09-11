@@ -1,6 +1,6 @@
 export type { Brand } from "./brand";
 
-export type { CampaignId, CommandId, CheckpointId, PlayerId, WizardId, AllocationId, EngagementId, DenizenId, IsleId, PlaceId, CompanionRelationshipId, TreasureId, CampaignPowerfulDenizenTaxonomyId, PowerfulDenizenMethodEntryId, PowerfulDenizenTruthId } from "./ids";
+export type { CampaignId, CommandId, CheckpointId, PlayerId, WizardId, AllocationId, EngagementId, DenizenId, IsleId, PlaceId, CompanionRelationshipId, TreasureId, CampaignPowerfulDenizenTaxonomyId, PowerfulDenizenMethodEntryId, PowerfulDenizenTruthId, LoreCollectionId, LoreEntryId } from "./ids";
 export {
   isValidCampaignId,
   parseCampaignId,
@@ -34,6 +34,12 @@ export {
   parsePowerfulDenizenMethodEntryId,
   isValidPowerfulDenizenTruthId,
   parsePowerfulDenizenTruthId,
+  generateLoreCollectionId,
+  isValidLoreCollectionId,
+  parseLoreCollectionId,
+  generateLoreEntryId,
+  isValidLoreEntryId,
+  parseLoreEntryId,
 } from "./ids";
 
 export type {
@@ -176,6 +182,13 @@ export type {
   SorcererInitializedDataV1,
   SorcererInitializedEventV1,
   SorcererEvent,
+  LoreEntryAddedCollectionContextV1,
+  LoreEntryAddedDataV1,
+  LoreEntryAddedEventV1,
+  LoreEntryRevisedTargetContextV1,
+  LoreEntryRevisedDataV1,
+  LoreEntryRevisedEventV1,
+  LoreEvent,
   CampaignEvent,
 } from "./events";
 
@@ -418,6 +431,8 @@ export {
   directFaustianAccompliceFingerprint,
   disruptFaustianPawnFingerprint,
   initializeSorcererFingerprint,
+  addLoreEntryFingerprint,
+  reviseLoreEntryFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
@@ -1661,3 +1676,82 @@ export {
   applySetEngagementTargetV5Candidate,
   applyRescheduleEngagementV5Candidate,
 } from "./v5-integration-transitions";
+
+export type {
+  SourceLoreCollectionId,
+  SourceLoreTopicId,
+  SourceLoreEntryId,
+  LoreSubjectKind,
+  SourceLoreBindingDescriptor,
+  SourceLoreAttribution,
+  SourceLoreEntryDefinition,
+  SourceLoreCollectionDefinition,
+  SourceLoreCatalog,
+  SourceLoreCatalogLookup,
+  SourceLorePreviewResult,
+} from "./lore-catalog";
+export {
+  LORE_SUBJECT_KINDS,
+  DRAFT4_V1_SOURCE_LORE_COLLECTIONS,
+  DRAFT4_V1_SOURCE_LORE_CATALOG,
+  DRAFT4_V1_SOURCE_LORE_COLLECTION_IDS,
+  DRAFT4_V1_SOURCE_LORE_TOPIC_IDS,
+  DRAFT4_V1_SOURCE_LORE_CATALOG_SEMANTIC_DIGEST,
+  isValidSourceLoreCollectionId,
+  isValidSourceLoreTopicId,
+  isValidSourceLoreEntryIdFormat,
+  isValidLoreSubjectKind,
+  lookupSourceLoreCatalog,
+  sourceLoreCollectionDefinition,
+  sourceLoreEntryIds,
+  sourceLoreCatalogCoverage,
+  sourceLoreCatalogSemanticManifest,
+  previewSourceLoreCollection,
+} from "./lore-catalog";
+
+export type {
+  LoreSubjectRef,
+  SourceLoreEntryOverride,
+  CampaignAuthoredLoreEntry,
+  InstantiatedSourceLoreCollection,
+  CampaignLoreCollection,
+  LoreState,
+  EffectiveLoreEntry,
+  LoreBindingResolution,
+  MarinerIsleLoreContextSelection,
+  MarinerDelegatedIsleOwnerSeatId,
+  EffectiveSourceLoreRead,
+} from "./lore-state";
+export {
+  EMPTY_LORE_STATE,
+  MARINER_DELEGATED_ISLE_OWNER_SEATS,
+  MARINER_ISLE_LORE_DELEGATION,
+  MARINER_FAR_REACH_SOURCE_COLLECTION_ID,
+  loreSubjectKey,
+  loreSubjectRefsEqual,
+  instantiatedSourceLoreCollection,
+  campaignLoreCollectionForSubject,
+  composeEffectiveSourceLore,
+  readEffectiveSourceLore,
+  readEffectiveSourceLoreForRuleset,
+  readCampaignLoreCollectionEntries,
+  resolveSourceLoreBinding,
+  selectMarinerIsleLoreContext,
+  selectedMarinerIsleLoreAvailability,
+  catalogForCampaignRuleset,
+  expectedSubjectKindForBinding,
+} from "./lore-state";
+
+export { validateLoreStructure, validateLoreReferenceIntegrity, assertValidStoredLoreText, validateLoreSubjectRef, MAX_LORE_TEXT_LENGTH } from "./lore-validation";
+
+export type {
+  AddLoreEntryTarget,
+  AddLoreEntryInput,
+  ReviseLoreEntryTarget,
+  ReviseLoreEntryInput,
+  LoreTransitionResult,
+} from "./lore-transitions";
+export {
+  applyAddLoreEntry,
+  applyReviseLoreEntry,
+} from "./lore-transitions";

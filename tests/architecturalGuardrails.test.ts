@@ -17,6 +17,7 @@ import {
   EMPTY_WARLOCK_STATE,
   EMPTY_MAGIC_CONSUMABLES_STATE,
   EMPTY_SORCERER_STATE,
+  EMPTY_LORE_STATE,
 } from "../shared/domain";
 import type { PersistableCampaignState } from "../shared/domain";
 import type { CampaignStateV5 } from "../shared/domain/campaign-state";
@@ -155,7 +156,7 @@ describe("assertPortableCampaignState: validates without transforming", () => {
     sage: EMPTY_SAGE_STATE,
     warlock: EMPTY_WARLOCK_STATE,
     magicConsumables: EMPTY_MAGIC_CONSUMABLES_STATE,
-    sorcerer: EMPTY_SORCERER_STATE,
+    sorcerer: EMPTY_SORCERER_STATE, lore: EMPTY_LORE_STATE,
   } as unknown as CampaignStateV5;
 
   it("returns the same object reference (no copy/transform)", () => {
@@ -349,7 +350,7 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
     sage: EMPTY_SAGE_STATE,
     warlock: EMPTY_WARLOCK_STATE,
     magicConsumables: EMPTY_MAGIC_CONSUMABLES_STATE,
-    sorcerer: EMPTY_SORCERER_STATE,
+    sorcerer: EMPTY_SORCERER_STATE, lore: EMPTY_LORE_STATE,
     };
     expect(ps.calendar.monthOrdinal).toBe(5);
     expect(typeof ps.calendar.monthOrdinal).toBe("number");
@@ -417,7 +418,7 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
     sage: EMPTY_SAGE_STATE,
     warlock: EMPTY_WARLOCK_STATE,
     magicConsumables: EMPTY_MAGIC_CONSUMABLES_STATE,
-    sorcerer: EMPTY_SORCERER_STATE,
+    sorcerer: EMPTY_SORCERER_STATE, lore: EMPTY_LORE_STATE,
     };
     const ps: PersistableCampaignState = state;
     expect(ps.schemaVersion).toBe(5);

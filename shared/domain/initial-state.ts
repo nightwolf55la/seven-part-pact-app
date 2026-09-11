@@ -16,6 +16,7 @@ import { EMPTY_SAGE_STATE } from "./sage-state";
 import { EMPTY_WARLOCK_STATE } from "./warlock-state";
 import { EMPTY_MAGIC_CONSUMABLES_STATE } from "./magic-consumables";
 import { EMPTY_SORCERER_STATE } from "./sorcerer-state";
+import { EMPTY_LORE_STATE } from "./lore-state";
 
 function emptyPactSeats(): { readonly [K in PactSeatId]: PactSeatState } {
   const seats = {} as Record<PactSeatId, PactSeatState>;
@@ -57,5 +58,6 @@ export function initialCampaignState(): CurrentCampaignState {
     warlock: EMPTY_WARLOCK_STATE,
     magicConsumables: EMPTY_MAGIC_CONSUMABLES_STATE,
     sorcerer: EMPTY_SORCERER_STATE,
+    lore: EMPTY_LORE_STATE,
   };
 }

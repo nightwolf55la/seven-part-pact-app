@@ -126,6 +126,8 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "direct_faustian_accomplice",
   "disrupt_faustian_pawn",
   "initialize_sorcerer",
+  "add_lore_entry",
+  "revise_lore_entry",
 ] as const;
 
 // Historical command types that may appear in persisted revision records but
@@ -266,6 +268,8 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "direct_faustian_accomplice":
     case "disrupt_faustian_pawn":
     case "initialize_sorcerer":
+    case "add_lore_entry":
+    case "revise_lore_entry":
     case "move_month":
     case "legacy_month_change":
       return true;

@@ -193,28 +193,17 @@ Delivered:
 
 M5.2F deliberately did not introduce a generic inventory, actor/entity, spell-resolution, or multi-Domain-instance framework.
 
-## Next Recommended Work
-
 ### M5.3 — Knowledge & Compendium
 
-**NEXT**
+**COMPLETE**
 
-The next shared foundation should be persisted mutable Lore / Compendium state.
+Shared Lore structural foundation and canonical `add_lore_entry` / `revise_lore_entry` are implemented. Real disposable Convex integration closure succeeded: representative nonempty Lore was proven through canonical persistence, and Undo/Redo plus portable backup/import preserved Lore through existing whole-state semantics.
 
-The design should investigate and settle:
+See `docs/m5-3-knowledge-compendium.md` for the durable contract.
 
-- stable identity for mutable Lore/Compendium entries;
-- what kinds of subjects Lore can attach to;
-- source-derived initial Lore versus campaign-created Lore;
-- current truth versus superseded/historical truth;
-- how changes/additions preserve useful history without turning CampaignState into event sourcing;
-- role-aware knowledge/visibility where the written game actually distinguishes who knows something;
-- relationships to Research, Map/Isle/Sanctum Lore, Denizen/Domain facts, Watcher responsibilities, and later magic;
-- what is shared with the Celestial Audience versus secret/revealed through play;
-- whether Truth-Watcher precedent/notes belong in the Compendium or remain ordinary human notes;
-- how to avoid a generic wiki/knowledge-graph framework when Seven-Part-Pact-specific Lore modeling is sufficient.
+CampaignState V5 remains **PRE-ACTIVATION**. No migration occurred.
 
-M5.3 should not absorb full spellcasting, broad UI, or every narrative note.
+## Next Recommended Work
 
 ### M5.4 — Minimum Domain Operability & Board Views
 

@@ -128,27 +128,25 @@ Established the final Wizard Domain structural foundation, including Sorcerer To
 
 ## M5.3 — Knowledge & Compendium
 
-**STATUS: NEXT / NOT YET CHARTERED**
+**STATUS: COMPLETE**
+
+Shared Lore structural foundation and canonical `add_lore_entry` / `revise_lore_entry` are implemented. Real disposable Convex integration closure succeeded. Representative nonempty Lore was proven through canonical persistence. Undo/Redo and portable backup/import preserved Lore through their existing whole-state semantics.
+
+CampaignState V5 remains **PRE-ACTIVATION**. No migration occurred. Do not mark V5 activated.
+
+See `docs/m5-3-knowledge-compendium.md`.
 
 ### Objective
 
 Establish a shared durable model for mutable Lore/Compendium knowledge that is used across actual Seven-Part-Pact systems rather than hidden in Domain-local notes.
 
-### Design questions
+### Approved contract
 
-The Workstream should determine:
-
-- stable identity for mutable Lore entries;
-- attachment/subject model grounded in real Seven-Part-Pact entities;
-- source-defined initial Lore versus campaign-created Lore;
-- current truth versus superseded/historical truth;
-- how adding/changing Lore interacts with existing immutable audit without making CampaignState event-sourced;
-- visibility/knowledge where the source distinguishes Wizard/Watcher/Audience knowledge;
-- integration with Map/Isle/Sanctum Lore;
-- Research and Sorcerer Discoveries;
-- Denizen/Domain facts;
-- Truth-Watcher responsibilities and precedent;
-- future magic consumers.
+- Campaign `ruleset.id/version` is the sole persisted source-Lore baseline identity.
+- No staged source-entry activation.
+- Source collections and campaign-created collections remain distinct.
+- Stable first-use binding uses existing canonical IDs, never display labels.
+- Mariner Present/Silent/Absent/null context selection is derived APPLICATION DESIGN.
 
 ### Boundaries
 
@@ -325,28 +323,6 @@ Likely areas:
 
 ## Current Next Action
 
-Charter **M5.3 — Knowledge & Compendium** as a design-first Workstream.
+Continue **M5.4 — Minimum Domain Operability & Board Views**.
 
-The Workstream should inspect authoritative source and current merged repository state, return a bounded shared-state design for Master approval, and only then direct Cursor.
-
-### Overnight execution guidance
-
-A longer Cursor batch is acceptable when the implementation contract is already approved and the work has one coherent responsibility.
-
-Good overnight work has:
-
-- approved design;
-- bounded repository search space;
-- explicit exclusions;
-- explicit escalation/stop conditions;
-- proportional verification;
-- one coherent implementation responsibility;
-- a clean checkpoint/report for morning review.
-
-Do **not** use an overnight window as justification for unsupervised architecture discovery plus implementation.
-
-For M5.3, an approved base implementation pass such as shared Lore state + validator + CampaignState integration + representative tests may be an appropriate larger overnight body once the architecture is settled.
-
-If the M5.3 design is not approved before the human stops interacting, use the overnight window for read-only source/repository analysis or design synthesis, not architecture-changing implementation.
-
-Do not repeat the M5.2E failure mode of broad speculative searches, command-by-command micro-slicing, repeated giant gates, or unrelated subsystem work merely to keep Cursor occupied.
+M5.3 is COMPLETE. CampaignState V5 remains **PRE-ACTIVATION**. Do not mark V5 activated.

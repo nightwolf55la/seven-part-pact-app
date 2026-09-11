@@ -31,6 +31,8 @@ import type {
   CompanionRelationshipId,
   DenizenId,
   IsleId,
+  LoreCollectionId,
+  LoreEntryId,
   PlaceId,
   TreasureId,
   WizardId,
@@ -84,6 +86,8 @@ import type {
 import type { FaustianCardId, FaustianCommunityId } from "./faustian-catalogs";
 import type { SorcererArrangementId } from "./sorcerer-catalogs";
 import type { SorcererState } from "./sorcerer-state";
+import type { LoreSubjectRef } from "./lore-state";
+import type { SourceLoreCollectionId, SourceLoreEntryId } from "./lore-catalog";
 
 export interface UndoAppliedDataV1 {
   readonly fromRevision: number;
@@ -1674,6 +1678,66 @@ export interface SorcererInitializedEventV1 {
 
 export type SorcererEvent = SorcererInitializedEventV1;
 
+export type LoreEntryAddedCollectionContextV1 =
+  | {
+      readonly kind: "source";
+      readonly sourceCollectionId: SourceLoreCollectionId;
+      readonly boundSubject: LoreSubjectRef;
+    }
+  | {
+      readonly kind: "campaign";
+      readonly collectionId: LoreCollectionId;
+      readonly subject: LoreSubjectRef;
+    };
+
+export interface LoreEntryAddedDataV1 {
+  readonly collection: LoreEntryAddedCollectionContextV1;
+  readonly loreEntryId: LoreEntryId;
+  readonly text: string;
+  readonly collectionCreated: boolean;
+}
+
+export interface LoreEntryAddedEventV1 {
+  readonly type: "lore_entry_added";
+  readonly version: 1;
+  readonly data: LoreEntryAddedDataV1;
+}
+
+export type LoreEntryRevisedTargetContextV1 =
+  | {
+      readonly kind: "source_entry";
+      readonly sourceCollectionId: SourceLoreCollectionId;
+      readonly sourceEntryId: SourceLoreEntryId;
+      readonly boundSubject: LoreSubjectRef;
+    }
+  | {
+      readonly kind: "source_addition";
+      readonly sourceCollectionId: SourceLoreCollectionId;
+      readonly loreEntryId: LoreEntryId;
+      readonly boundSubject: LoreSubjectRef;
+    }
+  | {
+      readonly kind: "campaign_entry";
+      readonly collectionId: LoreCollectionId;
+      readonly loreEntryId: LoreEntryId;
+      readonly subject: LoreSubjectRef;
+    };
+
+export interface LoreEntryRevisedDataV1 {
+  readonly target: LoreEntryRevisedTargetContextV1;
+  readonly previousText: string;
+  readonly text: string;
+  readonly sourceCollectionBound: boolean;
+}
+
+export interface LoreEntryRevisedEventV1 {
+  readonly type: "lore_entry_revised";
+  readonly version: 1;
+  readonly data: LoreEntryRevisedDataV1;
+}
+
+export type LoreEvent = LoreEntryAddedEventV1 | LoreEntryRevisedEventV1;
+
 export type CampaignEvent =
   | InfrastructureEvent
   | SetupEvent
@@ -1684,7 +1748,8 @@ export type CampaignEvent =
   | NecromancerEvent
   | FaustianEvent
   | SharedStateEvent
-  | SorcererEvent;
+  | SorcererEvent
+  | LoreEvent;
 
 export type PhaseAdvancedEvent = PhaseAdvancedEventV1 | PhaseAdvancedEventV2;
 
