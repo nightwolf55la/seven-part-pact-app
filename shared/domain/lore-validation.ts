@@ -25,7 +25,7 @@ import {
   type SourceLoreEntryOverride,
 } from "./lore-state";
 
-const MAX_LORE_TEXT_LENGTH = 8000;
+export const MAX_LORE_TEXT_LENGTH = 8000;
 const ELEMENT_ID_SET = new Set<string>(ELEMENT_IDS);
 const HORIZON_ID_SET = new Set<string>(MARINER_HORIZON_CARDINAL_GROUP_IDS);
 
@@ -43,7 +43,7 @@ function requireArray(path: string, value: unknown): readonly unknown[] {
   return value;
 }
 
-function assertNonblankLoreText(path: string, value: unknown): asserts value is string {
+export function assertValidStoredLoreText(path: string, value: unknown): asserts value is string {
   if (typeof value !== "string" || value.trim().length === 0) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be a nonblank string`);
   }
@@ -52,7 +52,7 @@ function assertNonblankLoreText(path: string, value: unknown): asserts value is 
   }
 }
 
-function validateLoreSubjectRef(
+export function validateLoreSubjectRef(
   path: string,
   value: unknown,
   state: CampaignStateV5,
@@ -198,7 +198,7 @@ function validateAuthoredEntries(
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate loreEntryId: ${entry.loreEntryId}`);
     }
     loreEntryIds.add(entry.loreEntryId);
-    assertNonblankLoreText(`${entryPath}.text`, entry.text);
+    assertValidStoredLoreText(`${entryPath}.text`, entry.text);
     result.push({ loreEntryId: entry.loreEntryId, text: entry.text });
   }
   return result;
@@ -235,7 +235,7 @@ function validateOverrides(
       );
     }
     seen.add(override.sourceEntryId);
-    assertNonblankLoreText(`${overridePath}.currentText`, override.currentText);
+    assertValidStoredLoreText(`${overridePath}.currentText`, override.currentText);
     result.push({ sourceEntryId: override.sourceEntryId, currentText: override.currentText });
   }
   return result;

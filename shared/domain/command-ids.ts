@@ -1059,6 +1059,38 @@ export function initializeSorcererFingerprint(expectedCampaignId: string, input:
   return `initialize_sorcerer:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
 }
 
+export function addLoreEntryFingerprint(
+  expectedCampaignId: string,
+  input: {
+    readonly target: unknown;
+    readonly loreEntryId: string;
+    readonly text: string;
+  },
+): string {
+  return `add_lore_entry:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    target: input.target,
+    loreEntryId: input.loreEntryId,
+    text: input.text,
+  })}`;
+}
+
+export function reviseLoreEntryFingerprint(
+  expectedCampaignId: string,
+  input: {
+    readonly target: unknown;
+    readonly expectedText: string;
+    readonly text: string;
+  },
+): string {
+  return `revise_lore_entry:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    target: input.target,
+    expectedText: input.expectedText,
+    text: input.text,
+  })}`;
+}
+
 /**
  * Pure deterministic idempotency match for command replay.
  * Given a previously committed command record and an incoming attempt,

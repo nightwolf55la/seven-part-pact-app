@@ -182,6 +182,13 @@ export type {
   SorcererInitializedDataV1,
   SorcererInitializedEventV1,
   SorcererEvent,
+  LoreEntryAddedCollectionContextV1,
+  LoreEntryAddedDataV1,
+  LoreEntryAddedEventV1,
+  LoreEntryRevisedTargetContextV1,
+  LoreEntryRevisedDataV1,
+  LoreEntryRevisedEventV1,
+  LoreEvent,
   CampaignEvent,
 } from "./events";
 
@@ -424,6 +431,8 @@ export {
   directFaustianAccompliceFingerprint,
   disruptFaustianPawnFingerprint,
   initializeSorcererFingerprint,
+  addLoreEntryFingerprint,
+  reviseLoreEntryFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
@@ -1733,4 +1742,16 @@ export {
   expectedSubjectKindForBinding,
 } from "./lore-state";
 
-export { validateLoreStructure, validateLoreReferenceIntegrity } from "./lore-validation";
+export { validateLoreStructure, validateLoreReferenceIntegrity, assertValidStoredLoreText, validateLoreSubjectRef, MAX_LORE_TEXT_LENGTH } from "./lore-validation";
+
+export type {
+  AddLoreEntryTarget,
+  AddLoreEntryInput,
+  ReviseLoreEntryTarget,
+  ReviseLoreEntryInput,
+  LoreTransitionResult,
+} from "./lore-transitions";
+export {
+  applyAddLoreEntry,
+  applyReviseLoreEntry,
+} from "./lore-transitions";

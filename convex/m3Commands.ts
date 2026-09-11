@@ -277,6 +277,10 @@ import {
   initializeSorcererFingerprint,
   canonicalizeInitializeSorcererInput,
   applyInitializeSorcerer,
+  addLoreEntryFingerprint,
+  reviseLoreEntryFingerprint,
+  applyAddLoreEntry,
+  applyReviseLoreEntry,
 } from "../shared/domain";
 import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange, CompanionRelationshipId, HierophantFlameLawId, HierophantStartingTempleId, HierophantTempleId, HierophantCampaignClassId, HierophantCampaignDoctrineId, HierophantDogmaEntryId, HierophantSupplicant, HierophantProphet, HierophantCult, HierophantCultDogma, HierophantCampaignClass, HierophantCampaignDoctrine, CreateTempleInput, OrdinaryTempleDoctrineState, InitializeMarinerInput, MarinerBeastState, MarinerIsleMarket, MarinerRouteOccupancy, MarinerBoardIsleId, MarinerLawOfSeaId, MarinerRouteId, MarinerSeaRegionId, MarinerArrangementId, UpdateMarinerBeastFields, InitializeNecromancerInput, NecromancerArrangementId, NecromancerLawOfDeathId, NecromancerBuiltinGateId, NecromancerBuiltinPathSpaceId, NecromancerDepthState, NecromancerSelectedLaw, NecromancerGateId, NecromancerGateStatus, NecromancerOccupiableSpaceRef, NecromancerFoeState, NecromancerFoeSubjectRef, NecromancerWizardFoeState, NecromancerWizardTraversalState, UpdateNecromancerWizardTraversalFields, NecromancerAllyState, NecromancerGhoulCallerState, UpdateNecromancerFoeFields, UpdateNecromancerAllyFields, UpdateNecromancerGhoulCallerFields, NecromancerCampaignGateId, NecromancerGateBand, UpdateNecromancerCampaignGateFields, NecromancerCampaignPathSpaceId, NecromancerPathRegion, NecromancerCampaignPathSpaceState, NecromancerDirectedStep, MortalityState, PowerfulDenizenTaxonomyRef, PowerfulDenizenStatus, PowerfulDenizenMethodDefinition, PowerfulDenizenMethodEntry, PowerfulDenizenTruthEntry, PowerfulDenizenProfile, CampaignPowerfulDenizenTaxonomy, CampaignPowerfulDenizenTaxonomyId, PowerfulDenizenMethodEntryId, PowerfulDenizenTruthId, TreasureId, TreasureCondition, TreasureCustody, PactFragmentOperationalState, FaustianCommunityId, FaustianCardId } from "../shared/domain";
 import type {
@@ -288,6 +292,8 @@ import type {
   SorcererLawOfMagicId,
   SorcererResearchPositionId,
   WarlockIdeologyId,
+  AddLoreEntryInput,
+  ReviseLoreEntryInput,
 } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
 import type { WizardInitIds } from "../shared/domain/begin-play";
@@ -4825,6 +4831,107 @@ export const initializeSorcerer = mutation({
           commandType: "initialize_sorcerer",
           commandFingerprint: initializeSorcererFingerprint(args.expectedCampaignId, input),
           apply: (state) => applyInitializeSorcerer(state, input),
+        };
+      },
+    );
+  },
+});
+
+const loreSubjectRefArgValidator = v.union(
+  v.object({ kind: v.literal("isle"), isleId: v.string() }),
+  v.object({ kind: v.literal("place"), placeId: v.string() }),
+  v.object({ kind: v.literal("necromancer_gate"), gateId: v.string() }),
+  v.object({ kind: v.literal("hierophant_temple"), templeId: v.string() }),
+  v.object({ kind: v.literal("warlock_clan"), clanId: v.string() }),
+  v.object({ kind: v.literal("element"), elementId: v.string() }),
+  v.object({ kind: v.literal("pact_domain"), pactSeatId: v.string() }),
+  v.object({ kind: v.literal("mariner_horizon"), cardinalGroupId: v.string() }),
+  v.object({ kind: v.literal("source_topic"), topicId: v.string() }),
+);
+
+const addLoreEntryTargetValidator = v.union(
+  v.object({
+    kind: v.literal("source"),
+    sourceCollectionId: v.string(),
+    expectedSubject: loreSubjectRefArgValidator,
+  }),
+  v.object({
+    kind: v.literal("campaign"),
+    collectionId: v.string(),
+    subject: loreSubjectRefArgValidator,
+  }),
+);
+
+const reviseLoreEntryTargetValidator = v.union(
+  v.object({
+    kind: v.literal("source_entry"),
+    sourceCollectionId: v.string(),
+    sourceEntryId: v.string(),
+    expectedSubject: loreSubjectRefArgValidator,
+  }),
+  v.object({
+    kind: v.literal("source_addition"),
+    sourceCollectionId: v.string(),
+    loreEntryId: v.string(),
+    expectedSubject: loreSubjectRefArgValidator,
+  }),
+  v.object({
+    kind: v.literal("campaign_entry"),
+    collectionId: v.string(),
+    loreEntryId: v.string(),
+  }),
+);
+
+export const addLoreEntry = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    target: addLoreEntryTargetValidator,
+    loreEntryId: v.string(),
+    text: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = {
+          target: args.target,
+          loreEntryId: args.loreEntryId,
+          text: args.text,
+        } as AddLoreEntryInput;
+        return {
+          commandType: "add_lore_entry",
+          commandFingerprint: addLoreEntryFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyAddLoreEntry(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const reviseLoreEntry = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    target: reviseLoreEntryTargetValidator,
+    expectedText: v.string(),
+    text: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = {
+          target: args.target,
+          expectedText: args.expectedText,
+          text: args.text,
+        } as ReviseLoreEntryInput;
+        return {
+          commandType: "revise_lore_entry",
+          commandFingerprint: reviseLoreEntryFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyReviseLoreEntry(state, input),
         };
       },
     );

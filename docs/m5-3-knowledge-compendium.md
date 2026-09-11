@@ -1,6 +1,6 @@
 # M5.3 — Knowledge & Compendium
 
-**Status:** IN PROGRESS — design approved; Body A structural foundation implemented; Body B not started  
+**Status:** IN PROGRESS — Body A structural foundation implemented; Body B add/revise operations implemented; final Workstream integration/closure verification still pending
 **Schema:** CampaignState V5 remains PRE-ACTIVATION. This work adds Lore in place. It does not create V6.
 
 ## Purpose
@@ -169,7 +169,7 @@ For campaign-created collections, return persisted campaign entries in order.
 
 A read never creates or repairs state.
 
-Body A does not add a dedicated Convex query. Existing CampaignState reads already expose the new `lore` field.
+Body A does not add a dedicated Convex query. Existing CampaignState reads already expose the new `lore` field. Body B adds `m3Queries:getLoreReference`, which returns campaign identity, stored ruleset, and persisted Lore.
 
 ## Mariner Present / Silent / Absent / null
 
@@ -319,7 +319,7 @@ Body A and Body B do not implement:
 
 **Body A (this checkpoint):** shared Lore state/types, Draft4/v1 catalog, IDs, subject union, binding resolvers, effective-Lore helpers, Mariner selector, empty V5 `lore` initialization, Convex validator, fail-closed validation, focused tests, and this contract document.
 
-**Body B (approved, not implemented here):** canonical `add_lore_entry` / `revise_lore_entry`, atomic first-use source binding or campaign-collection creation as necessary, focused command/event tests. A source entry may be revised on first use, atomically binding its source collection. `add_lore_entry` only adds campaign-authored text; it does not activate source templates.
+**Body B (implemented):** canonical `add_lore_entry` / `revise_lore_entry`, atomic first-use source binding or campaign-collection creation as necessary, focused command/event tests. A source entry may be revised on first use, atomically binding its source collection. `add_lore_entry` only adds campaign-authored text; it does not activate source templates. Final Workstream integration/closure verification is still pending.
 
 Body B must use existing server-authoritative canonical transactional persistence, expected-revision/context checks, command idempotency, complete snapshots, immutable audit, and fail-closed validation.
 
@@ -352,5 +352,7 @@ No timestamps, revision copies, actor IDs, previous-text history, supersession l
 ## Verification / closure
 
 Body A is verified by focused Lore/V5 tests plus `npm run check` and `git diff --check`.
+
+Body B is verified by focused Lore command/event tests plus `npm run check` and `git diff --check`.
 
 Final M5.3 closure later uses a fresh explicitly confirmed disposable Convex Development deployment and actual Body B canonical commands. No raw inserts or temporary seed mutations.

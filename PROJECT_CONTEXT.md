@@ -199,7 +199,7 @@ M5.2F deliberately did not introduce a generic inventory, actor/entity, spell-re
 
 **IN PROGRESS**
 
-Design is approved. Body A shared Lore structural foundation is being implemented. Body B minimal `add_lore_entry` / `revise_lore_entry` operations are approved but not yet completed.
+Design is approved. Body A shared Lore structural foundation is implemented. Body B minimal `add_lore_entry` / `revise_lore_entry` operations are implemented. Final Workstream integration/closure verification is still pending.
 
 M5.3 is **not complete**. CampaignState V5 remains **PRE-ACTIVATION**.
 

@@ -130,7 +130,7 @@ Established the final Wizard Domain structural foundation, including Sorcerer To
 
 **STATUS: IN PROGRESS**
 
-Design approved. Body A structural foundation is being implemented. Body B minimal add/revise operations are approved but not yet completed.
+Design approved. Body A structural foundation is implemented. Body B minimal add/revise operations are implemented. Final Workstream integration/closure verification is still pending.
 
 Do not mark M5.3 complete. Do not mark V5 activated.
 
@@ -325,4 +325,4 @@ Likely areas:
 
 Continue **M5.3 — Knowledge & Compendium**.
 
-Design is approved. Complete Body A review, then implement Body B minimal `add_lore_entry` / `revise_lore_entry` operations. Do not mark M5.3 complete. Do not mark V5 activated.
+Design is approved. Body A and Body B are implemented. Final Workstream integration/closure verification is still pending. Do not mark M5.3 complete. Do not mark V5 activated.
