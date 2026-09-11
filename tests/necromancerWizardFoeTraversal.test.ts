@@ -12,12 +12,7 @@ import type {
 } from "../shared/domain";
 import {
   DomainError,
-  EMPTY_HIEROPHANT_STATE,
-  EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
-  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
-  SEVEN_PART_PACT_DRAFT4_ID,
-  SEVEN_PART_PACT_DRAFT4_VERSION,
   addNecromancerFoeFingerprint,
   applyAddNecromancerFoe,
   applyAddNecromancerWizardFoeTruth,
@@ -42,6 +37,7 @@ import {
   updateNecromancerFoeFingerprint,
   validateCampaignStateV5Candidate,
 } from "../shared/domain";
+import { makeTestCampaignStateV5 } from "./test-state";
 import { validateEventCoherenceForTest } from "../convex/canonicalCommit";
 import type { CanonicalCommitInput } from "../convex/canonicalCommit";
 import {
@@ -102,23 +98,14 @@ function wizard(wizardId: WizardId, name: string) {
 }
 
 function baseV5(): CampaignStateV5 {
-  return {
-    schemaVersion: 5,
-    ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
+  return makeTestCampaignStateV5({
     calendar: { monthOrdinal: 0 as MonthOrdinal },
-    configuration: { ageId: null, facilitatorPlayerId: null },
     players: [{ playerId: PLR_A, name: "Alice" }],
     wizards: [wizard(WIZ_A, "Wizard A"), wizard(WIZ_B, "Wizard B")],
     pactSeats: {
       ...EMPTY_PACT_SEATS,
       necromancer: { status: "present", wizardId: WIZ_A, watcherPlayerId: null },
     },
-    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
-    lifecycle: {
-      kind: "setup",
-      orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
-    },
-    wizardmootHistory: [],
     world: {
       denizens: [
         { denizenId: DEN_1, name: "Deep Foe", representation: "individual", description: null, mortalityState: "not_deceased", powerfulProfile: FOE_PROFILE },
@@ -131,10 +118,7 @@ function baseV5(): CampaignStateV5 {
       campaignPowerfulDenizenTaxonomies: [],
       treasures: [],
     },
-    hierophant: { ...EMPTY_HIEROPHANT_STATE },
-    mariner: { ...EMPTY_MARINER_STATE },
-    necromancer: EMPTY_NECROMANCER_STATE,
-  };
+  });
 }
 
 function quietInput(): InitializeNecromancerInput {

@@ -59,7 +59,8 @@ export type TreasureCustodyRef =
       readonly subject:
         | { readonly kind: "wizard"; readonly wizardId: string }
         | { readonly kind: "denizen"; readonly denizenId: string };
-    };
+    }
+  | { readonly kind: "devil" };
 
 export interface TreasureRef {
   readonly treasureId: string;

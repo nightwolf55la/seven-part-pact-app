@@ -56,6 +56,9 @@ export type TreasureCustody =
     }
   | {
       readonly kind: "none";
+    }
+  | {
+      readonly kind: "devil";
     };
 
 export interface Treasure {

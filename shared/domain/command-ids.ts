@@ -1009,6 +1009,52 @@ export function updatePactFragmentOperationalStateFingerprint(
   })}`;
 }
 
+export function investigateFaustianCommunityFingerprint(
+  expectedCampaignId: string,
+  communityId: string,
+  schemeCardId: string,
+): string {
+  return `investigate_faustian_community:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    communityId,
+    schemeCardId,
+  })}`;
+}
+
+export function blackmailFaustianCommunityFingerprint(
+  expectedCampaignId: string,
+  communityId: string,
+): string {
+  return `blackmail_faustian_community:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    communityId,
+  })}`;
+}
+
+export function directFaustianAccompliceFingerprint(
+  expectedCampaignId: string,
+  accompliceCardId: string,
+  destinationCommunityId: string,
+): string {
+  return `direct_faustian_accomplice:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    accompliceCardId,
+    destinationCommunityId,
+  })}`;
+}
+
+export function disruptFaustianPawnFingerprint(
+  expectedCampaignId: string,
+  communityId: string,
+  accompliceCardId: string,
+): string {
+  return `disrupt_faustian_pawn:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    communityId,
+    accompliceCardId,
+  })}`;
+}
+
 /**
  * Pure deterministic idempotency match for command replay.
  * Given a previously committed command record and an incoming attempt,

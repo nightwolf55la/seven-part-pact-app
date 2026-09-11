@@ -81,6 +81,7 @@ import type {
   NecromancerWizardFoeState,
   NecromancerWizardTraversalState,
 } from "./necromancer-state";
+import type { FaustianCardId, FaustianCommunityId } from "./faustian-catalogs";
 
 export interface UndoAppliedDataV1 {
   readonly fromRevision: number;
@@ -1609,6 +1610,56 @@ export type NecromancerEvent =
   | NecromancerStepAddedEventV1
   | NecromancerStepRemovedEventV1;
 
+export interface FaustianCommunityInvestigatedDataV1 {
+  readonly communityId: FaustianCommunityId;
+  readonly schemeCardId: FaustianCardId;
+  readonly revealedSchemeCardIds: readonly FaustianCardId[];
+}
+export interface FaustianCommunityInvestigatedEventV1 {
+  readonly type: "faustian_community_investigated";
+  readonly version: 1;
+  readonly data: FaustianCommunityInvestigatedDataV1;
+}
+
+export interface FaustianCommunityBlackmailedDataV1 {
+  readonly communityId: FaustianCommunityId;
+  readonly drawnCardId: FaustianCardId;
+}
+export interface FaustianCommunityBlackmailedEventV1 {
+  readonly type: "faustian_community_blackmailed";
+  readonly version: 1;
+  readonly data: FaustianCommunityBlackmailedDataV1;
+}
+
+export interface FaustianAccompliceDirectedDataV1 {
+  readonly accompliceCardId: FaustianCardId;
+  readonly sourceCommunityId: FaustianCommunityId;
+  readonly destinationCommunityId: FaustianCommunityId;
+  readonly revealedSchemeCardIds: readonly FaustianCardId[];
+  readonly returnedSchemeCardIds: readonly FaustianCardId[];
+}
+export interface FaustianAccompliceDirectedEventV1 {
+  readonly type: "faustian_accomplice_directed";
+  readonly version: 1;
+  readonly data: FaustianAccompliceDirectedDataV1;
+}
+
+export interface FaustianPawnDisruptedDataV1 {
+  readonly communityId: FaustianCommunityId;
+  readonly accompliceCardId: FaustianCardId;
+}
+export interface FaustianPawnDisruptedEventV1 {
+  readonly type: "faustian_pawn_disrupted";
+  readonly version: 1;
+  readonly data: FaustianPawnDisruptedDataV1;
+}
+
+export type FaustianEvent =
+  | FaustianCommunityInvestigatedEventV1
+  | FaustianCommunityBlackmailedEventV1
+  | FaustianAccompliceDirectedEventV1
+  | FaustianPawnDisruptedEventV1;
+
 export type CampaignEvent =
   | InfrastructureEvent
   | SetupEvent
@@ -1617,6 +1668,7 @@ export type CampaignEvent =
   | HierophantEvent
   | MarinerEvent
   | NecromancerEvent
+  | FaustianEvent
   | SharedStateEvent;
 
 export type PhaseAdvancedEvent = PhaseAdvancedEventV1 | PhaseAdvancedEventV2;

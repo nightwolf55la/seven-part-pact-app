@@ -58,8 +58,8 @@ import {
   parseCompanionRelationshipId,
   validateV5WorldReferenceIntegrity,
   ENGAGEMENT_TARGET_KINDS,
-  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
+import { makeTestCampaignStateV5 } from "./test-state";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -99,16 +99,6 @@ const CMPREL_2 = "cmprel_00000000-0000-0000-0000-000000000002" as CompanionRelat
 const WIZ_A = "wiz_00000000-0000-0000-0000-00000000000a" as WizardId;
 const PLR_A = "plr_00000000-0000-0000-0000-00000000000a" as PlayerId;
 
-const EMPTY_PACT_SEATS = {
-  necromancer: { status: null, wizardId: null, watcherPlayerId: null },
-  hierophant: { status: null, wizardId: null, watcherPlayerId: null },
-  warlock: { status: null, wizardId: null, watcherPlayerId: null },
-  mariner: { status: null, wizardId: null, watcherPlayerId: null },
-  faustian: { status: null, wizardId: null, watcherPlayerId: null },
-  sage: { status: null, wizardId: null, watcherPlayerId: null },
-  sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
-} as const;
-
 function baseV5Wizard(): CampaignWizardV5 {
   return {
     wizardId: WIZ_A,
@@ -137,20 +127,10 @@ function baseIsle(id: IsleId, name: string): Isle {
 }
 
 function minimalV5State(): CampaignStateV5 {
-  return {
-    schemaVersion: 5,
-    ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
+  return makeTestCampaignStateV5({
     calendar: { monthOrdinal: 0 as MonthOrdinal },
-    configuration: { ageId: null, facilitatorPlayerId: null },
     players: [{ playerId: PLR_A, name: "Alice" }],
     wizards: [baseV5Wizard()],
-    pactSeats: EMPTY_PACT_SEATS,
-    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
-    lifecycle: {
-      kind: "setup",
-      orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
-    },
-    wizardmootHistory: [],
     world: {
       denizens: [baseDenizen(DEN_1, "Elder Thorn")],
       isles: [baseIsle(ISL_1, "Starfall Isle")],
@@ -161,37 +141,7 @@ function minimalV5State(): CampaignStateV5 {
       campaignPowerfulDenizenTaxonomies: [],
       treasures: [],
     },
-    hierophant: {
-      selectedFlameLawIds: [],
-      campaignClasses: [],
-      campaignDoctrines: [],
-      temples: [],
-      supplicants: [],
-      prophets: [],
-      cults: [],
-      holidayTempleIds: [],
-    },
-    mariner: {
-      shipPlaceId: null,
-      selectedLawOfSeaIds: [],
-      boardIsles: [],
-      routes: [],
-      seaRegions: [],
-      beasts: [],
-    },
-    necromancer: {
-      gates: [],
-      pathSpaces: [],
-      steps: [],
-      souls: [],
-      foes: [],
-      allies: [],
-      ghoulCallers: [],
-      selectedLaws: [],
-      depth: null,
-      wizardTraversals: [],
-    },
-  };
+  });
 }
 
 function withWorld(state: CampaignStateV5, worldPatch: Partial<SharedWorldState>): CampaignStateV5 {

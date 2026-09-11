@@ -291,6 +291,14 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Added Necromancer step";
     case "necromancer_step_removed":
       return "Removed Necromancer step";
+    case "faustian_community_investigated":
+      return "Investigated Faustian Community";
+    case "faustian_community_blackmailed":
+      return "Blackmailed Faustian Community";
+    case "faustian_accomplice_directed":
+      return "Directed Faustian Accomplice";
+    case "faustian_pawn_disrupted":
+      return "Disrupted Faustian Pawn";
     default:
       return "Campaign configuration changed";
   }
@@ -498,7 +506,11 @@ export function mapEventToActivityEntry(
     case "necromancer_campaign_path_space_created":
     case "necromancer_campaign_path_space_removed":
     case "necromancer_step_added":
-    case "necromancer_step_removed": {
+    case "necromancer_step_removed":
+    case "faustian_community_investigated":
+    case "faustian_community_blackmailed":
+    case "faustian_accomplice_directed":
+    case "faustian_pawn_disrupted": {
       return {
         id,
         revision,

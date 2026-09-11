@@ -1,6 +1,7 @@
 import type {
   CurrentCampaignState,
   AnyCampaignState,
+  CampaignStateV4,
   CampaignStateV5,
   PactSeatStatus,
   LunarPhase,
@@ -24,7 +25,7 @@ import {
   isValidPowerfulDenizenMethodEntryId,
   isValidPowerfulDenizenTruthId,
 } from "./ids";
-import { PACT_SEAT_IDS } from "./pact-seats";
+import { PACT_SEAT_IDS, isValidPactSeatId } from "./pact-seats";
 import type { PactSeatId } from "./pact-seats";
 import { isValidAgeDefinitionId } from "./ages";
 import {
@@ -32,12 +33,15 @@ import {
   MOVABLE_PLANET_IDS,
 } from "./orrery";
 import type { MovablePlanetId } from "./orrery";
-import { ALLOCATION_RESOLUTIONS } from "./time-model";
+import { ALLOCATION_RESOLUTIONS, DEVIL_ONLY_TIME_DESTINATION_KINDS, TIME_DESTINATION_KINDS_V4, TIME_DESTINATION_KINDS_V5 } from "./time-model";
 import type { AllocationResolution } from "./time-model";
 import { ENGAGEMENT_RESOLUTIONS, ENGAGEMENT_TARGET_KINDS_V4, ENGAGEMENT_TARGET_KINDS_V5 } from "./engagement";
 import type { EngagementResolution, EngagementTargetKind } from "./engagement";
-import { TIME_DESTINATION_KINDS } from "./time-model";
 import { ELEMENT_IDS } from "./shared-world";
+import {
+  isValidFaustianCardId,
+  isValidFaustianCommunityId,
+} from "./faustian-catalogs";
 import {
   isValidBuiltinPowerfulDenizenTaxonomyId,
   isValidPowerfulDenizenStandardStatus,
@@ -50,6 +54,9 @@ import { validateV5WorldReferenceIntegrity } from "./v5-reference-validation";
 import { validateHierophantReferenceIntegrity } from "./hierophant-validation";
 import { validateMarinerReferenceIntegrity } from "./mariner-validation";
 import { validateNecromancerReferenceIntegrity } from "./necromancer-validation";
+import { validateFaustianReferenceIntegrity } from "./faustian-validation";
+import { validateSageReferenceIntegrity } from "./sage-validation";
+import { validateWarlockReferenceIntegrity } from "./warlock-validation";
 
 const VALID_PACT_SEAT_STATUSES: readonly (PactSeatStatus | null)[] = [
   "present",
@@ -304,9 +311,25 @@ function validateOrreryPositions(orrery: Record<string, unknown>, requireComplet
   }
 }
 
-function validateTimeDestination(dest: Record<string, unknown>, path: string): void {
+function assertAllowedKeys(
+  dest: Record<string, unknown>,
+  path: string,
+  allowed: readonly string[],
+  label?: string,
+): void {
+  const allowedSet = new Set(allowed);
+  const kindLabel = label ?? `${typeof dest.kind === "string" ? dest.kind : "object"} destination`;
+  for (const key of Object.keys(dest)) {
+    if (!allowedSet.has(key)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}: ${kindLabel} has unknown field: ${key}`);
+    }
+  }
+}
+
+function validateTimeDestination(dest: Record<string, unknown>, path: string, version: 4 | 5): void {
   const kind = dest.kind;
-  if (typeof kind !== "string" || !(TIME_DESTINATION_KINDS as readonly string[]).includes(kind)) {
+  const allowedKinds = version >= 5 ? TIME_DESTINATION_KINDS_V5 : TIME_DESTINATION_KINDS_V4;
+  if (typeof kind !== "string" || !(allowedKinds as readonly string[]).includes(kind)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.kind is invalid: ${JSON.stringify(kind)}`);
   }
   if (kind === "companion") {
@@ -315,12 +338,7 @@ function validateTimeDestination(dest: Record<string, unknown>, path: string): v
     }
   }
   if (kind === "orrery") {
-    const allowed = new Set(["kind"]);
-    for (const key of Object.keys(dest)) {
-      if (!allowed.has(key)) {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}: orrery destination has unknown field: ${key}`);
-      }
-    }
+    assertAllowedKeys(dest, path, ["kind"]);
   }
   if (kind === "engagement") {
     if (typeof dest.engagementId !== "string" || dest.engagementId.length === 0) {
@@ -331,12 +349,60 @@ function validateTimeDestination(dest: Record<string, unknown>, path: string): v
     if (typeof dest.description !== "string" || dest.description.trim().length === 0) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}: special_use destination requires non-empty description`);
     }
-    const allowed = new Set(["kind", "description"]);
-    for (const key of Object.keys(dest)) {
-      if (!allowed.has(key)) {
-        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}: special_use destination has unknown field: ${key}`);
-      }
+    assertAllowedKeys(dest, path, ["kind", "description"]);
+  }
+  if (kind === "devil_community") {
+    if (typeof dest.communityId !== "string" || !isValidFaustianCommunityId(dest.communityId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.communityId is invalid: ${JSON.stringify(dest.communityId)}`);
     }
+    assertAllowedKeys(dest, path, ["kind", "communityId"]);
+  }
+  if (kind === "devil_schemes") {
+    if (!Array.isArray(dest.cardIds) || dest.cardIds.length === 0) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.cardIds must be a non-empty array`);
+    }
+    const seen = new Set<string>();
+    for (let i = 0; i < dest.cardIds.length; i++) {
+      const cardId = dest.cardIds[i];
+      if (typeof cardId !== "string" || !isValidFaustianCardId(cardId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.cardIds[${i}] is not a canonical Faustian card: ${JSON.stringify(cardId)}`);
+      }
+      if (seen.has(cardId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.cardIds has duplicate card ${cardId}`);
+      }
+      seen.add(cardId);
+    }
+    assertAllowedKeys(dest, path, ["kind", "cardIds"]);
+  }
+  if (kind === "devil_companion") {
+    if (typeof dest.companionRelationshipId !== "string" || !isValidCompanionRelationshipId(dest.companionRelationshipId)) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path}.companionRelationshipId is invalid: ${JSON.stringify(dest.companionRelationshipId)}`,
+      );
+    }
+    assertAllowedKeys(dest, path, ["kind", "companionRelationshipId"]);
+  }
+  if (kind === "devil_grimoire") {
+    assertAllowedKeys(dest, path, ["kind"]);
+  }
+  if (kind === "devil_wizard") {
+    if (typeof dest.wizardId !== "string" || !isValidWizardId(dest.wizardId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.wizardId is invalid: ${JSON.stringify(dest.wizardId)}`);
+    }
+    assertAllowedKeys(dest, path, ["kind", "wizardId"]);
+  }
+  if (kind === "devil_denizen") {
+    if (typeof dest.denizenId !== "string" || !isValidDenizenId(dest.denizenId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId is invalid: ${JSON.stringify(dest.denizenId)}`);
+    }
+    assertAllowedKeys(dest, path, ["kind", "denizenId"]);
+  }
+  if (kind === "devil_seized_domain") {
+    if (typeof dest.seatId !== "string" || !isValidPactSeatId(dest.seatId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.seatId is invalid: ${JSON.stringify(dest.seatId)}`);
+    }
+    assertAllowedKeys(dest, path, ["kind", "seatId"]);
   }
 }
 
@@ -344,11 +410,13 @@ function validateTimeParticipants(
   participants: unknown[],
   wizardIds: Set<string>,
   path: string,
+  version: 4 | 5,
 ): { allocationIds: Set<string>; allocationOwner: Map<string, string>; allocationDestination: Map<string, Record<string, unknown>> } {
   const allocationIds = new Set<string>();
   const allocationOwner = new Map<string, string>();
   const allocationDestination = new Map<string, Record<string, unknown>>();
   const seenWizardIds = new Set<string>();
+  let seenDevil = false;
 
   for (let i = 0; i < participants.length; i++) {
     const tp = participants[i];
@@ -358,26 +426,43 @@ function validateTimeParticipants(
     }
     const tpObj = tp as Record<string, unknown>;
 
-    // participant ref
     if (tpObj.participant === null || tpObj.participant === undefined || typeof tpObj.participant !== "object") {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${tpPath}.participant is not a valid object`);
     }
     const pRef = tpObj.participant as Record<string, unknown>;
-    if (pRef.kind !== "wizard") {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `${tpPath}.participant.kind must be "wizard", got ${JSON.stringify(pRef.kind)}`);
-    }
-    if (typeof pRef.wizardId !== "string" || !isValidWizardId(pRef.wizardId)) {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `${tpPath}.participant.wizardId is invalid`);
-    }
-    if (!wizardIds.has(pRef.wizardId)) {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `${tpPath}.participant.wizardId "${pRef.wizardId}" does not reference an existing wizard`);
-    }
-    if (seenWizardIds.has(pRef.wizardId)) {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", `${tpPath}: duplicate time participant wizardId "${pRef.wizardId}"`);
-    }
-    seenWizardIds.add(pRef.wizardId);
+    let ownerKey: string;
 
-    // budgets
+    if (pRef.kind === "wizard") {
+      if (typeof pRef.wizardId !== "string" || !isValidWizardId(pRef.wizardId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${tpPath}.participant.wizardId is invalid`);
+      }
+      if (!wizardIds.has(pRef.wizardId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${tpPath}.participant.wizardId "${pRef.wizardId}" does not reference an existing wizard`);
+      }
+      if (seenWizardIds.has(pRef.wizardId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${tpPath}: duplicate time participant wizardId "${pRef.wizardId}"`);
+      }
+      seenWizardIds.add(pRef.wizardId);
+      ownerKey = pRef.wizardId;
+    } else if (version >= 5 && pRef.kind === "devil") {
+      if (pRef.wizardId !== undefined) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${tpPath}.participant: Devil participant must not include wizardId`);
+      }
+      assertAllowedKeys(pRef, `${tpPath}.participant`, ["kind"], "Devil participant");
+      if (seenDevil) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${tpPath}: duplicate Devil time participant`);
+      }
+      seenDevil = true;
+      ownerKey = "devil";
+    } else {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        version >= 5
+          ? `${tpPath}.participant.kind must be "wizard" or "devil", got ${JSON.stringify(pRef.kind)}`
+          : `${tpPath}.participant.kind must be "wizard", got ${JSON.stringify(pRef.kind)}`,
+      );
+    }
+
     if (typeof tpObj.effectiveBudget !== "number" || !Number.isSafeInteger(tpObj.effectiveBudget) || tpObj.effectiveBudget < 0) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${tpPath}.effectiveBudget must be a non-negative integer`);
     }
@@ -391,7 +476,6 @@ function validateTimeParticipants(
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${tpPath}.reschedulesUsed (${tpObj.reschedulesUsed}) exceeds rescheduleAllowance (${tpObj.rescheduleAllowance})`);
     }
 
-    // allocations
     if (!Array.isArray(tpObj.allocations)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${tpPath}.allocations must be an array`);
     }
@@ -411,7 +495,7 @@ function validateTimeParticipants(
         throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate allocationId: ${allocObj.allocationId}`);
       }
       allocationIds.add(allocObj.allocationId);
-      allocationOwner.set(allocObj.allocationId, pRef.wizardId);
+      allocationOwner.set(allocObj.allocationId, ownerKey);
       if (allocObj.destination !== null && typeof allocObj.destination === "object") {
         allocationDestination.set(allocObj.allocationId, allocObj.destination as Record<string, unknown>);
       }
@@ -420,7 +504,14 @@ function validateTimeParticipants(
         if (typeof allocObj.destination !== "object") {
           throw new DomainError("INVALID_CAMPAIGN_STATE", `${allocPath}.destination must be object or null`);
         }
-        validateTimeDestination(allocObj.destination as Record<string, unknown>, `${allocPath}.destination`);
+        const dest = allocObj.destination as Record<string, unknown>;
+        validateTimeDestination(dest, `${allocPath}.destination`, version);
+        if (pRef.kind === "wizard" && typeof dest.kind === "string" && (DEVIL_ONLY_TIME_DESTINATION_KINDS as readonly string[]).includes(dest.kind)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `${allocPath}.destination kind "${dest.kind}" is not a Wizard Time destination`);
+        }
+        if (pRef.kind === "devil" && typeof dest.kind === "string" && dest.kind !== "orrery" && !(DEVIL_ONLY_TIME_DESTINATION_KINDS as readonly string[]).includes(dest.kind)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `${allocPath}.destination kind "${dest.kind}" is not a Devil Time destination`);
+        }
       }
 
       if (allocObj.note !== null && typeof allocObj.note !== "string") {
@@ -599,7 +690,7 @@ function deriveExpectedAttendanceFromRaw(wizardId: string, timeParticipants: unk
   for (const tp of timeParticipants) {
     const tpObj = tp as Record<string, unknown>;
     const pRef = tpObj.participant as Record<string, unknown>;
-    if (pRef.wizardId !== wizardId) continue;
+    if (pRef.kind !== "wizard" || pRef.wizardId !== wizardId) continue;
     const allocations = tpObj.allocations as unknown[];
     for (const alloc of allocations) {
       const allocObj = alloc as Record<string, unknown>;
@@ -711,6 +802,7 @@ function validateLifecycle(
       currentMonth.timeParticipants as unknown[],
       wizardIds,
       "currentMonth.timeParticipants",
+      version,
     );
 
     if (!Array.isArray(currentMonth.engagements)) {
@@ -835,6 +927,24 @@ function validateV4Shape(s: Record<string, unknown>): void {
   validateCommonShape(s, 4);
 }
 
+export function validateCampaignStateV4Candidate(state: unknown): CampaignStateV4 {
+  if (state === null || state === undefined || typeof state !== "object") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "State must be a non-null object");
+  }
+
+  const s = state as Record<string, unknown>;
+
+  if (s.schemaVersion !== 4) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `validateCampaignStateV4Candidate requires schemaVersion 4, got ${JSON.stringify(s.schemaVersion)}`,
+    );
+  }
+
+  validateV4Shape(s);
+  return state as CampaignStateV4;
+}
+
 export function validateCampaignState(state: unknown): CurrentCampaignState {
   if (state === null || state === undefined || typeof state !== "object") {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "State must be a non-null object");
@@ -876,7 +986,7 @@ const VALID_REPRESENTATIONS = new Set(["individual", "collective"]);
 const VALID_COMPANION_STATUSES = new Set(["current", "ended"]);
 const VALID_MORTALITY_STATES = new Set(["not_deceased", "deceased"]);
 const VALID_TREASURE_CONDITIONS = new Set(["intact", "destroyed"]);
-const VALID_TREASURE_CUSTODY_KINDS = new Set(["subject", "place", "unlocated", "none"]);
+const VALID_TREASURE_CUSTODY_KINDS = new Set(["subject", "place", "unlocated", "none", "devil"]);
 const VALID_SUBJECT_REF_KINDS = new Set(["wizard", "denizen"]);
 const VALID_PACT_FRAGMENT_CONDITIONS = new Set<string>(PACT_FRAGMENT_CONDITIONS);
 const VALID_PACT_FRAGMENT_CUSTODY_KINDS = new Set(["wizard", "devil", "unlocated", "none"]);
@@ -1307,6 +1417,40 @@ export function validateCampaignStateV5Candidate(state: unknown): CampaignStateV
   validateHierophantReferenceIntegrity(state as CampaignStateV5);
   validateMarinerReferenceIntegrity(state as CampaignStateV5);
   validateNecromancerReferenceIntegrity(state as CampaignStateV5);
+  validateFaustianReferenceIntegrity(state as CampaignStateV5);
+  validateWarlockReferenceIntegrity(state as CampaignStateV5);
+  validateSageReferenceIntegrity(state as CampaignStateV5);
+  validateV5TimeDestinationReferences(state as CampaignStateV5);
 
   return state as CampaignStateV5;
+}
+
+function validateV5TimeDestinationReferences(state: CampaignStateV5): void {
+  if (state.lifecycle.kind !== "play") return;
+  const wizardIds = new Set(state.wizards.map((wizard) => wizard.wizardId as string));
+  const denizenIds = new Set(state.world.denizens.map((denizen) => denizen.denizenId as string));
+  const companionIds = new Set(
+    state.world.companionRelationships.map((relationship) => relationship.companionRelationshipId as string),
+  );
+
+  for (let i = 0; i < state.lifecycle.currentMonth.timeParticipants.length; i++) {
+    const tp = state.lifecycle.currentMonth.timeParticipants[i];
+    for (let j = 0; j < tp.allocations.length; j++) {
+      const dest = tp.allocations[j].destination;
+      if (dest === null) continue;
+      const path = `currentMonth.timeParticipants[${i}].allocations[${j}].destination`;
+      if (dest.kind === "devil_wizard" && !wizardIds.has(dest.wizardId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.wizardId does not resolve: ${dest.wizardId}`);
+      }
+      if (dest.kind === "devil_denizen" && !denizenIds.has(dest.denizenId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId does not resolve: ${dest.denizenId}`);
+      }
+      if (dest.kind === "devil_companion" && !companionIds.has(dest.companionRelationshipId)) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `${path}.companionRelationshipId does not resolve: ${dest.companionRelationshipId}`,
+        );
+      }
+    }
+  }
 }

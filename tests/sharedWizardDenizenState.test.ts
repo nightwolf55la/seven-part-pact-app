@@ -18,7 +18,10 @@ import {
   EMPTY_HIEROPHANT_STATE,
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
+  EMPTY_FAUSTIAN_STATE,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_SAGE_STATE,
+  EMPTY_WARLOCK_STATE,
   EMPTY_SHARED_WORLD_STATE,
   PACT_SEAT_IDS,
   POWERFUL_DENIZEN_BUILTIN_TAXONOMY_IDS,
@@ -32,6 +35,7 @@ import {
   validateCampaignState,
   validateCampaignStateV5Candidate,
 } from "../shared/domain";
+import { makeTestCampaignStateV5 } from "./test-state";
 
 const PLR_A = "plr_00000000-0000-0000-0000-00000000000a" as PlayerId;
 const WIZ_A = "wiz_00000000-0000-0000-0000-00000000000a" as WizardId;
@@ -82,26 +86,12 @@ function powerfulProfile(overrides?: Partial<PowerfulDenizenProfile>): PowerfulD
 }
 
 function baseState(overrides?: Partial<CampaignStateV5>): CampaignStateV5 {
-  return {
-    schemaVersion: 5,
-    ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
+  return makeTestCampaignStateV5({
     calendar: { monthOrdinal: 0 as CampaignStateV5["calendar"]["monthOrdinal"] },
-    configuration: { ageId: null, facilitatorPlayerId: null },
     players: [{ playerId: PLR_A, name: "Alice" }],
     wizards: [wizard(WIZ_A)],
-    pactSeats: EMPTY_PACT_SEATS,
-    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
-    lifecycle: {
-      kind: "setup",
-      orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
-    },
-    wizardmootHistory: [],
-    world: { ...EMPTY_SHARED_WORLD_STATE },
-    hierophant: { ...EMPTY_HIEROPHANT_STATE },
-    mariner: { ...EMPTY_MARINER_STATE },
-    necromancer: { ...EMPTY_NECROMANCER_STATE },
     ...overrides,
-  };
+  });
 }
 
 function expectInvalid(state: unknown, pattern: RegExp): void {
@@ -287,6 +277,15 @@ describe("M5.2D D1A shared wizard and denizen state", () => {
       "cult",
       "beast",
       "foe_of_death",
+      "conspiracy",
+      "occultist",
+      "demon",
+      "fairy",
+      "druid",
+      "angel",
+      "errant_noble",
+      "army",
+      "hero",
     ]);
     expectInvalid(
       {
@@ -541,6 +540,22 @@ describe("M5.2D D1A shared wizard and denizen state", () => {
     );
   });
 
+  it("accepts intact treasure in Devil custody", () => {
+    const valid = baseState({
+      world: {
+        ...EMPTY_SHARED_WORLD_STATE,
+        treasures: [{
+          treasureId: TRS_1,
+          name: "Devil Chalice",
+          description: null,
+          condition: "intact",
+          custody: { kind: "devil" },
+        }],
+      },
+    });
+    expect(() => validateCampaignStateV5Candidate(valid)).not.toThrow();
+  });
+
   it("rejects destroyed treasure with non-none custody", () => {
     expectInvalid(
       {
@@ -704,6 +719,9 @@ describe("M5.2D D1A shared wizard and denizen state", () => {
       hierophant: { ...EMPTY_HIEROPHANT_STATE },
       mariner: { ...EMPTY_MARINER_STATE },
       necromancer: { ...EMPTY_NECROMANCER_STATE },
+    faustian: { ...EMPTY_FAUSTIAN_STATE },
+    sage: { ...EMPTY_SAGE_STATE },
+    warlock: { ...EMPTY_WARLOCK_STATE },
     };
 
     expect(() => validateCampaignState(preM52d)).toThrow(DomainError);

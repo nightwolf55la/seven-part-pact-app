@@ -17,16 +17,10 @@ import type {
   CampaignCommandType,
 } from "../shared/domain";
 import {
-  SEVEN_PART_PACT_DRAFT4_ID,
-  SEVEN_PART_PACT_DRAFT4_VERSION,
   DomainError,
   BLANK_WIZARD_CHARACTER_V5,
-  EMPTY_SHARED_WORLD_STATE,
-  EMPTY_HIEROPHANT_STATE,
-  EMPTY_MARINER_STATE,
-  EMPTY_NECROMANCER_STATE,
-  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
 } from "../shared/domain";
+import { makeTestCampaignStateV5 } from "./test-state";
 import {
   applyUpdateWizardCharacterV5Candidate,
   applySetEngagementTargetV5Candidate,
@@ -55,16 +49,6 @@ const ENG_1 = "eng_00000000-0000-0000-0000-000000000001" as EngagementId;
 const ENG_2 = "eng_00000000-0000-0000-0000-000000000002" as EngagementId;
 const ALLOC_1 = "alloc_00000000-0000-0000-0000-000000000001" as AllocationId;
 
-const EMPTY_PACT_SEATS = {
-  necromancer: { status: null, wizardId: null, watcherPlayerId: null },
-  hierophant: { status: null, wizardId: null, watcherPlayerId: null },
-  warlock: { status: null, wizardId: null, watcherPlayerId: null },
-  mariner: { status: null, wizardId: null, watcherPlayerId: null },
-  faustian: { status: null, wizardId: null, watcherPlayerId: null },
-  sage: { status: null, wizardId: null, watcherPlayerId: null },
-  sorcerer: { status: null, wizardId: null, watcherPlayerId: null },
-} as const;
-
 // ---------------------------------------------------------------------------
 // State helpers
 // ---------------------------------------------------------------------------
@@ -83,25 +67,11 @@ function blankV5Wizard(overrides?: Partial<CampaignWizardV5>): CampaignWizardV5 
 }
 
 function baseV5Setup(wizards?: CampaignWizardV5[]): CampaignStateV5 {
-  return {
-    schemaVersion: 5,
-    ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
+  return makeTestCampaignStateV5({
     calendar: { monthOrdinal: 5 as MonthOrdinal },
-    configuration: { ageId: null, facilitatorPlayerId: null },
     players: [{ playerId: PLR_A, name: "Alice" }],
     wizards: wizards ?? [blankV5Wizard()],
-    pactSeats: EMPTY_PACT_SEATS,
-    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
-    lifecycle: {
-      kind: "setup",
-      orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
-    },
-    wizardmootHistory: [],
-    world: { ...EMPTY_SHARED_WORLD_STATE },
-    hierophant: { ...EMPTY_HIEROPHANT_STATE },
-    mariner: { ...EMPTY_MARINER_STATE },
-    necromancer: { ...EMPTY_NECROMANCER_STATE },
-  };
+  });
 }
 
 function baseV5Play(

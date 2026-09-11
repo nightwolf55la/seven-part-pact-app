@@ -71,6 +71,7 @@ import type {
 import { validateNecromancerReferenceIntegrity } from "./necromancer-validation";
 import { validateHierophantReferenceIntegrity } from "./hierophant-validation";
 import { validateMarinerReferenceIntegrity } from "./mariner-validation";
+import { validateFaustianReferenceIntegrity } from "./faustian-validation";
 import { isNecromancerWizardFoe } from "./necromancer-state";
 
 export type SharedStateTransitionResult = {
@@ -300,6 +301,7 @@ function normalizeTreasureCustody(
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Destroyed treasure custody must be none");
   }
   if (custody.kind === "none") return { kind: "none" };
+  if (custody.kind === "devil") return { kind: "devil" };
   if (custody.kind === "unlocated") return { kind: "unlocated" };
   if (custody.kind === "place") {
     if (!isValidPlaceId(custody.placeId) || !placeExists(state, custody.placeId)) {
@@ -411,7 +413,9 @@ export function applySetDenizenMortalityState(
       newMortalityState: change.value,
     },
   };
-  return { nextState: replaceDenizen(state, index, updated), events: [event] };
+  const nextState = replaceDenizen(state, index, updated);
+  validateFaustianReferenceIntegrity(nextState);
+  return { nextState, events: [event] };
 }
 
 export interface CreatePowerfulDenizenProfileInput {

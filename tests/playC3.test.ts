@@ -24,6 +24,7 @@ import {
   applySetPactSeatWizard,
   applySetPactSeatStatus,
   applySetWatcher,
+  wizardIdOfParticipant,
 } from "../shared/domain";
 import type {
   CurrentCampaignState,
@@ -174,7 +175,7 @@ function getEngagement(state: CurrentCampaignState, engagementId: string) {
 
 function firstAllocId(state: CurrentCampaignState, wizardId: WizardId): AllocationId {
   if (state.lifecycle.kind !== "play") throw new Error("not play");
-  const tp = state.lifecycle.currentMonth.timeParticipants.find((t) => t.participant.wizardId === wizardId);
+  const tp = state.lifecycle.currentMonth.timeParticipants.find((t) => wizardIdOfParticipant(t.participant) === wizardId);
   if (!tp) throw new Error(`no time participant for ${wizardId}`);
   return tp.allocations[0].allocationId;
 }
@@ -325,7 +326,7 @@ describe("applyScheduleTime", () => {
       state = r.nextState;
     }
     if (state.lifecycle.kind !== "play") throw new Error("unreachable");
-    const tp = state.lifecycle.currentMonth.timeParticipants.find((t) => t.participant.wizardId === wizId(1))!;
+    const tp = state.lifecycle.currentMonth.timeParticipants.find((t) => wizardIdOfParticipant(t.participant) === wizId(1))!;
     expect(tp.reschedulesUsed).toBe(0);
   });
 
@@ -386,7 +387,7 @@ describe("applyScheduleTime", () => {
         currentMonth: {
           ...planning.lifecycle.currentMonth,
           timeParticipants: planning.lifecycle.currentMonth.timeParticipants.map((tp) =>
-            tp.participant.wizardId === wizId(1)
+            wizardIdOfParticipant(tp.participant) === wizId(1)
               ? {
                   ...tp,
                   allocations: tp.allocations.map((a) =>
@@ -415,7 +416,7 @@ describe("applyScheduleTime", () => {
         currentMonth: {
           ...planning.lifecycle.currentMonth,
           timeParticipants: planning.lifecycle.currentMonth.timeParticipants.map((tp) =>
-            tp.participant.wizardId === wizId(1)
+            wizardIdOfParticipant(tp.participant) === wizId(1)
               ? {
                   ...tp,
                   allocations: tp.allocations.map((a) =>
@@ -561,7 +562,7 @@ describe("applyScheduleTime engagement linking", () => {
     // Now try to link a different allocation (alloc2) to the same engagement
     if (planning.lifecycle.kind !== "play") throw new Error("unreachable");
     const tp = r1.nextState.lifecycle.kind === "play"
-      ? r1.nextState.lifecycle.currentMonth.timeParticipants.find((t) => t.participant.wizardId === w1)!
+      ? r1.nextState.lifecycle.currentMonth.timeParticipants.find((t) => wizardIdOfParticipant(t.participant) === w1)!
       : null;
     if (!tp) throw new Error("unreachable");
     const alloc2 = tp.allocations[1].allocationId;
@@ -701,7 +702,7 @@ describe("applySetEngagementTarget", () => {
 
     // Reschedule counters should be unchanged
     if (r2.nextState.lifecycle.kind !== "play") throw new Error("unreachable");
-    const tp = r2.nextState.lifecycle.currentMonth.timeParticipants.find((t) => t.participant.wizardId === w1)!;
+    const tp = r2.nextState.lifecycle.currentMonth.timeParticipants.find((t) => wizardIdOfParticipant(t.participant) === w1)!;
     expect(tp.reschedulesUsed).toBe(0);
   });
 

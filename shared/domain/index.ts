@@ -164,6 +164,15 @@ export type {
   NecromancerCampaignPathSpaceRemovedEventV1,
   NecromancerStepAddedEventV1,
   NecromancerStepRemovedEventV1,
+  FaustianEvent,
+  FaustianCommunityInvestigatedDataV1,
+  FaustianCommunityInvestigatedEventV1,
+  FaustianCommunityBlackmailedDataV1,
+  FaustianCommunityBlackmailedEventV1,
+  FaustianAccompliceDirectedDataV1,
+  FaustianAccompliceDirectedEventV1,
+  FaustianPawnDisruptedDataV1,
+  FaustianPawnDisruptedEventV1,
   CampaignEvent,
 } from "./events";
 
@@ -237,7 +246,7 @@ export { migrateToCurrentVersion, loadHistoricalState, isHistoricalStateLogicall
 export type { DomainErrorCode } from "./errors";
 export { DomainError } from "./errors";
 
-export { validateCampaignState, validateAnyCampaignState, validateCampaignStateV5Candidate } from "./state-validation";
+export { validateCampaignState, validateAnyCampaignState, validateCampaignStateV4Candidate, validateCampaignStateV5Candidate } from "./state-validation";
 
 export { initialCampaignState } from "./initial-state";
 
@@ -401,6 +410,10 @@ export {
   updateTreasureDetailsFingerprint,
   updateTreasureStateFingerprint,
   updatePactFragmentOperationalStateFingerprint,
+  investigateFaustianCommunityFingerprint,
+  blackmailFaustianCommunityFingerprint,
+  directFaustianAccompliceFingerprint,
+  disruptFaustianPawnFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
@@ -573,7 +586,8 @@ export {
 
 // --- Participants ---
 
-export type { WizardParticipantRef, TimeParticipantRef } from "./participants";
+export type { WizardParticipantRef, DevilParticipantRef, TimeParticipantRef } from "./participants";
+export { isWizardParticipantRef, isDevilParticipantRef, wizardIdOfParticipant } from "./participants";
 
 // --- Time Model ---
 
@@ -587,12 +601,39 @@ export type {
   DomainDestination,
   EngagementDestination,
   SpecialUseDestination,
+  TimeDestinationV4,
+  TimeDestinationKindV4,
+  DevilCommunityDestination,
+  DevilSchemesDestination,
+  DevilCompanionDestination,
+  DevilGrimoireDestination,
+  DevilWizardDestination,
+  DevilDenizenDestination,
+  DevilSeizedDomainDestination,
+  DevilOnlyTimeDestination,
+  DevilTimeDestination,
+  DevilOnlyTimeDestinationKind,
+  TimeDestinationV5,
+  TimeDestinationKindV5,
   TimeDestination,
   TimeDestinationKind,
+  TimeAllocationV4,
+  TimeAllocationV5,
   TimeAllocation,
+  TimeParticipantV4,
+  TimeParticipantV5,
   TimeParticipant,
 } from "./time-model";
-export { ALLOCATION_RESOLUTIONS, TIME_DESTINATION_KINDS } from "./time-model";
+export {
+  ALLOCATION_RESOLUTIONS,
+  TIME_DESTINATION_KINDS_V4,
+  DEVIL_ONLY_TIME_DESTINATION_KINDS,
+  TIME_DESTINATION_KINDS_V5,
+  TIME_DESTINATION_KINDS,
+  isDevilOnlyTimeDestination,
+  isWizardTimeDestination,
+  isDevilTimeDestination,
+} from "./time-model";
 
 // --- Engagement ---
 
@@ -1084,6 +1125,282 @@ export {
 } from "./necromancer-state";
 
 export { validateNecromancerStructure, validateNecromancerReferenceIntegrity } from "./necromancer-validation";
+
+export type {
+  FaustianSuit,
+  FaustianRank,
+  FaustianCardId,
+  FaustianCardDefinition,
+  FaustianCardFacing,
+  FaustianCommunityId,
+  FaustianCommunityDefinition,
+  FaustianDevilLawId,
+  FaustianDevilLawDefinition,
+  FaustianDevilFormId,
+  FaustianDevilFormOccasion,
+  FaustianDevilFormDefinition,
+  FaustianOriginClaimId,
+  FaustianOriginClaimStatus,
+  FaustianOriginClaimDefinition,
+  FaustianAntagonistGoal,
+  FaustianAntagonistGoalDefinition,
+  FaustianAntagonistMethodName,
+  FaustianAntagonistChipCount,
+  FaustianMalignance,
+} from "./faustian-catalogs";
+export {
+  FAUSTIAN_SUITS,
+  FAUSTIAN_RANKS,
+  FAUSTIAN_CARD_IDS,
+  FAUSTIAN_CARD_DEFINITIONS,
+  faustianCardId,
+  isValidFaustianCardId,
+  isValidFaustianSuit,
+  isValidFaustianRank,
+  FAUSTIAN_CARD_FACINGS,
+  isValidFaustianCardFacing,
+  FAUSTIAN_COMMUNITY_IDS,
+  FAUSTIAN_COMMUNITY_DEFINITIONS,
+  isValidFaustianCommunityId,
+  FAUSTIAN_DEVIL_LAW_IDS,
+  FAUSTIAN_DEVIL_LAW_DEFINITIONS,
+  isValidFaustianDevilLawId,
+  FAUSTIAN_DEVIL_FORM_IDS,
+  FAUSTIAN_DEVIL_FORM_OCCASIONS,
+  FAUSTIAN_DEVIL_FORM_DEFINITIONS,
+  isValidFaustianDevilFormId,
+  isValidFaustianDevilFormOccasion,
+  FAUSTIAN_ORIGIN_CLAIM_IDS,
+  FAUSTIAN_ORIGIN_CLAIM_STATUSES,
+  FAUSTIAN_ORIGIN_CLAIM_DEFINITIONS,
+  isValidFaustianOriginClaimId,
+  isValidFaustianOriginClaimStatus,
+  FAUSTIAN_ANTAGONIST_GOALS,
+  FAUSTIAN_ANTAGONIST_GOAL_DEFINITIONS,
+  isValidFaustianAntagonistGoal,
+  faustianAntagonistGoalSuit,
+  FAUSTIAN_ANTAGONIST_METHOD_NAMES,
+  isValidFaustianAntagonistMethodName,
+  FAUSTIAN_ANTAGONIST_CHIP_COUNTS,
+  isValidFaustianAntagonistChipCount,
+  FAUSTIAN_MALIGNANCES,
+  isValidFaustianMalignance,
+} from "./faustian-catalogs";
+
+export type {
+  FaustianSchemePlacement,
+  FaustianCommunityState,
+  FaustianMachinationCard,
+  FaustianEntrustedCard,
+  FaustianAntagonistBeneathCard,
+  FaustianPossessionRepresentation,
+  FaustianPossessionCard,
+  FaustianDomainPlacedCard,
+  FaustianConspiracyState,
+  FaustianAntagonistState,
+  FaustianDemonOccupancy,
+  FaustianDemonBinding,
+  FaustianDemonCondition,
+  FaustianDemonState,
+  FaustianDomainSeizure,
+  FaustianOriginClaimState,
+  FaustianCustomOriginClaim,
+  FaustianSelectedDevilForms,
+  FaustianDevilObligation,
+  FaustianPersistentFullHouseRank,
+  FaustianPersistentMachinationEffect,
+  FaustianState,
+  InitializedDefaultFaustianInput,
+} from "./faustian-state";
+export {
+  EMPTY_FAUSTIAN_STATE,
+  EMPTY_SELECTED_DEVIL_FORMS,
+  FAUSTIAN_DEMON_CONDITIONS,
+  FAUSTIAN_PERSISTENT_FULL_HOUSE_RANKS,
+  buildInitializedDefaultFaustianState,
+  faustianDeckMissingSuits,
+  devilWeeksOwedForMissingSuits,
+  isFaustianDeckEmpty,
+  isValidFaustianDemonCondition,
+  isValidFaustianPersistentFullHouseRank,
+} from "./faustian-state";
+
+export { validateFaustianStructure, validateFaustianReferenceIntegrity } from "./faustian-validation";
+
+export type {
+  SageLawOfDreamingId,
+  SageLawOfDreamingDefinition,
+  SageDestinySuit,
+  SageDestinyRank,
+  SageDestinyDefinitionId,
+  SageDestinyDefinition,
+  SageDreamscapeSegmentId,
+  SageDreamscapeSegmentDefinition,
+  SageCycleId,
+  SageCycleDefinition,
+  SageOrdinaryFairyNameGlyph,
+  SageDreamingCondition,
+  SageFutureCondition,
+  SageDestinyAssignmentStatus,
+  SageFairyForm,
+  SageDruidGrade,
+} from "./sage-catalogs";
+export {
+  SAGE_LAW_OF_DREAMING_IDS,
+  SAGE_LAW_OF_DREAMING_DEFINITIONS,
+  isValidSageLawOfDreamingId,
+  SAGE_DESTINY_SUITS,
+  SAGE_DESTINY_RANKS,
+  SAGE_DESTINY_DEFINITIONS,
+  SAGE_DESTINY_DEFINITION_IDS,
+  isValidSageDestinyDefinitionId,
+  isValidSageDestinySuit,
+  isValidSageDestinyRank,
+  sageDestinyDefinition,
+  SAGE_DREAMSCAPE_SEGMENT_IDS,
+  SAGE_DREAMSCAPE_SEGMENT_DEFINITIONS,
+  isValidSageDreamscapeSegmentId,
+  SAGE_CYCLE_IDS,
+  SAGE_CYCLE_DEFINITIONS,
+  isValidSageCycleId,
+  sageCycleDefinition,
+  SAGE_ORDINARY_FAIRY_NAME_GLYPHS,
+  isValidSageOrdinaryFairyNameGlyph,
+  SAGE_DREAMING_CONDITIONS,
+  isValidSageDreamingCondition,
+  SAGE_FUTURE_CONDITIONS,
+  isValidSageFutureCondition,
+  SAGE_DESTINY_ASSIGNMENT_STATUSES,
+  isValidSageDestinyAssignmentStatus,
+  SAGE_FAIRY_FORMS,
+  isValidSageFairyForm,
+  SAGE_DRUID_GRADES,
+  isValidSageDruidGrade,
+} from "./sage-catalogs";
+
+export type {
+  SageDestinyInstanceId,
+  SageDestinyInstance,
+  SageAssignedDestiny,
+  SageOmenLocation,
+  SageOmenEntry,
+  SageDreamscapeDenizenAssociation,
+  SageOrdinaryFairyName,
+  SageFairyTrueName,
+  SageFairyName,
+  SageFairyOverlay,
+  SageDruidOverlay,
+  SageLostDreamerState,
+  SageState,
+} from "./sage-state";
+export {
+  EMPTY_SAGE_STATE,
+  isValidSageDestinyInstanceId,
+  sageOmenLocationKey,
+} from "./sage-state";
+
+export { validateSageStructure, validateSageReferenceIntegrity } from "./sage-validation";
+
+export type {
+  WarlockSourceClanId,
+  WarlockEmergentClanId,
+  WarlockClanId,
+  WarlockSourceHeraldry,
+  WarlockClanKind,
+  WarlockClanDefinition,
+  WarlockIdeologyId,
+  WarlockIdeologyDefinition,
+  WarlockCourtLawId,
+  WarlockCourtLawDefinition,
+  WarlockLordTitleId,
+  WarlockTitleBaseSetupPlacement,
+  WarlockLordTitleDefinition,
+  WarlockHeroicTitleGlyph,
+  WarlockHeroFame,
+  WarlockArmyLifecycle,
+  WarlockCourtCondition,
+  WarlockKingHealthCondition,
+} from "./warlock-catalogs";
+export {
+  WARLOCK_SOURCE_CLAN_IDS,
+  WARLOCK_EMERGENT_CLAN_IDS,
+  WARLOCK_CLAN_IDS,
+  WARLOCK_SOURCE_HERALDRY_VALUES,
+  WARLOCK_SOURCE_CLAN_HERALDRY,
+  WARLOCK_CLAN_DEFINITIONS,
+  isValidWarlockClanId,
+  isValidWarlockSourceClanId,
+  WARLOCK_IDEOLOGY_IDS,
+  WARLOCK_IDEOLOGY_DEFINITIONS,
+  isValidWarlockIdeologyId,
+  WARLOCK_COURT_LAW_IDS,
+  WARLOCK_COURT_LAW_DEFINITIONS,
+  isValidWarlockCourtLawId,
+  WARLOCK_LORD_TITLE_IDS,
+  WARLOCK_LORD_TITLE_DEFINITIONS,
+  isValidWarlockLordTitleId,
+  warlockLordTitleDefinition,
+  WARLOCK_HEROIC_TITLE_GLYPHS,
+  isValidWarlockHeroicTitleGlyph,
+  WARLOCK_HERO_FAME_VALUES,
+  isValidWarlockHeroFame,
+  WARLOCK_ARMY_LIFECYCLE_VALUES,
+  isValidWarlockArmyLifecycle,
+  WARLOCK_COURT_CONDITIONS,
+  isValidWarlockCourtCondition,
+  WARLOCK_KING_HEALTH_CONDITIONS,
+  isValidWarlockKingHealthCondition,
+} from "./warlock-catalogs";
+
+export type {
+  WarlockCampaignCourtLawId,
+  WarlockGarrisonId,
+  WarlockRebellionId,
+  WarlockRelocatedMarketId,
+  WarlockClanState,
+  WarlockCampaignCourtLaw,
+  WarlockCourtLawRef,
+  WarlockLordTitleState,
+  WarlockClanDeckState,
+  WarlockQuestTitleState,
+  WarlockFaustianAccompliceTitleState,
+  WarlockKingState,
+  WarlockLadyOverlay,
+  WarlockErrantHeraldry,
+  WarlockErrantClaim,
+  WarlockErrantLadyOverlay,
+  WarlockAuthorityTarget,
+  WarlockAuthorityEntry,
+  WarlockGarrisonState,
+  WarlockArmySponsor,
+  WarlockArmyOverlay,
+  WarlockHeroicTitle,
+  WarlockHeroOverlay,
+  WarlockRebellionState,
+  WarlockClanHeraldryCount,
+  WarlockMarketHeraldryState,
+  WarlockRelocatedMarketState,
+  WarlockPartnership,
+  WarlockState,
+} from "./warlock-state";
+export {
+  EMPTY_WARLOCK_STATE,
+  isValidWarlockCampaignCourtLawId,
+  isValidWarlockGarrisonId,
+  isValidWarlockRebellionId,
+  isValidWarlockRelocatedMarketId,
+  warlockAuthorityTargetKey,
+} from "./warlock-state";
+
+export { validateWarlockStructure, validateWarlockReferenceIntegrity } from "./warlock-validation";
+
+export type { FaustianTransitionResult } from "./faustian-transitions";
+export {
+  applyInvestigateFaustianCommunity,
+  applyBlackmailFaustianCommunity,
+  applyDirectFaustianAccomplice,
+  applyDisruptFaustianPawn,
+} from "./faustian-transitions";
 
 export type {
   NecromancerTransitionResult,

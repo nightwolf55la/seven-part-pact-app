@@ -10,6 +10,15 @@ export const POWERFUL_DENIZEN_BUILTIN_TAXONOMY_IDS = [
   "cult",
   "beast",
   "foe_of_death",
+  "conspiracy",
+  "occultist",
+  "demon",
+  "fairy",
+  "druid",
+  "angel",
+  "errant_noble",
+  "army",
+  "hero",
 ] as const;
 
 export type BuiltinPowerfulDenizenTaxonomyId =
@@ -27,6 +36,15 @@ export const POWERFUL_DENIZEN_BUILTIN_TAXONOMY_DEFINITIONS: readonly PowerfulDen
   { taxonomyId: "cult", name: "Cult", description: null },
   { taxonomyId: "beast", name: "Beast", description: null },
   { taxonomyId: "foe_of_death", name: "Foe of Death", description: null },
+  { taxonomyId: "conspiracy", name: "Conspiracy", description: null },
+  { taxonomyId: "occultist", name: "Occultist", description: null },
+  { taxonomyId: "demon", name: "Demon", description: null },
+  { taxonomyId: "fairy", name: "Fairy", description: null },
+  { taxonomyId: "druid", name: "Druid", description: null },
+  { taxonomyId: "angel", name: "Angel", description: null },
+  { taxonomyId: "errant_noble", name: "Errant Noble", description: null },
+  { taxonomyId: "army", name: "Army", description: null },
+  { taxonomyId: "hero", name: "Hero", description: null },
 ];
 
 export function isValidBuiltinPowerfulDenizenTaxonomyId(

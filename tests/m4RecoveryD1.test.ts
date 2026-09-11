@@ -33,6 +33,7 @@ import {
   asCentidegreePosition,
   buildExportBackup,
   fullyValidateBackup,
+  wizardIdOfParticipant,
 } from "../shared/domain";
 import type {
   CurrentCampaignState,
@@ -205,7 +206,7 @@ function buildQuietState(): CurrentCampaignState {
 
 function firstAllocId(state: CurrentCampaignState, wizardId: WizardId): AllocationId {
   if (state.lifecycle.kind !== "play") throw new Error("not play");
-  const tp = state.lifecycle.currentMonth.timeParticipants.find((t) => t.participant.wizardId === wizardId);
+  const tp = state.lifecycle.currentMonth.timeParticipants.find((t) => wizardIdOfParticipant(t.participant) === wizardId);
   if (!tp) throw new Error(`no time participant for ${wizardId}`);
   return tp.allocations[0].allocationId;
 }

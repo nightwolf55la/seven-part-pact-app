@@ -15,7 +15,8 @@ import {
   EMPTY_HIEROPHANT_STATE,
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
-  EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_SAGE_STATE,
+  EMPTY_WARLOCK_STATE,
   EMPTY_SHARED_WORLD_STATE,
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
@@ -36,9 +37,11 @@ import {
   validateCampaignStateV5Candidate,
   validateV5WorldReferenceIntegrity,
   verifyCheckpointRestoreRevision,
+  EMPTY_FAUSTIAN_STATE,
 } from "../shared/domain";
 import type { CampaignHistoryControlV1 } from "../shared/domain";
 import { snapshotRecord } from "../convex/persistence";
+import { makeTestCampaignStateV5 } from "./test-state";
 
 const CAMPAIGN_ID = "cmp_00000000-0000-0000-0000-000000000001";
 const PLR_A = "plr_00000000-0000-0000-0000-00000000000a" as PlayerId;
@@ -61,29 +64,15 @@ const EMPTY_PACT_SEATS = {
 } as const;
 
 function baseState(): CampaignStateV5 {
-  return {
-    schemaVersion: 5,
-    ruleset: { id: SEVEN_PART_PACT_DRAFT4_ID, version: SEVEN_PART_PACT_DRAFT4_VERSION },
+  return makeTestCampaignStateV5({
     calendar: { monthOrdinal: 0 as CampaignStateV5["calendar"]["monthOrdinal"] },
-    configuration: { ageId: null, facilitatorPlayerId: null },
     players: [{ playerId: PLR_A, name: "Alice" }],
-    wizards: [],
-    pactSeats: EMPTY_PACT_SEATS,
-    pactFragmentOperationalState: EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
-    lifecycle: {
-      kind: "setup",
-      orrery: { saturn: null, jupiter: null, mars: null, venus: null, mercury: null },
-    },
-    wizardmootHistory: [],
     world: {
       ...EMPTY_SHARED_WORLD_STATE,
       places: [{ placeId: PLC_1, name: "Ash Tower", description: null, placement: { kind: "unspecified" } }],
       campaignPowerfulDenizenTaxonomies: [{ taxonomyId: TAX_1, name: "Tide-Kin", description: null }],
     },
-    hierophant: { ...EMPTY_HIEROPHANT_STATE },
-    mariner: { ...EMPTY_MARINER_STATE },
-    necromancer: { ...EMPTY_NECROMANCER_STATE },
-  };
+  });
 }
 
 function representativeState(): CampaignStateV5 {
@@ -320,6 +309,9 @@ describe("M5.2D D1B snapshot / undo / redo / checkpoint / backup / verifier", ()
       hierophant: { ...EMPTY_HIEROPHANT_STATE },
       mariner: { ...EMPTY_MARINER_STATE },
       necromancer: { ...EMPTY_NECROMANCER_STATE },
+    faustian: { ...EMPTY_FAUSTIAN_STATE },
+    sage: { ...EMPTY_SAGE_STATE },
+    warlock: { ...EMPTY_WARLOCK_STATE },
     };
     expect(() => validateCampaignState(pre)).toThrow(DomainError);
     expect(() => validateCampaignStateV5Candidate(pre)).toThrow(DomainError);

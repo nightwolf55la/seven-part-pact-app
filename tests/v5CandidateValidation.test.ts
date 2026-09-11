@@ -26,6 +26,9 @@ import {
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+  EMPTY_SAGE_STATE,
+  EMPTY_FAUSTIAN_STATE,
+  EMPTY_WARLOCK_STATE,
 } from "../shared/domain";
 
 // ---------------------------------------------------------------------------
@@ -81,6 +84,9 @@ function minimalV5Setup(): CampaignStateV5 {
     hierophant: { ...EMPTY_HIEROPHANT_STATE },
     mariner: { ...EMPTY_MARINER_STATE },
     necromancer: { ...EMPTY_NECROMANCER_STATE },
+    faustian: { ...EMPTY_FAUSTIAN_STATE },
+    sage: { ...EMPTY_SAGE_STATE },
+    warlock: { ...EMPTY_WARLOCK_STATE },
   };
 }
 
