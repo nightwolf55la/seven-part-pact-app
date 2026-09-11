@@ -1,6 +1,6 @@
 import type { CampaignStateV5 } from "./campaign-state";
 import { DomainError } from "./errors";
-import { isValidDenizenId, isValidIsleId, isValidWizardId } from "./ids";
+import { isValidDenizenId, isValidIsleId, isValidPlaceId, isValidWizardId } from "./ids";
 import { isValidFaustianCommunityId } from "./faustian-catalogs";
 import { isValidHierophantTempleId } from "./hierophant-catalogs";
 import { isValidMarinerSeaRegionId } from "./mariner-catalogs";
@@ -10,6 +10,7 @@ import { isValidPactSeatId } from "./pact-seats";
 import type { PactSeatId } from "./pact-seats";
 import { requirePowerfulRoleProfile } from "./powerful-denizen-roles";
 import { isValidSageDreamscapeSegmentId } from "./sage-catalogs";
+import { isValidSorcererResearchPositionId } from "./sorcerer-state";
 import type { WizardOrDenizenSubjectRef } from "./shared-world";
 import {
   isValidWarlockArmyLifecycle,
@@ -222,9 +223,20 @@ function validateErrantClaim(path: string, value: unknown): WarlockErrantClaim {
     }
     return { kind: "sage_dreamscape", segmentId: claim.segmentId };
   }
-  if (claim.kind === "sorcerer_research_position" || claim.kind === "sorcerer_tower") {
-    assertNonEmptyString(`${path}.label`, claim.label);
-    return { kind: claim.kind, label: claim.label };
+  if (claim.kind === "sorcerer_research_position") {
+    if (typeof claim.positionId !== "string" || !isValidSorcererResearchPositionId(claim.positionId)) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path}.positionId is invalid: ${JSON.stringify(claim.positionId)}`,
+      );
+    }
+    return { kind: "sorcerer_research_position", positionId: claim.positionId };
+  }
+  if (claim.kind === "sorcerer_tower") {
+    if (typeof claim.placeId !== "string" || !isValidPlaceId(claim.placeId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.placeId is invalid: ${JSON.stringify(claim.placeId)}`);
+    }
+    return { kind: "sorcerer_tower", placeId: claim.placeId };
   }
   throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.kind is invalid: ${JSON.stringify(claim.kind)}`);
 }
@@ -869,6 +881,21 @@ export function validateWarlockReferenceIntegrity(state: CampaignStateV5): void 
         throw new DomainError(
           "INVALID_CAMPAIGN_STATE",
           `${path}.claimedComponent.communityId does not resolve: ${claim.communityId}`,
+        );
+      }
+    } else if (claim.kind === "sorcerer_research_position") {
+      const exists = state.sorcerer.researchPositions.some((position) => position.positionId === claim.positionId);
+      if (!exists) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `${path}.claimedComponent.positionId does not resolve: ${claim.positionId}`,
+        );
+      }
+    } else if (claim.kind === "sorcerer_tower") {
+      if (!state.sorcerer.initialized || state.sorcerer.towerPlaceId !== claim.placeId) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `${path}.claimedComponent.placeId does not resolve to the Sorcerer's Tower`,
         );
       }
     }

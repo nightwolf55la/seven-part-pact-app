@@ -15,6 +15,8 @@ import type { NecromancerState } from "./necromancer-state";
 import type { FaustianState } from "./faustian-state";
 import type { SageState } from "./sage-state";
 import type { WarlockState } from "./warlock-state";
+import type { MagicConsumablesState } from "./magic-consumables";
+import type { SorcererState } from "./sorcerer-state";
 import type { WizardmootAttendance, WizardmootHistoryEntry } from "./wizardmoot";
 import {
   SEVEN_PART_PACT_DRAFT4_ID,
@@ -324,4 +326,6 @@ export interface CampaignStateV5 {
   readonly faustian: FaustianState;
   readonly sage: SageState;
   readonly warlock: WarlockState;
+  readonly magicConsumables: MagicConsumablesState;
+  readonly sorcerer: SorcererState;
 }

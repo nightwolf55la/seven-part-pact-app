@@ -15,6 +15,8 @@ import {
   EMPTY_SAGE_STATE,
   EMPTY_FAUSTIAN_STATE,
   EMPTY_WARLOCK_STATE,
+  EMPTY_MAGIC_CONSUMABLES_STATE,
+  EMPTY_SORCERER_STATE,
 } from "../shared/domain";
 import { initialCampaignState } from "../shared/domain/initial-state";
 import {
@@ -62,6 +64,8 @@ function baseV3Setup(overrides?: Partial<CampaignStateV5>): CampaignStateV5 {
     faustian: EMPTY_FAUSTIAN_STATE,
     sage: EMPTY_SAGE_STATE,
     warlock: EMPTY_WARLOCK_STATE,
+    magicConsumables: EMPTY_MAGIC_CONSUMABLES_STATE,
+    sorcerer: EMPTY_SORCERER_STATE,
     ...overrides,
   };
 }
@@ -128,6 +132,8 @@ function richPlayState(): CampaignStateV5 {
     faustian: EMPTY_FAUSTIAN_STATE,
     sage: EMPTY_SAGE_STATE,
     warlock: EMPTY_WARLOCK_STATE,
+    magicConsumables: EMPTY_MAGIC_CONSUMABLES_STATE,
+    sorcerer: EMPTY_SORCERER_STATE,
   };
 }
 

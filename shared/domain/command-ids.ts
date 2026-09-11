@@ -1055,6 +1055,10 @@ export function disruptFaustianPawnFingerprint(
   })}`;
 }
 
+export function initializeSorcererFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `initialize_sorcerer:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
 /**
  * Pure deterministic idempotency match for command replay.
  * Given a previously committed command record and an incoming attempt,

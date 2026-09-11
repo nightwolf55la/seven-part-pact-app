@@ -1357,8 +1357,8 @@ const warlockErrantClaimValidator = v.union(
   v.object({ kind: v.literal("mariner_beast"), denizenId: v.string() }),
   v.object({ kind: v.literal("faustian_community"), communityId: v.string() }),
   v.object({ kind: v.literal("sage_dreamscape"), segmentId: v.string() }),
-  v.object({ kind: v.literal("sorcerer_research_position"), label: v.string() }),
-  v.object({ kind: v.literal("sorcerer_tower"), label: v.string() }),
+  v.object({ kind: v.literal("sorcerer_research_position"), positionId: v.string() }),
+  v.object({ kind: v.literal("sorcerer_tower"), placeId: v.string() }),
 );
 const warlockAuthorityTargetValidator = v.union(
   v.object({ kind: v.literal("king") }),
@@ -2157,6 +2157,143 @@ const pactFragmentOperationalMapValidator = v.object(
   ) as Record<string, typeof pactFragmentOperationalStateValidator>,
 );
 
+const magicSchoolRefValidator = v.union(
+  v.object({ kind: v.literal("source"), schoolId: v.string() }),
+  v.object({ kind: v.literal("campaign"), schoolId: v.string() }),
+);
+const magicConsumableCustodyValidator = v.union(
+  v.object({ kind: v.literal("sorcerer_tower") }),
+  v.object({
+    kind: v.literal("subject"),
+    subject: v.union(
+      v.object({ kind: v.literal("wizard"), wizardId: v.string() }),
+      v.object({ kind: v.literal("denizen"), denizenId: v.string() }),
+    ),
+  }),
+);
+const magicConsumablesStateValidator = v.object({
+  tomes: v.array(v.object({
+    school: magicSchoolRefValidator,
+    custody: magicConsumableCustodyValidator,
+    count: v.number(),
+  })),
+  reagents: v.array(v.object({
+    reagentId: v.string(),
+    custody: magicConsumableCustodyValidator,
+    count: v.number(),
+  })),
+});
+
+const sorcererRecipeRefValidator = v.union(
+  v.object({ kind: v.literal("builtin"), recipeId: v.string() }),
+  v.object({ kind: v.literal("campaign"), recipeId: v.string() }),
+);
+const sorcererAcademicRoleValidator = v.union(
+  v.object({ kind: v.literal("student") }),
+  v.object({ kind: v.literal("professor") }),
+  v.object({ kind: v.literal("librarian"), school: magicSchoolRefValidator }),
+  v.object({ kind: v.literal("alchemist"), recipe: sorcererRecipeRefValidator }),
+  v.object({ kind: v.literal("campaign"), academicKindId: v.string() }),
+);
+const sorcererResearchPositionTargetValidator = v.union(
+  v.object({ kind: v.literal("orrery_house"), house: v.number() }),
+  v.object({ kind: v.literal("hierophant_temple"), templeId: v.string() }),
+  v.object({ kind: v.literal("warlock_ideology"), ideologyId: v.string() }),
+  v.object({ kind: v.literal("mariner_sea_region"), seaRegionId: v.string() }),
+  v.object({ kind: v.literal("sage_future_of_pact") }),
+  v.object({ kind: v.literal("faustian_devils_schemes") }),
+  v.object({ kind: v.literal("necromancer_final_death") }),
+  v.object({ kind: v.literal("campaign_knowledge_method"), knowledgeMethodId: v.string() }),
+);
+const sorcererArcanistPlacementValidator = v.union(
+  v.object({ kind: v.literal("tower") }),
+  v.object({ kind: v.literal("other_domain"), seatId: v.string() }),
+);
+const sorcererDisruptiveProfileValidator = v.object({
+  primaryElement: v.string(),
+  rank: v.union(v.literal("prentice"), v.literal("journeyman"), v.literal("master")),
+  changesOfMagic: v.array(v.string()),
+  quirk: v.string(),
+  prenticeSpellIds: v.array(v.string()),
+});
+const sorcererStateValidator = v.object({
+  initialized: v.boolean(),
+  spyrholmIsleId: v.union(v.string(), v.null()),
+  towerPlaceId: v.union(v.string(), v.null()),
+  universityPlaceId: v.union(v.string(), v.null()),
+  activeLawIds: v.array(v.string()),
+  unrevealedLawIds: v.array(v.string()),
+  campaignSchools: v.array(v.object({
+    schoolId: v.string(),
+    name: v.string(),
+    description: v.string(),
+  })),
+  campaignAcademicKinds: v.array(v.object({
+    academicKindId: v.string(),
+    name: v.string(),
+    action: v.string(),
+  })),
+  campaignRecipes: v.array(v.object({
+    recipeId: v.string(),
+    name: v.string(),
+    recipeText: v.string(),
+  })),
+  campaignKnowledgeMethods: v.array(v.object({
+    knowledgeMethodId: v.string(),
+    name: v.string(),
+    description: v.string(),
+  })),
+  researchPositions: v.array(v.object({
+    positionId: v.string(),
+    target: sorcererResearchPositionTargetValidator,
+  })),
+  researchers: v.array(v.object({
+    denizenId: v.string(),
+    positionId: v.string(),
+    operationalThisMonth: v.boolean(),
+  })),
+  academics: v.array(v.object({
+    denizenId: v.string(),
+    role: sorcererAcademicRoleValidator,
+  })),
+  towerOrder: v.array(v.string()),
+  knowledge: v.object({
+    researchOrigin: v.number(),
+    other: v.number(),
+    nextMonthResearchOrigin: v.number(),
+    researcherProductionMultiplierCurrent: v.number(),
+    researcherProductionMultiplierNextMonth: v.number(),
+  }),
+  arcanists: v.array(v.object({
+    denizenId: v.string(),
+    school: magicSchoolRefValidator,
+    placement: sorcererArcanistPlacementValidator,
+    disruptiveProfile: v.union(sorcererDisruptiveProfileValidator, v.null()),
+  })),
+  constructs: v.array(v.object({
+    denizenId: v.string(),
+    instructions: v.array(v.object({
+      condition: v.string(),
+      result: v.string(),
+    })),
+  })),
+  innovations: v.array(v.object({
+    innovationId: v.string(),
+    spellId: v.string(),
+    text: v.string(),
+  })),
+  archivesOpen: v.boolean(),
+});
+
+const sorcererInitializedEventV1Validator = v.object({
+  type: v.literal("sorcerer_initialized"),
+  version: v.literal(1),
+  data: v.object({
+    arrangementId: v.string(),
+    sorcerer: sorcererStateValidator,
+  }),
+});
+
 export const campaignStateV5Validator = v.object({
   schemaVersion: v.literal(5),
   ruleset: v.object({
@@ -2183,6 +2320,8 @@ export const campaignStateV5Validator = v.object({
   faustian: faustianStateValidator,
   sage: sageStateValidator,
   warlock: warlockStateValidator,
+  magicConsumables: magicConsumablesStateValidator,
+  sorcerer: sorcererStateValidator,
 });
 
 export const wizardCharacterUpdatedEventV2Validator = v.object({
@@ -2571,6 +2710,7 @@ export const campaignEventValidator = v.union(
   faustianCommunityBlackmailedEventV1Validator,
   faustianAccompliceDirectedEventV1Validator,
   faustianPawnDisruptedEventV1Validator,
+  sorcererInitializedEventV1Validator,
 );
 
 export const anyCampaignStateValidator = campaignStateV5Validator;

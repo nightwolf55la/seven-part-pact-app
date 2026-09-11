@@ -1,5 +1,5 @@
 import type { Brand } from "./brand";
-import type { DenizenId, IsleId, WizardId } from "./ids";
+import type { DenizenId, IsleId, PlaceId, WizardId } from "./ids";
 import type { PactSeatId } from "./pact-seats";
 import type { HouseIndex } from "./orrery";
 import type { WizardOrDenizenSubjectRef } from "./shared-world";
@@ -8,6 +8,7 @@ import type { NecromancerEdgePathSpaceId } from "./necromancer-catalogs";
 import type { MarinerSeaRegionId } from "./mariner-catalogs";
 import type { FaustianCommunityId } from "./faustian-catalogs";
 import type { SageDreamscapeSegmentId } from "./sage-catalogs";
+import type { SorcererResearchPositionId } from "./sorcerer-state";
 import type {
   WarlockArmyLifecycle,
   WarlockClanId,
@@ -144,11 +145,11 @@ export type WarlockErrantClaim =
     }
   | {
       readonly kind: "sorcerer_research_position";
-      readonly label: string;
+      readonly positionId: SorcererResearchPositionId;
     }
   | {
       readonly kind: "sorcerer_tower";
-      readonly label: string;
+      readonly placeId: PlaceId;
     };
 
 export interface WarlockErrantLadyOverlay {
