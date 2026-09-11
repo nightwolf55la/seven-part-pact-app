@@ -2294,6 +2294,125 @@ const sorcererInitializedEventV1Validator = v.object({
   }),
 });
 
+const sorcererPersonnelDestinationAuditValidator = v.union(
+  v.object({ kind: v.literal("student") }),
+  v.object({ kind: v.literal("researcher"), positionId: v.string() }),
+  v.object({ kind: v.literal("professor") }),
+  v.object({ kind: v.literal("librarian"), school: magicSchoolRefValidator }),
+  v.object({ kind: v.literal("alchemist"), recipe: sorcererRecipeRefValidator }),
+  v.object({ kind: v.literal("campaign_academic"), academicKindId: v.string() }),
+);
+const sorcererPersonnelRecruitedEventV1Validator = v.object({
+  type: v.literal("sorcerer_personnel_recruited"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    denizenCreated: v.boolean(),
+    denizenName: v.string(),
+    destination: sorcererPersonnelDestinationAuditValidator,
+    previousTowerOrder: v.array(v.string()),
+    nextTowerOrder: v.array(v.string()),
+  }),
+});
+
+const sorcererResearcherRefocusDestinationAuditValidator = v.union(
+  v.object({ kind: v.literal("research_position"), positionId: v.string() }),
+  v.object({ kind: v.literal("professor") }),
+  v.object({ kind: v.literal("librarian"), school: magicSchoolRefValidator }),
+  v.object({ kind: v.literal("alchemist"), recipe: sorcererRecipeRefValidator }),
+  v.object({ kind: v.literal("campaign_academic"), academicKindId: v.string() }),
+);
+const sorcererResearcherRefocusedEventV1Validator = v.object({
+  type: v.literal("sorcerer_researcher_refocused"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    previousPositionId: v.string(),
+    destination: sorcererResearcherRefocusDestinationAuditValidator,
+    previousTowerOrder: v.array(v.string()),
+    nextTowerOrder: v.array(v.string()),
+  }),
+});
+
+const sorcererStudentTutorDestinationAuditValidator = v.union(
+  v.object({ kind: v.literal("researcher"), positionId: v.string() }),
+  v.object({ kind: v.literal("professor") }),
+  v.object({ kind: v.literal("librarian"), school: magicSchoolRefValidator }),
+  v.object({ kind: v.literal("alchemist"), recipe: sorcererRecipeRefValidator }),
+  v.object({ kind: v.literal("campaign_academic"), academicKindId: v.string() }),
+);
+const sorcererStudentTutoredEventV1Validator = v.object({
+  type: v.literal("sorcerer_student_tutored"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    destination: sorcererStudentTutorDestinationAuditValidator,
+    previousTowerOrder: v.array(v.string()),
+    nextTowerOrder: v.array(v.string()),
+  }),
+});
+
+const sorcererTowerRearrangedEventV1Validator = v.object({
+  type: v.literal("sorcerer_tower_rearranged"),
+  version: v.literal(1),
+  data: v.object({
+    previousTowerOrder: v.array(v.string()),
+    nextTowerOrder: v.array(v.string()),
+  }),
+});
+
+const sorcererResearcherOperationalThisMonthChangedEventV1Validator = v.object({
+  type: v.literal("sorcerer_researcher_operational_this_month_changed"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    previousOperationalThisMonth: v.boolean(),
+    operationalThisMonth: v.boolean(),
+  }),
+});
+
+const sorcererKnowledgeAdjustedEventV1Validator = v.object({
+  type: v.literal("sorcerer_knowledge_adjusted"),
+  version: v.literal(1),
+  data: v.object({
+    pool: v.union(
+      v.literal("researchOrigin"),
+      v.literal("other"),
+      v.literal("nextMonthResearchOrigin"),
+    ),
+    previousAmount: v.number(),
+    amount: v.number(),
+  }),
+});
+
+const sorcererArchivesOpenChangedEventV1Validator = v.object({
+  type: v.literal("sorcerer_archives_open_changed"),
+  version: v.literal(1),
+  data: v.object({
+    previousArchivesOpen: v.boolean(),
+    archivesOpen: v.boolean(),
+  }),
+});
+
+const sorcererTowerMagicConsumableItemAuditValidator = v.union(
+  v.object({ kind: v.literal("tome"), school: magicSchoolRefValidator }),
+  v.object({ kind: v.literal("reagent"), reagentId: v.string() }),
+);
+const sorcererTowerMagicConsumableMovedEventV1Validator = v.object({
+  type: v.literal("sorcerer_tower_magic_consumable_moved"),
+  version: v.literal(1),
+  data: v.object({
+    direction: v.union(v.literal("tower_to_wizard"), v.literal("wizard_to_tower")),
+    wizardId: v.string(),
+    item: sorcererTowerMagicConsumableItemAuditValidator,
+    amount: v.number(),
+    previousSourceCount: v.number(),
+    nextSourceCount: v.number(),
+    previousDestinationCount: v.number(),
+    nextDestinationCount: v.number(),
+  }),
+});
+
 const loreSubjectRefValidator = v.union(
   v.object({ kind: v.literal("isle"), isleId: v.string() }),
   v.object({ kind: v.literal("place"), placeId: v.string() }),
@@ -2798,6 +2917,14 @@ export const campaignEventValidator = v.union(
   faustianAccompliceDirectedEventV1Validator,
   faustianPawnDisruptedEventV1Validator,
   sorcererInitializedEventV1Validator,
+  sorcererPersonnelRecruitedEventV1Validator,
+  sorcererResearcherRefocusedEventV1Validator,
+  sorcererStudentTutoredEventV1Validator,
+  sorcererTowerRearrangedEventV1Validator,
+  sorcererResearcherOperationalThisMonthChangedEventV1Validator,
+  sorcererKnowledgeAdjustedEventV1Validator,
+  sorcererArchivesOpenChangedEventV1Validator,
+  sorcererTowerMagicConsumableMovedEventV1Validator,
   loreEntryAddedEventV1Validator,
   loreEntryRevisedEventV1Validator,
 );

@@ -1,7 +1,7 @@
 import type { CampaignStateV5 } from "./campaign-state";
 import { DomainError } from "./errors";
-import type { DenizenId, IsleId, PlaceId } from "./ids";
-import { isValidDenizenId, isValidIsleId, isValidPlaceId } from "./ids";
+import type { DenizenId, IsleId, PlaceId, WizardId } from "./ids";
+import { isValidDenizenId, isValidIsleId, isValidPlaceId, isValidWizardId } from "./ids";
 import type { HouseIndex } from "./orrery";
 import type { PactSeatId } from "./pact-seats";
 import { isValidPactSeatId } from "./pact-seats";
@@ -10,21 +10,38 @@ import type { WarlockIdeologyId } from "./warlock-catalogs";
 import { isValidWarlockIdeologyId } from "./warlock-catalogs";
 import type { MarinerSeaRegionId } from "./mariner-catalogs";
 import { isValidMarinerSeaRegionId } from "./mariner-catalogs";
-import type { MagicSchoolRef } from "./magic-consumables";
-import { EMPTY_MAGIC_CONSUMABLES_STATE } from "./magic-consumables";
+import type {
+  MagicConsumableCustody,
+  MagicSchoolRef,
+  ReagentStack,
+  TomeStack,
+} from "./magic-consumables";
+import {
+  EMPTY_MAGIC_CONSUMABLES_STATE,
+  magicConsumableCustodyKey,
+  reagentStackKey,
+  tomeStackKey,
+} from "./magic-consumables";
 import {
   isValidSorcererArrangementId,
+  isValidSorcererBuiltinAlchemicalRecipeId,
   isValidSorcererLawOfMagicId,
+  isValidSorcererSourceReagentId,
   isValidSorcererSourceSchoolId,
   isValidCampaignSchoolOfMagicId,
   type SorcererArrangementId,
   type SorcererLawOfMagicId,
+  type SorcererSourceReagentId,
 } from "./sorcerer-catalogs";
 import type { SorcererEvent } from "./events";
 import type {
   SorcererAcademic,
+  SorcererAcademicRole,
   SorcererArcanist,
+  SorcererCampaignAcademicKindId,
   SorcererDisruptiveArcanistProfile,
+  SorcererKnowledgeState,
+  SorcererRecipeRef,
   SorcererResearcher,
   SorcererResearchPositionId,
   SorcererState,
@@ -35,11 +52,14 @@ import {
   buildSourceResearchPositions,
   isOrreryResearchPositionId,
   isValidSorcererArcanistRank,
+  isValidSorcererCampaignAcademicKindId,
+  isValidSorcererCampaignRecipeId,
   isValidSorcererResearchPositionId,
 } from "./sorcerer-state";
 import { isExactEmptySorcerer, validateSorcererReferenceIntegrity } from "./sorcerer-validation";
 import { ELEMENT_IDS } from "./shared-world";
 import { isValidGrimoireSpellId } from "./grimoire-catalog";
+import { applyCreateDenizenV5Candidate } from "./world-subject-transitions";
 
 const MAX_TEXT_LENGTH = 8000;
 
@@ -514,6 +534,1065 @@ export function applyInitializeSorcerer(
       data: {
         arrangementId: input.arrangementId,
         sorcerer,
+      },
+    }],
+  };
+}
+
+export type SorcererPersonnelRoleDestination =
+  | { readonly kind: "student" }
+  | { readonly kind: "researcher"; readonly positionId: SorcererResearchPositionId }
+  | { readonly kind: "professor" }
+  | { readonly kind: "librarian"; readonly school: MagicSchoolRef }
+  | { readonly kind: "alchemist"; readonly recipe: SorcererRecipeRef }
+  | { readonly kind: "campaign_academic"; readonly academicKindId: SorcererCampaignAcademicKindId };
+
+export type SorcererPersonnelSubject =
+  | {
+      readonly kind: "create_denizen";
+      readonly denizenId: DenizenId;
+      readonly name: string;
+      readonly representation: "individual" | "collective";
+      readonly description: string | null;
+    }
+  | { readonly kind: "existing_denizen"; readonly denizenId: DenizenId };
+
+export interface RecruitSorcererPersonnelInput {
+  readonly subject: SorcererPersonnelSubject;
+  readonly destination: SorcererPersonnelRoleDestination;
+  readonly expectedTowerOrder: readonly DenizenId[];
+}
+
+export type SorcererResearcherRefocusDestination =
+  | { readonly kind: "research_position"; readonly positionId: SorcererResearchPositionId }
+  | { readonly kind: "professor" }
+  | { readonly kind: "librarian"; readonly school: MagicSchoolRef }
+  | { readonly kind: "alchemist"; readonly recipe: SorcererRecipeRef }
+  | { readonly kind: "campaign_academic"; readonly academicKindId: SorcererCampaignAcademicKindId };
+
+export interface RefocusSorcererResearcherInput {
+  readonly denizenId: DenizenId;
+  readonly expectedPositionId: SorcererResearchPositionId;
+  readonly destination: SorcererResearcherRefocusDestination;
+  readonly expectedTowerOrder: readonly DenizenId[];
+}
+
+export type SorcererStudentTutorDestination =
+  | { readonly kind: "researcher"; readonly positionId: SorcererResearchPositionId }
+  | { readonly kind: "professor" }
+  | { readonly kind: "librarian"; readonly school: MagicSchoolRef }
+  | { readonly kind: "alchemist"; readonly recipe: SorcererRecipeRef }
+  | { readonly kind: "campaign_academic"; readonly academicKindId: SorcererCampaignAcademicKindId };
+
+export interface TutorSorcererStudentInput {
+  readonly denizenId: DenizenId;
+  readonly expectedTowerOrder: readonly DenizenId[];
+  readonly destination: SorcererStudentTutorDestination;
+}
+
+export interface RearrangeSorcererTowerInput {
+  readonly expectedTowerOrder: readonly DenizenId[];
+  readonly towerOrder: readonly DenizenId[];
+}
+
+export interface SetSorcererResearcherOperationalThisMonthInput {
+  readonly denizenId: DenizenId;
+  readonly expectedOperationalThisMonth: boolean;
+  readonly operationalThisMonth: boolean;
+}
+
+export type SorcererKnowledgePoolId = "researchOrigin" | "other" | "nextMonthResearchOrigin";
+
+export interface AdjustSorcererKnowledgeInput {
+  readonly pool: SorcererKnowledgePoolId;
+  readonly expectedAmount: number;
+  readonly amount: number;
+}
+
+export interface SetSorcererArchivesOpenInput {
+  readonly expectedArchivesOpen: boolean;
+  readonly archivesOpen: boolean;
+}
+
+export type SorcererTowerMagicConsumableItem =
+  | { readonly kind: "tome"; readonly school: MagicSchoolRef }
+  | { readonly kind: "reagent"; readonly reagentId: SorcererSourceReagentId };
+
+export type SorcererTowerMagicConsumableDirection = "tower_to_wizard" | "wizard_to_tower";
+
+export interface MoveSorcererTowerMagicConsumableInput {
+  readonly direction: SorcererTowerMagicConsumableDirection;
+  readonly wizardId: WizardId;
+  readonly item: SorcererTowerMagicConsumableItem;
+  readonly amount: number;
+  readonly expectedSourceCount: number;
+  readonly expectedDestinationCount: number;
+}
+
+function replaceSorcerer(state: CampaignStateV5, sorcerer: SorcererState): CampaignStateV5 {
+  return { ...state, sorcerer };
+}
+
+function commitSorcerer(
+  state: CampaignStateV5,
+  sorcerer: SorcererState,
+  events: readonly SorcererEvent[],
+): SorcererTransitionResult {
+  const nextState = replaceSorcerer(state, sorcerer);
+  validateSorcererReferenceIntegrity(nextState);
+  return { nextState, events };
+}
+
+function requireInitializedSorcerer(state: CampaignStateV5): SorcererState {
+  if (!state.sorcerer.initialized) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Sorcerer has not been initialized");
+  }
+  return state.sorcerer;
+}
+
+function denizenIdsEqual(a: readonly DenizenId[], b: readonly DenizenId[]): boolean {
+  return a.length === b.length && a.every((id, index) => id === b[index]);
+}
+
+function sameDenizenIdSet(a: readonly DenizenId[], b: readonly DenizenId[]): boolean {
+  if (a.length !== b.length) {
+    return false;
+  }
+  const counts = new Map<string, number>();
+  for (const id of a) {
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  for (const id of b) {
+    const remaining = counts.get(id);
+    if (remaining === undefined || remaining === 0) {
+      return false;
+    }
+    counts.set(id, remaining - 1);
+  }
+  return true;
+}
+
+function requireExpectedTowerOrder(
+  current: readonly DenizenId[],
+  expected: readonly DenizenId[],
+): void {
+  if (!denizenIdsEqual(current, expected)) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      "Tower order does not match the expected current order",
+    );
+  }
+}
+
+function assertNonNegativeSafeInteger(label: string, value: number): void {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${label} must be a non-negative safe integer`);
+  }
+}
+
+function assertPositiveSafeInteger(label: string, value: number): void {
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${label} must be a positive safe integer`);
+  }
+}
+
+function canonicalizeRecipeRef(recipe: SorcererRecipeRef, label: string): SorcererRecipeRef {
+  if (recipe.kind === "builtin") {
+    if (!isValidSorcererBuiltinAlchemicalRecipeId(recipe.recipeId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${label} is not a known built-in Recipe`);
+    }
+    return { kind: "builtin", recipeId: recipe.recipeId };
+  }
+  if (!isValidSorcererCampaignRecipeId(recipe.recipeId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${label} campaign Recipe id is invalid`);
+  }
+  return { kind: "campaign", recipeId: recipe.recipeId };
+}
+
+function canonicalizePersonnelDestination(
+  destination: SorcererPersonnelRoleDestination,
+): SorcererPersonnelRoleDestination {
+  if (destination.kind === "researcher") {
+    if (!isValidSorcererResearchPositionId(destination.positionId)) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `Research Position does not resolve: ${destination.positionId}`,
+      );
+    }
+    return { kind: "researcher", positionId: destination.positionId };
+  }
+  if (destination.kind === "librarian") {
+    return {
+      kind: "librarian",
+      school: canonicalizeMagicSchoolRef(destination.school, "Librarian School"),
+    };
+  }
+  if (destination.kind === "alchemist") {
+    return {
+      kind: "alchemist",
+      recipe: canonicalizeRecipeRef(destination.recipe, "Alchemist Recipe"),
+    };
+  }
+  if (destination.kind === "campaign_academic") {
+    if (!isValidSorcererCampaignAcademicKindId(destination.academicKindId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", "campaign Academic kind id is invalid");
+    }
+    return { kind: "campaign_academic", academicKindId: destination.academicKindId };
+  }
+  return destination;
+}
+
+function canonicalizeResearcherRefocusDestination(
+  destination: SorcererResearcherRefocusDestination,
+): SorcererResearcherRefocusDestination {
+  if (destination.kind === "research_position") {
+    if (!isValidSorcererResearchPositionId(destination.positionId)) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `Research Position does not resolve: ${destination.positionId}`,
+      );
+    }
+    return { kind: "research_position", positionId: destination.positionId };
+  }
+  if (destination.kind === "librarian") {
+    return {
+      kind: "librarian",
+      school: canonicalizeMagicSchoolRef(destination.school, "Librarian School"),
+    };
+  }
+  if (destination.kind === "alchemist") {
+    return {
+      kind: "alchemist",
+      recipe: canonicalizeRecipeRef(destination.recipe, "Alchemist Recipe"),
+    };
+  }
+  if (destination.kind === "campaign_academic") {
+    if (!isValidSorcererCampaignAcademicKindId(destination.academicKindId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", "campaign Academic kind id is invalid");
+    }
+    return { kind: "campaign_academic", academicKindId: destination.academicKindId };
+  }
+  return destination;
+}
+
+function canonicalizeStudentTutorDestination(
+  destination: SorcererStudentTutorDestination,
+): SorcererStudentTutorDestination {
+  if (destination.kind === "researcher") {
+    if (!isValidSorcererResearchPositionId(destination.positionId)) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `Research Position does not resolve: ${destination.positionId}`,
+      );
+    }
+    return { kind: "researcher", positionId: destination.positionId };
+  }
+  if (destination.kind === "librarian") {
+    return {
+      kind: "librarian",
+      school: canonicalizeMagicSchoolRef(destination.school, "Librarian School"),
+    };
+  }
+  if (destination.kind === "alchemist") {
+    return {
+      kind: "alchemist",
+      recipe: canonicalizeRecipeRef(destination.recipe, "Alchemist Recipe"),
+    };
+  }
+  if (destination.kind === "campaign_academic") {
+    if (!isValidSorcererCampaignAcademicKindId(destination.academicKindId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", "campaign Academic kind id is invalid");
+    }
+    return { kind: "campaign_academic", academicKindId: destination.academicKindId };
+  }
+  return destination;
+}
+
+function canonicalizeTowerOrder(order: readonly DenizenId[], label: string): readonly DenizenId[] {
+  uniqueOrThrow(order, label);
+  return order.map((denizenId) => {
+    if (!isValidDenizenId(denizenId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid ${label}: ${denizenId}`);
+    }
+    return denizenId;
+  });
+}
+
+export function canonicalizeRecruitSorcererPersonnelInput(
+  input: RecruitSorcererPersonnelInput,
+): RecruitSorcererPersonnelInput {
+  const subject = input.subject.kind === "create_denizen"
+    ? {
+        kind: "create_denizen" as const,
+        denizenId: input.subject.denizenId,
+        name: input.subject.name,
+        representation: input.subject.representation,
+        description: input.subject.description,
+      }
+    : { kind: "existing_denizen" as const, denizenId: input.subject.denizenId };
+  return {
+    subject,
+    destination: canonicalizePersonnelDestination(input.destination),
+    expectedTowerOrder: canonicalizeTowerOrder(input.expectedTowerOrder, "expected Tower order"),
+  };
+}
+
+export function canonicalizeRefocusSorcererResearcherInput(
+  input: RefocusSorcererResearcherInput,
+): RefocusSorcererResearcherInput {
+  if (!isValidDenizenId(input.denizenId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid Researcher denizenId: ${input.denizenId}`);
+  }
+  if (!isValidSorcererResearchPositionId(input.expectedPositionId)) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Research Position does not resolve: ${input.expectedPositionId}`,
+    );
+  }
+  return {
+    denizenId: input.denizenId,
+    expectedPositionId: input.expectedPositionId,
+    destination: canonicalizeResearcherRefocusDestination(input.destination),
+    expectedTowerOrder: canonicalizeTowerOrder(input.expectedTowerOrder, "expected Tower order"),
+  };
+}
+
+export function canonicalizeTutorSorcererStudentInput(
+  input: TutorSorcererStudentInput,
+): TutorSorcererStudentInput {
+  if (!isValidDenizenId(input.denizenId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid Student denizenId: ${input.denizenId}`);
+  }
+  return {
+    denizenId: input.denizenId,
+    expectedTowerOrder: canonicalizeTowerOrder(input.expectedTowerOrder, "expected Tower order"),
+    destination: canonicalizeStudentTutorDestination(input.destination),
+  };
+}
+
+export function canonicalizeRearrangeSorcererTowerInput(
+  input: RearrangeSorcererTowerInput,
+): RearrangeSorcererTowerInput {
+  return {
+    expectedTowerOrder: canonicalizeTowerOrder(input.expectedTowerOrder, "expected Tower order"),
+    towerOrder: canonicalizeTowerOrder(input.towerOrder, "Tower order"),
+  };
+}
+
+export function canonicalizeSetSorcererResearcherOperationalThisMonthInput(
+  input: SetSorcererResearcherOperationalThisMonthInput,
+): SetSorcererResearcherOperationalThisMonthInput {
+  if (!isValidDenizenId(input.denizenId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid Researcher denizenId: ${input.denizenId}`);
+  }
+  if (typeof input.expectedOperationalThisMonth !== "boolean") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "expectedOperationalThisMonth must be a boolean");
+  }
+  if (typeof input.operationalThisMonth !== "boolean") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "operationalThisMonth must be a boolean");
+  }
+  return {
+    denizenId: input.denizenId,
+    expectedOperationalThisMonth: input.expectedOperationalThisMonth,
+    operationalThisMonth: input.operationalThisMonth,
+  };
+}
+
+export function canonicalizeAdjustSorcererKnowledgeInput(
+  input: AdjustSorcererKnowledgeInput,
+): AdjustSorcererKnowledgeInput {
+  if (
+    input.pool !== "researchOrigin" &&
+    input.pool !== "other" &&
+    input.pool !== "nextMonthResearchOrigin"
+  ) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown Knowledge pool: ${String(input.pool)}`);
+  }
+  assertNonNegativeSafeInteger("expected Knowledge amount", input.expectedAmount);
+  assertNonNegativeSafeInteger("Knowledge amount", input.amount);
+  return {
+    pool: input.pool,
+    expectedAmount: input.expectedAmount,
+    amount: input.amount,
+  };
+}
+
+export function canonicalizeSetSorcererArchivesOpenInput(
+  input: SetSorcererArchivesOpenInput,
+): SetSorcererArchivesOpenInput {
+  if (typeof input.expectedArchivesOpen !== "boolean") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "expectedArchivesOpen must be a boolean");
+  }
+  if (typeof input.archivesOpen !== "boolean") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "archivesOpen must be a boolean");
+  }
+  return {
+    expectedArchivesOpen: input.expectedArchivesOpen,
+    archivesOpen: input.archivesOpen,
+  };
+}
+
+function canonicalizeConsumableItem(
+  item: SorcererTowerMagicConsumableItem,
+): SorcererTowerMagicConsumableItem {
+  if (item.kind === "tome") {
+    return { kind: "tome", school: canonicalizeMagicSchoolRef(item.school, "Tome School") };
+  }
+  if (!isValidSorcererSourceReagentId(item.reagentId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown source Reagent: ${item.reagentId}`);
+  }
+  return { kind: "reagent", reagentId: item.reagentId };
+}
+
+export function canonicalizeMoveSorcererTowerMagicConsumableInput(
+  input: MoveSorcererTowerMagicConsumableInput,
+): MoveSorcererTowerMagicConsumableInput {
+  if (input.direction !== "tower_to_wizard" && input.direction !== "wizard_to_tower") {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Unknown consumable movement direction: ${String(input.direction)}`,
+    );
+  }
+  if (!isValidWizardId(input.wizardId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid wizardId: ${input.wizardId}`);
+  }
+  assertPositiveSafeInteger("consumable amount", input.amount);
+  assertNonNegativeSafeInteger("expected source count", input.expectedSourceCount);
+  assertNonNegativeSafeInteger("expected destination count", input.expectedDestinationCount);
+  return {
+    direction: input.direction,
+    wizardId: input.wizardId,
+    item: canonicalizeConsumableItem(input.item),
+    amount: input.amount,
+    expectedSourceCount: input.expectedSourceCount,
+    expectedDestinationCount: input.expectedDestinationCount,
+  };
+}
+
+function requireExistingDenizen(state: CampaignStateV5, denizenId: DenizenId, label: string) {
+  if (!isValidDenizenId(denizenId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid ${label}: ${denizenId}`);
+  }
+  const denizen = state.world.denizens.find((candidate) => candidate.denizenId === denizenId);
+  if (denizen === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${label} does not resolve: ${denizenId}`);
+  }
+  return denizen;
+}
+
+function requireIndividualPersonnelDenizen(
+  state: CampaignStateV5,
+  denizenId: DenizenId,
+  label: string,
+) {
+  const denizen = requireExistingDenizen(state, denizenId, label);
+  if (denizen.representation !== "individual") {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `${label} must reference an individual Denizen`,
+    );
+  }
+  return denizen;
+}
+
+function sorcererPersonnelConflict(sorcerer: SorcererState, denizenId: DenizenId): string | null {
+  if (sorcerer.researchers.some((researcher) => researcher.denizenId === denizenId)) {
+    return "Researcher";
+  }
+  if (sorcerer.academics.some((academic) => academic.denizenId === denizenId)) {
+    return "Academic";
+  }
+  if (sorcerer.arcanists.some((arcanist) => arcanist.denizenId === denizenId)) {
+    return "Arcanist";
+  }
+  return null;
+}
+
+function requireNoPersonnelConflict(sorcerer: SorcererState, denizenId: DenizenId): void {
+  const conflict = sorcererPersonnelConflict(sorcerer, denizenId);
+  if (conflict !== null) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Denizen already holds a conflicting Sorcerer role (${conflict}): ${denizenId}`,
+    );
+  }
+}
+
+function requireVacantResearchPosition(
+  sorcerer: SorcererState,
+  positionId: SorcererResearchPositionId,
+): void {
+  if (!sorcerer.researchPositions.some((position) => position.positionId === positionId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Research Position does not resolve: ${positionId}`);
+  }
+  if (sorcerer.researchers.some((researcher) => researcher.positionId === positionId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Research Position is occupied: ${positionId}`);
+  }
+}
+
+function requireLibrarianSchool(sorcerer: SorcererState, school: MagicSchoolRef): void {
+  if (school.kind === "campaign" && !sorcerer.campaignSchools.some((entry) => entry.schoolId === school.schoolId)) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Librarian School does not resolve: ${school.schoolId}`,
+    );
+  }
+}
+
+function requireAlchemistRecipe(sorcerer: SorcererState, recipe: SorcererRecipeRef): void {
+  if (recipe.kind === "campaign" && !sorcerer.campaignRecipes.some((entry) => entry.recipeId === recipe.recipeId)) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Alchemist Recipe does not resolve: ${recipe.recipeId}`,
+    );
+  }
+}
+
+function requireCampaignAcademicKind(
+  sorcerer: SorcererState,
+  academicKindId: SorcererCampaignAcademicKindId,
+): void {
+  if (!sorcerer.campaignAcademicKinds.some((kind) => kind.academicKindId === academicKindId)) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `campaign Academic kind does not resolve: ${academicKindId}`,
+    );
+  }
+}
+
+function academicRoleFromPersonnelDestination(
+  sorcerer: SorcererState,
+  destination: Exclude<SorcererPersonnelRoleDestination, { kind: "researcher" }>,
+): SorcererAcademicRole {
+  if (destination.kind === "student") {
+    return { kind: "student" };
+  }
+  if (destination.kind === "professor") {
+    return { kind: "professor" };
+  }
+  if (destination.kind === "librarian") {
+    requireLibrarianSchool(sorcerer, destination.school);
+    return { kind: "librarian", school: destination.school };
+  }
+  if (destination.kind === "alchemist") {
+    requireAlchemistRecipe(sorcerer, destination.recipe);
+    return { kind: "alchemist", recipe: destination.recipe };
+  }
+  requireCampaignAcademicKind(sorcerer, destination.academicKindId);
+  return { kind: "campaign", academicKindId: destination.academicKindId };
+}
+
+function academicRoleFromNonStudentDestination(
+  sorcerer: SorcererState,
+  destination:
+    | { readonly kind: "professor" }
+    | { readonly kind: "librarian"; readonly school: MagicSchoolRef }
+    | { readonly kind: "alchemist"; readonly recipe: SorcererRecipeRef }
+    | { readonly kind: "campaign_academic"; readonly academicKindId: SorcererCampaignAcademicKindId },
+): SorcererAcademicRole {
+  return academicRoleFromPersonnelDestination(sorcerer, destination);
+}
+
+function appendTowerMember(order: readonly DenizenId[], denizenId: DenizenId): readonly DenizenId[] {
+  return [...order, denizenId];
+}
+
+function removeTowerMember(order: readonly DenizenId[], denizenId: DenizenId): readonly DenizenId[] {
+  return order.filter((id) => id !== denizenId);
+}
+
+export function applyRecruitSorcererPersonnel(
+  state: CampaignStateV5,
+  rawInput: RecruitSorcererPersonnelInput,
+): SorcererTransitionResult {
+  const input = canonicalizeRecruitSorcererPersonnelInput(rawInput);
+  const sorcerer = requireInitializedSorcerer(state);
+  requireExpectedTowerOrder(sorcerer.towerOrder, input.expectedTowerOrder);
+
+  let workingState = state;
+  let denizenCreated = false;
+  let denizenId: DenizenId;
+  if (input.subject.kind === "create_denizen") {
+    if (input.subject.representation !== "individual") {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        "Sorcerer personnel Denizen must be individual",
+      );
+    }
+    const created = applyCreateDenizenV5Candidate(state, {
+      denizenId: input.subject.denizenId,
+      name: input.subject.name,
+      representation: input.subject.representation,
+      description: input.subject.description,
+    });
+    workingState = created.nextState;
+    denizenCreated = true;
+    denizenId = input.subject.denizenId;
+  } else {
+    denizenId = input.subject.denizenId;
+  }
+
+  const denizen = requireIndividualPersonnelDenizen(workingState, denizenId, "Sorcerer personnel");
+  requireNoPersonnelConflict(workingState.sorcerer, denizenId);
+
+  let nextSorcerer: SorcererState = workingState.sorcerer;
+  if (input.destination.kind === "researcher") {
+    requireVacantResearchPosition(nextSorcerer, input.destination.positionId);
+    nextSorcerer = {
+      ...nextSorcerer,
+      researchers: [
+        ...nextSorcerer.researchers,
+        {
+          denizenId,
+          positionId: input.destination.positionId,
+          operationalThisMonth: true,
+        },
+      ],
+    };
+  } else {
+    const academic: SorcererAcademic = {
+      denizenId,
+      role: academicRoleFromPersonnelDestination(nextSorcerer, input.destination),
+    };
+    nextSorcerer = {
+      ...nextSorcerer,
+      academics: [...nextSorcerer.academics, academic],
+      towerOrder: appendTowerMember(nextSorcerer.towerOrder, denizenId),
+    };
+  }
+
+  return commitSorcerer(workingState, nextSorcerer, [{
+    type: "sorcerer_personnel_recruited",
+    version: 1,
+    data: {
+      denizenId,
+      denizenCreated,
+      denizenName: denizen.name,
+      destination: input.destination,
+      previousTowerOrder: sorcerer.towerOrder,
+      nextTowerOrder: nextSorcerer.towerOrder,
+    },
+  }]);
+}
+
+export function applyRefocusSorcererResearcher(
+  state: CampaignStateV5,
+  rawInput: RefocusSorcererResearcherInput,
+): SorcererTransitionResult {
+  const input = canonicalizeRefocusSorcererResearcherInput(rawInput);
+  const sorcerer = requireInitializedSorcerer(state);
+  requireExpectedTowerOrder(sorcerer.towerOrder, input.expectedTowerOrder);
+  const researcher = sorcerer.researchers.find((candidate) => candidate.denizenId === input.denizenId);
+  if (researcher === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Researcher not found: ${input.denizenId}`);
+  }
+  if (researcher.positionId !== input.expectedPositionId) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      `Researcher Position: expected "${input.expectedPositionId}" but current is "${researcher.positionId}"`,
+    );
+  }
+
+  let nextSorcerer: SorcererState;
+  if (input.destination.kind === "research_position") {
+    if (input.destination.positionId === researcher.positionId) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", "Refocus produces no change");
+    }
+    const nextPositionId = input.destination.positionId;
+    requireVacantResearchPosition(sorcerer, nextPositionId);
+    nextSorcerer = {
+      ...sorcerer,
+      researchers: sorcerer.researchers.map((candidate) =>
+        candidate.denizenId === input.denizenId
+          ? { ...candidate, positionId: nextPositionId }
+          : candidate,
+      ),
+    };
+  } else {
+    const academic: SorcererAcademic = {
+      denizenId: input.denizenId,
+      role: academicRoleFromNonStudentDestination(sorcerer, input.destination),
+    };
+    nextSorcerer = {
+      ...sorcerer,
+      researchers: sorcerer.researchers.filter((candidate) => candidate.denizenId !== input.denizenId),
+      academics: [...sorcerer.academics, academic],
+      towerOrder: appendTowerMember(sorcerer.towerOrder, input.denizenId),
+    };
+  }
+
+  return commitSorcerer(state, nextSorcerer, [{
+    type: "sorcerer_researcher_refocused",
+    version: 1,
+    data: {
+      denizenId: input.denizenId,
+      previousPositionId: researcher.positionId,
+      destination: input.destination,
+      previousTowerOrder: sorcerer.towerOrder,
+      nextTowerOrder: nextSorcerer.towerOrder,
+    },
+  }]);
+}
+
+export function applyTutorSorcererStudent(
+  state: CampaignStateV5,
+  rawInput: TutorSorcererStudentInput,
+): SorcererTransitionResult {
+  const input = canonicalizeTutorSorcererStudentInput(rawInput);
+  const sorcerer = requireInitializedSorcerer(state);
+  requireExpectedTowerOrder(sorcerer.towerOrder, input.expectedTowerOrder);
+  const academic = sorcerer.academics.find((candidate) => candidate.denizenId === input.denizenId);
+  if (academic === undefined || academic.role.kind !== "student") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Student not found: ${input.denizenId}`);
+  }
+  if (!sorcerer.towerOrder.includes(input.denizenId)) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Student is missing from Tower order: ${input.denizenId}`,
+    );
+  }
+
+  const remainingAcademics = sorcerer.academics.filter((candidate) => candidate.denizenId !== input.denizenId);
+  let nextSorcerer: SorcererState;
+  if (input.destination.kind === "researcher") {
+    requireVacantResearchPosition(sorcerer, input.destination.positionId);
+    nextSorcerer = {
+      ...sorcerer,
+      academics: remainingAcademics,
+      researchers: [
+        ...sorcerer.researchers,
+        {
+          denizenId: input.denizenId,
+          positionId: input.destination.positionId,
+          operationalThisMonth: true,
+        },
+      ],
+      towerOrder: removeTowerMember(sorcerer.towerOrder, input.denizenId),
+    };
+  } else {
+    nextSorcerer = {
+      ...sorcerer,
+      academics: [
+        ...remainingAcademics,
+        {
+          denizenId: input.denizenId,
+          role: academicRoleFromNonStudentDestination(sorcerer, input.destination),
+        },
+      ],
+    };
+  }
+
+  return commitSorcerer(state, nextSorcerer, [{
+    type: "sorcerer_student_tutored",
+    version: 1,
+    data: {
+      denizenId: input.denizenId,
+      destination: input.destination,
+      previousTowerOrder: sorcerer.towerOrder,
+      nextTowerOrder: nextSorcerer.towerOrder,
+    },
+  }]);
+}
+
+export function applyRearrangeSorcererTower(
+  state: CampaignStateV5,
+  rawInput: RearrangeSorcererTowerInput,
+): SorcererTransitionResult {
+  const input = canonicalizeRearrangeSorcererTowerInput(rawInput);
+  const sorcerer = requireInitializedSorcerer(state);
+  requireExpectedTowerOrder(sorcerer.towerOrder, input.expectedTowerOrder);
+  if (!sameDenizenIdSet(sorcerer.towerOrder, input.towerOrder)) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      "Tower rearrangement must keep the exact current Tower membership",
+    );
+  }
+  if (denizenIdsEqual(sorcerer.towerOrder, input.towerOrder)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Tower rearrangement produces no change");
+  }
+  return commitSorcerer(state, { ...sorcerer, towerOrder: input.towerOrder }, [{
+    type: "sorcerer_tower_rearranged",
+    version: 1,
+    data: {
+      previousTowerOrder: sorcerer.towerOrder,
+      nextTowerOrder: input.towerOrder,
+    },
+  }]);
+}
+
+export function applySetSorcererResearcherOperationalThisMonth(
+  state: CampaignStateV5,
+  rawInput: SetSorcererResearcherOperationalThisMonthInput,
+): SorcererTransitionResult {
+  const input = canonicalizeSetSorcererResearcherOperationalThisMonthInput(rawInput);
+  const sorcerer = requireInitializedSorcerer(state);
+  const researcher = sorcerer.researchers.find((candidate) => candidate.denizenId === input.denizenId);
+  if (researcher === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Researcher not found: ${input.denizenId}`);
+  }
+  if (researcher.operationalThisMonth !== input.expectedOperationalThisMonth) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      `Researcher operationalThisMonth: expected "${input.expectedOperationalThisMonth}" but current is "${researcher.operationalThisMonth}"`,
+    );
+  }
+  if (researcher.operationalThisMonth === input.operationalThisMonth) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Researcher operational state produces no change");
+  }
+  const researchers = sorcerer.researchers.map((candidate) =>
+    candidate.denizenId === input.denizenId
+      ? { ...candidate, operationalThisMonth: input.operationalThisMonth }
+      : candidate,
+  );
+  return commitSorcerer(state, { ...sorcerer, researchers }, [{
+    type: "sorcerer_researcher_operational_this_month_changed",
+    version: 1,
+    data: {
+      denizenId: input.denizenId,
+      previousOperationalThisMonth: researcher.operationalThisMonth,
+      operationalThisMonth: input.operationalThisMonth,
+    },
+  }]);
+}
+
+export function applyAdjustSorcererKnowledge(
+  state: CampaignStateV5,
+  rawInput: AdjustSorcererKnowledgeInput,
+): SorcererTransitionResult {
+  const input = canonicalizeAdjustSorcererKnowledgeInput(rawInput);
+  const sorcerer = requireInitializedSorcerer(state);
+  const previousAmount = sorcerer.knowledge[input.pool];
+  if (previousAmount !== input.expectedAmount) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      `Knowledge ${input.pool}: expected "${input.expectedAmount}" but current is "${previousAmount}"`,
+    );
+  }
+  if (previousAmount === input.amount) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Knowledge adjustment produces no change");
+  }
+  const knowledge: SorcererKnowledgeState = {
+    ...sorcerer.knowledge,
+    [input.pool]: input.amount,
+  };
+  return commitSorcerer(state, { ...sorcerer, knowledge }, [{
+    type: "sorcerer_knowledge_adjusted",
+    version: 1,
+    data: {
+      pool: input.pool,
+      previousAmount,
+      amount: input.amount,
+    },
+  }]);
+}
+
+export function applySetSorcererArchivesOpen(
+  state: CampaignStateV5,
+  rawInput: SetSorcererArchivesOpenInput,
+): SorcererTransitionResult {
+  const input = canonicalizeSetSorcererArchivesOpenInput(rawInput);
+  const sorcerer = requireInitializedSorcerer(state);
+  if (sorcerer.archivesOpen !== input.expectedArchivesOpen) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      `Archives: expected "${input.expectedArchivesOpen}" but current is "${sorcerer.archivesOpen}"`,
+    );
+  }
+  if (sorcerer.archivesOpen === input.archivesOpen) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Archives state produces no change");
+  }
+  return commitSorcerer(state, { ...sorcerer, archivesOpen: input.archivesOpen }, [{
+    type: "sorcerer_archives_open_changed",
+    version: 1,
+    data: {
+      previousArchivesOpen: sorcerer.archivesOpen,
+      archivesOpen: input.archivesOpen,
+    },
+  }]);
+}
+
+const TOWER_CUSTODY: MagicConsumableCustody = { kind: "sorcerer_tower" };
+
+function wizardCustody(wizardId: WizardId): MagicConsumableCustody {
+  return { kind: "subject", subject: { kind: "wizard", wizardId } };
+}
+
+function custodyForDirection(
+  direction: SorcererTowerMagicConsumableDirection,
+  wizardId: WizardId,
+  side: "source" | "destination",
+): MagicConsumableCustody {
+  const wizardIsSource = direction === "wizard_to_tower";
+  if (side === "source") {
+    return wizardIsSource ? wizardCustody(wizardId) : TOWER_CUSTODY;
+  }
+  return wizardIsSource ? TOWER_CUSTODY : wizardCustody(wizardId);
+}
+
+function stackCountForTome(
+  tomes: readonly TomeStack[],
+  school: MagicSchoolRef,
+  custody: MagicConsumableCustody,
+): number {
+  const key = tomeStackKey({ school, custody, count: 1 });
+  return tomes.find((stack) => tomeStackKey(stack) === key)?.count ?? 0;
+}
+
+function stackCountForReagent(
+  reagents: readonly ReagentStack[],
+  reagentId: SorcererSourceReagentId,
+  custody: MagicConsumableCustody,
+): number {
+  const key = reagentStackKey({ reagentId, custody, count: 1 });
+  return reagents.find((stack) => reagentStackKey(stack) === key)?.count ?? 0;
+}
+
+function applyCountChange<T extends { readonly count: number }>(
+  stacks: readonly T[],
+  keyOf: (stack: T) => string,
+  targetKey: string,
+  nextCount: number,
+  create: (count: number) => T,
+): T[] {
+  const next: T[] = [];
+  let found = false;
+  for (const stack of stacks) {
+    if (keyOf(stack) === targetKey) {
+      found = true;
+      if (nextCount > 0) {
+        next.push(create(nextCount));
+      }
+    } else {
+      next.push(stack);
+    }
+  }
+  if (!found && nextCount > 0) {
+    next.push(create(nextCount));
+  }
+  return next;
+}
+
+export function applyMoveSorcererTowerMagicConsumable(
+  state: CampaignStateV5,
+  rawInput: MoveSorcererTowerMagicConsumableInput,
+): SorcererTransitionResult {
+  const input = canonicalizeMoveSorcererTowerMagicConsumableInput(rawInput);
+  requireInitializedSorcerer(state);
+  if (!state.wizards.some((wizard) => wizard.wizardId === input.wizardId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `wizardId does not resolve: ${input.wizardId}`);
+  }
+
+  const sourceCustody = custodyForDirection(input.direction, input.wizardId, "source");
+  const destinationCustody = custodyForDirection(input.direction, input.wizardId, "destination");
+  if (magicConsumableCustodyKey(sourceCustody) === magicConsumableCustodyKey(destinationCustody)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Consumable source and destination must differ");
+  }
+
+  let previousSourceCount: number;
+  let previousDestinationCount: number;
+  let nextTomes = [...state.magicConsumables.tomes];
+  let nextReagents = [...state.magicConsumables.reagents];
+
+  if (input.item.kind === "tome") {
+    previousSourceCount = stackCountForTome(state.magicConsumables.tomes, input.item.school, sourceCustody);
+    previousDestinationCount = stackCountForTome(
+      state.magicConsumables.tomes,
+      input.item.school,
+      destinationCustody,
+    );
+  } else {
+    previousSourceCount = stackCountForReagent(
+      state.magicConsumables.reagents,
+      input.item.reagentId,
+      sourceCustody,
+    );
+    previousDestinationCount = stackCountForReagent(
+      state.magicConsumables.reagents,
+      input.item.reagentId,
+      destinationCustody,
+    );
+  }
+
+  if (previousSourceCount !== input.expectedSourceCount) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      `source count: expected "${input.expectedSourceCount}" but current is "${previousSourceCount}"`,
+    );
+  }
+  if (previousDestinationCount !== input.expectedDestinationCount) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      `destination count: expected "${input.expectedDestinationCount}" but current is "${previousDestinationCount}"`,
+    );
+  }
+  if (previousSourceCount < input.amount) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Consumable source does not contain the requested amount");
+  }
+
+  const nextSourceCount = previousSourceCount - input.amount;
+  const nextDestinationCount = previousDestinationCount + input.amount;
+
+  if (input.item.kind === "tome") {
+    const school = input.item.school;
+    const sourceKey = tomeStackKey({ school, custody: sourceCustody, count: 1 });
+    const destinationKey = tomeStackKey({ school, custody: destinationCustody, count: 1 });
+    nextTomes = applyCountChange(
+      nextTomes,
+      tomeStackKey,
+      sourceKey,
+      nextSourceCount,
+      (count) => ({ school, custody: sourceCustody, count }),
+    );
+    nextTomes = applyCountChange(
+      nextTomes,
+      tomeStackKey,
+      destinationKey,
+      nextDestinationCount,
+      (count) => ({ school, custody: destinationCustody, count }),
+    );
+  } else {
+    const reagentId = input.item.reagentId;
+    const sourceKey = reagentStackKey({ reagentId, custody: sourceCustody, count: 1 });
+    const destinationKey = reagentStackKey({
+      reagentId,
+      custody: destinationCustody,
+      count: 1,
+    });
+    nextReagents = applyCountChange(
+      nextReagents,
+      reagentStackKey,
+      sourceKey,
+      nextSourceCount,
+      (count) => ({ reagentId, custody: sourceCustody, count }),
+    );
+    nextReagents = applyCountChange(
+      nextReagents,
+      reagentStackKey,
+      destinationKey,
+      nextDestinationCount,
+      (count) => ({ reagentId, custody: destinationCustody, count }),
+    );
+  }
+
+  const nextState: CampaignStateV5 = {
+    ...state,
+    magicConsumables: { tomes: nextTomes, reagents: nextReagents },
+  };
+  validateSorcererReferenceIntegrity(nextState);
+  return {
+    nextState,
+    events: [{
+      type: "sorcerer_tower_magic_consumable_moved",
+      version: 1,
+      data: {
+        direction: input.direction,
+        wizardId: input.wizardId,
+        item: input.item,
+        amount: input.amount,
+        previousSourceCount,
+        nextSourceCount,
+        previousDestinationCount,
+        nextDestinationCount,
       },
     }],
   };

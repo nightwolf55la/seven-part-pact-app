@@ -126,6 +126,14 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "direct_faustian_accomplice",
   "disrupt_faustian_pawn",
   "initialize_sorcerer",
+  "recruit_sorcerer_personnel",
+  "refocus_sorcerer_researcher",
+  "tutor_sorcerer_student",
+  "rearrange_sorcerer_tower",
+  "set_sorcerer_researcher_operational_this_month",
+  "adjust_sorcerer_knowledge",
+  "set_sorcerer_archives_open",
+  "move_sorcerer_tower_magic_consumable",
   "add_lore_entry",
   "revise_lore_entry",
 ] as const;
@@ -268,6 +276,14 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "direct_faustian_accomplice":
     case "disrupt_faustian_pawn":
     case "initialize_sorcerer":
+    case "recruit_sorcerer_personnel":
+    case "refocus_sorcerer_researcher":
+    case "tutor_sorcerer_student":
+    case "rearrange_sorcerer_tower":
+    case "set_sorcerer_researcher_operational_this_month":
+    case "adjust_sorcerer_knowledge":
+    case "set_sorcerer_archives_open":
+    case "move_sorcerer_tower_magic_consumable":
     case "add_lore_entry":
     case "revise_lore_entry":
     case "move_month":

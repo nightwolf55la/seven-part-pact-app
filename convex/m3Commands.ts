@@ -277,6 +277,30 @@ import {
   initializeSorcererFingerprint,
   canonicalizeInitializeSorcererInput,
   applyInitializeSorcerer,
+  recruitSorcererPersonnelFingerprint,
+  canonicalizeRecruitSorcererPersonnelInput,
+  applyRecruitSorcererPersonnel,
+  refocusSorcererResearcherFingerprint,
+  canonicalizeRefocusSorcererResearcherInput,
+  applyRefocusSorcererResearcher,
+  tutorSorcererStudentFingerprint,
+  canonicalizeTutorSorcererStudentInput,
+  applyTutorSorcererStudent,
+  rearrangeSorcererTowerFingerprint,
+  canonicalizeRearrangeSorcererTowerInput,
+  applyRearrangeSorcererTower,
+  setSorcererResearcherOperationalThisMonthFingerprint,
+  canonicalizeSetSorcererResearcherOperationalThisMonthInput,
+  applySetSorcererResearcherOperationalThisMonth,
+  adjustSorcererKnowledgeFingerprint,
+  canonicalizeAdjustSorcererKnowledgeInput,
+  applyAdjustSorcererKnowledge,
+  setSorcererArchivesOpenFingerprint,
+  canonicalizeSetSorcererArchivesOpenInput,
+  applySetSorcererArchivesOpen,
+  moveSorcererTowerMagicConsumableFingerprint,
+  canonicalizeMoveSorcererTowerMagicConsumableInput,
+  applyMoveSorcererTowerMagicConsumable,
   addLoreEntryFingerprint,
   reviseLoreEntryFingerprint,
   applyAddLoreEntry,
@@ -291,6 +315,14 @@ import type {
   SorcererDisruptiveArcanistProfile,
   SorcererLawOfMagicId,
   SorcererResearchPositionId,
+  RecruitSorcererPersonnelInput,
+  RefocusSorcererResearcherInput,
+  TutorSorcererStudentInput,
+  RearrangeSorcererTowerInput,
+  SetSorcererResearcherOperationalThisMonthInput,
+  AdjustSorcererKnowledgeInput,
+  SetSorcererArchivesOpenInput,
+  MoveSorcererTowerMagicConsumableInput,
   WarlockIdeologyId,
   AddLoreEntryInput,
   ReviseLoreEntryInput,
@@ -4831,6 +4863,288 @@ export const initializeSorcerer = mutation({
           commandType: "initialize_sorcerer",
           commandFingerprint: initializeSorcererFingerprint(args.expectedCampaignId, input),
           apply: (state) => applyInitializeSorcerer(state, input),
+        };
+      },
+    );
+  },
+});
+
+const sorcererRecipeArg = v.union(
+  v.object({ kind: v.literal("builtin"), recipeId: v.string() }),
+  v.object({ kind: v.literal("campaign"), recipeId: v.string() }),
+);
+const sorcererPersonnelDestinationArg = v.union(
+  v.object({ kind: v.literal("student") }),
+  v.object({ kind: v.literal("researcher"), positionId: v.string() }),
+  v.object({ kind: v.literal("professor") }),
+  v.object({ kind: v.literal("librarian"), school: sorcererMagicSchoolArg }),
+  v.object({ kind: v.literal("alchemist"), recipe: sorcererRecipeArg }),
+  v.object({ kind: v.literal("campaign_academic"), academicKindId: v.string() }),
+);
+const sorcererPersonnelSubjectArg = v.union(
+  v.object({
+    kind: v.literal("create_denizen"),
+    denizenId: v.string(),
+    name: v.string(),
+    representation: v.union(v.literal("individual"), v.literal("collective")),
+    description: v.union(v.string(), v.null()),
+  }),
+  v.object({
+    kind: v.literal("existing_denizen"),
+    denizenId: v.string(),
+  }),
+);
+const sorcererResearcherRefocusDestinationArg = v.union(
+  v.object({ kind: v.literal("research_position"), positionId: v.string() }),
+  v.object({ kind: v.literal("professor") }),
+  v.object({ kind: v.literal("librarian"), school: sorcererMagicSchoolArg }),
+  v.object({ kind: v.literal("alchemist"), recipe: sorcererRecipeArg }),
+  v.object({ kind: v.literal("campaign_academic"), academicKindId: v.string() }),
+);
+const sorcererStudentTutorDestinationArg = v.union(
+  v.object({ kind: v.literal("researcher"), positionId: v.string() }),
+  v.object({ kind: v.literal("professor") }),
+  v.object({ kind: v.literal("librarian"), school: sorcererMagicSchoolArg }),
+  v.object({ kind: v.literal("alchemist"), recipe: sorcererRecipeArg }),
+  v.object({ kind: v.literal("campaign_academic"), academicKindId: v.string() }),
+);
+const sorcererConsumableItemArg = v.union(
+  v.object({ kind: v.literal("tome"), school: sorcererMagicSchoolArg }),
+  v.object({ kind: v.literal("reagent"), reagentId: v.string() }),
+);
+
+export const recruitSorcererPersonnel = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    subject: sorcererPersonnelSubjectArg,
+    destination: sorcererPersonnelDestinationArg,
+    expectedTowerOrder: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeRecruitSorcererPersonnelInput({
+          subject: args.subject,
+          destination: args.destination,
+          expectedTowerOrder: args.expectedTowerOrder,
+        } as unknown as RecruitSorcererPersonnelInput);
+        return {
+          commandType: "recruit_sorcerer_personnel",
+          commandFingerprint: recruitSorcererPersonnelFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyRecruitSorcererPersonnel(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const refocusSorcererResearcher = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    expectedPositionId: v.string(),
+    destination: sorcererResearcherRefocusDestinationArg,
+    expectedTowerOrder: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeRefocusSorcererResearcherInput({
+          denizenId: args.denizenId,
+          expectedPositionId: args.expectedPositionId,
+          destination: args.destination,
+          expectedTowerOrder: args.expectedTowerOrder,
+        } as unknown as RefocusSorcererResearcherInput);
+        return {
+          commandType: "refocus_sorcerer_researcher",
+          commandFingerprint: refocusSorcererResearcherFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyRefocusSorcererResearcher(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const tutorSorcererStudent = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    expectedTowerOrder: v.array(v.string()),
+    destination: sorcererStudentTutorDestinationArg,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeTutorSorcererStudentInput({
+          denizenId: args.denizenId,
+          expectedTowerOrder: args.expectedTowerOrder,
+          destination: args.destination,
+        } as unknown as TutorSorcererStudentInput);
+        return {
+          commandType: "tutor_sorcerer_student",
+          commandFingerprint: tutorSorcererStudentFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyTutorSorcererStudent(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const rearrangeSorcererTower = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    expectedTowerOrder: v.array(v.string()),
+    towerOrder: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeRearrangeSorcererTowerInput({
+          expectedTowerOrder: args.expectedTowerOrder,
+          towerOrder: args.towerOrder,
+        } as unknown as RearrangeSorcererTowerInput);
+        return {
+          commandType: "rearrange_sorcerer_tower",
+          commandFingerprint: rearrangeSorcererTowerFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyRearrangeSorcererTower(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const setSorcererResearcherOperationalThisMonth = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    expectedOperationalThisMonth: v.boolean(),
+    operationalThisMonth: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeSetSorcererResearcherOperationalThisMonthInput({
+          denizenId: args.denizenId,
+          expectedOperationalThisMonth: args.expectedOperationalThisMonth,
+          operationalThisMonth: args.operationalThisMonth,
+        } as SetSorcererResearcherOperationalThisMonthInput);
+        return {
+          commandType: "set_sorcerer_researcher_operational_this_month",
+          commandFingerprint: setSorcererResearcherOperationalThisMonthFingerprint(
+            args.expectedCampaignId,
+            input,
+          ),
+          apply: (state) => applySetSorcererResearcherOperationalThisMonth(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const adjustSorcererKnowledge = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    pool: v.union(
+      v.literal("researchOrigin"),
+      v.literal("other"),
+      v.literal("nextMonthResearchOrigin"),
+    ),
+    expectedAmount: v.number(),
+    amount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeAdjustSorcererKnowledgeInput({
+          pool: args.pool,
+          expectedAmount: args.expectedAmount,
+          amount: args.amount,
+        } as AdjustSorcererKnowledgeInput);
+        return {
+          commandType: "adjust_sorcerer_knowledge",
+          commandFingerprint: adjustSorcererKnowledgeFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyAdjustSorcererKnowledge(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const setSorcererArchivesOpen = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    expectedArchivesOpen: v.boolean(),
+    archivesOpen: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeSetSorcererArchivesOpenInput({
+          expectedArchivesOpen: args.expectedArchivesOpen,
+          archivesOpen: args.archivesOpen,
+        } as SetSorcererArchivesOpenInput);
+        return {
+          commandType: "set_sorcerer_archives_open",
+          commandFingerprint: setSorcererArchivesOpenFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applySetSorcererArchivesOpen(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const moveSorcererTowerMagicConsumable = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    direction: v.union(v.literal("tower_to_wizard"), v.literal("wizard_to_tower")),
+    wizardId: v.string(),
+    item: sorcererConsumableItemArg,
+    amount: v.number(),
+    expectedSourceCount: v.number(),
+    expectedDestinationCount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeMoveSorcererTowerMagicConsumableInput({
+          direction: args.direction,
+          wizardId: args.wizardId,
+          item: args.item,
+          amount: args.amount,
+          expectedSourceCount: args.expectedSourceCount,
+          expectedDestinationCount: args.expectedDestinationCount,
+        } as MoveSorcererTowerMagicConsumableInput);
+        return {
+          commandType: "move_sorcerer_tower_magic_consumable",
+          commandFingerprint: moveSorcererTowerMagicConsumableFingerprint(
+            args.expectedCampaignId,
+            input,
+          ),
+          apply: (state) => applyMoveSorcererTowerMagicConsumable(state, input),
         };
       },
     );

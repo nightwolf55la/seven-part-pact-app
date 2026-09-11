@@ -301,6 +301,30 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Disrupted Faustian Pawn";
     case "sorcerer_initialized":
       return "Initialized Sorcerer";
+    case "sorcerer_personnel_recruited":
+      return `Recruited ${event.data.destination.kind} "${event.data.denizenName}"`;
+    case "sorcerer_researcher_refocused":
+      return event.data.destination.kind === "research_position"
+        ? `Refocused Researcher from ${event.data.previousPositionId} to ${event.data.destination.positionId}`
+        : `Refocused Researcher ${event.data.previousPositionId} into ${event.data.destination.kind}`;
+    case "sorcerer_student_tutored":
+      return event.data.destination.kind === "researcher"
+        ? `Tutored Student into Researcher at ${event.data.destination.positionId}`
+        : `Tutored Student into ${event.data.destination.kind}`;
+    case "sorcerer_tower_rearranged":
+      return "Rearranged Sorcerer Tower";
+    case "sorcerer_researcher_operational_this_month_changed":
+      return event.data.operationalThisMonth
+        ? "Set Researcher Working this month"
+        : "Set Researcher Unavailable this month";
+    case "sorcerer_knowledge_adjusted":
+      return `Adjusted Sorcerer Knowledge ${event.data.pool} from ${event.data.previousAmount} to ${event.data.amount}`;
+    case "sorcerer_archives_open_changed":
+      return event.data.archivesOpen ? "Opened Sorcerer Archives" : "Closed Sorcerer Archives";
+    case "sorcerer_tower_magic_consumable_moved":
+      return event.data.direction === "tower_to_wizard"
+        ? "Moved Tower Tome/Reagent to Wizard"
+        : "Moved Wizard Tome/Reagent to Tower";
     case "lore_entry_added":
       return "Added Lore entry";
     case "lore_entry_revised":
@@ -518,6 +542,14 @@ export function mapEventToActivityEntry(
     case "faustian_accomplice_directed":
     case "faustian_pawn_disrupted":
     case "sorcerer_initialized":
+    case "sorcerer_personnel_recruited":
+    case "sorcerer_researcher_refocused":
+    case "sorcerer_student_tutored":
+    case "sorcerer_tower_rearranged":
+    case "sorcerer_researcher_operational_this_month_changed":
+    case "sorcerer_knowledge_adjusted":
+    case "sorcerer_archives_open_changed":
+    case "sorcerer_tower_magic_consumable_moved":
     case "lore_entry_added":
     case "lore_entry_revised": {
       return {

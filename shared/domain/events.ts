@@ -84,8 +84,14 @@ import type {
   NecromancerWizardTraversalState,
 } from "./necromancer-state";
 import type { FaustianCardId, FaustianCommunityId } from "./faustian-catalogs";
-import type { SorcererArrangementId } from "./sorcerer-catalogs";
-import type { SorcererState } from "./sorcerer-state";
+import type { MagicSchoolRef } from "./magic-consumables";
+import type { SorcererArrangementId, SorcererSourceReagentId } from "./sorcerer-catalogs";
+import type {
+  SorcererCampaignAcademicKindId,
+  SorcererRecipeRef,
+  SorcererResearchPositionId,
+  SorcererState,
+} from "./sorcerer-state";
 import type { LoreSubjectRef } from "./lore-state";
 import type { SourceLoreCollectionId, SourceLoreEntryId } from "./lore-catalog";
 
@@ -1676,7 +1682,143 @@ export interface SorcererInitializedEventV1 {
   readonly data: SorcererInitializedDataV1;
 }
 
-export type SorcererEvent = SorcererInitializedEventV1;
+export type SorcererPersonnelDestinationAuditV1 =
+  | { readonly kind: "student" }
+  | { readonly kind: "researcher"; readonly positionId: SorcererResearchPositionId }
+  | { readonly kind: "professor" }
+  | { readonly kind: "librarian"; readonly school: MagicSchoolRef }
+  | { readonly kind: "alchemist"; readonly recipe: SorcererRecipeRef }
+  | { readonly kind: "campaign_academic"; readonly academicKindId: SorcererCampaignAcademicKindId };
+
+export interface SorcererPersonnelRecruitedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly denizenCreated: boolean;
+  readonly denizenName: string;
+  readonly destination: SorcererPersonnelDestinationAuditV1;
+  readonly previousTowerOrder: readonly DenizenId[];
+  readonly nextTowerOrder: readonly DenizenId[];
+}
+export interface SorcererPersonnelRecruitedEventV1 {
+  readonly type: "sorcerer_personnel_recruited";
+  readonly version: 1;
+  readonly data: SorcererPersonnelRecruitedDataV1;
+}
+
+export type SorcererResearcherRefocusDestinationAuditV1 =
+  | { readonly kind: "research_position"; readonly positionId: SorcererResearchPositionId }
+  | { readonly kind: "professor" }
+  | { readonly kind: "librarian"; readonly school: MagicSchoolRef }
+  | { readonly kind: "alchemist"; readonly recipe: SorcererRecipeRef }
+  | { readonly kind: "campaign_academic"; readonly academicKindId: SorcererCampaignAcademicKindId };
+
+export interface SorcererResearcherRefocusedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly previousPositionId: SorcererResearchPositionId;
+  readonly destination: SorcererResearcherRefocusDestinationAuditV1;
+  readonly previousTowerOrder: readonly DenizenId[];
+  readonly nextTowerOrder: readonly DenizenId[];
+}
+export interface SorcererResearcherRefocusedEventV1 {
+  readonly type: "sorcerer_researcher_refocused";
+  readonly version: 1;
+  readonly data: SorcererResearcherRefocusedDataV1;
+}
+
+export type SorcererStudentTutorDestinationAuditV1 =
+  | { readonly kind: "researcher"; readonly positionId: SorcererResearchPositionId }
+  | { readonly kind: "professor" }
+  | { readonly kind: "librarian"; readonly school: MagicSchoolRef }
+  | { readonly kind: "alchemist"; readonly recipe: SorcererRecipeRef }
+  | { readonly kind: "campaign_academic"; readonly academicKindId: SorcererCampaignAcademicKindId };
+
+export interface SorcererStudentTutoredDataV1 {
+  readonly denizenId: DenizenId;
+  readonly destination: SorcererStudentTutorDestinationAuditV1;
+  readonly previousTowerOrder: readonly DenizenId[];
+  readonly nextTowerOrder: readonly DenizenId[];
+}
+export interface SorcererStudentTutoredEventV1 {
+  readonly type: "sorcerer_student_tutored";
+  readonly version: 1;
+  readonly data: SorcererStudentTutoredDataV1;
+}
+
+export interface SorcererTowerRearrangedDataV1 {
+  readonly previousTowerOrder: readonly DenizenId[];
+  readonly nextTowerOrder: readonly DenizenId[];
+}
+export interface SorcererTowerRearrangedEventV1 {
+  readonly type: "sorcerer_tower_rearranged";
+  readonly version: 1;
+  readonly data: SorcererTowerRearrangedDataV1;
+}
+
+export interface SorcererResearcherOperationalThisMonthChangedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly previousOperationalThisMonth: boolean;
+  readonly operationalThisMonth: boolean;
+}
+export interface SorcererResearcherOperationalThisMonthChangedEventV1 {
+  readonly type: "sorcerer_researcher_operational_this_month_changed";
+  readonly version: 1;
+  readonly data: SorcererResearcherOperationalThisMonthChangedDataV1;
+}
+
+export type SorcererKnowledgePoolIdV1 = "researchOrigin" | "other" | "nextMonthResearchOrigin";
+
+export interface SorcererKnowledgeAdjustedDataV1 {
+  readonly pool: SorcererKnowledgePoolIdV1;
+  readonly previousAmount: number;
+  readonly amount: number;
+}
+export interface SorcererKnowledgeAdjustedEventV1 {
+  readonly type: "sorcerer_knowledge_adjusted";
+  readonly version: 1;
+  readonly data: SorcererKnowledgeAdjustedDataV1;
+}
+
+export interface SorcererArchivesOpenChangedDataV1 {
+  readonly previousArchivesOpen: boolean;
+  readonly archivesOpen: boolean;
+}
+export interface SorcererArchivesOpenChangedEventV1 {
+  readonly type: "sorcerer_archives_open_changed";
+  readonly version: 1;
+  readonly data: SorcererArchivesOpenChangedDataV1;
+}
+
+export type SorcererTowerMagicConsumableItemAuditV1 =
+  | { readonly kind: "tome"; readonly school: MagicSchoolRef }
+  | { readonly kind: "reagent"; readonly reagentId: SorcererSourceReagentId };
+
+export type SorcererTowerMagicConsumableDirectionV1 = "tower_to_wizard" | "wizard_to_tower";
+
+export interface SorcererTowerMagicConsumableMovedDataV1 {
+  readonly direction: SorcererTowerMagicConsumableDirectionV1;
+  readonly wizardId: WizardId;
+  readonly item: SorcererTowerMagicConsumableItemAuditV1;
+  readonly amount: number;
+  readonly previousSourceCount: number;
+  readonly nextSourceCount: number;
+  readonly previousDestinationCount: number;
+  readonly nextDestinationCount: number;
+}
+export interface SorcererTowerMagicConsumableMovedEventV1 {
+  readonly type: "sorcerer_tower_magic_consumable_moved";
+  readonly version: 1;
+  readonly data: SorcererTowerMagicConsumableMovedDataV1;
+}
+
+export type SorcererEvent =
+  | SorcererInitializedEventV1
+  | SorcererPersonnelRecruitedEventV1
+  | SorcererResearcherRefocusedEventV1
+  | SorcererStudentTutoredEventV1
+  | SorcererTowerRearrangedEventV1
+  | SorcererResearcherOperationalThisMonthChangedEventV1
+  | SorcererKnowledgeAdjustedEventV1
+  | SorcererArchivesOpenChangedEventV1
+  | SorcererTowerMagicConsumableMovedEventV1;
 
 export type LoreEntryAddedCollectionContextV1 =
   | {
