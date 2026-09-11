@@ -19,7 +19,6 @@ import {
   initReviseEditor,
   isStaleLoreCommandError,
   LORE_EMPTY_ELIGIBLE_STATUS,
-  markReviseEditorStaleFromServer,
   newLoreCommandId,
   reviseDraftUnchanged,
   syncReviseEditorWithPresentation,
@@ -119,9 +118,9 @@ export default function LoreContextPanel({
           if (current === null) {
             return current;
           }
-          return markReviseEditorStaleFromServer(current, null);
+          return { ...current, conflicted: true, latestServerText: null };
         });
-        setInlineError("Lore changed while you were editing. Review the latest text or use latest as base.");
+        setInlineError("Lore changed while you were editing. Your draft has been kept.");
       } else {
         setInlineError(LORE_GENERIC_SAVE_FAILURE);
       }
@@ -498,16 +497,21 @@ function ReviseEditor({
       {conflicted && (
         <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
           <p>Lore changed while you were editing. Your draft is preserved.</p>
-          {editor.latestServerText !== null && (
-            <p className={`${proseClass} mt-2 text-slate-700 dark:text-slate-200`}>{editor.latestServerText}</p>
+          {editor.latestServerText === null && (
+            <p className="text-xs text-amber-800/80 dark:text-amber-100/80 mt-1">Waiting for the latest Lore text…</p>
           )}
-          <button
-            type="button"
-            className={`${ghostBtn} mt-2`}
-            onClick={() => setEditor(applyUseLatestAsBase(editor))}
-          >
-            Use latest as base
-          </button>
+          {editor.latestServerText !== null && (
+            <>
+              <p className={`${proseClass} mt-2 text-slate-700 dark:text-slate-200`}>{editor.latestServerText}</p>
+              <button
+                type="button"
+                className={`${ghostBtn} mt-2`}
+                onClick={() => setEditor(applyUseLatestAsBase(editor))}
+              >
+                Use latest as base
+              </button>
+            </>
+          )}
         </div>
       )}
       <textarea

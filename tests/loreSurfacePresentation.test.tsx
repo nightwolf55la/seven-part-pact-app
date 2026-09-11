@@ -118,6 +118,10 @@ function button(container: HTMLElement, text: string): HTMLButtonElement {
   return found as HTMLButtonElement;
 }
 
+function useLatestAsBaseButton(container: HTMLElement): HTMLButtonElement | null {
+  return Array.from(container.querySelectorAll("button")).find((el) => el.textContent?.trim() === "Use latest as base") ?? null;
+}
+
 beforeEach(() => {
   for (const key of Object.keys(mockMutations)) {
     mockMutations[key]?.mockClear();
@@ -394,13 +398,16 @@ describe("mutation failure presentation", () => {
     expect((container.querySelector(`textarea[aria-label="Revise Lore text"]`) as HTMLTextAreaElement).value).toBe("Draft after stale reject.");
     expect(button(container, "Save").disabled).toBe(true);
     expect(container.textContent).toContain("Your draft is preserved");
+    expect(container.textContent).not.toContain("Server moved on.");
+    expect(useLatestAsBaseButton(container)).toBeNull();
 
     flushSync(() => {
       button(container, "Apply server change").click();
     });
     expect(container.textContent).toContain("Server moved on.");
+    expect(useLatestAsBaseButton(container)).not.toBeNull();
     flushSync(() => {
-      button(container, "Use latest as base").click();
+      useLatestAsBaseButton(container)!.click();
     });
     expect((container.querySelector(`textarea[aria-label="Revise Lore text"]`) as HTMLTextAreaElement).value).toBe("Draft after stale reject.");
     expect(button(container, "Save").disabled).toBe(false);
