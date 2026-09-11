@@ -2,7 +2,7 @@ import type { CampaignStateV5 } from "./campaign-state";
 import { DomainError } from "./errors";
 import { isValidDenizenId, isValidIsleId, isValidWizardId } from "./ids";
 import { isValidFaustianCommunityId } from "./faustian-catalogs";
-import { isValidHierophantStartingTempleId, isValidHierophantTempleId } from "./hierophant-catalogs";
+import { isValidHierophantTempleId } from "./hierophant-catalogs";
 import { isValidMarinerSeaRegionId } from "./mariner-catalogs";
 import { isBuiltinEdgeOfLifePathSpaceId } from "./necromancer-catalogs";
 import type { HouseIndex } from "./orrery";
@@ -399,6 +399,7 @@ export function validateWarlockStructure(warlock: unknown): void {
 
   const titles = requireArray("warlock.titles", w.titles);
   const titleIds: WarlockLordTitleId[] = [];
+  const titleCurrentClanById = new Map<string, WarlockClanId | null>();
   for (let i = 0; i < titles.length; i++) {
     const path = `warlock.titles[${i}]`;
     const title = requireRecord(path, titles[i]);
@@ -420,6 +421,10 @@ export function validateWarlockStructure(warlock: unknown): void {
       }
     }
     assertBoolean(`${path}.distracted`, title.distracted);
+    titleCurrentClanById.set(
+      title.titleId as string,
+      title.currentClanId === null ? null : title.currentClanId as WarlockClanId,
+    );
   }
   uniqueIds(titleIds, "Warlock Title");
   const titleIdSet = new Set<string>(titleIds);
@@ -436,7 +441,14 @@ export function validateWarlockStructure(warlock: unknown): void {
     }
     const deckTitleIds = requireArray(`${path}.titleIds`, deck.titleIds);
     for (let j = 0; j < deckTitleIds.length; j++) {
-      locatedIds.push(validateTitleId(`${path}.titleIds[${j}]`, deckTitleIds[j]));
+      const titleId = validateTitleId(`${path}.titleIds[${j}]`, deckTitleIds[j]);
+      locatedIds.push(titleId);
+      if (titleCurrentClanById.get(titleId) !== deck.clanId) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `${path}.titleIds[${j}] currentClanId does not match deck clan ${deck.clanId}`,
+        );
+      }
     }
     deckClanIds.push(deck.clanId);
   }
@@ -573,6 +585,15 @@ export function validateWarlockStructure(warlock: unknown): void {
     }
   }
   uniqueIds(kingsConfidantLadyIds as string[], "Warlock Confidant Lady");
+  const familyLadyIdSet = new Set(kingsFamilyLadyIds as string[]);
+  for (const denizenId of kingsConfidantLadyIds as string[]) {
+    if (familyLadyIdSet.has(denizenId)) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `Warlock Lady cannot be both Family and Confidant: ${denizenId}`,
+      );
+    }
+  }
 
   const errantLadies = requireArray("warlock.errantLadies", w.errantLadies);
   const errantIds: string[] = [];
@@ -809,25 +830,56 @@ export function validateWarlockReferenceIntegrity(state: CampaignStateV5): void 
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId must reference an individual Denizen`);
     }
     requirePowerfulRoleProfile(denizen, path, "errant_noble");
-    if (lady.claimedComponent.kind === "mariner_beast") {
-      if (!denizenById.has(lady.claimedComponent.denizenId)) {
+    const claim = lady.claimedComponent;
+    if (claim.kind === "necromancer_edge") {
+      const exists = state.necromancer.pathSpaces.some((space) => space.pathSpaceId === claim.pathSpaceId);
+      if (!exists) {
         throw new DomainError(
           "INVALID_CAMPAIGN_STATE",
-          `${path}.claimedComponent.denizenId does not resolve: ${lady.claimedComponent.denizenId}`,
+          `${path}.claimedComponent.pathSpaceId does not resolve: ${claim.pathSpaceId}`,
+        );
+      }
+    } else if (claim.kind === "hierophant_temple") {
+      const exists = state.hierophant.temples.some((temple) => temple.templeId === claim.templeId);
+      if (!exists) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `${path}.claimedComponent.templeId does not resolve: ${claim.templeId}`,
+        );
+      }
+    } else if (claim.kind === "mariner_sea_region") {
+      const exists = state.mariner.seaRegions.some((region) => region.regionId === claim.seaRegionId);
+      if (!exists) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `${path}.claimedComponent.seaRegionId does not resolve: ${claim.seaRegionId}`,
+        );
+      }
+    } else if (claim.kind === "mariner_beast") {
+      const exists = state.mariner.beasts.some((beast) => beast.denizenId === claim.denizenId);
+      if (!exists) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `${path}.claimedComponent.denizenId does not resolve: ${claim.denizenId}`,
+        );
+      }
+    } else if (claim.kind === "faustian_community") {
+      const exists = state.faustian.communities.some((community) => community.communityId === claim.communityId);
+      if (!exists) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `${path}.claimedComponent.communityId does not resolve: ${claim.communityId}`,
         );
       }
     }
-    if (lady.claimedComponent.kind === "hierophant_temple") {
-      const templeId = lady.claimedComponent.templeId;
-      if (!isValidHierophantStartingTempleId(templeId)) {
-        const exists = state.hierophant.temples.some((temple) => temple.templeId === templeId);
-        if (!exists) {
-          throw new DomainError(
-            "INVALID_CAMPAIGN_STATE",
-            `${path}.claimedComponent.templeId does not resolve: ${templeId}`,
-          );
-        }
-      }
+  }
+
+  for (let i = 0; i < warlock.faustianAccompliceTitles.length; i++) {
+    const path = `warlock.faustianAccompliceTitles[${i}]`;
+    const communityId = warlock.faustianAccompliceTitles[i].communityId;
+    const exists = state.faustian.communities.some((community) => community.communityId === communityId);
+    if (!exists) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.communityId does not resolve: ${communityId}`);
     }
   }
 
@@ -860,23 +912,38 @@ export function validateWarlockReferenceIntegrity(state: CampaignStateV5): void 
     requirePowerfulRoleProfile(denizen, path, "hero");
   }
 
+  const ladyOrErrantIds = new Set<string>([
+    ...warlock.ladies.map((lady) => lady.denizenId as string),
+    ...warlock.errantLadies.map((lady) => lady.denizenId as string),
+  ]);
+  const armyIds = new Set(warlock.armies.map((army) => army.denizenId as string));
+  const currentTempleIds = new Set(state.hierophant.temples.map((temple) => temple.templeId as string));
+  const currentMarketIsleIds = new Set(
+    state.mariner.boardIsles
+      .filter((boardIsle) => boardIsle.market.present)
+      .map((boardIsle) => boardIsle.worldIsleId as string),
+  );
+
   for (let i = 0; i < warlock.authority.length; i++) {
     const path = `warlock.authority[${i}].target`;
     const target = warlock.authority[i].target;
-    if (target.kind === "noble" && !denizenIds.has(target.denizenId)) {
+    if (target.kind === "noble" && !ladyOrErrantIds.has(target.denizenId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId does not resolve: ${target.denizenId}`);
     }
-    if (target.kind === "army" && !denizenIds.has(target.denizenId)) {
+    if (target.kind === "army" && !armyIds.has(target.denizenId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId does not resolve: ${target.denizenId}`);
     }
-    if (target.kind === "mariner_market" && !isleIds.has(target.isleId)) {
+    if (target.kind === "hierophant_temple" && !currentTempleIds.has(target.templeId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.templeId does not resolve: ${target.templeId}`);
+    }
+    if (target.kind === "mariner_market" && !currentMarketIsleIds.has(target.isleId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.isleId does not resolve: ${target.isleId}`);
     }
   }
 
   for (let i = 0; i < warlock.marketHeraldry.length; i++) {
     const path = `warlock.marketHeraldry[${i}]`;
-    if (!isleIds.has(warlock.marketHeraldry[i].isleId)) {
+    if (!currentMarketIsleIds.has(warlock.marketHeraldry[i].isleId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.isleId does not resolve: ${warlock.marketHeraldry[i].isleId}`);
     }
   }

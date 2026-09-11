@@ -10,6 +10,8 @@ import type {
 } from "../shared/domain";
 import {
   DomainError,
+  EMPTY_FAUSTIAN_STATE,
+  EMPTY_HIEROPHANT_STATE,
   EMPTY_SAGE_STATE,
   EMPTY_SHARED_WORLD_STATE,
   EMPTY_WARLOCK_STATE,
@@ -28,6 +30,7 @@ import {
   sageOmenLocationKey,
   validateCampaignState,
   validateCampaignStateV5Candidate,
+  validateWarlockReferenceIntegrity,
   validateWarlockStructure,
 } from "../shared/domain";
 import { campaignStateV5Validator } from "../convex/validators";
@@ -206,11 +209,9 @@ function populatedWarlock(overrides: Partial<WarlockState> = {}): WarlockState {
       { target: { kind: "ideology", ideologyId: "mercantilism" }, amount: 2 },
       { target: { kind: "clan", clanId: "caravel" }, amount: 1 },
       { target: { kind: "lord", titleId: "royal_historian" }, amount: 1 },
-      { target: { kind: "noble", denizenId: DEN_NOBLE }, amount: 1 },
+      { target: { kind: "noble", denizenId: DEN_LADY }, amount: 1 },
       { target: { kind: "garrison", garrisonId: GARRISON_1 }, amount: 3 },
       { target: { kind: "army", denizenId: DEN_ARMY }, amount: 2 },
-      { target: { kind: "hierophant_temple", templeId: "ushin" }, amount: 1 },
-      { target: { kind: "mariner_market", isleId: ISL_MARKET }, amount: 1 },
       { target: { kind: "relocated_market", relocatedMarketId: RELOCATED_1 }, amount: 1 },
       { target: { kind: "orrery" }, amount: 1 },
     ],
@@ -234,13 +235,7 @@ function populatedWarlock(overrides: Partial<WarlockState> = {}): WarlockState {
       domainSeatId: "necromancer",
       lordTitleIds: [],
     }],
-    marketHeraldry: [{
-      isleId: ISL_MARKET,
-      clanCounts: [
-        { clanId: "caravel", count: 2 },
-        { clanId: "lark", count: 1 },
-      ],
-    }],
+    marketHeraldry: [],
     relocatedMarkets: [{
       relocatedMarketId: RELOCATED_1,
       originIsleId: ISL_MARKET,
@@ -687,7 +682,15 @@ describe("Warlock Rebellions and Sage Omen extension", () => {
 
 describe("Warlock Market Heraldry, relocated Markets, and partnerships", () => {
   it("accepts representative Market Heraldry, a relocated Market, and source partnerships", () => {
-    const warlock = populatedWarlock();
+    const warlock = populatedWarlock({
+      marketHeraldry: [{
+        isleId: ISL_MARKET,
+        clanCounts: [
+          { clanId: "caravel", count: 2 },
+          { clanId: "lark", count: 1 },
+        ],
+      }],
+    });
     expect(warlock.marketHeraldry[0]?.clanCounts).toEqual([
       { clanId: "caravel", count: 2 },
       { clanId: "lark", count: 1 },
@@ -698,9 +701,104 @@ describe("Warlock Market Heraldry, relocated Markets, and partnerships", () => {
       "piracy",
       "monarchy",
     ]);
-    expect(() => validateCampaignStateV5Candidate(baseV5(warlock, {
+    expect(() => validateCampaignStateV5Candidate(baseV5(populatedWarlock(), {
       world: populatedWorld(),
     }))).not.toThrow();
+  });
+});
+
+describe("Warlock current-entity reference integrity", () => {
+  it("rejects an Errant Lady claim whose ID is catalog-valid but absent from current Domain state", () => {
+    const warlock = populatedWarlock({
+      errantLadies: [{
+        ...populatedWarlock().errantLadies[0]!,
+        claimedComponent: { kind: "hierophant_temple", templeId: "ushin" },
+      }],
+    });
+    expectInvalid(baseV5(warlock, { world: populatedWorld() }), /claimedComponent.templeId does not resolve/);
+
+    const resolved = baseV5(populatedWarlock({
+      errantLadies: warlock.errantLadies,
+      authority: populatedWarlock().authority.filter((entry) =>
+        entry.target.kind !== "mariner_market" && entry.target.kind !== "hierophant_temple",
+      ),
+      marketHeraldry: [],
+    }), {
+      world: populatedWorld(),
+      hierophant: {
+        ...EMPTY_HIEROPHANT_STATE,
+        temples: [{ templeId: "ushin" } as never],
+      },
+    });
+    expect(() => validateWarlockReferenceIntegrity(resolved)).not.toThrow();
+  });
+
+  it.each([
+    [
+      "arbitrary Denizen as army",
+      populatedWarlock({
+        authority: [{ target: { kind: "army", denizenId: DEN_NOBLE }, amount: 1 }],
+      }),
+      /authority\[0\].target.denizenId does not resolve/,
+    ],
+    [
+      "arbitrary Denizen as noble",
+      populatedWarlock({
+        authority: [{ target: { kind: "noble", denizenId: DEN_NOBLE }, amount: 1 }],
+      }),
+      /authority\[0\].target.denizenId does not resolve/,
+    ],
+    [
+      "Isle without a current Mariner Market",
+      populatedWarlock({
+        authority: [{ target: { kind: "mariner_market", isleId: ISL_MARKET }, amount: 1 }],
+        marketHeraldry: [],
+      }),
+      /authority\[0\].target.isleId does not resolve/,
+    ],
+  ] as const)("rejects Authority target %s", (_label, warlock, pattern) => {
+    expectInvalid(baseV5(warlock, { world: populatedWorld() }), pattern);
+  });
+
+  it("rejects Market Heraldry on an Isle that has no current Mariner Market", () => {
+    expectInvalid(baseV5(populatedWarlock({
+      marketHeraldry: [{
+        isleId: ISL_MARKET,
+        clanCounts: [{ clanId: "caravel", count: 2 }],
+      }],
+    }), { world: populatedWorld() }), /marketHeraldry\[0\].isleId does not resolve/);
+  });
+
+  it("rejects a Clan-deck Title whose currentClanId does not match the deck", () => {
+    expectInvalid(baseV5(populatedWarlock({
+      titles: populatedWarlock().titles.map((title) =>
+        title.titleId === "royal_historian" ? { ...title, currentClanId: "lark" } : title,
+      ),
+    }), { world: populatedWorld() }), /currentClanId does not match/);
+  });
+
+  it("rejects a Lady who is both Family and Confidant", () => {
+    expectInvalid(baseV5(populatedWarlock({
+      kingsFamilyLadyIds: [DEN_LADY],
+      kingsConfidantLadyIds: [DEN_LADY],
+    }), { world: populatedWorld() }), /Family and Confidant/);
+  });
+
+  it("rejects a Faustian-Accomplice Lord whose Community is absent from current Faustian state", () => {
+    const state = baseV5(populatedWarlock(), { world: populatedWorld() });
+    const missingCommunity = {
+      ...state,
+      faustian: {
+        ...EMPTY_FAUSTIAN_STATE,
+        communities: EMPTY_FAUSTIAN_STATE.communities.filter((community) => community.communityId !== "leo"),
+      },
+    };
+    expect(() => validateWarlockReferenceIntegrity(missingCommunity)).toThrow(DomainError);
+    try {
+      validateWarlockReferenceIntegrity(missingCommunity);
+    } catch (error) {
+      expect((error as Error).message).toMatch(/faustianAccompliceTitles\[0\].communityId does not resolve/);
+    }
   });
 });
 
