@@ -2294,6 +2294,40 @@ const sorcererInitializedEventV1Validator = v.object({
   }),
 });
 
+const loreSubjectRefValidator = v.union(
+  v.object({ kind: v.literal("isle"), isleId: v.string() }),
+  v.object({ kind: v.literal("place"), placeId: v.string() }),
+  v.object({ kind: v.literal("necromancer_gate"), gateId: v.string() }),
+  v.object({ kind: v.literal("hierophant_temple"), templeId: v.string() }),
+  v.object({ kind: v.literal("warlock_clan"), clanId: v.string() }),
+  v.object({ kind: v.literal("element"), elementId: v.string() }),
+  v.object({ kind: v.literal("pact_domain"), pactSeatId: v.string() }),
+  v.object({ kind: v.literal("mariner_horizon"), cardinalGroupId: v.string() }),
+  v.object({ kind: v.literal("source_topic"), topicId: v.string() }),
+);
+
+const campaignAuthoredLoreEntryValidator = v.object({
+  loreEntryId: v.string(),
+  text: v.string(),
+});
+
+const loreStateValidator = v.object({
+  sourceCollections: v.array(v.object({
+    sourceCollectionId: v.string(),
+    boundSubject: loreSubjectRefValidator,
+    overrides: v.array(v.object({
+      sourceEntryId: v.string(),
+      currentText: v.string(),
+    })),
+    additions: v.array(campaignAuthoredLoreEntryValidator),
+  })),
+  campaignCollections: v.array(v.object({
+    collectionId: v.string(),
+    subject: loreSubjectRefValidator,
+    entries: v.array(campaignAuthoredLoreEntryValidator),
+  })),
+});
+
 export const campaignStateV5Validator = v.object({
   schemaVersion: v.literal(5),
   ruleset: v.object({
@@ -2322,6 +2356,7 @@ export const campaignStateV5Validator = v.object({
   warlock: warlockStateValidator,
   magicConsumables: magicConsumablesStateValidator,
   sorcerer: sorcererStateValidator,
+  lore: loreStateValidator,
 });
 
 export const wizardCharacterUpdatedEventV2Validator = v.object({

@@ -197,22 +197,20 @@ M5.2F deliberately did not introduce a generic inventory, actor/entity, spell-re
 
 ### M5.3 — Knowledge & Compendium
 
-**NEXT**
+**IN PROGRESS**
 
-The next shared foundation should be persisted mutable Lore / Compendium state.
+Design is approved. Body A shared Lore structural foundation is being implemented. Body B minimal `add_lore_entry` / `revise_lore_entry` operations are approved but not yet completed.
 
-The design should investigate and settle:
+M5.3 is **not complete**. CampaignState V5 remains **PRE-ACTIVATION**.
 
-- stable identity for mutable Lore/Compendium entries;
-- what kinds of subjects Lore can attach to;
-- source-derived initial Lore versus campaign-created Lore;
-- current truth versus superseded/historical truth;
-- how changes/additions preserve useful history without turning CampaignState into event sourcing;
-- role-aware knowledge/visibility where the written game actually distinguishes who knows something;
-- relationships to Research, Map/Isle/Sanctum Lore, Denizen/Domain facts, Watcher responsibilities, and later magic;
-- what is shared with the Celestial Audience versus secret/revealed through play;
-- whether Truth-Watcher precedent/notes belong in the Compendium or remain ordinary human notes;
-- how to avoid a generic wiki/knowledge-graph framework when Seven-Part-Pact-specific Lore modeling is sufficient.
+See `docs/m5-3-knowledge-compendium.md` for the durable contract.
+
+The next shared foundation is persisted mutable Lore / Compendium state. The approved model distinguishes:
+
+- source collections versus campaign-created collections;
+- static Draft4/v1 baseline versus sparse overrides and ordered authored additions;
+- stable first-use subject binding;
+- derived Mariner Present/Silent/Absent/null context selection.
 
 M5.3 should not absorb full spellcasting, broad UI, or every narrative note.
 

@@ -13,6 +13,7 @@ import {
   EMPTY_WARLOCK_STATE,
   EMPTY_MAGIC_CONSUMABLES_STATE,
   EMPTY_SORCERER_STATE,
+  EMPTY_LORE_STATE,
 } from "../shared/domain";
 import type {
   RevisionRecord,
@@ -132,7 +133,7 @@ function makeInitialState(): SerializableCampaignState {
     sage: EMPTY_SAGE_STATE,
     warlock: EMPTY_WARLOCK_STATE,
     magicConsumables: EMPTY_MAGIC_CONSUMABLES_STATE,
-    sorcerer: EMPTY_SORCERER_STATE,
+    sorcerer: EMPTY_SORCERER_STATE, lore: EMPTY_LORE_STATE,
   };
 }
 
