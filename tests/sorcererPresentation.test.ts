@@ -174,6 +174,24 @@ describe("readSorcererBoardReference", () => {
     expect(board.researchPositions.some((position) => position.occupant?.denizenId === denizenId(1))).toBe(true);
   });
 
+  it("presents Students, then non-Student Academics, then Reliable Arcanists in exact towerOrder", () => {
+    const state = initializedDynamic();
+    const board = readSorcererBoardReference(state);
+    const kinds = board.towerOccupants.map((occupant) => occupant.role.kind);
+    expect(kinds).toEqual([
+      "student",
+      "student",
+      "student",
+      "professor",
+      "librarian",
+      "alchemist",
+      "reliable_tower_arcanist",
+    ]);
+    expect(board.towerOrder).toEqual([
+      denizenId(4), denizenId(5), denizenId(6), denizenId(7), denizenId(9), denizenId(8), denizenId(10),
+    ]);
+  });
+
   it("preserves exact typed Research Position targets and occupied/vacant state", () => {
     const board = readSorcererBoardReference(initializedQuiet());
     const orrery = board.researchPositions.find((position) => position.positionId === "srp_orrery_1");

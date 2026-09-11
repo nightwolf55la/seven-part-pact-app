@@ -560,7 +560,8 @@ export type SorcererPersonnelSubject =
 export interface RecruitSorcererPersonnelInput {
   readonly subject: SorcererPersonnelSubject;
   readonly destination: SorcererPersonnelRoleDestination;
-  readonly expectedTowerOrder: readonly DenizenId[];
+  readonly expectedTowerOrder?: readonly DenizenId[];
+  readonly nextAcademicOrder?: readonly DenizenId[];
 }
 
 export type SorcererResearcherRefocusDestination =
@@ -574,7 +575,8 @@ export interface RefocusSorcererResearcherInput {
   readonly denizenId: DenizenId;
   readonly expectedPositionId: SorcererResearchPositionId;
   readonly destination: SorcererResearcherRefocusDestination;
-  readonly expectedTowerOrder: readonly DenizenId[];
+  readonly expectedTowerOrder?: readonly DenizenId[];
+  readonly nextAcademicOrder?: readonly DenizenId[];
 }
 
 export type SorcererStudentTutorDestination =
@@ -586,7 +588,9 @@ export type SorcererStudentTutorDestination =
 
 export interface TutorSorcererStudentInput {
   readonly denizenId: DenizenId;
-  readonly expectedTowerOrder: readonly DenizenId[];
+  readonly expectedTowerOrder?: readonly DenizenId[];
+  readonly expectedAcademicOrder?: readonly DenizenId[];
+  readonly nextAcademicOrder?: readonly DenizenId[];
   readonly destination: SorcererStudentTutorDestination;
 }
 
@@ -830,10 +834,25 @@ export function canonicalizeRecruitSorcererPersonnelInput(
         description: input.subject.description,
       }
     : { kind: "existing_denizen" as const, denizenId: input.subject.denizenId };
+  const destination = canonicalizePersonnelDestination(input.destination);
+  if (destination.kind === "researcher") {
+    return { subject, destination };
+  }
+  const expectedTowerOrder = canonicalizeTowerOrder(
+    requireTowerDestinationExpectedOrder(input.expectedTowerOrder),
+    "expected Tower order",
+  );
+  if (destination.kind === "student") {
+    return { subject, destination, expectedTowerOrder };
+  }
   return {
     subject,
-    destination: canonicalizePersonnelDestination(input.destination),
-    expectedTowerOrder: canonicalizeTowerOrder(input.expectedTowerOrder, "expected Tower order"),
+    destination,
+    expectedTowerOrder,
+    nextAcademicOrder: canonicalizeTowerOrder(
+      requireNextAcademicOrder(input.nextAcademicOrder),
+      "next Academic order",
+    ),
   };
 }
 
@@ -849,11 +868,26 @@ export function canonicalizeRefocusSorcererResearcherInput(
       `Research Position does not resolve: ${input.expectedPositionId}`,
     );
   }
+  const destination = canonicalizeResearcherRefocusDestination(input.destination);
+  if (destination.kind === "research_position") {
+    return {
+      denizenId: input.denizenId,
+      expectedPositionId: input.expectedPositionId,
+      destination,
+    };
+  }
   return {
     denizenId: input.denizenId,
     expectedPositionId: input.expectedPositionId,
-    destination: canonicalizeResearcherRefocusDestination(input.destination),
-    expectedTowerOrder: canonicalizeTowerOrder(input.expectedTowerOrder, "expected Tower order"),
+    destination,
+    expectedTowerOrder: canonicalizeTowerOrder(
+      requireTowerDestinationExpectedOrder(input.expectedTowerOrder),
+      "expected Tower order",
+    ),
+    nextAcademicOrder: canonicalizeTowerOrder(
+      requireNextAcademicOrder(input.nextAcademicOrder),
+      "next Academic order",
+    ),
   };
 }
 
@@ -863,11 +897,25 @@ export function canonicalizeTutorSorcererStudentInput(
   if (!isValidDenizenId(input.denizenId)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid Student denizenId: ${input.denizenId}`);
   }
-  return {
+  if (input.expectedAcademicOrder === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "expected Academic order is required when tutoring a Student");
+  }
+  const canonical: TutorSorcererStudentInput = {
     denizenId: input.denizenId,
-    expectedTowerOrder: canonicalizeTowerOrder(input.expectedTowerOrder, "expected Tower order"),
+    expectedAcademicOrder: canonicalizeTowerOrder(input.expectedAcademicOrder, "expected Academic order"),
+    nextAcademicOrder: canonicalizeTowerOrder(
+      requireNextAcademicOrder(input.nextAcademicOrder),
+      "next Academic order",
+    ),
     destination: canonicalizeStudentTutorDestination(input.destination),
   };
+  if (input.expectedTowerOrder !== undefined) {
+    return {
+      ...canonical,
+      expectedTowerOrder: canonicalizeTowerOrder(input.expectedTowerOrder, "expected Tower order"),
+    };
+  }
+  return canonical;
 }
 
 export function canonicalizeRearrangeSorcererTowerInput(
@@ -1093,12 +1141,148 @@ function academicRoleFromNonStudentDestination(
   return academicRoleFromPersonnelDestination(sorcerer, destination);
 }
 
-function appendTowerMember(order: readonly DenizenId[], denizenId: DenizenId): readonly DenizenId[] {
-  return [...order, denizenId];
+function academicIdsInTowerOrder(sorcerer: SorcererState): readonly DenizenId[] {
+  const academicIds = new Set(sorcerer.academics.map((academic) => academic.denizenId));
+  return sorcerer.towerOrder.filter((id) => academicIds.has(id));
 }
 
-function removeTowerMember(order: readonly DenizenId[], denizenId: DenizenId): readonly DenizenId[] {
-  return order.filter((id) => id !== denizenId);
+function reliableArcanistIdsInTowerOrder(sorcerer: SorcererState): readonly DenizenId[] {
+  const arcanistIds = new Set(
+    sorcerer.arcanists
+      .filter((arcanist) => arcanist.placement.kind === "tower")
+      .map((arcanist) => arcanist.denizenId),
+  );
+  return sorcerer.towerOrder.filter((id) => arcanistIds.has(id));
+}
+
+function isStudentInTower(sorcerer: SorcererState, denizenId: DenizenId): boolean {
+  return sorcerer.academics.some((academic) => academic.denizenId === denizenId && academic.role.kind === "student");
+}
+
+function reconstructTowerOrder(
+  academicOrder: readonly DenizenId[],
+  sorcerer: SorcererState,
+): readonly DenizenId[] {
+  return [...academicOrder, ...reliableArcanistIdsInTowerOrder(sorcerer)];
+}
+
+function insertStudentIntoTower(
+  order: readonly DenizenId[],
+  sorcerer: SorcererState,
+  newStudentId: DenizenId,
+): readonly DenizenId[] {
+  let insertAt = 0;
+  for (let i = 0; i < order.length; i++) {
+    if (isStudentInTower(sorcerer, order[i]!)) {
+      insertAt = i + 1;
+    }
+  }
+  return [...order.slice(0, insertAt), newStudentId, ...order.slice(insertAt)];
+}
+
+function requireExpectedAcademicOrder(
+  sorcerer: SorcererState,
+  expected: readonly DenizenId[],
+): void {
+  if (!denizenIdsEqual(academicIdsInTowerOrder(sorcerer), expected)) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      "Academic order does not match the expected current order",
+    );
+  }
+}
+
+function requireOrderPreservingAcademicInsertion(
+  previousAcademicOrder: readonly DenizenId[],
+  nextAcademicOrder: readonly DenizenId[],
+  insertedId: DenizenId,
+): void {
+  const insertedCount = nextAcademicOrder.filter((id) => id === insertedId).length;
+  if (insertedCount !== 1) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      "next Academic order must contain the new Academic exactly once",
+    );
+  }
+  const withoutInserted = nextAcademicOrder.filter((id) => id !== insertedId);
+  if (!denizenIdsEqual(withoutInserted, previousAcademicOrder)) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      "next Academic order must preserve the relative order of existing Academics",
+    );
+  }
+}
+
+function requireValidNextAcademicOrder(
+  nextAcademicOrder: readonly DenizenId[],
+  resultingAcademics: readonly SorcererAcademic[],
+  reliableArcanistIds: ReadonlySet<string>,
+  label: string,
+): void {
+  const academicById = new Map(resultingAcademics.map((academic) => [academic.denizenId, academic]));
+  const seen = new Set<string>();
+  let seenNonStudentAcademic = false;
+  for (const id of nextAcademicOrder) {
+    if (seen.has(id)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate ${label}: ${id}`);
+    }
+    seen.add(id);
+    if (reliableArcanistIds.has(id)) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${label} must not include a Reliable Tower Arcanist`,
+      );
+    }
+    const academic = academicById.get(id);
+    if (academic === undefined) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${label} includes a Denizen who is not a current Academic`,
+      );
+    }
+    if (academic.role.kind === "student") {
+      if (seenNonStudentAcademic) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `${label} places a non-Student Academic below a Student`,
+        );
+      }
+    } else {
+      seenNonStudentAcademic = true;
+    }
+  }
+  for (const academic of resultingAcademics) {
+    if (!seen.has(academic.denizenId)) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${label} is missing Academic ${academic.denizenId}`,
+      );
+    }
+  }
+}
+
+function requireTowerDestinationExpectedOrder(
+  expectedTowerOrder: readonly DenizenId[] | undefined,
+): readonly DenizenId[] {
+  if (expectedTowerOrder === undefined) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      "expected Tower order is required when changing Tower membership",
+    );
+  }
+  return expectedTowerOrder;
+}
+
+function requireNextAcademicOrder(
+  nextAcademicOrder: readonly DenizenId[] | undefined,
+): readonly DenizenId[] {
+  if (nextAcademicOrder === undefined) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      "next Academic order is required when placing a non-Student Academic",
+    );
+  }
+  return nextAcademicOrder;
 }
 
 export function applyRecruitSorcererPersonnel(
@@ -1107,7 +1291,12 @@ export function applyRecruitSorcererPersonnel(
 ): SorcererTransitionResult {
   const input = canonicalizeRecruitSorcererPersonnelInput(rawInput);
   const sorcerer = requireInitializedSorcerer(state);
-  requireExpectedTowerOrder(sorcerer.towerOrder, input.expectedTowerOrder);
+  if (input.destination.kind !== "researcher") {
+    requireExpectedTowerOrder(
+      sorcerer.towerOrder,
+      requireTowerDestinationExpectedOrder(input.expectedTowerOrder),
+    );
+  }
 
   let workingState = state;
   let denizenCreated = false;
@@ -1149,7 +1338,7 @@ export function applyRecruitSorcererPersonnel(
         },
       ],
     };
-  } else {
+  } else if (input.destination.kind === "student") {
     const academic: SorcererAcademic = {
       denizenId,
       role: academicRoleFromPersonnelDestination(nextSorcerer, input.destination),
@@ -1157,7 +1346,30 @@ export function applyRecruitSorcererPersonnel(
     nextSorcerer = {
       ...nextSorcerer,
       academics: [...nextSorcerer.academics, academic],
-      towerOrder: appendTowerMember(nextSorcerer.towerOrder, denizenId),
+      towerOrder: insertStudentIntoTower(nextSorcerer.towerOrder, nextSorcerer, denizenId),
+    };
+  } else {
+    const academic: SorcererAcademic = {
+      denizenId,
+      role: academicRoleFromPersonnelDestination(nextSorcerer, input.destination),
+    };
+    const nextAcademicOrder = requireNextAcademicOrder(input.nextAcademicOrder);
+    const resultingAcademics = [...nextSorcerer.academics, academic];
+    requireOrderPreservingAcademicInsertion(
+      academicIdsInTowerOrder(nextSorcerer),
+      nextAcademicOrder,
+      denizenId,
+    );
+    requireValidNextAcademicOrder(
+      nextAcademicOrder,
+      resultingAcademics,
+      new Set(reliableArcanistIdsInTowerOrder(nextSorcerer)),
+      "next Academic order",
+    );
+    nextSorcerer = {
+      ...nextSorcerer,
+      academics: resultingAcademics,
+      towerOrder: reconstructTowerOrder(nextAcademicOrder, nextSorcerer),
     };
   }
 
@@ -1181,7 +1393,6 @@ export function applyRefocusSorcererResearcher(
 ): SorcererTransitionResult {
   const input = canonicalizeRefocusSorcererResearcherInput(rawInput);
   const sorcerer = requireInitializedSorcerer(state);
-  requireExpectedTowerOrder(sorcerer.towerOrder, input.expectedTowerOrder);
   const researcher = sorcerer.researchers.find((candidate) => candidate.denizenId === input.denizenId);
   if (researcher === undefined) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Researcher not found: ${input.denizenId}`);
@@ -1209,15 +1420,32 @@ export function applyRefocusSorcererResearcher(
       ),
     };
   } else {
+    requireExpectedTowerOrder(
+      sorcerer.towerOrder,
+      requireTowerDestinationExpectedOrder(input.expectedTowerOrder),
+    );
     const academic: SorcererAcademic = {
       denizenId: input.denizenId,
       role: academicRoleFromNonStudentDestination(sorcerer, input.destination),
     };
+    const nextAcademicOrder = requireNextAcademicOrder(input.nextAcademicOrder);
+    const resultingAcademics = [...sorcerer.academics, academic];
+    requireOrderPreservingAcademicInsertion(
+      academicIdsInTowerOrder(sorcerer),
+      nextAcademicOrder,
+      input.denizenId,
+    );
+    requireValidNextAcademicOrder(
+      nextAcademicOrder,
+      resultingAcademics,
+      new Set(reliableArcanistIdsInTowerOrder(sorcerer)),
+      "next Academic order",
+    );
     nextSorcerer = {
       ...sorcerer,
       researchers: sorcerer.researchers.filter((candidate) => candidate.denizenId !== input.denizenId),
-      academics: [...sorcerer.academics, academic],
-      towerOrder: appendTowerMember(sorcerer.towerOrder, input.denizenId),
+      academics: resultingAcademics,
+      towerOrder: reconstructTowerOrder(nextAcademicOrder, sorcerer),
     };
   }
 
@@ -1240,7 +1468,12 @@ export function applyTutorSorcererStudent(
 ): SorcererTransitionResult {
   const input = canonicalizeTutorSorcererStudentInput(rawInput);
   const sorcerer = requireInitializedSorcerer(state);
-  requireExpectedTowerOrder(sorcerer.towerOrder, input.expectedTowerOrder);
+  if (input.expectedAcademicOrder !== undefined) {
+    requireExpectedAcademicOrder(sorcerer, input.expectedAcademicOrder);
+  }
+  if (input.expectedTowerOrder !== undefined) {
+    requireExpectedTowerOrder(sorcerer.towerOrder, input.expectedTowerOrder);
+  }
   const academic = sorcerer.academics.find((candidate) => candidate.denizenId === input.denizenId);
   if (academic === undefined || academic.role.kind !== "student") {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Student not found: ${input.denizenId}`);
@@ -1252,10 +1485,18 @@ export function applyTutorSorcererStudent(
     );
   }
 
+  const nextAcademicOrder = requireNextAcademicOrder(input.nextAcademicOrder);
   const remainingAcademics = sorcerer.academics.filter((candidate) => candidate.denizenId !== input.denizenId);
+  const reliableArcanistIds = new Set(reliableArcanistIdsInTowerOrder(sorcerer));
   let nextSorcerer: SorcererState;
   if (input.destination.kind === "researcher") {
     requireVacantResearchPosition(sorcerer, input.destination.positionId);
+    requireValidNextAcademicOrder(
+      nextAcademicOrder,
+      remainingAcademics,
+      reliableArcanistIds,
+      "next Academic order",
+    );
     nextSorcerer = {
       ...sorcerer,
       academics: remainingAcademics,
@@ -1267,18 +1508,26 @@ export function applyTutorSorcererStudent(
           operationalThisMonth: true,
         },
       ],
-      towerOrder: removeTowerMember(sorcerer.towerOrder, input.denizenId),
+      towerOrder: reconstructTowerOrder(nextAcademicOrder, sorcerer),
     };
   } else {
+    const resultingAcademics: readonly SorcererAcademic[] = [
+      ...remainingAcademics,
+      {
+        denizenId: input.denizenId,
+        role: academicRoleFromNonStudentDestination(sorcerer, input.destination),
+      },
+    ];
+    requireValidNextAcademicOrder(
+      nextAcademicOrder,
+      resultingAcademics,
+      reliableArcanistIds,
+      "next Academic order",
+    );
     nextSorcerer = {
       ...sorcerer,
-      academics: [
-        ...remainingAcademics,
-        {
-          denizenId: input.denizenId,
-          role: academicRoleFromNonStudentDestination(sorcerer, input.destination),
-        },
-      ],
+      academics: resultingAcademics,
+      towerOrder: reconstructTowerOrder(nextAcademicOrder, sorcerer),
     };
   }
 

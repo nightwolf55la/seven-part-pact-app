@@ -16,7 +16,7 @@ Three implementation bodies:
 | **B** | Working Tower board (React) |
 | **C** | Bounded advanced UX + Orrery proof + closure |
 
-Body A owns common state transitions, fingerprints, Convex canonical mutations, events/audit, atomic Denizen + Sorcerer personnel composition, Researcher Position/refocus/availability, exact Tower reorder, provenance-aware Knowledge adjustment, Archives Open/Closed maintenance, narrow Tower-centric Tome/Reagent movement, a derived Sorcerer board read model, and a pure derived external-presence projection.
+Body A owns common state transitions, fingerprints, Convex canonical mutations, events/audit, atomic Denizen + Sorcerer personnel composition, Researcher Position/refocus/availability, hierarchy-constrained Tower order, provenance-aware Knowledge adjustment, Archives Open/Closed maintenance, narrow Tower-centric Tome/Reagent movement, a derived Sorcerer board read model, and a pure derived external-presence projection.
 
 Body A does **not** implement React presentation, redesign the Orrery, or modify another Domain board.
 
@@ -52,9 +52,55 @@ No World-page detour.
 
 ## Settled Tower order semantics
 
-- `towerOrder` is the exact authoritative order.
-- Preserve exact stable membership.
-- Do not invent a new role-tier ordering invariant.
+`towerOrder` remains the complete bottom-to-top persisted sequence of Academics, then Reliable Tower Arcanists. No CampaignState field was added for rank.
+
+### SOURCE
+
+- Academics are ranked and lower ranks act first.
+- Students are the lowliest Academics.
+- Tutoring a Student permits promoting that Student into a Researcher or Academic **and** rearranging the Academics in the Tower.
+- Reliable Arcanists operate at the top of the Tower hierarchy and resolve separately during the Quiet Phase.
+- Other source procedures and Impacts may create Students, Academics, or Reliable Arcanists without explicitly granting a general Tower rearrangement.
+
+### INFERENCE
+
+- The source does not define a rigid Professor / Librarian / Alchemist / campaign-Academic tier order.
+- Adding a new Academic necessarily requires choosing a legal rank, but does not imply permission to reshuffle everyone else.
+
+### APPLICATION DESIGN — HUMAN APPROVED
+
+These two outer constraints are now application canon. Validation must reject any `towerOrder` that violates them:
+
+1. Every Student ranks below every non-Student Academic.
+2. Every Academic ranks below every Reliable Tower Arcanist.
+
+Relative order is otherwise unconstrained within:
+
+- the Student group;
+- the non-Student Academic group;
+- the Reliable Arcanist group.
+
+Do **not** invent a finer role hierarchy such as Student < Professor < Librarian < Alchemist < Arcanist.
+
+| Operation | Placement / order rule |
+|---|---|
+| Ordinary Recruit Student | New Student enters the Student band automatically after existing Students and before every non-Student Academic. Existing occupants keep their relative order. Caller does not choose a rank. |
+| Direct non-Student Academic recruit (Impact / Advanced / exact correction) | Caller supplies `nextAcademicOrder`: insertion of the new Academic only. Pre-existing Academic relative order is preserved. Reliable Arcanist order is unchanged. |
+| Researcher → Academic refocus | Same insertion semantics as direct higher-role recruitment. |
+| Recruit Researcher / Researcher Position → Position | Tower membership is untouched. Unrelated `towerOrder` CAS is not required. |
+| Tutor Student | The one ordinary action that grants Academic rearrangement. Same command performs the promotion and applies `nextAcademicOrder`. Reliable Arcanists stay at the top in their existing relative order and cannot be moved. |
+| `rearrange_sorcerer_tower` | **Advanced / Correct Board** — exact Tower ordering correction. Not an ordinary always-available Sorcerer action. May reorder seats within the three legal bands. Must still enforce the two outer hierarchy constraints. Body B must not offer this as a permanently available "rearrange everything" control. |
+
+### Future Reliable Arcanist addition (Body C)
+
+When a Reliable Arcanist is added without a special rearrangement rule:
+
+- it enters the Reliable-Arcanist / top band;
+- all Academics remain below it;
+- existing Tower occupants retain their relative order;
+- adding the Arcanist does not itself authorize rearranging Academics.
+
+If multiple Reliable Arcanists exist, their relative order matters because they proceed in order during the Quiet Phase. Discovery automation is not implemented here.
 
 ## Settled Knowledge semantics
 
@@ -165,10 +211,10 @@ Exact names follow repository conventions. These are game-language operations, n
 
 | Command | Meaning |
 |---|---|
-| `recruit_sorcerer_personnel` | Add a Denizen-backed Sorcerer worker. Ordinary UI will primarily call this as Recruit Student. Closed destinations: Student; Researcher at a chosen Position; Professor; Librarian with exact School; Alchemist with exact Recipe; campaign Academic with exact kind. May create a new Denizen atomically or assign an existing valid Denizen. |
-| `refocus_sorcerer_researcher` | Researcher → another legal vacant Position, or Researcher → non-Student Academic. Not Student. Same Denizen identity. |
-| `tutor_sorcerer_student` | Student → Researcher at a legal vacant Position, or Student → non-Student Academic. Same Denizen identity. Atomic role + Tower update. |
-| `rearrange_sorcerer_tower` | One authoritative final Tower order. Same current membership; each member exactly once. |
+| `recruit_sorcerer_personnel` | Add a Denizen-backed Sorcerer worker. Ordinary UI will primarily call this as Recruit Student (automatic Student-band placement). Closed destinations: Student; Researcher at a chosen Position (no Tower CAS); Professor / Librarian / Alchemist / campaign Academic with `nextAcademicOrder` insertion. May create a new Denizen atomically or assign an existing valid Denizen. |
+| `refocus_sorcerer_researcher` | Researcher → another legal vacant Position (no Tower CAS), or Researcher → non-Student Academic with insertion-only `nextAcademicOrder`. Not Student. Same Denizen identity. |
+| `tutor_sorcerer_student` | Student → Researcher at a legal vacant Position, or Student → non-Student Academic. Same Denizen identity. Atomic promotion **and** authorized Academic rearrangement via `expectedAcademicOrder` + `nextAcademicOrder`. Does not move Reliable Arcanists. |
+| `rearrange_sorcerer_tower` | Advanced / Correct Board — exact Tower ordering correction. Same current membership; each member exactly once; settled outer hierarchy required. Not an ordinary always-available action. |
 | `set_sorcerer_researcher_operational_this_month` | Working / Unavailable this month. Updates only `operationalThisMonth`. |
 | `adjust_sorcerer_knowledge` | Provenance-aware pool adjustment. Distinct pools: `researchOrigin`, `other`, `nextMonthResearchOrigin`. Expected/new amount. Never negative. |
 | `set_sorcerer_archives_open` | Open/Closed state maintenance. No phase rejection. |
@@ -182,7 +228,7 @@ The read model must make available at minimum:
 
 - whether Sorcerer is initialized;
 - Spyrholm Isle / Tower / University references with useful names when available;
-- exact Tower order and ordered Tower occupants (Academics and Reliable Tower Arcanists; not Researchers);
+- exact Tower order and ordered Tower occupants (Students, then non-Student Academics in chosen order, then Reliable Tower Arcanists; not Researchers); role kinds already make those bands unambiguous for Body B;
 - all Research Positions with exact typed targets, human labels, occupied/vacant state, Researcher identity/name, operational status;
 - Knowledge provenance/time buckets and Researcher production multipliers;
 - Archives state;

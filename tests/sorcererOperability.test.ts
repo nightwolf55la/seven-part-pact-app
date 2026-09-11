@@ -181,6 +181,127 @@ function withCampaignAcademicKind(state: CampaignStateV5): CampaignStateV5 {
   };
 }
 
+function arcanistProfile(status: "reliable" | "disruptive"): PowerfulDenizenProfile {
+  return {
+    taxonomies: [{ kind: "builtin", taxonomyId: "arcanist" }],
+    status: { kind: "standard", value: status },
+    goal: null,
+    methods: [],
+    truths: [],
+  };
+}
+
+function initializedDynamic(): CampaignStateV5 {
+  return applyInitializeSorcerer(
+    makeTestCampaignStateV5({
+      calendar: { monthOrdinal: 0 as MonthOrdinal },
+      configuration: { ageId: "awakening", facilitatorPlayerId: PLR_A },
+      players: [{ playerId: PLR_A, name: "Alice" }],
+      wizards: [{
+        wizardId: WIZ_A,
+        name: "Mira",
+        portrayedByPlayerId: PLR_A,
+        character: { ...BLANK_WIZARD_CHARACTER_V5 },
+        homeIsleId: ISL_SPYR,
+        sanctumPlaceId: PLC_TOWER,
+        mortalityState: "not_deceased",
+      }],
+      pactSeats: {
+        ...makeTestCampaignStateV5().pactSeats,
+        sorcerer: { status: "present", wizardId: WIZ_A, watcherPlayerId: null },
+      },
+      world: {
+        ...EMPTY_SHARED_WORLD_STATE,
+        denizens: [
+          ...quietPeople(),
+          person(9, "Librarian"),
+          person(10, "Tower Arc", arcanistProfile("reliable")),
+          person(11, "Tower Arc 2", arcanistProfile("reliable")),
+        ],
+        isles: [{ isleId: ISL_SPYR, name: "Spyrholm", description: null }],
+        places: [
+          { placeId: PLC_TOWER, name: "Sorcerer's Tower", description: null, placement: { kind: "on_isle", isleId: ISL_SPYR } },
+          { placeId: PLC_UNIV, name: "Spyrholm University", description: null, placement: { kind: "on_isle", isleId: ISL_SPYR } },
+        ],
+      },
+    }),
+    {
+      ...quietInput(),
+      arrangementId: "dynamic",
+      librarian: { denizenId: denizenId(9), school: { kind: "source", schoolId: "divination" } },
+      towerArcanists: [{ denizenId: denizenId(10), school: { kind: "source", schoolId: "divination" } }],
+    },
+  ).nextState;
+}
+
+function academicOrderOf(state: CampaignStateV5): DenizenId[] {
+  const academicIds = new Set(state.sorcerer.academics.map((academic) => academic.denizenId));
+  return state.sorcerer.towerOrder.filter((id) => academicIds.has(id));
+}
+
+function reliableArcanistOrderOf(state: CampaignStateV5): DenizenId[] {
+  const arcanistIds = new Set(
+    state.sorcerer.arcanists
+      .filter((arcanist) => arcanist.placement.kind === "tower")
+      .map((arcanist) => arcanist.denizenId),
+  );
+  return state.sorcerer.towerOrder.filter((id) => arcanistIds.has(id));
+}
+
+function withTowerOrder(state: CampaignStateV5, towerOrder: readonly DenizenId[]): CampaignStateV5 {
+  return {
+    ...state,
+    sorcerer: {
+      ...state.sorcerer,
+      towerOrder: [...towerOrder],
+    },
+  };
+}
+
+/** Student A, Professor, Librarian, Reliable Arcanist — the settled hierarchy fixture. */
+function hierarchyTower(): CampaignStateV5 {
+  const state = initializedDynamic();
+  const keep = new Set([denizenId(4), denizenId(7), denizenId(9)]);
+  return {
+    ...state,
+    sorcerer: {
+      ...state.sorcerer,
+      academics: state.sorcerer.academics.filter((academic) => keep.has(academic.denizenId)),
+      towerOrder: [denizenId(4), denizenId(7), denizenId(9), denizenId(10)],
+    },
+  };
+}
+
+function twoArcanistTower(): CampaignStateV5 {
+  const state = hierarchyTower();
+  return {
+    ...state,
+    sorcerer: {
+      ...state.sorcerer,
+      arcanists: [
+        ...state.sorcerer.arcanists,
+        {
+          denizenId: denizenId(11),
+          school: { kind: "source", schoolId: "invocation" },
+          placement: { kind: "tower" },
+          disruptiveProfile: null,
+        },
+      ],
+      towerOrder: [...state.sorcerer.towerOrder, denizenId(11)],
+    },
+  };
+}
+
+function withSwappedStudents(state: CampaignStateV5): CampaignStateV5 {
+  const order = [...state.sorcerer.towerOrder];
+  const first = order.indexOf(denizenId(4));
+  const second = order.indexOf(denizenId(5));
+  const firstId = order[first]!;
+  order[first] = order[second]!;
+  order[second] = firstId;
+  return withTowerOrder(state, order);
+}
+
 function campaignOf(state: CampaignStateV5, revision = 4): CanonicalCampaign {
   return {
     docId: "dummy" as CanonicalCommitInput["campaignDocId"],
@@ -236,7 +357,7 @@ describe("sorcerer operability command registration", () => {
 });
 
 describe("recruit_sorcerer_personnel", () => {
-  it("atomically creates a new Denizen Student and appends Tower membership", () => {
+  it("atomically creates a new Denizen Student and inserts them in the Student band", () => {
     const before = initializedQuiet();
     const result = applyRecruitSorcererPersonnel(before, {
       subject: {
@@ -254,7 +375,9 @@ describe("recruit_sorcerer_personnel", () => {
     expect(result.nextState.sorcerer.academics.some((academic) =>
       academic.denizenId === NEW_DEN && academic.role.kind === "student",
     )).toBe(true);
-    expect(result.nextState.sorcerer.towerOrder).toEqual([...before.sorcerer.towerOrder, NEW_DEN]);
+    expect(result.nextState.sorcerer.towerOrder).toEqual([
+      denizenId(4), denizenId(5), denizenId(6), NEW_DEN, denizenId(7), denizenId(8),
+    ]);
     expect(result.events[0]).toMatchObject({
       type: "sorcerer_personnel_recruited",
       data: { denizenId: NEW_DEN, denizenCreated: true, denizenName: "New Student" },
@@ -299,6 +422,7 @@ describe("recruit_sorcerer_personnel", () => {
       subject: { kind: "existing_denizen", denizenId: EXISTING_FREE },
       destination: { kind: "professor" },
       expectedTowerOrder: before.sorcerer.towerOrder,
+      nextAcademicOrder: [...academicOrderOf(before), EXISTING_FREE],
     });
     expect(result.nextState.sorcerer.academics.some((academic) =>
       academic.denizenId === EXISTING_FREE && academic.role.kind === "professor",
@@ -313,6 +437,7 @@ describe("recruit_sorcerer_personnel", () => {
         subject: { kind: "existing_denizen", denizenId: denizenId(4) },
         destination: { kind: "professor" },
         expectedTowerOrder: before.sorcerer.towerOrder,
+        nextAcademicOrder: [...academicOrderOf(before), EXISTING_FREE],
       }),
       "INVALID_CAMPAIGN_STATE",
       /conflicting Sorcerer role/,
@@ -412,6 +537,7 @@ describe("refocus_sorcerer_researcher", () => {
       expectedPositionId: "srp_temple_krolis",
       destination: { kind: "librarian", school: { kind: "source", schoolId: "divination" } },
       expectedTowerOrder: before.sorcerer.towerOrder,
+      nextAcademicOrder: [...academicOrderOf(before), denizenId(2)],
     });
     expect(result.nextState.sorcerer.researchers.some((researcher) => researcher.denizenId === denizenId(2))).toBe(false);
     expect(result.nextState.sorcerer.academics.some((academic) =>
@@ -427,6 +553,8 @@ describe("tutor_sorcerer_student", () => {
     const result = applyTutorSorcererStudent(before, {
       denizenId: denizenId(4),
       expectedTowerOrder: before.sorcerer.towerOrder,
+      expectedAcademicOrder: academicOrderOf(before),
+      nextAcademicOrder: academicOrderOf(before).filter((id) => id !== denizenId(4)),
       destination: { kind: "researcher", positionId: "srp_sea_1" },
     });
     expect(result.nextState.sorcerer.academics.some((academic) => academic.denizenId === denizenId(4))).toBe(false);
@@ -441,22 +569,28 @@ describe("tutor_sorcerer_student", () => {
 
   it("promotes a Student to a representative Academic while keeping Tower membership exact", () => {
     const before = withCampaignAcademicKind(initializedQuiet());
+    const nextAcademicOrder = [denizenId(4), denizenId(6), denizenId(5), denizenId(7), denizenId(8)];
     const result = applyTutorSorcererStudent(before, {
       denizenId: denizenId(5),
       expectedTowerOrder: before.sorcerer.towerOrder,
+      expectedAcademicOrder: academicOrderOf(before),
+      nextAcademicOrder,
       destination: { kind: "campaign_academic", academicKindId: ACADEMIC_KIND as never },
     });
     const academic = result.nextState.sorcerer.academics.find((entry) => entry.denizenId === denizenId(5));
     expect(academic?.role).toEqual({ kind: "campaign", academicKindId: ACADEMIC_KIND });
-    expect(result.nextState.sorcerer.towerOrder).toEqual(before.sorcerer.towerOrder);
+    expect(result.nextState.sorcerer.towerOrder).toEqual(nextAcademicOrder);
   });
 
   it("rejects a stale Tower order and a non-Student", () => {
     const before = initializedQuiet();
+    const nextAcademicOrder = academicOrderOf(before);
     expectCode(
       () => applyTutorSorcererStudent(before, {
         denizenId: denizenId(4),
         expectedTowerOrder: [...before.sorcerer.towerOrder].reverse(),
+        expectedAcademicOrder: academicOrderOf(before),
+        nextAcademicOrder,
         destination: { kind: "professor" },
       }),
       "STALE_COMMAND_PRECONDITION",
@@ -465,6 +599,8 @@ describe("tutor_sorcerer_student", () => {
       () => applyTutorSorcererStudent(before, {
         denizenId: denizenId(7),
         expectedTowerOrder: before.sorcerer.towerOrder,
+        expectedAcademicOrder: academicOrderOf(before),
+        nextAcademicOrder,
         destination: { kind: "professor" },
       }),
       "INVALID_CAMPAIGN_STATE",
@@ -474,14 +610,26 @@ describe("tutor_sorcerer_student", () => {
 });
 
 describe("rearrange_sorcerer_tower", () => {
-  it("accepts a valid exact permutation", () => {
+  it("accepts a valid exact permutation within the settled hierarchy bands", () => {
     const before = initializedQuiet();
-    const nextOrder = [...before.sorcerer.towerOrder].reverse();
+    const nextOrder = [denizenId(5), denizenId(4), denizenId(6), denizenId(8), denizenId(7)];
     const result = applyRearrangeSorcererTower(before, {
       expectedTowerOrder: before.sorcerer.towerOrder,
       towerOrder: nextOrder,
     });
     expect(result.nextState.sorcerer.towerOrder).toEqual(nextOrder);
+  });
+
+  it("rejects an Advanced correction that violates the settled outer hierarchy", () => {
+    const before = initializedQuiet();
+    expectCode(
+      () => applyRearrangeSorcererTower(before, {
+        expectedTowerOrder: before.sorcerer.towerOrder,
+        towerOrder: [...before.sorcerer.towerOrder].reverse(),
+      }),
+      "INVALID_CAMPAIGN_STATE",
+      /Student/,
+    );
   });
 
   it("rejects missing, duplicate, extra, and stale orders", () => {
@@ -517,6 +665,246 @@ describe("rearrange_sorcerer_tower", () => {
         towerOrder: [...current].reverse(),
       }),
       "STALE_COMMAND_PRECONDITION",
+    );
+  });
+});
+
+describe("tower hierarchy and academic rearrangement", () => {
+  it("A. places a recruited Student after existing Students and before every non-Student Academic", () => {
+    const before = hierarchyTower();
+    expect(before.sorcerer.towerOrder).toEqual([
+      denizenId(4), denizenId(7), denizenId(9), denizenId(10),
+    ]);
+    const result = applyRecruitSorcererPersonnel(before, {
+      subject: {
+        kind: "create_denizen",
+        denizenId: NEW_DEN,
+        name: "Student B",
+        representation: "individual",
+        description: null,
+      },
+      destination: { kind: "student" },
+      expectedTowerOrder: before.sorcerer.towerOrder,
+    });
+    expect(result.nextState.sorcerer.towerOrder).toEqual([
+      denizenId(4), NEW_DEN, denizenId(7), denizenId(9), denizenId(10),
+    ]);
+  });
+
+  it("B. rejects a towerOrder where a non-Student Academic appears below a Student", () => {
+    const before = hierarchyTower();
+    expectCode(
+      () => validateCampaignStateV5Candidate(withTowerOrder(before, [
+        denizenId(7), denizenId(4), denizenId(9), denizenId(10),
+      ])),
+      "INVALID_CAMPAIGN_STATE",
+      /Student/,
+    );
+  });
+
+  it("C. rejects a towerOrder where a Reliable Arcanist appears below an Academic", () => {
+    const before = hierarchyTower();
+    expectCode(
+      () => validateCampaignStateV5Candidate(withTowerOrder(before, [
+        denizenId(4), denizenId(10), denizenId(7), denizenId(9),
+      ])),
+      "INVALID_CAMPAIGN_STATE",
+      /Arcanist/,
+    );
+  });
+
+  it("D. inserts a directly recruited non-Student Academic without reshuffling existing occupants", () => {
+    const before = hierarchyTower();
+    const nextAcademicOrder = [denizenId(4), denizenId(7), EXISTING_FREE, denizenId(9)];
+    const result = applyRecruitSorcererPersonnel(before, {
+      subject: { kind: "existing_denizen", denizenId: EXISTING_FREE },
+      destination: { kind: "professor" },
+      expectedTowerOrder: before.sorcerer.towerOrder,
+      nextAcademicOrder,
+    });
+    expect(result.nextState.sorcerer.towerOrder).toEqual([
+      denizenId(4), denizenId(7), EXISTING_FREE, denizenId(9), denizenId(10),
+    ]);
+    expect(academicOrderOf(result.nextState)).toEqual(nextAcademicOrder);
+    expect(reliableArcanistOrderOf(result.nextState)).toEqual([denizenId(10)]);
+  });
+
+  it("E. rejects a direct higher-role recruitment that also swaps existing Academics", () => {
+    const before = hierarchyTower();
+    expectCode(
+      () => applyRecruitSorcererPersonnel(before, {
+        subject: { kind: "existing_denizen", denizenId: EXISTING_FREE },
+        destination: { kind: "professor" },
+        expectedTowerOrder: before.sorcerer.towerOrder,
+        nextAcademicOrder: [denizenId(4), denizenId(9), denizenId(7), EXISTING_FREE],
+      }),
+      "INVALID_CAMPAIGN_STATE",
+      /relative order/,
+    );
+  });
+
+  it("F. inserts a Researcher promoted to Academic without reshuffling existing occupants", () => {
+    const before = hierarchyTower();
+    const nextAcademicOrder = [denizenId(4), denizenId(7), denizenId(2), denizenId(9)];
+    const result = applyRefocusSorcererResearcher(before, {
+      denizenId: denizenId(2),
+      expectedPositionId: "srp_temple_krolis",
+      destination: { kind: "professor" },
+      expectedTowerOrder: before.sorcerer.towerOrder,
+      nextAcademicOrder,
+    });
+    expect(result.nextState.sorcerer.researchers.some((researcher) => researcher.denizenId === denizenId(2))).toBe(false);
+    expect(result.nextState.sorcerer.academics.some((academic) =>
+      academic.denizenId === denizenId(2) && academic.role.kind === "professor",
+    )).toBe(true);
+    expect(result.nextState.sorcerer.towerOrder).toEqual([
+      denizenId(4), denizenId(7), denizenId(2), denizenId(9), denizenId(10),
+    ]);
+    expect(reliableArcanistOrderOf(result.nextState)).toEqual([denizenId(10)]);
+  });
+
+  it("G. does not fail a Position-to-Position Refocus solely because towerOrder changed independently", () => {
+    const original = initializedQuiet();
+    const before = withSwappedStudents(original);
+    const result = applyRefocusSorcererResearcher(before, {
+      denizenId: denizenId(1),
+      expectedPositionId: "srp_orrery_1",
+      destination: { kind: "research_position", positionId: "srp_sea_1" },
+      expectedTowerOrder: original.sorcerer.towerOrder,
+    });
+    expect(result.nextState.sorcerer.researchers.find((researcher) => researcher.denizenId === denizenId(1))?.positionId)
+      .toBe("srp_sea_1");
+    expect(result.nextState.sorcerer.towerOrder).toEqual(before.sorcerer.towerOrder);
+  });
+
+  it("H. does not require unrelated towerOrder CAS when recruiting a Researcher", () => {
+    const original = initializedQuiet();
+    const before = withSwappedStudents(original);
+    const result = applyRecruitSorcererPersonnel(before, {
+      subject: { kind: "existing_denizen", denizenId: EXISTING_FREE },
+      destination: { kind: "researcher", positionId: "srp_sea_1" },
+      expectedTowerOrder: original.sorcerer.towerOrder,
+    });
+    expect(result.nextState.sorcerer.researchers.some((researcher) =>
+      researcher.denizenId === EXISTING_FREE && researcher.positionId === "srp_sea_1",
+    )).toBe(true);
+    expect(result.nextState.sorcerer.towerOrder).toEqual(before.sorcerer.towerOrder);
+  });
+
+  it("I. Tutors a Student into an Academic and applies the requested Academic rearrangement in one transition", () => {
+    const before = initializedDynamic();
+    const nextAcademicOrder = [
+      denizenId(5), denizenId(6), denizenId(8), denizenId(4), denizenId(7), denizenId(9),
+    ];
+    const previousArcanists = reliableArcanistOrderOf(before);
+    const result = applyTutorSorcererStudent(before, {
+      denizenId: denizenId(4),
+      expectedTowerOrder: before.sorcerer.towerOrder,
+      expectedAcademicOrder: academicOrderOf(before),
+      nextAcademicOrder,
+      destination: { kind: "professor" },
+    });
+    expect(result.nextState.sorcerer.academics.find((academic) => academic.denizenId === denizenId(4))?.role)
+      .toEqual({ kind: "professor" });
+    expect(academicOrderOf(result.nextState)).toEqual(nextAcademicOrder);
+    expect(reliableArcanistOrderOf(result.nextState)).toEqual(previousArcanists);
+    expect(result.nextState.sorcerer.towerOrder).toEqual([...nextAcademicOrder, ...previousArcanists]);
+  });
+
+  it("J. Tutors a Student into a Researcher and may reorder remaining Academics in the same command", () => {
+    const before = initializedDynamic();
+    const nextAcademicOrder = [
+      denizenId(6), denizenId(5), denizenId(8), denizenId(7), denizenId(9),
+    ];
+    const previousArcanists = reliableArcanistOrderOf(before);
+    const result = applyTutorSorcererStudent(before, {
+      denizenId: denizenId(4),
+      expectedTowerOrder: before.sorcerer.towerOrder,
+      expectedAcademicOrder: academicOrderOf(before),
+      nextAcademicOrder,
+      destination: { kind: "researcher", positionId: "srp_sea_1" },
+    });
+    expect(result.nextState.sorcerer.academics.some((academic) => academic.denizenId === denizenId(4))).toBe(false);
+    expect(result.nextState.sorcerer.researchers.some((researcher) =>
+      researcher.denizenId === denizenId(4) && researcher.positionId === "srp_sea_1",
+    )).toBe(true);
+    expect(academicOrderOf(result.nextState)).toEqual(nextAcademicOrder);
+    expect(reliableArcanistOrderOf(result.nextState)).toEqual(previousArcanists);
+    expect(result.nextState.sorcerer.towerOrder).toEqual([...nextAcademicOrder, ...previousArcanists]);
+  });
+
+  it("K. rejects a Tutor that attempts to change Reliable Arcanist relative order", () => {
+    const before = twoArcanistTower();
+    expectCode(
+      () => applyTutorSorcererStudent(before, {
+        denizenId: denizenId(4),
+        expectedTowerOrder: before.sorcerer.towerOrder,
+        expectedAcademicOrder: academicOrderOf(before),
+        nextAcademicOrder: [denizenId(7), denizenId(9), denizenId(11), denizenId(10)],
+        destination: { kind: "professor" },
+      }),
+      "INVALID_CAMPAIGN_STATE",
+      /Arcanist/,
+    );
+  });
+
+  it("L. rejects representative invalid Tutor Academic orders", () => {
+    const before = initializedDynamic();
+    const expectedAcademicOrder = academicOrderOf(before);
+    const expectedTowerOrder = before.sorcerer.towerOrder;
+    const base = {
+      denizenId: denizenId(4),
+      expectedTowerOrder,
+      expectedAcademicOrder,
+      destination: { kind: "professor" } as const,
+    };
+    expectCode(
+      () => applyTutorSorcererStudent(before, {
+        ...base,
+        nextAcademicOrder: [denizenId(5), denizenId(6), denizenId(7), denizenId(9), denizenId(8)],
+      }),
+      "INVALID_CAMPAIGN_STATE",
+      /missing|exact/,
+    );
+    expectCode(
+      () => applyTutorSorcererStudent(before, {
+        ...base,
+        nextAcademicOrder: [
+          denizenId(5), denizenId(6), denizenId(7), denizenId(9), denizenId(8), denizenId(4), denizenId(4),
+        ],
+      }),
+      "INVALID_CAMPAIGN_STATE",
+      /Duplicate/,
+    );
+    expectCode(
+      () => applyTutorSorcererStudent(before, {
+        ...base,
+        nextAcademicOrder: [
+          denizenId(5), denizenId(6), denizenId(7), denizenId(9), denizenId(8), denizenId(4), EXISTING_FREE,
+        ],
+      }),
+      "INVALID_CAMPAIGN_STATE",
+      /extra|not a current Academic|inappropriate/,
+    );
+    expectCode(
+      () => applyTutorSorcererStudent(before, {
+        ...base,
+        nextAcademicOrder: [
+          denizenId(7), denizenId(5), denizenId(6), denizenId(9), denizenId(8), denizenId(4),
+        ],
+      }),
+      "INVALID_CAMPAIGN_STATE",
+      /Student/,
+    );
+    expectCode(
+      () => applyTutorSorcererStudent(before, {
+        ...base,
+        nextAcademicOrder: [
+          denizenId(5), denizenId(6), denizenId(7), denizenId(9), denizenId(8), denizenId(4), denizenId(10),
+        ],
+      }),
+      "INVALID_CAMPAIGN_STATE",
+      /Arcanist/,
     );
   });
 });
@@ -778,8 +1166,24 @@ describe("sorcerer operability persistence contract", () => {
     expect(tutorSorcererStudentFingerprint(CAMPAIGN_A, canonicalizeTutorSorcererStudentInput({
       denizenId: denizenId(4),
       expectedTowerOrder: before.sorcerer.towerOrder,
+      expectedAcademicOrder: academicOrderOf(before),
+      nextAcademicOrder: academicOrderOf(before),
       destination: { kind: "professor" },
     }))).toMatch(/^tutor_sorcerer_student:v1:/);
+    const professorAtEnd = canonicalizeRecruitSorcererPersonnelInput({
+      subject: { kind: "existing_denizen", denizenId: EXISTING_FREE },
+      destination: { kind: "professor" },
+      expectedTowerOrder: before.sorcerer.towerOrder,
+      nextAcademicOrder: [...academicOrderOf(before), EXISTING_FREE],
+    });
+    const professorInserted = canonicalizeRecruitSorcererPersonnelInput({
+      subject: { kind: "existing_denizen", denizenId: EXISTING_FREE },
+      destination: { kind: "professor" },
+      expectedTowerOrder: before.sorcerer.towerOrder,
+      nextAcademicOrder: [denizenId(4), denizenId(5), denizenId(6), EXISTING_FREE, denizenId(7), denizenId(8)],
+    });
+    expect(recruitSorcererPersonnelFingerprint(CAMPAIGN_A, professorAtEnd))
+      .not.toBe(recruitSorcererPersonnelFingerprint(CAMPAIGN_A, professorInserted));
     expect(rearrangeSorcererTowerFingerprint(CAMPAIGN_A, canonicalizeRearrangeSorcererTowerInput({
       expectedTowerOrder: before.sorcerer.towerOrder,
       towerOrder: [...before.sorcerer.towerOrder].reverse(),

@@ -4919,7 +4919,8 @@ export const recruitSorcererPersonnel = mutation({
     expectedCampaignId: v.string(),
     subject: sorcererPersonnelSubjectArg,
     destination: sorcererPersonnelDestinationArg,
-    expectedTowerOrder: v.array(v.string()),
+    expectedTowerOrder: v.optional(v.array(v.string())),
+    nextAcademicOrder: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     return executeConvexOrdinaryLogicalCommand(
@@ -4930,6 +4931,7 @@ export const recruitSorcererPersonnel = mutation({
           subject: args.subject,
           destination: args.destination,
           expectedTowerOrder: args.expectedTowerOrder,
+          nextAcademicOrder: args.nextAcademicOrder,
         } as unknown as RecruitSorcererPersonnelInput);
         return {
           commandType: "recruit_sorcerer_personnel",
@@ -4948,7 +4950,8 @@ export const refocusSorcererResearcher = mutation({
     denizenId: v.string(),
     expectedPositionId: v.string(),
     destination: sorcererResearcherRefocusDestinationArg,
-    expectedTowerOrder: v.array(v.string()),
+    expectedTowerOrder: v.optional(v.array(v.string())),
+    nextAcademicOrder: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     return executeConvexOrdinaryLogicalCommand(
@@ -4960,6 +4963,7 @@ export const refocusSorcererResearcher = mutation({
           expectedPositionId: args.expectedPositionId,
           destination: args.destination,
           expectedTowerOrder: args.expectedTowerOrder,
+          nextAcademicOrder: args.nextAcademicOrder,
         } as unknown as RefocusSorcererResearcherInput);
         return {
           commandType: "refocus_sorcerer_researcher",
@@ -4976,7 +4980,9 @@ export const tutorSorcererStudent = mutation({
     commandId: v.string(),
     expectedCampaignId: v.string(),
     denizenId: v.string(),
-    expectedTowerOrder: v.array(v.string()),
+    expectedTowerOrder: v.optional(v.array(v.string())),
+    expectedAcademicOrder: v.array(v.string()),
+    nextAcademicOrder: v.array(v.string()),
     destination: sorcererStudentTutorDestinationArg,
   },
   handler: async (ctx, args) => {
@@ -4987,6 +4993,8 @@ export const tutorSorcererStudent = mutation({
         const input = canonicalizeTutorSorcererStudentInput({
           denizenId: args.denizenId,
           expectedTowerOrder: args.expectedTowerOrder,
+          expectedAcademicOrder: args.expectedAcademicOrder,
+          nextAcademicOrder: args.nextAcademicOrder,
           destination: args.destination,
         } as unknown as TutorSorcererStudentInput);
         return {
