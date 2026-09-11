@@ -193,26 +193,17 @@ Delivered:
 
 M5.2F deliberately did not introduce a generic inventory, actor/entity, spell-resolution, or multi-Domain-instance framework.
 
-## Next Recommended Work
-
 ### M5.3 — Knowledge & Compendium
 
-**IN PROGRESS**
+**COMPLETE**
 
-Design is approved. Body A shared Lore structural foundation is implemented. Body B minimal `add_lore_entry` / `revise_lore_entry` operations are implemented. Final Workstream integration/closure verification is still pending.
-
-M5.3 is **not complete**. CampaignState V5 remains **PRE-ACTIVATION**.
+Shared Lore structural foundation and canonical `add_lore_entry` / `revise_lore_entry` are implemented. Real disposable Convex integration closure succeeded: representative nonempty Lore was proven through canonical persistence, and Undo/Redo plus portable backup/import preserved Lore through existing whole-state semantics.
 
 See `docs/m5-3-knowledge-compendium.md` for the durable contract.
 
-The next shared foundation is persisted mutable Lore / Compendium state. The approved model distinguishes:
+CampaignState V5 remains **PRE-ACTIVATION**. No migration occurred.
 
-- source collections versus campaign-created collections;
-- static Draft4/v1 baseline versus sparse overrides and ordered authored additions;
-- stable first-use subject binding;
-- derived Mariner Present/Silent/Absent/null context selection.
-
-M5.3 should not absorb full spellcasting, broad UI, or every narrative note.
+## Next Recommended Work
 
 ### M5.4 — Minimum Domain Operability & Board Views
 

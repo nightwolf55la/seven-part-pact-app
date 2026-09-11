@@ -128,11 +128,11 @@ Established the final Wizard Domain structural foundation, including Sorcerer To
 
 ## M5.3 — Knowledge & Compendium
 
-**STATUS: IN PROGRESS**
+**STATUS: COMPLETE**
 
-Design approved. Body A structural foundation is implemented. Body B minimal add/revise operations are implemented. Final Workstream integration/closure verification is still pending.
+Shared Lore structural foundation and canonical `add_lore_entry` / `revise_lore_entry` are implemented. Real disposable Convex integration closure succeeded. Representative nonempty Lore was proven through canonical persistence. Undo/Redo and portable backup/import preserved Lore through their existing whole-state semantics.
 
-Do not mark M5.3 complete. Do not mark V5 activated.
+CampaignState V5 remains **PRE-ACTIVATION**. No migration occurred. Do not mark V5 activated.
 
 See `docs/m5-3-knowledge-compendium.md`.
 
@@ -323,6 +323,6 @@ Likely areas:
 
 ## Current Next Action
 
-Continue **M5.3 — Knowledge & Compendium**.
+Continue **M5.4 — Minimum Domain Operability & Board Views**.
 
-Design is approved. Body A and Body B are implemented. Final Workstream integration/closure verification is still pending. Do not mark M5.3 complete. Do not mark V5 activated.
+M5.3 is COMPLETE. CampaignState V5 remains **PRE-ACTIVATION**. Do not mark V5 activated.

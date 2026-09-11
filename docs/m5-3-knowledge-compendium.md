@@ -1,7 +1,7 @@
 # M5.3 — Knowledge & Compendium
 
-**Status:** IN PROGRESS — Body A structural foundation implemented; Body B add/revise operations implemented; final Workstream integration/closure verification still pending
-**Schema:** CampaignState V5 remains PRE-ACTIVATION. This work adds Lore in place. It does not create V6.
+**Status:** COMPLETE — shared Lore structural foundation and canonical add_lore_entry / revise_lore_entry implemented; real disposable Convex integration closure succeeded
+**Schema:** CampaignState V5 remains PRE-ACTIVATION. This work adds Lore in place. It does not create V6. No migration occurred.
 
 ## Purpose
 
@@ -319,7 +319,7 @@ Body A and Body B do not implement:
 
 **Body A (this checkpoint):** shared Lore state/types, Draft4/v1 catalog, IDs, subject union, binding resolvers, effective-Lore helpers, Mariner selector, empty V5 `lore` initialization, Convex validator, fail-closed validation, focused tests, and this contract document.
 
-**Body B (implemented):** canonical `add_lore_entry` / `revise_lore_entry`, atomic first-use source binding or campaign-collection creation as necessary, focused command/event tests. A source entry may be revised on first use, atomically binding its source collection. `add_lore_entry` only adds campaign-authored text; it does not activate source templates. Final Workstream integration/closure verification is still pending.
+**Body B (implemented):** canonical `add_lore_entry` / `revise_lore_entry`, atomic first-use source binding or campaign-collection creation as necessary, focused command/event tests. A source entry may be revised on first use, atomically binding its source collection. `add_lore_entry` only adds campaign-authored text; it does not activate source templates.
 
 Body B must use existing server-authoritative canonical transactional persistence, expected-revision/context checks, command idempotency, complete snapshots, immutable audit, and fail-closed validation.
 
@@ -355,4 +355,4 @@ Body A is verified by focused Lore/V5 tests plus `npm run check` and `git diff -
 
 Body B is verified by focused Lore command/event tests plus `npm run check` and `git diff --check`.
 
-Final M5.3 closure later uses a fresh explicitly confirmed disposable Convex Development deployment and actual Body B canonical commands. No raw inserts or temporary seed mutations.
+Final M5.3 integration closure used a fresh disposable Convex Development deployment and actual canonical commands. Representative nonempty Lore was proven through canonical persistence. Undo/Redo and portable backup/import preserved Lore through their existing whole-state semantics. No raw inserts, temporary seed mutations, or migration. CampaignState V5 remains PRE-ACTIVATION.
