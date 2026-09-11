@@ -286,6 +286,9 @@ describe("M5.2D D1A shared wizard and denizen state", () => {
       "errant_noble",
       "army",
       "hero",
+      "arcanist",
+      "construct",
+      "witch",
     ]);
     expectInvalid(
       {

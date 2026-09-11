@@ -1394,6 +1394,65 @@ export {
 
 export { validateWarlockStructure, validateWarlockReferenceIntegrity } from "./warlock-validation";
 
+export type {
+  SorcererSourceSchoolId,
+  CampaignSchoolOfMagicId,
+  SorcererSourceSchoolDefinition,
+  SorcererLawOfMagicId,
+  SorcererLawOfMagicDefinition,
+  SorcererSourceReagentId,
+  SorcererSourceReagentDefinition,
+  SorcererBuiltinAlchemicalRecipeId,
+  SorcererBuiltinAlchemicalRecipeDefinition,
+} from "./sorcerer-catalogs";
+export {
+  SORCERER_SOURCE_SCHOOL_IDS,
+  SORCERER_SOURCE_SCHOOL_DEFINITIONS,
+  isValidSorcererSourceSchoolId,
+  isValidCampaignSchoolOfMagicId,
+  sorcererSourceSchoolDefinition,
+  SORCERER_LAW_OF_MAGIC_IDS,
+  SORCERER_LAW_OF_MAGIC_DEFINITIONS,
+  isValidSorcererLawOfMagicId,
+  sorcererLawOfMagicDefinition,
+  SORCERER_SOURCE_REAGENT_IDS,
+  SORCERER_SOURCE_REAGENT_DEFINITIONS,
+  isValidSorcererSourceReagentId,
+  sorcererSourceReagentDefinition,
+  SORCERER_BUILTIN_ALCHEMICAL_RECIPE_IDS,
+  SORCERER_BUILTIN_ALCHEMICAL_RECIPE_DEFINITIONS,
+  isValidSorcererBuiltinAlchemicalRecipeId,
+  sorcererBuiltinAlchemicalRecipeDefinition,
+} from "./sorcerer-catalogs";
+
+export type {
+  GrimoireSpellId,
+  GrimoireSpellDefinition,
+} from "./grimoire-catalog";
+export {
+  GRIMOIRE_SPELL_IDS,
+  GRIMOIRE_SPELL_DEFINITIONS,
+  GRIMOIRE_GREAT_WORK_SPELL_IDS,
+  isValidGrimoireSpellId,
+  grimoireSpellDefinition,
+} from "./grimoire-catalog";
+
+export type {
+  MagicSchoolRef,
+  MagicConsumableCustody,
+  TomeStack,
+  ReagentStack,
+  MagicConsumablesState,
+} from "./magic-consumables";
+export {
+  EMPTY_MAGIC_CONSUMABLES_STATE,
+  magicSchoolRefKey,
+  magicConsumableCustodyKey,
+  tomeStackKey,
+  reagentStackKey,
+  validateMagicConsumablesStructure,
+} from "./magic-consumables";
+
 export type { FaustianTransitionResult } from "./faustian-transitions";
 export {
   applyInvestigateFaustianCommunity,

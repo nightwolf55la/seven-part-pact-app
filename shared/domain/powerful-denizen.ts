@@ -19,6 +19,9 @@ export const POWERFUL_DENIZEN_BUILTIN_TAXONOMY_IDS = [
   "errant_noble",
   "army",
   "hero",
+  "arcanist",
+  "construct",
+  "witch",
 ] as const;
 
 export type BuiltinPowerfulDenizenTaxonomyId =
@@ -45,6 +48,9 @@ export const POWERFUL_DENIZEN_BUILTIN_TAXONOMY_DEFINITIONS: readonly PowerfulDen
   { taxonomyId: "errant_noble", name: "Errant Noble", description: null },
   { taxonomyId: "army", name: "Army", description: null },
   { taxonomyId: "hero", name: "Hero", description: null },
+  { taxonomyId: "arcanist", name: "Arcanist", description: null },
+  { taxonomyId: "construct", name: "Construct", description: null },
+  { taxonomyId: "witch", name: "Witch", description: null },
 ];
 
 export function isValidBuiltinPowerfulDenizenTaxonomyId(
