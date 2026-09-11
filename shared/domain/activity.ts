@@ -325,6 +325,28 @@ function describeConfigEvent(event: CampaignEvent): string {
       return event.data.direction === "tower_to_wizard"
         ? "Moved Tower Tome/Reagent to Wizard"
         : "Moved Wizard Tome/Reagent to Tower";
+    case "sorcerer_researcher_production_multipliers_set":
+      return `Corrected Researcher production multipliers to ×${event.data.current} / next ×${event.data.nextMonth}`;
+    case "sorcerer_laws_set":
+      return "Corrected Laws of Magic";
+    case "sorcerer_campaign_definition_created":
+      return `Recorded campaign ${event.data.definition.kind.replace("_", " ")}`;
+    case "sorcerer_campaign_definition_updated":
+      return `Revised campaign ${event.data.definition.kind.replace("_", " ")}`;
+    case "sorcerer_arcanist_added":
+      return `Recorded Arcanist "${event.data.denizenName}"`;
+    case "sorcerer_arcanist_updated":
+      return "Corrected Arcanist placement or profile";
+    case "sorcerer_construct_added":
+      return `Recorded Construct "${event.data.denizenName}"`;
+    case "sorcerer_construct_instructions_set":
+      return "Corrected Construct If/Then instructions";
+    case "sorcerer_innovation_added":
+      return "Recorded Innovation";
+    case "sorcerer_innovation_revised":
+      return "Revised Innovation";
+    case "sorcerer_innovation_removed":
+      return "Removed Innovation";
     case "lore_entry_added":
       return "Added Lore entry";
     case "lore_entry_revised":
@@ -550,6 +572,17 @@ export function mapEventToActivityEntry(
     case "sorcerer_knowledge_adjusted":
     case "sorcerer_archives_open_changed":
     case "sorcerer_tower_magic_consumable_moved":
+    case "sorcerer_researcher_production_multipliers_set":
+    case "sorcerer_laws_set":
+    case "sorcerer_campaign_definition_created":
+    case "sorcerer_campaign_definition_updated":
+    case "sorcerer_arcanist_added":
+    case "sorcerer_arcanist_updated":
+    case "sorcerer_construct_added":
+    case "sorcerer_construct_instructions_set":
+    case "sorcerer_innovation_added":
+    case "sorcerer_innovation_revised":
+    case "sorcerer_innovation_removed":
     case "lore_entry_added":
     case "lore_entry_revised": {
       return {

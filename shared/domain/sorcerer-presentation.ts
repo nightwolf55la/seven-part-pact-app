@@ -6,7 +6,7 @@
  */
 
 import type { CampaignStateV5 } from "./campaign-state";
-import type { DenizenId, IsleId, PlaceId, WizardId } from "./ids";
+import type { DenizenId, IsleId, PlaceId, PowerfulDenizenTruthId, WizardId } from "./ids";
 import type { HouseIndex } from "./orrery";
 import { HOUSE_NAMES } from "./orrery";
 import type { PactSeatId } from "./pact-seats";
@@ -132,16 +132,24 @@ export interface SorcererBoardArcanist {
   readonly disruptiveProfile: SorcererDisruptiveArcanistProfile | null;
 }
 
+export interface SorcererBoardConstructTruth {
+  readonly truthId: PowerfulDenizenTruthId;
+  readonly text: string;
+}
+
 export interface SorcererBoardConstruct {
   readonly denizenId: DenizenId;
   readonly name: string;
   readonly instructions: readonly SorcererConstructInstruction[];
+  readonly truths: readonly SorcererBoardConstructTruth[];
 }
 
 export interface SorcererBoardInnovation {
   readonly innovationId: SorcererInnovationId;
   readonly spellId: GrimoireSpellId;
   readonly spellName: string;
+  readonly schoolId: string;
+  readonly schoolLabel: string;
   readonly text: string;
 }
 
@@ -535,17 +543,30 @@ export function readSorcererBoardReference(state: CampaignStateV5): SorcererBoar
     })),
     laws,
     arcanists,
-    constructs: sorcerer.constructs.map((construct) => ({
-      denizenId: construct.denizenId,
-      name: denizenName(state, construct.denizenId),
-      instructions: construct.instructions,
-    })),
-    innovations: sorcerer.innovations.map((innovation) => ({
-      innovationId: innovation.innovationId,
-      spellId: innovation.spellId,
-      spellName: grimoireSpellDefinition(innovation.spellId).name,
-      text: innovation.text,
-    })),
+    constructs: sorcerer.constructs.map((construct) => {
+      const profile = state.world.denizens.find((denizen) => denizen.denizenId === construct.denizenId)
+        ?.powerfulProfile ?? null;
+      return {
+        denizenId: construct.denizenId,
+        name: denizenName(state, construct.denizenId),
+        instructions: construct.instructions,
+        truths: (profile?.truths ?? []).map((truth) => ({
+          truthId: truth.truthId,
+          text: truth.text,
+        })),
+      };
+    }),
+    innovations: sorcerer.innovations.map((innovation) => {
+      const spell = grimoireSpellDefinition(innovation.spellId);
+      return {
+        innovationId: innovation.innovationId,
+        spellId: innovation.spellId,
+        spellName: spell.name,
+        schoolId: spell.schoolId,
+        schoolLabel: sorcererSourceSchoolDefinition(spell.schoolId).name,
+        text: innovation.text,
+      };
+    }),
     campaignSchools: sorcerer.campaignSchools,
     campaignAcademicKinds: sorcerer.campaignAcademicKinds,
     campaignRecipes: sorcerer.campaignRecipes,

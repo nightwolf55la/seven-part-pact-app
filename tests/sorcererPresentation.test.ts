@@ -13,6 +13,7 @@ import type {
 import {
   BLANK_WIZARD_CHARACTER_V5,
   EMPTY_SHARED_WORLD_STATE,
+  applyAddSorcererConstruct,
   applyInitializeSorcerer,
   applySetSorcererResearcherOperationalThisMonth,
   projectSorcererExternalPresence,
@@ -362,5 +363,27 @@ describe("projectSorcererExternalPresence", () => {
     });
     expect(presence.some((entry) => entry.denizenId === denizenId(10))).toBe(false);
     expect(readSorcererBoardReference(state).externalPresence).toEqual(presence);
+  });
+});
+
+describe("advanced construct presentation", () => {
+  it("derives Powerful Truths beside If/Then instructions without duplicating storage", () => {
+    const result = applyAddSorcererConstruct(initializedQuiet(), {
+      denizenId: denizenId(20),
+      name: "Brass Sentinel",
+      description: null,
+      truths: [{
+        truthId: "pdtru_00000000-0000-0000-0000-0000000000aa" as never,
+        text: "It never sleeps.",
+      }],
+      instructions: [{ condition: "If dusk", result: "Then lamps." }],
+    });
+    const construct = readSorcererBoardReference(result.nextState).constructs[0];
+    expect(construct?.truths).toEqual([{
+      truthId: "pdtru_00000000-0000-0000-0000-0000000000aa",
+      text: "It never sleeps.",
+    }]);
+    expect(construct?.instructions).toEqual([{ condition: "If dusk", result: "Then lamps." }]);
+    expect(result.nextState.sorcerer.constructs[0]).not.toHaveProperty("truths");
   });
 });

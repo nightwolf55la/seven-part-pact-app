@@ -34,6 +34,7 @@ import type {
   LoreCollectionId,
   LoreEntryId,
   PlaceId,
+  PowerfulDenizenTruthId,
   TreasureId,
   WizardId,
 } from "./ids";
@@ -85,9 +86,23 @@ import type {
 } from "./necromancer-state";
 import type { FaustianCardId, FaustianCommunityId } from "./faustian-catalogs";
 import type { MagicSchoolRef } from "./magic-consumables";
-import type { SorcererArrangementId, SorcererSourceReagentId } from "./sorcerer-catalogs";
 import type {
+  SorcererArrangementId,
+  SorcererLawOfMagicId,
+  SorcererSourceReagentId,
+} from "./sorcerer-catalogs";
+import type { GrimoireSpellId } from "./grimoire-catalog";
+import type {
+  SorcererArcanist,
+  SorcererArcanistPlacement,
+  SorcererCampaignAcademicKindDefinition,
   SorcererCampaignAcademicKindId,
+  SorcererCampaignKnowledgeMethodDefinition,
+  SorcererCampaignRecipeDefinition,
+  SorcererCampaignSchoolDefinition,
+  SorcererConstructInstruction,
+  SorcererInnovation,
+  SorcererInnovationId,
   SorcererRecipeRef,
   SorcererResearchPositionId,
   SorcererState,
@@ -1809,6 +1824,142 @@ export interface SorcererTowerMagicConsumableMovedEventV1 {
   readonly data: SorcererTowerMagicConsumableMovedDataV1;
 }
 
+export interface SorcererResearcherProductionMultipliersSetDataV1 {
+  readonly previousCurrent: number;
+  readonly previousNextMonth: number;
+  readonly current: number;
+  readonly nextMonth: number;
+}
+export interface SorcererResearcherProductionMultipliersSetEventV1 {
+  readonly type: "sorcerer_researcher_production_multipliers_set";
+  readonly version: 1;
+  readonly data: SorcererResearcherProductionMultipliersSetDataV1;
+}
+
+export interface SorcererLawsSetDataV1 {
+  readonly previousActiveLawIds: readonly SorcererLawOfMagicId[];
+  readonly previousUnrevealedLawIds: readonly SorcererLawOfMagicId[];
+  readonly activeLawIds: readonly SorcererLawOfMagicId[];
+  readonly unrevealedLawIds: readonly SorcererLawOfMagicId[];
+}
+export interface SorcererLawsSetEventV1 {
+  readonly type: "sorcerer_laws_set";
+  readonly version: 1;
+  readonly data: SorcererLawsSetDataV1;
+}
+
+export type SorcererCampaignDefinitionAuditV1 =
+  | { readonly kind: "school"; readonly definition: SorcererCampaignSchoolDefinition }
+  | { readonly kind: "academic_kind"; readonly definition: SorcererCampaignAcademicKindDefinition }
+  | { readonly kind: "recipe"; readonly definition: SorcererCampaignRecipeDefinition }
+  | {
+      readonly kind: "knowledge_method";
+      readonly definition: SorcererCampaignKnowledgeMethodDefinition;
+      readonly researchPositionId: SorcererResearchPositionId;
+    };
+
+export interface SorcererCampaignDefinitionCreatedDataV1 {
+  readonly definition: SorcererCampaignDefinitionAuditV1;
+}
+export interface SorcererCampaignDefinitionCreatedEventV1 {
+  readonly type: "sorcerer_campaign_definition_created";
+  readonly version: 1;
+  readonly data: SorcererCampaignDefinitionCreatedDataV1;
+}
+
+export interface SorcererCampaignDefinitionUpdatedDataV1 {
+  readonly previous: SorcererCampaignDefinitionAuditV1;
+  readonly definition: SorcererCampaignDefinitionAuditV1;
+}
+export interface SorcererCampaignDefinitionUpdatedEventV1 {
+  readonly type: "sorcerer_campaign_definition_updated";
+  readonly version: 1;
+  readonly data: SorcererCampaignDefinitionUpdatedDataV1;
+}
+
+export interface SorcererArcanistAddedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly denizenCreated: boolean;
+  readonly denizenName: string;
+  readonly arcanist: SorcererArcanist;
+  readonly previousTowerOrder: readonly DenizenId[];
+  readonly nextTowerOrder: readonly DenizenId[];
+}
+export interface SorcererArcanistAddedEventV1 {
+  readonly type: "sorcerer_arcanist_added";
+  readonly version: 1;
+  readonly data: SorcererArcanistAddedDataV1;
+}
+
+export interface SorcererArcanistUpdatedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly previousArcanist: SorcererArcanist;
+  readonly arcanist: SorcererArcanist;
+  readonly previousPlacement: SorcererArcanistPlacement;
+  readonly placement: SorcererArcanistPlacement;
+  readonly previousTowerOrder: readonly DenizenId[];
+  readonly nextTowerOrder: readonly DenizenId[];
+}
+export interface SorcererArcanistUpdatedEventV1 {
+  readonly type: "sorcerer_arcanist_updated";
+  readonly version: 1;
+  readonly data: SorcererArcanistUpdatedDataV1;
+}
+
+export interface SorcererConstructAddedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly denizenName: string;
+  readonly truthIds: readonly PowerfulDenizenTruthId[];
+  readonly instructions: readonly SorcererConstructInstruction[];
+}
+export interface SorcererConstructAddedEventV1 {
+  readonly type: "sorcerer_construct_added";
+  readonly version: 1;
+  readonly data: SorcererConstructAddedDataV1;
+}
+
+export interface SorcererConstructInstructionsSetDataV1 {
+  readonly denizenId: DenizenId;
+  readonly previousInstructions: readonly SorcererConstructInstruction[];
+  readonly instructions: readonly SorcererConstructInstruction[];
+}
+export interface SorcererConstructInstructionsSetEventV1 {
+  readonly type: "sorcerer_construct_instructions_set";
+  readonly version: 1;
+  readonly data: SorcererConstructInstructionsSetDataV1;
+}
+
+export interface SorcererInnovationAddedDataV1 {
+  readonly innovation: SorcererInnovation;
+}
+export interface SorcererInnovationAddedEventV1 {
+  readonly type: "sorcerer_innovation_added";
+  readonly version: 1;
+  readonly data: SorcererInnovationAddedDataV1;
+}
+
+export interface SorcererInnovationRevisedDataV1 {
+  readonly innovationId: SorcererInnovationId;
+  readonly previousSpellId: GrimoireSpellId;
+  readonly previousText: string;
+  readonly spellId: GrimoireSpellId;
+  readonly text: string;
+}
+export interface SorcererInnovationRevisedEventV1 {
+  readonly type: "sorcerer_innovation_revised";
+  readonly version: 1;
+  readonly data: SorcererInnovationRevisedDataV1;
+}
+
+export interface SorcererInnovationRemovedDataV1 {
+  readonly innovation: SorcererInnovation;
+}
+export interface SorcererInnovationRemovedEventV1 {
+  readonly type: "sorcerer_innovation_removed";
+  readonly version: 1;
+  readonly data: SorcererInnovationRemovedDataV1;
+}
+
 export type SorcererEvent =
   | SorcererInitializedEventV1
   | SorcererPersonnelRecruitedEventV1
@@ -1818,7 +1969,18 @@ export type SorcererEvent =
   | SorcererResearcherOperationalThisMonthChangedEventV1
   | SorcererKnowledgeAdjustedEventV1
   | SorcererArchivesOpenChangedEventV1
-  | SorcererTowerMagicConsumableMovedEventV1;
+  | SorcererTowerMagicConsumableMovedEventV1
+  | SorcererResearcherProductionMultipliersSetEventV1
+  | SorcererLawsSetEventV1
+  | SorcererCampaignDefinitionCreatedEventV1
+  | SorcererCampaignDefinitionUpdatedEventV1
+  | SorcererArcanistAddedEventV1
+  | SorcererArcanistUpdatedEventV1
+  | SorcererConstructAddedEventV1
+  | SorcererConstructInstructionsSetEventV1
+  | SorcererInnovationAddedEventV1
+  | SorcererInnovationRevisedEventV1
+  | SorcererInnovationRemovedEventV1;
 
 export type LoreEntryAddedCollectionContextV1 =
   | {

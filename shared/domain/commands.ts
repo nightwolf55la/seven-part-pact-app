@@ -134,6 +134,17 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "adjust_sorcerer_knowledge",
   "set_sorcerer_archives_open",
   "move_sorcerer_tower_magic_consumable",
+  "set_sorcerer_researcher_production_multipliers",
+  "set_sorcerer_laws",
+  "create_sorcerer_campaign_definition",
+  "update_sorcerer_campaign_definition",
+  "add_sorcerer_arcanist",
+  "update_sorcerer_arcanist",
+  "add_sorcerer_construct",
+  "set_sorcerer_construct_instructions",
+  "add_sorcerer_innovation",
+  "revise_sorcerer_innovation",
+  "remove_sorcerer_innovation",
   "add_lore_entry",
   "revise_lore_entry",
 ] as const;
@@ -284,6 +295,17 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "adjust_sorcerer_knowledge":
     case "set_sorcerer_archives_open":
     case "move_sorcerer_tower_magic_consumable":
+    case "set_sorcerer_researcher_production_multipliers":
+    case "set_sorcerer_laws":
+    case "create_sorcerer_campaign_definition":
+    case "update_sorcerer_campaign_definition":
+    case "add_sorcerer_arcanist":
+    case "update_sorcerer_arcanist":
+    case "add_sorcerer_construct":
+    case "set_sorcerer_construct_instructions":
+    case "add_sorcerer_innovation":
+    case "revise_sorcerer_innovation":
+    case "remove_sorcerer_innovation":
     case "add_lore_entry":
     case "revise_lore_entry":
     case "move_month":
