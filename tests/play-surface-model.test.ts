@@ -143,6 +143,25 @@ describe("mariner surface navigation", () => {
   });
 });
 
+describe("compendium surface navigation", () => {
+  it("accepts Compendium as a navigable surface without changing phase defaults", () => {
+    const planning = phaseDefaultLayout("planning");
+    expect(planning.primary).toBe("current_phase");
+    expect(planning.secondary).toBe("orrery");
+    let s = initPlaySurface("planning");
+    s = navigateSurface(s, "primary", "compendium");
+    expect(s.primary.current).toBe("compendium");
+    s = navigateSurface(s, "secondary", "compendium");
+    expect(s.secondary!.current).toBe("compendium");
+    s = goBack(s, "primary");
+    expect(s.primary.current).toBe("current_phase");
+    s = goForward(s, "primary");
+    expect(s.primary.current).toBe("compendium");
+    s = promoteSecondary(s);
+    expect(s.primary.current).toBe("compendium");
+  });
+});
+
 describe("necromancer surface navigation", () => {
   it("accepts Necromancer as a navigable surface without changing phase defaults", () => {
     const planning = phaseDefaultLayout("planning");

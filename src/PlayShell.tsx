@@ -11,6 +11,8 @@ import MarinerSurface from "./MarinerSurface";
 import type { MarinerWizardRef } from "./MarinerSurface";
 import NecromancerSurface from "./NecromancerSurface";
 import type { NecromancerWizardRef } from "./NecromancerSurface";
+import LoreSurface from "./LoreSurface";
+import { loreCompendiumUiStateFromQuery } from "./lore-view-model";
 import {
   initPlaySurface,
   navigateSurface,
@@ -42,6 +44,7 @@ const SURFACE_LABELS: Record<SurfaceId, string> = {
   hierophant: "Hierophant",
   mariner: "Mariner",
   necromancer: "Necromancer",
+  compendium: "Compendium",
 };
 
 function renderSurface(
@@ -72,6 +75,7 @@ function renderSurface(
     case "hierophant":
     case "mariner":
     case "necromancer":
+    case "compendium":
       return null;
   }
 }
@@ -93,12 +97,25 @@ function paneBody(
   hierRef: ReturnType<typeof useQuery<typeof api.m3Queries.getHierophantReference>>,
   marinerRef: ReturnType<typeof useQuery<typeof api.m3Queries.getMarinerReference>>,
   necromancerRef: ReturnType<typeof useQuery<typeof api.m3Queries.getNecromancerReference>>,
+  loreCompendiumRef: ReturnType<typeof useQuery<typeof api.m3Queries.getLoreCompendiumReference>>,
   campaignId: string,
+  layout: "full" | "narrow",
 ) {
   if (surface === "world") return renderWorld(worldRef, campaignId);
   if (surface === "hierophant") return renderHierophant(hierRef, worldRef, campaignId);
   if (surface === "mariner") return renderMariner(marinerRef, worldRef, ref, campaignId);
-  if (surface === "necromancer") return renderNecromancer(necromancerRef, worldRef, ref, campaignId);
+  if (surface === "necromancer") {
+    return renderNecromancer(necromancerRef, worldRef, ref, campaignId, loreCompendiumUiStateFromQuery(loreCompendiumRef));
+  }
+  if (surface === "compendium") {
+    return (
+      <LoreSurface
+        campaignId={campaignId}
+        uiState={loreCompendiumUiStateFromQuery(loreCompendiumRef)}
+        layout={layout}
+      />
+    );
+  }
   return renderSurface(surface, ref, worldRef);
 }
 
@@ -173,6 +190,7 @@ function renderNecromancer(
   worldRef: ReturnType<typeof useQuery<typeof api.m3Queries.getWorldReference>>,
   playRef: Parameters<typeof renderSurface>[1],
   campaignId: string,
+  loreCompendium: ReturnType<typeof loreCompendiumUiStateFromQuery>,
 ) {
   if (necromancerRef === undefined || worldRef === undefined) {
     return <div className="py-12 text-center text-sm text-slate-400">Loading Necromancer…</div>;
@@ -191,6 +209,7 @@ function renderNecromancer(
         name: wizard.name,
         mortalityState: wizard.mortalityState ?? "not_deceased",
       }))}
+      loreCompendium={loreCompendium}
     />
   );
 }
@@ -216,6 +235,7 @@ export default function PlayShell({
   const hierRef = useQuery(api.m3Queries.getHierophantReference, {});
   const marinerRef = useQuery(api.m3Queries.getMarinerReference, {});
   const necromancerRef = useQuery(api.m3Queries.getNecromancerReference, {});
+  const loreCompendiumRef = useQuery(api.m3Queries.getLoreCompendiumReference, {});
 
   const nav = useMemo(() => ({
     navigate: (pane: PaneLabel, target: SurfaceId) => setSurfaceState((s) => navigateSurface(s, pane, target)),
@@ -315,7 +335,7 @@ export default function PlayShell({
         ) : showSecondary && surfaceState.secondary ? (
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 min-w-0">
-              {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, campaignId)}
+              {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, loreCompendiumRef, campaignId, "full")}
             </div>
             <div className="hidden md:block md:w-80 lg:w-96 flex-shrink-0">
               <div className="flex items-center gap-1 mb-2">
@@ -347,12 +367,12 @@ export default function PlayShell({
                   Fwd
                 </button>
               </div>
-              {paneBody(surfaceState.secondary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, campaignId)}
+              {paneBody(surfaceState.secondary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, loreCompendiumRef, campaignId, "narrow")}
             </div>
           </div>
         ) : (
           <div className="w-full">
-            {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, campaignId)}
+            {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, loreCompendiumRef, campaignId, "full")}
           </div>
         )}
       </div>

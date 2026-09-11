@@ -31,6 +31,8 @@ import {
   powerfulStatusLabel,
 } from "../shared/domain";
 import type { WorldReference } from "./WorldSurface";
+import LoreContextPanel from "./LoreContextPanel";
+import { findPresentationSubjectByRef, type LoreCompendiumUiState } from "./lore-view-model";
 import {
   NECROMANCER_ABOMINATION_KINDS,
   NECROMANCER_ARRANGEMENT_OPTIONS,
@@ -223,12 +225,14 @@ export default function NecromancerSurface({
   campaignId,
   necromancerWizard,
   wizards,
+  loreCompendium = { status: "loading" },
 }: {
   necromancer: NecromancerState;
   world: WorldReference;
   campaignId: string;
   necromancerWizard: NecromancerWizardRef | null;
   wizards: readonly NecromancerWizardNameRef[];
+  loreCompendium?: LoreCompendiumUiState;
 }) {
   const initializeNecromancer = useMutation(api.m3Commands.initializeNecromancer);
   const setNecromancerDepth = useMutation(api.m3Commands.setNecromancerDepth);
@@ -452,6 +456,8 @@ export default function NecromancerSurface({
           moveToKey={moveToKey}
           setMoveToKey={setMoveToKey}
           pending={pending}
+          campaignId={campaignId}
+          loreCompendium={loreCompendium}
           onSetSouls={async () => {
             if (selectedLocation === null) return;
             const count = parseNonNegInt(soulDraft);
@@ -1190,6 +1196,8 @@ function Inspector({
   moveToKey,
   setMoveToKey,
   pending,
+  campaignId,
+  loreCompendium,
   onSetSouls,
   onMoveSouls,
   onSetGateStatus,
@@ -1208,6 +1216,8 @@ function Inspector({
   moveToKey: string;
   setMoveToKey: (value: string) => void;
   pending: boolean;
+  campaignId: string;
+  loreCompendium: LoreCompendiumUiState;
   onSetSouls: () => Promise<void>;
   onMoveSouls: () => Promise<void>;
   onSetGateStatus: (status: NecromancerGateStatus) => Promise<void>;
@@ -1224,6 +1234,12 @@ function Inspector({
     (space) => occupiableRefKey(space) !== occupiableRefKey(selectedLocation),
   );
   const statusOptions = selectedGate === undefined ? [] : availableGateStatusTransitions(selectedGate.status);
+  const gateLoreSubject = selectedGate !== undefined && loreCompendium.status === "ready"
+    ? findPresentationSubjectByRef(loreCompendium.presentation, {
+      kind: "necromancer_gate",
+      gateId: selectedGate.gateId,
+    })
+    : undefined;
   return (
     <aside aria-label="Selected space" className="rounded-xl border border-slate-200 dark:border-slate-800 p-3 space-y-3">
       <div>
@@ -1254,6 +1270,11 @@ function Inspector({
           `${denizenName(world.denizens, ghoul.denizenId)} · ${ghoulCallerProfileLines(ghoul).join(" · ")}`
         ))}
       />
+      {selectedGate !== undefined && gateLoreSubject !== undefined && (
+        <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+          <LoreContextPanel subject={gateLoreSubject} campaignId={campaignId} compact contextConstraint={{ kind: "any" }} />
+        </div>
+      )}
       {selectedGate !== undefined && (
         <div className="space-y-1">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Gate status</h4>

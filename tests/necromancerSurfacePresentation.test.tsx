@@ -5,9 +5,11 @@ import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import {
   buildInitializedDefaultNecromancerState,
+  readLoreCompendiumReference,
   type NecromancerCampaignGateId,
   type NecromancerCampaignPathSpaceId,
 } from "../shared/domain";
+import { makeTestCampaignStateV5 } from "./test-state";
 import NecromancerSurface from "../src/NecromancerSurface";
 import type { WorldReference } from "../src/WorldSurface";
 import { pathSpaceDisplayName } from "../src/necromancer-view-model";
@@ -64,6 +66,8 @@ vi.mock("../convex/_generated/api.js", () => ({
       removeNecromancerCampaignPathSpace: "m3Commands.removeNecromancerCampaignPathSpace",
       addNecromancerStep: "m3Commands.addNecromancerStep",
       removeNecromancerStep: "m3Commands.removeNecromancerStep",
+      addLoreEntry: "m3Commands.addLoreEntry",
+      reviseLoreEntry: "m3Commands.reviseLoreEntry",
     },
   },
 }));
@@ -93,7 +97,17 @@ function initializedWithCampaignStructure() {
   });
 }
 
-function renderSurface() {
+function loreCompendiumReady() {
+  const state = makeTestCampaignStateV5({
+    necromancer: initializedWithCampaignStructure(),
+  });
+  const presentation = readLoreCompendiumReference(state);
+  expect(presentation.ok).toBe(true);
+  if (!presentation.ok) throw new Error("presentation expected");
+  return { status: "ready" as const, presentation };
+}
+
+function renderSurface(extra?: { loreCompendium?: ReturnType<typeof loreCompendiumReady> }) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
@@ -104,6 +118,7 @@ function renderSurface() {
       campaignId: CAMPAIGN_ID,
       necromancerWizard: null,
       wizards: [],
+      loreCompendium: extra?.loreCompendium ?? loreCompendiumReady(),
     }));
   });
   return { container, root };
@@ -174,6 +189,64 @@ describe("campaign structure inspect controls", () => {
     });
     const inspectButtons = Array.from(container.querySelectorAll("button")).filter((el) => el.textContent === "Inspect");
     expect(inspectButtons).toHaveLength(3);
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("Gate inspector contextual Lore", () => {
+  it("shows source Lore for a built-in Gate in the existing inspector", () => {
+    const { container, root } = renderSurface();
+    const amberGate = container.querySelector('[aria-label="Amber ordinary"]');
+    expect(amberGate).not.toBeNull();
+    flushSync(() => {
+      (amberGate as Element).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    const inspector = container.querySelector(`[aria-label="Selected space"]`);
+    expect(inspector?.textContent).toContain("Amber");
+    expect(inspector?.querySelector(`[aria-label="Lore context panel"]`)).not.toBeNull();
+    expect(inspector?.textContent).toContain("massive edifice");
+    expect(container.querySelectorAll(`[aria-label="Selected space"]`)).toHaveLength(1);
+    root.unmount();
+    container.remove();
+  });
+
+  it("shows campaign Gate Lore or first Add in the same inspector", () => {
+    const { container, root } = renderSurface();
+    const details = container.querySelector("details");
+    flushSync(() => {
+      details!.open = true;
+      details!.dispatchEvent(new Event("toggle", { bubbles: true }));
+    });
+    const inspectGate = container.querySelector(`button[aria-label="Inspect Nightwell"]`);
+    flushSync(() => {
+      (inspectGate as HTMLButtonElement).click();
+    });
+    const inspector = container.querySelector(`[aria-label="Selected space"]`);
+    expect(inspector?.querySelector(`[aria-label="Lore context panel"]`)).not.toBeNull();
+    expect(inspector?.textContent).toMatch(/Add Lore|Available for Lore|Nightwell/);
+    root.unmount();
+    container.remove();
+  });
+
+  it("does not show contextual Lore when inspecting a path space", () => {
+    const { container, root } = renderSurface();
+    const details = container.querySelector("details");
+    flushSync(() => {
+      details!.open = true;
+      details!.dispatchEvent(new Event("toggle", { bubbles: true }));
+    });
+    const pathLabel = pathSpaceDisplayName({
+      origin: "campaign",
+      pathSpaceId: CAMPAIGN_PATH_A,
+      region: "edge_of_life",
+    });
+    const inspectPath = container.querySelector(`button[aria-label="Inspect ${pathLabel}"]`);
+    flushSync(() => {
+      (inspectPath as HTMLButtonElement).click();
+    });
+    const inspector = container.querySelector(`[aria-label="Selected space"]`);
+    expect(inspector?.querySelector(`[aria-label="Lore context panel"]`)).toBeNull();
     root.unmount();
     container.remove();
   });
