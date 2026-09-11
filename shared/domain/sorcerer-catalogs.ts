@@ -275,3 +275,11 @@ export function sorcererBuiltinAlchemicalRecipeDefinition(
   }
   return found;
 }
+
+export const SORCERER_ARRANGEMENT_IDS = ["quiet", "dynamic", "explosive"] as const;
+
+export type SorcererArrangementId = (typeof SORCERER_ARRANGEMENT_IDS)[number];
+
+export function isValidSorcererArrangementId(value: string): value is SorcererArrangementId {
+  return (SORCERER_ARRANGEMENT_IDS as readonly string[]).includes(value);
+}

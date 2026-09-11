@@ -274,8 +274,21 @@ import {
   applyBlackmailFaustianCommunity,
   applyDirectFaustianAccomplice,
   applyDisruptFaustianPawn,
+  initializeSorcererFingerprint,
+  canonicalizeInitializeSorcererInput,
+  applyInitializeSorcerer,
 } from "../shared/domain";
 import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange, CompanionRelationshipId, HierophantFlameLawId, HierophantStartingTempleId, HierophantTempleId, HierophantCampaignClassId, HierophantCampaignDoctrineId, HierophantDogmaEntryId, HierophantSupplicant, HierophantProphet, HierophantCult, HierophantCultDogma, HierophantCampaignClass, HierophantCampaignDoctrine, CreateTempleInput, OrdinaryTempleDoctrineState, InitializeMarinerInput, MarinerBeastState, MarinerIsleMarket, MarinerRouteOccupancy, MarinerBoardIsleId, MarinerLawOfSeaId, MarinerRouteId, MarinerSeaRegionId, MarinerArrangementId, UpdateMarinerBeastFields, InitializeNecromancerInput, NecromancerArrangementId, NecromancerLawOfDeathId, NecromancerBuiltinGateId, NecromancerBuiltinPathSpaceId, NecromancerDepthState, NecromancerSelectedLaw, NecromancerGateId, NecromancerGateStatus, NecromancerOccupiableSpaceRef, NecromancerFoeState, NecromancerFoeSubjectRef, NecromancerWizardFoeState, NecromancerWizardTraversalState, UpdateNecromancerWizardTraversalFields, NecromancerAllyState, NecromancerGhoulCallerState, UpdateNecromancerFoeFields, UpdateNecromancerAllyFields, UpdateNecromancerGhoulCallerFields, NecromancerCampaignGateId, NecromancerGateBand, UpdateNecromancerCampaignGateFields, NecromancerCampaignPathSpaceId, NecromancerPathRegion, NecromancerCampaignPathSpaceState, NecromancerDirectedStep, MortalityState, PowerfulDenizenTaxonomyRef, PowerfulDenizenStatus, PowerfulDenizenMethodDefinition, PowerfulDenizenMethodEntry, PowerfulDenizenTruthEntry, PowerfulDenizenProfile, CampaignPowerfulDenizenTaxonomy, CampaignPowerfulDenizenTaxonomyId, PowerfulDenizenMethodEntryId, PowerfulDenizenTruthId, TreasureId, TreasureCondition, TreasureCustody, PactFragmentOperationalState, FaustianCommunityId, FaustianCardId } from "../shared/domain";
+import type {
+  HouseIndex,
+  InitializeSorcererInput,
+  MagicSchoolRef,
+  SorcererArrangementId,
+  SorcererDisruptiveArcanistProfile,
+  SorcererLawOfMagicId,
+  SorcererResearchPositionId,
+  WarlockIdeologyId,
+} from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
 import type { WizardInitIds } from "../shared/domain/begin-play";
 import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
@@ -4705,6 +4718,115 @@ export const disruptFaustianPawn = mutation({
           args.accompliceCardId as FaustianCardId,
         ),
       }),
+    );
+  },
+});
+
+const sorcererMagicSchoolArg = v.union(
+  v.object({ kind: v.literal("source"), schoolId: v.string() }),
+  v.object({ kind: v.literal("campaign"), schoolId: v.string() }),
+);
+const sorcererDisruptiveProfileArg = v.object({
+  primaryElement: v.string(),
+  rank: v.union(v.literal("prentice"), v.literal("journeyman"), v.literal("master")),
+  changesOfMagic: v.array(v.string()),
+  quirk: v.string(),
+  prenticeSpellIds: v.array(v.string()),
+});
+
+export const initializeSorcerer = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    arrangementId: v.string(),
+    spyrholmIsleId: v.string(),
+    towerPlaceId: v.string(),
+    universityPlaceId: v.string(),
+    activeLawIds: v.array(v.string()),
+    unrevealedLawId: v.union(v.string(), v.null()),
+    orreryHouses: v.array(v.number()),
+    ideologyIds: v.array(v.string()),
+    seaRegionIds: v.array(v.string()),
+    researchers: v.array(v.object({
+      denizenId: v.string(),
+      positionId: v.string(),
+    })),
+    studentDenizenIds: v.array(v.string()),
+    professorDenizenId: v.string(),
+    alchemistDenizenId: v.string(),
+    librarian: v.union(
+      v.null(),
+      v.object({
+        denizenId: v.string(),
+        school: sorcererMagicSchoolArg,
+      }),
+    ),
+    towerArcanists: v.array(v.object({
+      denizenId: v.string(),
+      school: sorcererMagicSchoolArg,
+    })),
+    calamityDisruptiveArcanist: v.union(
+      v.null(),
+      v.object({
+        denizenId: v.string(),
+        school: sorcererMagicSchoolArg,
+        seatId: v.string(),
+        profile: sorcererDisruptiveProfileArg,
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        if (args.orreryHouses.length !== 3) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", "Sorcerer initialization requires three Orrery Houses");
+        }
+        if (args.ideologyIds.length !== 2) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", "Sorcerer initialization requires two Warlock Ideologies");
+        }
+        if (args.seaRegionIds.length !== 2) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", "Sorcerer initialization requires two Mariner Seas");
+        }
+        const input = canonicalizeInitializeSorcererInput({
+          arrangementId: args.arrangementId as SorcererArrangementId,
+          spyrholmIsleId: args.spyrholmIsleId as IsleId,
+          towerPlaceId: args.towerPlaceId as PlaceId,
+          universityPlaceId: args.universityPlaceId as PlaceId,
+          activeLawIds: args.activeLawIds as SorcererLawOfMagicId[],
+          unrevealedLawId: args.unrevealedLawId as SorcererLawOfMagicId | null,
+          orreryHouses: args.orreryHouses as [HouseIndex, HouseIndex, HouseIndex],
+          ideologyIds: args.ideologyIds as [WarlockIdeologyId, WarlockIdeologyId],
+          seaRegionIds: args.seaRegionIds as [MarinerSeaRegionId, MarinerSeaRegionId],
+          researchers: args.researchers.map((assignment) => ({
+            denizenId: assignment.denizenId as DenizenId,
+            positionId: assignment.positionId as SorcererResearchPositionId,
+          })),
+          studentDenizenIds: args.studentDenizenIds as DenizenId[],
+          professorDenizenId: args.professorDenizenId as DenizenId,
+          alchemistDenizenId: args.alchemistDenizenId as DenizenId,
+          librarian: args.librarian === null ? null : {
+            denizenId: args.librarian.denizenId as DenizenId,
+            school: args.librarian.school as MagicSchoolRef,
+          },
+          towerArcanists: args.towerArcanists.map((arcanist) => ({
+            denizenId: arcanist.denizenId as DenizenId,
+            school: arcanist.school as MagicSchoolRef,
+          })),
+          calamityDisruptiveArcanist: args.calamityDisruptiveArcanist === null ? null : {
+            denizenId: args.calamityDisruptiveArcanist.denizenId as DenizenId,
+            school: args.calamityDisruptiveArcanist.school as MagicSchoolRef,
+            seatId: args.calamityDisruptiveArcanist.seatId as PactSeatId,
+            profile: args.calamityDisruptiveArcanist.profile as SorcererDisruptiveArcanistProfile,
+          },
+        } as InitializeSorcererInput);
+        return {
+          commandType: "initialize_sorcerer",
+          commandFingerprint: initializeSorcererFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyInitializeSorcerer(state, input),
+        };
+      },
     );
   },
 });

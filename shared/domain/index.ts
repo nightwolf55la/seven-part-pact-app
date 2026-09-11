@@ -173,6 +173,9 @@ export type {
   FaustianAccompliceDirectedEventV1,
   FaustianPawnDisruptedDataV1,
   FaustianPawnDisruptedEventV1,
+  SorcererInitializedDataV1,
+  SorcererInitializedEventV1,
+  SorcererEvent,
   CampaignEvent,
 } from "./events";
 
@@ -414,6 +417,7 @@ export {
   blackmailFaustianCommunityFingerprint,
   directFaustianAccompliceFingerprint,
   disruptFaustianPawnFingerprint,
+  initializeSorcererFingerprint,
   matchCommandIdempotency,
   normalizeCheckpointLabel,
   validateCheckpointLabel,
@@ -1404,6 +1408,7 @@ export type {
   SorcererSourceReagentDefinition,
   SorcererBuiltinAlchemicalRecipeId,
   SorcererBuiltinAlchemicalRecipeDefinition,
+  SorcererArrangementId,
 } from "./sorcerer-catalogs";
 export {
   SORCERER_SOURCE_SCHOOL_IDS,
@@ -1423,6 +1428,8 @@ export {
   SORCERER_BUILTIN_ALCHEMICAL_RECIPE_DEFINITIONS,
   isValidSorcererBuiltinAlchemicalRecipeId,
   sorcererBuiltinAlchemicalRecipeDefinition,
+  SORCERER_ARRANGEMENT_IDS,
+  isValidSorcererArrangementId,
 } from "./sorcerer-catalogs";
 
 export type {
@@ -1452,6 +1459,70 @@ export {
   reagentStackKey,
   validateMagicConsumablesStructure,
 } from "./magic-consumables";
+
+export type {
+  SorcererResearchPositionId,
+  SorcererBaseResearchPositionId,
+  SorcererCampaignResearchPositionId,
+  SorcererInnovationId,
+  SorcererCampaignAcademicKindId,
+  SorcererCampaignRecipeId,
+  SorcererCampaignKnowledgeMethodId,
+  SorcererResearchPositionTarget,
+  SorcererResearchPosition,
+  SorcererResearcher,
+  SorcererRecipeRef,
+  SorcererAcademicRole,
+  SorcererAcademic,
+  SorcererKnowledgeState,
+  SorcererArcanistRank,
+  SorcererDisruptiveArcanistProfile,
+  SorcererArcanistPlacement,
+  SorcererArcanist,
+  SorcererConstructInstruction,
+  SorcererConstructOverlay,
+  SorcererInnovation,
+  SorcererCampaignSchoolDefinition,
+  SorcererCampaignAcademicKindDefinition,
+  SorcererCampaignRecipeDefinition,
+  SorcererCampaignKnowledgeMethodDefinition,
+  SorcererState,
+  SourceResearchPositionTopologyInput,
+} from "./sorcerer-state";
+export {
+  SORCERER_BASE_RESEARCH_POSITION_IDS,
+  SORCERER_RESEARCH_TEMPLE_IDS,
+  SORCERER_ORRERY_RESEARCH_POSITION_IDS,
+  SORCERER_TEMPLE_RESEARCH_POSITION_IDS,
+  SORCERER_ARCANIST_RANKS,
+  EMPTY_SORCERER_KNOWLEDGE_STATE,
+  EMPTY_SORCERER_STATE,
+  isValidSorcererBaseResearchPositionId,
+  isValidSorcererCampaignResearchPositionId,
+  isValidSorcererResearchPositionId,
+  isValidSorcererInnovationId,
+  isValidSorcererCampaignAcademicKindId,
+  isValidSorcererCampaignRecipeId,
+  isValidSorcererCampaignKnowledgeMethodId,
+  isValidSorcererArcanistRank,
+  isOrreryResearchPositionId,
+  buildSourceResearchPositions,
+} from "./sorcerer-state";
+
+export { validateSorcererStructure, validateSorcererReferenceIntegrity, validateMagicConsumablesReferenceIntegrity, isExactEmptySorcerer } from "./sorcerer-validation";
+
+export type {
+  SorcererTransitionResult,
+  SorcererResearcherAssignment,
+  SorcererTowerArcanistIntent,
+  SorcererLibrarianIntent,
+  SorcererCalamityDisruptiveArcanistIntent,
+  InitializeSorcererInput,
+} from "./sorcerer-transitions";
+export {
+  canonicalizeInitializeSorcererInput,
+  applyInitializeSorcerer,
+} from "./sorcerer-transitions";
 
 export type { FaustianTransitionResult } from "./faustian-transitions";
 export {

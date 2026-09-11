@@ -9,6 +9,8 @@ import {
   EMPTY_SAGE_STATE,
   EMPTY_FAUSTIAN_STATE,
   EMPTY_WARLOCK_STATE,
+  EMPTY_MAGIC_CONSUMABLES_STATE,
+  EMPTY_SORCERER_STATE,
 } from "../shared/domain";
 import {
   verifyBackupImportRevisionStructure,
@@ -57,6 +59,8 @@ function makeState(monthOrdinal: number): CurrentCampaignState {
     faustian: EMPTY_FAUSTIAN_STATE,
     sage: EMPTY_SAGE_STATE,
     warlock: EMPTY_WARLOCK_STATE,
+    magicConsumables: EMPTY_MAGIC_CONSUMABLES_STATE,
+    sorcerer: EMPTY_SORCERER_STATE,
   };
 }
 
@@ -167,6 +171,8 @@ describe("verifyBackupImportRevisionStructure with V1 historical snapshot", () =
     faustian: EMPTY_FAUSTIAN_STATE,
     sage: EMPTY_SAGE_STATE,
     warlock: EMPTY_WARLOCK_STATE,
+    magicConsumables: EMPTY_MAGIC_CONSUMABLES_STATE,
+    sorcerer: EMPTY_SORCERER_STATE,
     };
 
     const payloadDigest = "a".repeat(64);

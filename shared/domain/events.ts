@@ -82,6 +82,8 @@ import type {
   NecromancerWizardTraversalState,
 } from "./necromancer-state";
 import type { FaustianCardId, FaustianCommunityId } from "./faustian-catalogs";
+import type { SorcererArrangementId } from "./sorcerer-catalogs";
+import type { SorcererState } from "./sorcerer-state";
 
 export interface UndoAppliedDataV1 {
   readonly fromRevision: number;
@@ -1660,6 +1662,18 @@ export type FaustianEvent =
   | FaustianAccompliceDirectedEventV1
   | FaustianPawnDisruptedEventV1;
 
+export interface SorcererInitializedDataV1 {
+  readonly arrangementId: SorcererArrangementId;
+  readonly sorcerer: SorcererState;
+}
+export interface SorcererInitializedEventV1 {
+  readonly type: "sorcerer_initialized";
+  readonly version: 1;
+  readonly data: SorcererInitializedDataV1;
+}
+
+export type SorcererEvent = SorcererInitializedEventV1;
+
 export type CampaignEvent =
   | InfrastructureEvent
   | SetupEvent
@@ -1669,7 +1683,8 @@ export type CampaignEvent =
   | MarinerEvent
   | NecromancerEvent
   | FaustianEvent
-  | SharedStateEvent;
+  | SharedStateEvent
+  | SorcererEvent;
 
 export type PhaseAdvancedEvent = PhaseAdvancedEventV1 | PhaseAdvancedEventV2;
 

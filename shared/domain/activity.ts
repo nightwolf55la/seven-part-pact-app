@@ -299,6 +299,8 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Directed Faustian Accomplice";
     case "faustian_pawn_disrupted":
       return "Disrupted Faustian Pawn";
+    case "sorcerer_initialized":
+      return "Initialized Sorcerer";
     default:
       return "Campaign configuration changed";
   }
@@ -510,7 +512,8 @@ export function mapEventToActivityEntry(
     case "faustian_community_investigated":
     case "faustian_community_blackmailed":
     case "faustian_accomplice_directed":
-    case "faustian_pawn_disrupted": {
+    case "faustian_pawn_disrupted":
+    case "sorcerer_initialized": {
       return {
         id,
         revision,

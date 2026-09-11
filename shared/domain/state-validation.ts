@@ -57,6 +57,7 @@ import { validateNecromancerReferenceIntegrity } from "./necromancer-validation"
 import { validateFaustianReferenceIntegrity } from "./faustian-validation";
 import { validateSageReferenceIntegrity } from "./sage-validation";
 import { validateWarlockReferenceIntegrity } from "./warlock-validation";
+import { validateSorcererReferenceIntegrity } from "./sorcerer-validation";
 
 const VALID_PACT_SEAT_STATUSES: readonly (PactSeatStatus | null)[] = [
   "present",
@@ -1420,6 +1421,7 @@ export function validateCampaignStateV5Candidate(state: unknown): CampaignStateV
   validateFaustianReferenceIntegrity(state as CampaignStateV5);
   validateWarlockReferenceIntegrity(state as CampaignStateV5);
   validateSageReferenceIntegrity(state as CampaignStateV5);
+  validateSorcererReferenceIntegrity(state as CampaignStateV5);
   validateV5TimeDestinationReferences(state as CampaignStateV5);
 
   return state as CampaignStateV5;
