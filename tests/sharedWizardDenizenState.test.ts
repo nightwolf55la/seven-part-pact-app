@@ -21,6 +21,7 @@ import {
   EMPTY_FAUSTIAN_STATE,
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
   EMPTY_SAGE_STATE,
+  EMPTY_WARLOCK_STATE,
   EMPTY_SHARED_WORLD_STATE,
   PACT_SEAT_IDS,
   POWERFUL_DENIZEN_BUILTIN_TAXONOMY_IDS,
@@ -282,6 +283,9 @@ describe("M5.2D D1A shared wizard and denizen state", () => {
       "fairy",
       "druid",
       "angel",
+      "errant_noble",
+      "army",
+      "hero",
     ]);
     expectInvalid(
       {
@@ -717,6 +721,7 @@ describe("M5.2D D1A shared wizard and denizen state", () => {
       necromancer: { ...EMPTY_NECROMANCER_STATE },
     faustian: { ...EMPTY_FAUSTIAN_STATE },
     sage: { ...EMPTY_SAGE_STATE },
+    warlock: { ...EMPTY_WARLOCK_STATE },
     };
 
     expect(() => validateCampaignState(preM52d)).toThrow(DomainError);

@@ -25,6 +25,7 @@ import {
   type SageOmenLocation,
   type SageOrdinaryFairyName,
 } from "./sage-state";
+import { isValidWarlockRebellionId } from "./warlock-state";
 import {
   requirePowerfulRoleProfile,
   requireReliableOrDisruptiveStatus,
@@ -105,6 +106,18 @@ function validateOmenLocation(path: string, value: unknown): SageOmenLocation {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.segmentId is invalid: ${JSON.stringify(location.segmentId)}`);
     }
     return { kind: "dreamscape", segmentId: location.segmentId };
+  }
+  if (location.kind === "warlock_court") {
+    return { kind: "warlock_court" };
+  }
+  if (location.kind === "warlock_rebellion") {
+    if (typeof location.rebellionId !== "string" || !isValidWarlockRebellionId(location.rebellionId)) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path}.rebellionId is invalid: ${JSON.stringify(location.rebellionId)}`,
+      );
+    }
+    return { kind: "warlock_rebellion", rebellionId: location.rebellionId };
   }
   throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.kind is invalid: ${JSON.stringify(location.kind)}`);
 }
@@ -416,11 +429,19 @@ export function validateSageReferenceIntegrity(state: CampaignStateV5): void {
     resolveCharacterRef(path, sage.assignedDestinies[i].characterRef, wizardIds, denizenIds);
   }
 
+  const rebellionIds = new Set(state.warlock.rebellions.map((rebellion) => rebellion.rebellionId as string));
+
   for (let i = 0; i < sage.omenLedger.length; i++) {
     const path = `sage.omenLedger[${i}].location`;
     const location = sage.omenLedger[i].location;
     if (location.kind === "character") {
       resolveCharacterRef(`${path}.characterRef`, location.characterRef, wizardIds, denizenIds);
+    }
+    if (location.kind === "warlock_rebellion" && !rebellionIds.has(location.rebellionId)) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path}.rebellionId does not resolve: ${location.rebellionId}`,
+      );
     }
   }
 

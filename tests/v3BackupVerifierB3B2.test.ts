@@ -16,6 +16,7 @@ import {
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
   EMPTY_SAGE_STATE,
   EMPTY_FAUSTIAN_STATE,
+  EMPTY_WARLOCK_STATE,
 } from "../shared/domain";
 import {
   verifyBackupImportRevisionStructure,
@@ -77,6 +78,7 @@ function v3SetupState(): CurrentCampaignState {
     hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] }, mariner: { shipPlaceId: null, selectedLawOfSeaIds: [], boardIsles: [], routes: [], seaRegions: [], beasts: [] }, necromancer: { gates: [], pathSpaces: [], steps: [], souls: [], foes: [], allies: [], ghoulCallers: [], selectedLaws: [], depth: null, wizardTraversals: [] },
     faustian: EMPTY_FAUSTIAN_STATE,
     sage: EMPTY_SAGE_STATE,
+    warlock: EMPTY_WARLOCK_STATE,
   } as CurrentCampaignState;
 }
 
@@ -136,6 +138,7 @@ function v3PlayState(): CurrentCampaignState {
     hierophant: { selectedFlameLawIds: [], campaignClasses: [], campaignDoctrines: [], temples: [], supplicants: [], prophets: [], cults: [], holidayTempleIds: [] }, mariner: { shipPlaceId: null, selectedLawOfSeaIds: [], boardIsles: [], routes: [], seaRegions: [], beasts: [] }, necromancer: { gates: [], pathSpaces: [], steps: [], souls: [], foes: [], allies: [], ghoulCallers: [], selectedLaws: [], depth: null, wizardTraversals: [] },
     faustian: EMPTY_FAUSTIAN_STATE,
     sage: EMPTY_SAGE_STATE,
+    warlock: EMPTY_WARLOCK_STATE,
   } as CurrentCampaignState;
 }
 

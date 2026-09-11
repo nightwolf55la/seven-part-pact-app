@@ -14,6 +14,7 @@ import {
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
   EMPTY_SAGE_STATE,
   EMPTY_FAUSTIAN_STATE,
+  EMPTY_WARLOCK_STATE,
 } from "../shared/domain";
 import {
   validateEventCoherenceForTest,
@@ -165,6 +166,7 @@ function makeState(): CurrentCampaignState {
     },
     faustian: EMPTY_FAUSTIAN_STATE,
     sage: EMPTY_SAGE_STATE,
+    warlock: EMPTY_WARLOCK_STATE,
   };
 }
 

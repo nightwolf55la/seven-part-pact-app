@@ -14,6 +14,7 @@ import {
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
   EMPTY_SAGE_STATE,
   EMPTY_FAUSTIAN_STATE,
+  EMPTY_WARLOCK_STATE,
 } from "../shared/domain";
 import type { PersistableCampaignState } from "../shared/domain";
 import type { CampaignStateV5 } from "../shared/domain/campaign-state";
@@ -150,6 +151,7 @@ describe("assertPortableCampaignState: validates without transforming", () => {
     },
     faustian: EMPTY_FAUSTIAN_STATE,
     sage: EMPTY_SAGE_STATE,
+    warlock: EMPTY_WARLOCK_STATE,
   } as unknown as CampaignStateV5;
 
   it("returns the same object reference (no copy/transform)", () => {
@@ -341,6 +343,7 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
       },
       faustian: EMPTY_FAUSTIAN_STATE,
     sage: EMPTY_SAGE_STATE,
+    warlock: EMPTY_WARLOCK_STATE,
     };
     expect(ps.calendar.monthOrdinal).toBe(5);
     expect(typeof ps.calendar.monthOrdinal).toBe("number");
@@ -406,6 +409,7 @@ describe("PersistableCampaignState is derived from AnyCampaignState", () => {
       },
       faustian: EMPTY_FAUSTIAN_STATE,
     sage: EMPTY_SAGE_STATE,
+    warlock: EMPTY_WARLOCK_STATE,
     };
     const ps: PersistableCampaignState = state;
     expect(ps.schemaVersion).toBe(5);

@@ -700,6 +700,9 @@ describe("Faustian source-integrity corrections", () => {
       "fairy",
       "druid",
       "angel",
+      "errant_noble",
+      "army",
+      "hero",
     ]);
     expect(POWERFUL_DENIZEN_BUILTIN_TAXONOMY_IDS).not.toContain("antagonist");
     expect(POWERFUL_DENIZEN_BUILTIN_TAXONOMY_IDS).not.toContain("unbound_demon");

@@ -28,6 +28,7 @@ import {
   EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
   EMPTY_SAGE_STATE,
   EMPTY_SHARED_WORLD_STATE,
+  EMPTY_WARLOCK_STATE,
   FAUSTIAN_DEVIL_FORM_IDS,
   FAUSTIAN_DEVIL_LAW_IDS,
   MOVABLE_PLANET_IDS,
@@ -800,6 +801,7 @@ describe("M5.2E Faustian durable structural state", () => {
       necromancer: { ...EMPTY_NECROMANCER_STATE },
       faustian,
       sage: { ...EMPTY_SAGE_STATE },
+      warlock: { ...EMPTY_WARLOCK_STATE },
     };
     expect(() => validateCampaignStateV5Candidate(state)).not.toThrow();
     expect(matchesValidator(campaignStateV5Validator, state)).toBe(true);
@@ -881,6 +883,7 @@ describe("M5.2E Faustian durable structural state", () => {
       necromancer: { ...EMPTY_NECROMANCER_STATE },
       faustian,
       sage: { ...EMPTY_SAGE_STATE },
+      warlock: { ...EMPTY_WARLOCK_STATE },
     };
     expect(() => validateCampaignStateV5Candidate(state)).not.toThrow();
     expect(state.faustian.resolvedFlushSuits).toEqual(["hearts", "diamonds"]);

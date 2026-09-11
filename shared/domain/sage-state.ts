@@ -1,6 +1,7 @@
 import type { Brand } from "./brand";
 import type { DenizenId, WizardId } from "./ids";
 import type { WizardOrDenizenSubjectRef } from "./shared-world";
+import type { WarlockRebellionId } from "./warlock-state";
 import type {
   SageCycleId,
   SageDestinyAssignmentStatus,
@@ -49,6 +50,13 @@ export type SageOmenLocation =
   | {
       readonly kind: "dreamscape";
       readonly segmentId: SageDreamscapeSegmentId;
+    }
+  | {
+      readonly kind: "warlock_court";
+    }
+  | {
+      readonly kind: "warlock_rebellion";
+      readonly rebellionId: WarlockRebellionId;
     };
 
 export interface SageOmenEntry {
@@ -68,6 +76,10 @@ export function sageOmenLocationKey(location: SageOmenLocation): string {
         : `character:denizen:${location.characterRef.denizenId}`;
     case "dreamscape":
       return `dreamscape:${location.segmentId}`;
+    case "warlock_court":
+      return "warlock_court";
+    case "warlock_rebellion":
+      return `warlock_rebellion:${location.rebellionId}`;
   }
 }
 

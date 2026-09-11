@@ -1275,6 +1275,8 @@ const sageOmenLocationValidator = v.union(
   v.object({ kind: v.literal("destiny"), destinyInstanceId: v.string() }),
   v.object({ kind: v.literal("character"), characterRef: sageCharacterRefValidator }),
   v.object({ kind: v.literal("dreamscape"), segmentId: v.string() }),
+  v.object({ kind: v.literal("warlock_court") }),
+  v.object({ kind: v.literal("warlock_rebellion"), rebellionId: v.string() }),
 );
 const sageFairyNameValidator = v.union(
   v.object({ kind: v.literal("ordinary"), name: v.string(), glyph: v.string() }),
@@ -1334,6 +1336,164 @@ const sageStateValidator = v.object({
     familiarDescription: v.union(v.string(), v.null()),
   })),
   lostDreamers: v.array(sageLostDreamerValidator),
+});
+
+const warlockCharacterRefValidator = v.union(
+  v.object({ kind: v.literal("wizard"), wizardId: v.string() }),
+  v.object({ kind: v.literal("denizen"), denizenId: v.string() }),
+);
+const warlockCourtLawRefValidator = v.union(
+  v.object({ kind: v.literal("source"), lawId: v.string() }),
+  v.object({ kind: v.literal("campaign"), lawId: v.string() }),
+);
+const warlockErrantHeraldryValidator = v.union(
+  v.object({ kind: v.literal("source_clan"), clanId: v.string() }),
+  v.object({ kind: v.literal("custom"), description: v.string() }),
+);
+const warlockErrantClaimValidator = v.union(
+  v.object({ kind: v.literal("necromancer_edge"), pathSpaceId: v.string() }),
+  v.object({ kind: v.literal("hierophant_temple"), templeId: v.string() }),
+  v.object({ kind: v.literal("mariner_sea_region"), seaRegionId: v.string() }),
+  v.object({ kind: v.literal("mariner_beast"), denizenId: v.string() }),
+  v.object({ kind: v.literal("faustian_community"), communityId: v.string() }),
+  v.object({ kind: v.literal("sage_dreamscape"), segmentId: v.string() }),
+  v.object({ kind: v.literal("sorcerer_research_position"), label: v.string() }),
+  v.object({ kind: v.literal("sorcerer_tower"), label: v.string() }),
+);
+const warlockAuthorityTargetValidator = v.union(
+  v.object({ kind: v.literal("king") }),
+  v.object({ kind: v.literal("ideology"), ideologyId: v.string() }),
+  v.object({ kind: v.literal("clan"), clanId: v.string() }),
+  v.object({ kind: v.literal("lord"), titleId: v.string() }),
+  v.object({ kind: v.literal("noble"), denizenId: v.string() }),
+  v.object({ kind: v.literal("garrison"), garrisonId: v.string() }),
+  v.object({ kind: v.literal("army"), denizenId: v.string() }),
+  v.object({ kind: v.literal("hierophant_temple"), templeId: v.string() }),
+  v.object({ kind: v.literal("mariner_market"), isleId: v.string() }),
+  v.object({ kind: v.literal("relocated_market"), relocatedMarketId: v.string() }),
+  v.object({ kind: v.literal("orrery") }),
+);
+const warlockArmySponsorValidator = v.union(
+  v.object({ kind: v.literal("king") }),
+  v.object({ kind: v.literal("clan"), clanId: v.string() }),
+  v.object({ kind: v.literal("wizard"), wizardId: v.string() }),
+);
+const warlockPartnershipValidator = v.union(
+  v.object({ kind: v.literal("mercantilism"), wizardId: v.string(), partnerName: v.string() }),
+  v.object({ kind: v.literal("piracy"), wizardId: v.string(), partnerName: v.string() }),
+  v.object({
+    kind: v.literal("monarchy"),
+    wizardId: v.string(),
+    kingRef: warlockCharacterRefValidator,
+  }),
+);
+const warlockClanCountValidator = v.object({
+  clanId: v.string(),
+  count: v.number(),
+});
+const warlockStateValidator = v.object({
+  clans: v.array(v.object({
+    clanId: v.string(),
+    active: v.boolean(),
+    favor: v.number(),
+  })),
+  campaignCourtLaws: v.array(v.object({
+    lawId: v.string(),
+    text: v.string(),
+  })),
+  activeCourtLawRefs: v.array(warlockCourtLawRefValidator),
+  titles: v.array(v.object({
+    titleId: v.string(),
+    occupantDenizenId: v.union(v.string(), v.null()),
+    currentClanId: v.union(v.string(), v.null()),
+    distracted: v.boolean(),
+  })),
+  clanDecks: v.array(v.object({
+    clanId: v.string(),
+    titleIds: v.array(v.string()),
+  })),
+  kingsAgenda: v.array(v.string()),
+  setAsideTitleIds: v.array(v.string()),
+  unclaimedTitleIds: v.array(v.string()),
+  questTitles: v.array(v.object({
+    titleId: v.string(),
+    currentDomainSeatId: v.string(),
+    visitedDomainSeatIds: v.array(v.string()),
+  })),
+  faustianAccompliceTitles: v.array(v.object({
+    titleId: v.string(),
+    communityId: v.string(),
+  })),
+  devilTakenTitleIds: v.array(v.string()),
+  king: v.union(
+    v.null(),
+    v.object({
+      occupant: v.union(warlockCharacterRefValidator, v.null()),
+      regnalName: v.union(v.string(), v.null()),
+      clanId: v.union(v.string(), v.null()),
+      sunSign: v.union(v.number(), v.null()),
+      moonSign: v.union(v.number(), v.null()),
+      risingSign: v.union(v.number(), v.null()),
+      healthCondition: v.union(v.literal("healthy"), v.literal("deathly_ill")),
+    }),
+  ),
+  courtCondition: v.union(v.literal("ordinary"), v.literal("civil_war"), v.null()),
+  ladies: v.array(v.object({
+    denizenId: v.string(),
+    clanId: v.string(),
+  })),
+  kingsFamilyLadyIds: v.array(v.string()),
+  kingsConfidantLadyIds: v.array(v.string()),
+  errantLadies: v.array(v.object({
+    denizenId: v.string(),
+    clanId: v.string(),
+    heraldry: warlockErrantHeraldryValidator,
+    personalityQuirk: v.string(),
+    currentDomainSeatId: v.string(),
+    claimedComponent: warlockErrantClaimValidator,
+    controlledLordTitleIds: v.array(v.string()),
+  })),
+  authority: v.array(v.object({
+    target: warlockAuthorityTargetValidator,
+    amount: v.number(),
+  })),
+  garrisons: v.array(v.object({
+    garrisonId: v.string(),
+    domainSeatId: v.string(),
+  })),
+  armies: v.array(v.object({
+    denizenId: v.string(),
+    currentDomainSeatId: v.string(),
+    favor: v.number(),
+    sponsor: warlockArmySponsorValidator,
+    alignedIdeologyId: v.union(v.string(), v.null()),
+    lifecycle: v.union(v.literal("active"), v.literal("dissolved"), v.literal("destroyed")),
+  })),
+  heroes: v.array(v.object({
+    denizenId: v.string(),
+    currentDomainSeatId: v.string(),
+    fame: v.union(v.literal("local"), v.literal("great"), v.literal("mythic")),
+    heroicTitles: v.array(v.object({
+      glyph: v.string(),
+      title: v.string(),
+    })),
+  })),
+  rebellions: v.array(v.object({
+    rebellionId: v.string(),
+    domainSeatId: v.string(),
+    lordTitleIds: v.array(v.string()),
+  })),
+  marketHeraldry: v.array(v.object({
+    isleId: v.string(),
+    clanCounts: v.array(warlockClanCountValidator),
+  })),
+  relocatedMarkets: v.array(v.object({
+    relocatedMarketId: v.string(),
+    originIsleId: v.union(v.string(), v.null()),
+    currentDomainSeatId: v.string(),
+    clanCounts: v.array(warlockClanCountValidator),
+  })),
+  partnerships: v.array(warlockPartnershipValidator),
 });
 
 const faustianStateValidator = v.object({
@@ -2022,6 +2182,7 @@ export const campaignStateV5Validator = v.object({
   necromancer: necromancerStateValidator,
   faustian: faustianStateValidator,
   sage: sageStateValidator,
+  warlock: warlockStateValidator,
 });
 
 export const wizardCharacterUpdatedEventV2Validator = v.object({

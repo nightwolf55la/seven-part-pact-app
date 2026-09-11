@@ -16,6 +16,7 @@ import {
   EMPTY_MARINER_STATE,
   EMPTY_NECROMANCER_STATE,
   EMPTY_SAGE_STATE,
+  EMPTY_WARLOCK_STATE,
   EMPTY_SHARED_WORLD_STATE,
   SEVEN_PART_PACT_DRAFT4_ID,
   SEVEN_PART_PACT_DRAFT4_VERSION,
@@ -310,6 +311,7 @@ describe("M5.2D D1B snapshot / undo / redo / checkpoint / backup / verifier", ()
       necromancer: { ...EMPTY_NECROMANCER_STATE },
     faustian: { ...EMPTY_FAUSTIAN_STATE },
     sage: { ...EMPTY_SAGE_STATE },
+    warlock: { ...EMPTY_WARLOCK_STATE },
     };
     expect(() => validateCampaignState(pre)).toThrow(DomainError);
     expect(() => validateCampaignStateV5Candidate(pre)).toThrow(DomainError);
