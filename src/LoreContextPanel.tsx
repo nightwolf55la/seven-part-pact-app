@@ -35,6 +35,8 @@ const btnClass =
 const ghostBtn =
   "text-xs rounded-lg px-2 py-1 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer disabled:opacity-40";
 
+const LORE_GENERIC_SAVE_FAILURE = "Could not save Lore. Your draft has been kept.";
+
 function contextKey(context: LorePresentationContext): string {
   return context.kind === "source"
     ? `source:${context.sourceCollectionId}`
@@ -112,12 +114,16 @@ export default function LoreContextPanel({
       window.setTimeout(() => setSavedNotice(false), 2000);
       return true;
     } catch (error: unknown) {
-      if (reviseEditor !== null && isStaleLoreCommandError(error)) {
-        const synced = syncReviseEditorWithPresentation(reviseEditor, subject);
-        setReviseEditor(markReviseEditorStaleFromServer(synced, synced.latestServerText));
+      if (isStaleLoreCommandError(error)) {
+        setReviseEditor((current) => {
+          if (current === null) {
+            return current;
+          }
+          return markReviseEditorStaleFromServer(current, null);
+        });
         setInlineError("Lore changed while you were editing. Review the latest text or use latest as base.");
       } else {
-        setInlineError(error instanceof Error ? error.message : "Could not save Lore.");
+        setInlineError(LORE_GENERIC_SAVE_FAILURE);
       }
       return false;
     } finally {
@@ -213,6 +219,11 @@ export default function LoreContextPanel({
               {context.attribution.work} · pp. {context.attribution.pages} · {context.attribution.anchor}
             </p>
           )}
+          {!context.write.writable && (
+            <p className="text-xs text-slate-500 mt-1" role="note">
+              {context.write.reason}
+            </p>
+          )}
           {context.entries.length === 0 && (
             <p className="text-sm text-slate-500 italic">No Lore entries yet in this context.</p>
           )}
@@ -280,6 +291,20 @@ export default function LoreContextPanel({
             <button
               type="button"
               className={btnClass}
+              disabled={pending}
+              onClick={() => {
+                setAddContextKey(contextKey(context));
+                setAddDraft("");
+                setInlineError(null);
+              }}
+            >
+              Add Lore
+            </button>
+          )}
+          {context.write.writable && !context.ordinaryAddPath && addContextKey !== contextKey(context) && (
+            <button
+              type="button"
+              className={ghostBtn}
               disabled={pending}
               onClick={() => {
                 setAddContextKey(contextKey(context));
@@ -393,8 +418,8 @@ export default function LoreContextPanel({
             Additional campaign Lore
           </button>
           {showAdvancedParallel && (
-            <p className="text-xs text-slate-500 mt-2">
-              Use this only when you need a separate Campaign Lore collection alongside existing source contexts.
+            <p className="text-xs text-slate-500 mt-2" data-testid="lore-advanced-parallel-help">
+              Use this when you want a separate Campaign Lore section alongside the Lore already shown here.
             </p>
           )}
           {showAdvancedParallel && addContextKey !== "advanced" && (

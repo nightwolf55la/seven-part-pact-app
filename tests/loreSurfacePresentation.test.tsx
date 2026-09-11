@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createElement, useState } from "react";
+import { act, createElement, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import type { CampaignStateV5, IsleId, LoreCollectionId, LoreEntryId, PlaceId, PlayerId, WizardId } from "../shared/domain";
 import {
   BLANK_WIZARD_CHARACTER_V5,
+  LORE_CONTEXT_LABEL_CAMPAIGN,
   LORE_PROVENANCE_ADDED_IN_PLAY,
   LORE_PROVENANCE_CHANGED_IN_PLAY,
+  LORE_WRITE_UNAVAILABLE_NOT_READY,
   applyReviseLoreEntry,
   buildInitializedDefaultNecromancerState,
   readLoreCompendiumReference,
@@ -200,6 +202,250 @@ describe("LoreSurface presentation", () => {
     expect(reviseCall).toHaveBeenCalled();
     const revisePayload = reviseCall.mock.calls[0]?.[0];
     expect(revisePayload.text).toBe("  Table revision with spaces  ");
+
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("existing parallel Campaign Lore add", () => {
+  it("allows Add on the existing Campaign Lore context without a new collection target", () => {
+    const presentation = presentationFrom(boundState({
+      lore: {
+        sourceCollections: [{
+          sourceCollectionId: "necromancer.home.graven_isle",
+          boundSubject: GRAVEN_SUBJECT,
+          overrides: [],
+          additions: [],
+        }],
+        campaignCollections: [{
+          collectionId: LCOL_1,
+          subject: GRAVEN_SUBJECT,
+          entries: [{ loreEntryId: LORE_1, text: "A local rumor." }],
+        }],
+      },
+    }));
+    const graven = presentation.subjects.find((subject) =>
+      subject.contexts.some((context) => context.kind === "source" && context.sourceCollectionId === "necromancer.home.graven_isle"),
+    )!;
+    const campaignContext = graven.contexts.find((context) => context.kind === "campaign");
+    expect(campaignContext?.ordinaryAddPath).toBe(false);
+    expect(campaignContext?.write.writable).toBe(true);
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    flushSync(() => {
+      root.render(createElement(LoreContextPanel, { subject: graven, campaignId: CAMPAIGN_ID }));
+    });
+
+    const addButtons = Array.from(container.querySelectorAll("button")).filter((el) => el.textContent?.trim() === "Add Lore");
+    expect(addButtons.length).toBeGreaterThanOrEqual(2);
+
+    flushSync(() => {
+      button(container, LORE_CONTEXT_LABEL_CAMPAIGN).click();
+    });
+    const campaignAdd = Array.from(container.querySelectorAll("button")).filter((el) => el.textContent?.trim() === "Add Lore").pop()!;
+    flushSync(() => {
+      campaignAdd.click();
+    });
+    setInputValue(container.querySelector(`textarea[aria-label="Add Lore text"]`) as HTMLTextAreaElement, "Another table note.");
+    flushSync(() => {
+      button(container, "Save").click();
+    });
+
+    const addCall = mockMutations["m3Commands.addLoreEntry"];
+    expect(addCall).toHaveBeenCalled();
+    const payload = addCall.mock.calls[0]?.[0];
+    expect(payload.target).toEqual({ kind: "campaign", collectionId: LCOL_1, subject: GRAVEN_SUBJECT });
+    expect(payload.text).toBe("Another table note.");
+    expect(payload.target.collectionId).toBe(LCOL_1);
+
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("not-ready source context explanation", () => {
+  it("shows the presentation write reason without offering Add or Revise", () => {
+    const presentation = presentationFrom(makeTestCampaignStateV5());
+    const graven = presentation.subjects.find((subject) =>
+      subject.contexts.some((context) => context.kind === "source" && context.sourceCollectionId === "necromancer.home.graven_isle"),
+    )!;
+    const source = graven.contexts.find((context) => context.kind === "source")!;
+    expect(source.write.writable).toBe(false);
+    if (source.write.writable) throw new Error("expected not-ready");
+    expect(source.write.reason).toBe(LORE_WRITE_UNAVAILABLE_NOT_READY);
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    flushSync(() => {
+      root.render(createElement(LoreContextPanel, { subject: graven, campaignId: CAMPAIGN_ID }));
+    });
+
+    expect(container.textContent).toContain(GRAVEN_E01);
+    expect(container.textContent).toContain(LORE_WRITE_UNAVAILABLE_NOT_READY);
+    expect(container.textContent).not.toMatch(/necromancer\.home\./);
+    expect(Array.from(container.querySelectorAll("button")).some((el) => el.textContent?.trim() === "Add Lore")).toBe(false);
+    expect(Array.from(container.querySelectorAll("button")).some((el) => el.textContent?.trim() === "Revise")).toBe(false);
+
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("human-facing advanced copy", () => {
+  it("does not expose storage vocabulary in visible advanced Campaign Lore copy", () => {
+    const presentation = presentationFrom(boundState({
+      lore: {
+        sourceCollections: [{
+          sourceCollectionId: "necromancer.home.graven_isle",
+          boundSubject: GRAVEN_SUBJECT,
+          overrides: [],
+          additions: [],
+        }],
+        campaignCollections: [],
+      },
+    }));
+    const graven = presentation.subjects.find((subject) =>
+      subject.contexts.some((context) => context.kind === "source" && context.sourceCollectionId === "necromancer.home.graven_isle"),
+    )!;
+    expect(graven.advancedParallelCampaignLore?.existing).toBe(false);
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    flushSync(() => {
+      root.render(createElement(LoreContextPanel, { subject: graven, campaignId: CAMPAIGN_ID }));
+    });
+    flushSync(() => {
+      button(container, "Additional campaign Lore").click();
+    });
+    const help = container.querySelector("[data-testid='lore-advanced-parallel-help']");
+    expect(help).not.toBeNull();
+    const visible = help!.textContent ?? "";
+    expect(visible.toLowerCase()).not.toContain("collection");
+    expect(visible.toLowerCase()).not.toContain("source context");
+    expect(visible).toMatch(/separate Campaign Lore/i);
+
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("mutation failure presentation", () => {
+  it("maps server stale rejection into the conflict UX and preserves the draft", async () => {
+    const base = boundState({
+      lore: {
+        sourceCollections: [{
+          sourceCollectionId: "necromancer.home.graven_isle",
+          boundSubject: GRAVEN_SUBJECT,
+          overrides: [],
+          additions: [],
+        }],
+        campaignCollections: [],
+      },
+    });
+    const presentationBefore = presentationFrom(base);
+    const gravenBefore = presentationBefore.subjects.find((subject) =>
+      subject.contexts.some((context) => context.kind === "source" && context.sourceCollectionId === "necromancer.home.graven_isle"),
+    )!;
+    const revised = applyReviseLoreEntry(base, {
+      target: {
+        kind: "source_entry",
+        sourceCollectionId: "necromancer.home.graven_isle",
+        sourceEntryId: "e01",
+        expectedSubject: GRAVEN_SUBJECT,
+      },
+      expectedText: GRAVEN_E01,
+      text: "Server moved on.",
+    }).nextState;
+    const gravenAfter = presentationFrom(revised).subjects.find((subject) =>
+      subject.contexts.some((context) => context.kind === "source" && context.sourceCollectionId === "necromancer.home.graven_isle"),
+    )!;
+
+    mockMutations["m3Commands.reviseLoreEntry"] = vi.fn(async () => {
+      throw new Error("STALE_COMMAND_PRECONDITION Lore text: expected current text does not match");
+    });
+
+    function StaleRejectHarness() {
+      const [subject, setSubject] = useState(gravenBefore);
+      return createElement("div", null,
+        createElement("button", { type: "button", onClick: () => setSubject(gravenAfter) }, "Apply server change"),
+        createElement(LoreContextPanel, { subject, campaignId: CAMPAIGN_ID }),
+      );
+    }
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    flushSync(() => {
+      root.render(createElement(StaleRejectHarness));
+    });
+    flushSync(() => {
+      button(container, "Revise").click();
+    });
+    setInputValue(container.querySelector(`textarea[aria-label="Revise Lore text"]`) as HTMLTextAreaElement, "Draft after stale reject.");
+    await act(async () => {
+      button(container, "Save").click();
+      await Promise.resolve();
+    });
+    expect((container.querySelector(`textarea[aria-label="Revise Lore text"]`) as HTMLTextAreaElement).value).toBe("Draft after stale reject.");
+    expect(button(container, "Save").disabled).toBe(true);
+    expect(container.textContent).toContain("Your draft is preserved");
+
+    flushSync(() => {
+      button(container, "Apply server change").click();
+    });
+    expect(container.textContent).toContain("Server moved on.");
+    flushSync(() => {
+      button(container, "Use latest as base").click();
+    });
+    expect((container.querySelector(`textarea[aria-label="Revise Lore text"]`) as HTMLTextAreaElement).value).toBe("Draft after stale reject.");
+    expect(button(container, "Save").disabled).toBe(false);
+
+    root.unmount();
+    container.remove();
+  });
+
+  it("shows a human generic error for ordinary mutation failures", async () => {
+    mockMutations["m3Commands.reviseLoreEntry"] = vi.fn(async () => {
+      throw new Error("ConvexError: [Request ID: abc] internal mutation transport failure");
+    });
+    const presentation = presentationFrom(boundState({
+      lore: {
+        sourceCollections: [{
+          sourceCollectionId: "necromancer.home.graven_isle",
+          boundSubject: GRAVEN_SUBJECT,
+          overrides: [],
+          additions: [],
+        }],
+        campaignCollections: [],
+      },
+    }));
+    const graven = presentation.subjects.find((subject) =>
+      subject.contexts.some((context) => context.kind === "source" && context.sourceCollectionId === "necromancer.home.graven_isle"),
+    )!;
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    flushSync(() => {
+      root.render(createElement(LoreContextPanel, { subject: graven, campaignId: CAMPAIGN_ID }));
+    });
+    flushSync(() => {
+      button(container, "Revise").click();
+    });
+    setInputValue(container.querySelector(`textarea[aria-label="Revise Lore text"]`) as HTMLTextAreaElement, "Draft kept on failure.");
+    await act(async () => {
+      button(container, "Save").click();
+      await Promise.resolve();
+    });
+    expect(container.textContent).toContain("Could not save Lore");
+    expect(container.textContent).toContain("draft");
+    expect(container.textContent).not.toContain("ConvexError");
+    expect(container.textContent).not.toContain("Request ID");
+    expect((container.querySelector(`textarea[aria-label="Revise Lore text"]`) as HTMLTextAreaElement).value).toBe("Draft kept on failure.");
 
     root.unmount();
     container.remove();

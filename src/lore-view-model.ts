@@ -280,6 +280,12 @@ export function syncReviseEditorWithPresentation(
       latestServerText: latest,
     };
   }
+  if (editor.conflicted) {
+    return {
+      ...editor,
+      reviseTarget: found.entry.revise?.target ?? editor.reviseTarget,
+    };
+  }
   return {
     ...editor,
     reviseTarget: found.entry.revise?.target ?? editor.reviseTarget,

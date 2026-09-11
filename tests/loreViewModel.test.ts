@@ -276,6 +276,18 @@ describe("revise editor sync", () => {
     expect(rebased.draftText).toBe("My draft stays.");
     expect(rebased.conflicted).toBe(false);
   });
+
+  it("keeps an existing server-stale conflict until presentation text diverges from expectedText", () => {
+    const presentation = requireOk(boundState());
+    const graven = presentation.subjects.find((subject) =>
+      subject.contexts.some((context) => context.kind === "source" && context.sourceCollectionId === "necromancer.home.graven_isle"),
+    )!;
+    const context = graven.contexts.find((context) => context.kind === "source")!;
+    const editor = initReviseEditor(context.entries[0]!, context)!;
+    const serverStale = { ...editor, conflicted: true, latestServerText: null };
+    const resynced = syncReviseEditorWithPresentation(serverStale, graven);
+    expect(resynced.conflicted).toBe(true);
+  });
 });
 
 describe("loreCompendiumUiStateFromQuery", () => {
