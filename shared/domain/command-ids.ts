@@ -379,6 +379,10 @@ export function setSelectedFlameLawsFingerprint(
   })}`;
 }
 
+export function createHierophantSupplicantFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `create_hierophant_supplicant:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
 export function addSupplicantFingerprint(expectedCampaignId: string, supplicant: unknown): string {
   return `add_supplicant:v1:${canonicalJsonStringify({ expectedCampaignId, supplicant })}`;
 }

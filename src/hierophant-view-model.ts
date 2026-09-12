@@ -24,7 +24,10 @@ import {
   type HierophantState,
   type HierophantSupplicant,
   type HierophantTemple,
+  type HierophantTempleArea,
+  type HierophantTempleStatus,
   type PowerfulDenizenProfile,
+  type SorcererExternalPresence,
 } from "../shared/domain";
 
 export interface NamedDenizen {
@@ -47,6 +50,10 @@ export function isHierophantInitialized(hierophant: Pick<HierophantState, "templ
 
 export function newCommandId(uuid: string = crypto.randomUUID()): string {
   return `cmd_${uuid}`;
+}
+
+export function newDenizenId(uuid: string = crypto.randomUUID()): string {
+  return `den_${uuid}`;
 }
 
 export function newPlaceId(uuid: string = crypto.randomUUID()): string {
@@ -409,3 +416,146 @@ export function buildEstablishCultPayload(args: {
     conviction: args.conviction,
   };
 }
+
+export type HierophantSupportDisplay =
+  | "supported"
+  | "unsupported"
+  | "not_determined"
+  | "not_applicable";
+
+export type HierophantBenefactionReference =
+  | { readonly kind: "abundance"; readonly amount: number }
+  | { readonly kind: "conviction"; readonly amount: number }
+  | { readonly kind: "not_determined" };
+
+const BASE_CLASS_BENEFACTION: Record<string, Exclude<HierophantBenefactionReference, { kind: "not_determined" }>> = {
+  gentry: { kind: "abundance", amount: 4 },
+  merchant: { kind: "abundance", amount: 2 },
+  artisan: { kind: "abundance", amount: 1 },
+  peasant: { kind: "conviction", amount: 1 },
+  pariah: { kind: "conviction", amount: 2 },
+};
+
+function supportedClassIdsForDoctrine(
+  doctrineId: string,
+  campaignDoctrines: readonly HierophantCampaignDoctrine[],
+): readonly string[] | null {
+  if (isValidHierophantBuiltinDoctrineId(doctrineId)) {
+    return hierophantBuiltinDoctrineDefinition(doctrineId).supportedClassIds;
+  }
+  const campaign = campaignDoctrines.find((entry) => entry.doctrineId === doctrineId);
+  return campaign === undefined ? null : campaign.supportedClassIds;
+}
+
+export function deriveSupplicantSupport(
+  temple: HierophantTemple,
+  classId: string,
+  campaignDoctrines: readonly HierophantCampaignDoctrine[],
+): HierophantSupportDisplay {
+  if (temple.kind === "hestar") return "supported";
+  if (temple.status === "collapsed") return "not_applicable";
+  if (temple.doctrine.kind === "unset") return "not_determined";
+  if (temple.doctrine.kind === "blasphemy") return "not_applicable";
+  const supported = supportedClassIdsForDoctrine(temple.doctrine.doctrineId, campaignDoctrines);
+  if (supported === null) return "not_determined";
+  if (supported.includes(classId)) return "supported";
+  if (isValidHierophantBuiltinClassId(classId)) return "unsupported";
+  return "not_determined";
+}
+
+export function supportDisplayLabel(support: HierophantSupportDisplay): string {
+  switch (support) {
+    case "supported":
+      return "Supported";
+    case "unsupported":
+      return "Unsupported";
+    case "not_determined":
+      return "Support not determined";
+    case "not_applicable":
+      return "Support not applicable";
+  }
+}
+
+export function baseBenefactionReference(classId: string): HierophantBenefactionReference {
+  return BASE_CLASS_BENEFACTION[classId] ?? { kind: "not_determined" };
+}
+
+export function benefactionReferenceLabel(reference: HierophantBenefactionReference): string {
+  if (reference.kind === "not_determined") {
+    return "Benefaction reference not determined for this Class";
+  }
+  const resource = reference.kind === "abundance" ? "Abundance" : "Conviction";
+  return `Benefaction reference: +${reference.amount} ${resource}`;
+}
+
+export function templeResearchers(
+  presence: readonly SorcererExternalPresence[],
+  templeId: string,
+): Extract<SorcererExternalPresence, { kind: "researcher" }>[] {
+  return presence.filter(
+    (entry): entry is Extract<SorcererExternalPresence, { kind: "researcher" }> =>
+      entry.kind === "researcher"
+      && entry.target.kind === "hierophant_temple"
+      && entry.target.templeId === templeId,
+  );
+}
+
+export function hierophantDomainDisruptiveArcanists(
+  presence: readonly SorcererExternalPresence[],
+): Extract<SorcererExternalPresence, { kind: "disruptive_arcanist" }>[] {
+  return presence.filter(
+    (entry): entry is Extract<SorcererExternalPresence, { kind: "disruptive_arcanist" }> =>
+      entry.kind === "disruptive_arcanist" && entry.seatId === "hierophant",
+  );
+}
+
+export function researcherOperationalLabel(operationalThisMonth: boolean): string {
+  return operationalThisMonth ? "Working this month" : "Unavailable this month";
+}
+
+export function startingOrdinaryTempleIds(): readonly Exclude<HierophantStartingTempleId, "hestar">[] {
+  return HIEROPHANT_STARTING_TEMPLE_IDS.filter((id): id is Exclude<HierophantStartingTempleId, "hestar"> => id !== "hestar");
+}
+
+export function supplementaryTemples(temples: readonly HierophantTemple[]): HierophantTemple[] {
+  return temples.filter((temple) => !isValidHierophantStartingTempleId(temple.templeId));
+}
+
+export function buildCreateHierophantSupplicantPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly denizenId: string;
+  readonly name: string;
+  readonly classId: string;
+  readonly woe: number;
+  readonly templeId: string;
+  readonly area: HierophantTempleArea | null;
+  readonly expectedTempleStatus: HierophantTempleStatus;
+}) {
+  return {
+    commandId: args.commandId,
+    expectedCampaignId: args.expectedCampaignId,
+    denizenId: args.denizenId,
+    name: args.name,
+    classId: args.classId,
+    woe: args.woe,
+    templeId: args.templeId,
+    area: args.area,
+    expectedTempleStatus: args.expectedTempleStatus,
+  };
+}
+
+export const TIME_RECORDING_BOUNDARY =
+  "Resolve or record Time in the shared workflow; this control records the Domain result.";
+
+export const SERMON_DEFER_GUIDANCE =
+  "Sermon is not automated. Insufficient Abundance causes Collapse; insufficient Conviction makes Doctrine Blasphemous, and a Prophet at the Temple may leave, become Disruptive, and found a Cult. Record the table's resolved Doctrine, status, people, and resources with the correction tools.";
+
+export const STEER_DEFER_GUIDANCE =
+  "Steer is not automated. Source Steer moves a Supplicant, removes one Woe, and on last Woe the Supplicant departs with a class Benefaction. Record those exact results separately; do not treat host/Woe correction as Steer.";
+
+export const HOLIDAY_DEFER_GUIDANCE =
+  "Holiday celebration is not automated. The marker records that a Holiday is marked. Granting Benefactions, including Reliable Prophet production modifiers, remains a table-resolved recording.";
+
+export const HESTAR_PROVIDE_DEFER_GUIDANCE =
+  "Hestar conversion/provision is unresolved in source (same amount vs half as much) and is not automated.";

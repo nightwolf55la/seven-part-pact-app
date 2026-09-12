@@ -183,6 +183,8 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Changed Temple Holiday marker";
     case "flame_laws_changed":
       return "Changed selected Laws of the Flame";
+    case "hierophant_supplicant_created":
+      return `Received Supplicant "${event.data.denizenName}"`;
     case "supplicant_added":
       return "Added Supplicant";
     case "supplicant_updated":
@@ -505,6 +507,7 @@ export function mapEventToActivityEntry(
     case "temple_updated":
     case "temple_holiday_changed":
     case "flame_laws_changed":
+    case "hierophant_supplicant_created":
     case "supplicant_added":
     case "supplicant_updated":
     case "supplicant_removed":

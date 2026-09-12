@@ -171,6 +171,7 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   set_temple_holiday: { required: ["temple_holiday_changed"] },
   set_selected_flame_laws: { required: ["flame_laws_changed"] },
   add_supplicant: { required: ["supplicant_added"] },
+  create_hierophant_supplicant: { required: ["hierophant_supplicant_created"] },
   update_supplicant: { required: ["supplicant_updated"] },
   remove_supplicant: { required: ["supplicant_removed"] },
   add_prophet: { required: ["prophet_added"] },

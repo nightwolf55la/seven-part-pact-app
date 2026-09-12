@@ -134,6 +134,8 @@ export type {
   HierophantInitializedEventV1,
   TempleResourcesAdjustedDataV1,
   TempleResourcesAdjustedEventV1,
+  HierophantSupplicantCreatedDataV1,
+  HierophantSupplicantCreatedEventV1,
   HierophantEvent,
   MarinerEvent,
   MarinerInitializedDataV1,
@@ -398,6 +400,7 @@ export {
   setTempleHolidayFingerprint,
   setSelectedFlameLawsFingerprint,
   addSupplicantFingerprint,
+  createHierophantSupplicantFingerprint,
   updateSupplicantFingerprint,
   removeSupplicantFingerprint,
   addProphetFingerprint,
@@ -1796,6 +1799,15 @@ export {
   applyCreateCampaignDoctrine,
   applyUpdateCampaignDoctrine,
 } from "./hierophant-transitions";
+
+export type {
+  CreateHierophantSupplicantInput,
+  HierophantOperabilityTransitionResult,
+} from "./hierophant-operability-transitions";
+export {
+  canonicalizeCreateHierophantSupplicantInput,
+  applyCreateHierophantSupplicant,
+} from "./hierophant-operability-transitions";
 
 // --- V5 Integration Transitions (candidate, not active) ---
 

@@ -2019,6 +2019,20 @@ const supplicantAddedEventV1Validator = v.object({
   data: v.object({ supplicant: hierophantSupplicantValidator }),
 });
 
+const hierophantSupplicantCreatedEventV1Validator = v.object({
+  type: v.literal("hierophant_supplicant_created"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    denizenName: v.string(),
+    classId: v.string(),
+    woe: v.number(),
+    templeId: v.string(),
+    area: v.union(v.literal("courtyard"), v.literal("agiary"), v.null()),
+    expectedTempleStatus: v.union(v.literal("active"), v.literal("collapsed")),
+  }),
+});
+
 const supplicantUpdatedEventV1Validator = v.object({
   type: v.literal("supplicant_updated"),
   version: v.literal(1),
@@ -2972,6 +2986,7 @@ export const campaignEventValidator = v.union(
   templeUpdatedEventV1Validator,
   templeHolidayChangedEventV1Validator,
   flameLawsChangedEventV1Validator,
+  hierophantSupplicantCreatedEventV1Validator,
   supplicantAddedEventV1Validator,
   supplicantUpdatedEventV1Validator,
   supplicantRemovedEventV1Validator,

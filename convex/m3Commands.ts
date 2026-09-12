@@ -89,6 +89,7 @@ import {
   setTempleHolidayFingerprint,
   setSelectedFlameLawsFingerprint,
   addSupplicantFingerprint,
+  createHierophantSupplicantFingerprint,
   updateSupplicantFingerprint,
   removeSupplicantFingerprint,
   addProphetFingerprint,
@@ -131,6 +132,8 @@ import {
   applySetTempleHoliday,
   applySetSelectedFlameLaws,
   applyAddSupplicant,
+  applyCreateHierophantSupplicant,
+  canonicalizeCreateHierophantSupplicantInput,
   applyUpdateSupplicant,
   applyRemoveSupplicant,
   applyAddProphet,
@@ -370,6 +373,7 @@ import type {
   WarlockIdeologyId,
   AddLoreEntryInput,
   ReviseLoreEntryInput,
+  CreateHierophantSupplicantInput,
 } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
 import type { WizardInitIds } from "../shared/domain/begin-play";
@@ -2066,6 +2070,42 @@ export const addSupplicant = mutation({
           commandType: "add_supplicant",
           commandFingerprint: addSupplicantFingerprint(args.expectedCampaignId, supplicant),
           apply: (state) => applyAddSupplicant(state, supplicant),
+        };
+      },
+    );
+  },
+});
+
+export const createHierophantSupplicant = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    name: v.string(),
+    classId: v.string(),
+    woe: v.number(),
+    templeId: v.string(),
+    area: v.union(v.literal("courtyard"), v.literal("agiary"), v.null()),
+    expectedTempleStatus: v.union(v.literal("active"), v.literal("collapsed")),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeCreateHierophantSupplicantInput({
+          denizenId: args.denizenId,
+          name: args.name,
+          classId: args.classId,
+          woe: args.woe,
+          templeId: args.templeId,
+          area: args.area,
+          expectedTempleStatus: args.expectedTempleStatus,
+        } as unknown as CreateHierophantSupplicantInput);
+        return {
+          commandType: "create_hierophant_supplicant",
+          commandFingerprint: createHierophantSupplicantFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyCreateHierophantSupplicant(state, input),
         };
       },
     );

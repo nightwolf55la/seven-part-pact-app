@@ -42,12 +42,15 @@ import type { HierophantFlameLawId, HierophantTempleId } from "./hierophant-cata
 import type {
   HierophantCampaignClass,
   HierophantCampaignDoctrine,
+  HierophantClassId,
   HierophantCult,
   HierophantCultDogma,
   HierophantDogmaEntryId,
   HierophantProphet,
   HierophantSupplicant,
   HierophantTemple,
+  HierophantTempleArea,
+  HierophantTempleStatus,
 } from "./hierophant-state";
 import type {
   MarinerArrangementId,
@@ -759,6 +762,21 @@ export interface FlameLawsChangedEventV1 {
   readonly data: FlameLawsChangedDataV1;
 }
 
+export interface HierophantSupplicantCreatedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly denizenName: string;
+  readonly classId: HierophantClassId;
+  readonly woe: number;
+  readonly templeId: HierophantTempleId;
+  readonly area: HierophantTempleArea | null;
+  readonly expectedTempleStatus: HierophantTempleStatus;
+}
+export interface HierophantSupplicantCreatedEventV1 {
+  readonly type: "hierophant_supplicant_created";
+  readonly version: 1;
+  readonly data: HierophantSupplicantCreatedDataV1;
+}
+
 export interface SupplicantAddedDataV1 {
   readonly supplicant: HierophantSupplicant;
 }
@@ -1162,6 +1180,7 @@ export type HierophantEvent =
   | TempleUpdatedEventV1
   | TempleHolidayChangedEventV1
   | FlameLawsChangedEventV1
+  | HierophantSupplicantCreatedEventV1
   | SupplicantAddedEventV1
   | SupplicantUpdatedEventV1
   | SupplicantRemovedEventV1

@@ -1,0 +1,98 @@
+# M5.4A-HN — Temples & Gates Operability
+
+**Status:** implementation in progress — not Workstream complete; not M5.4 complete.
+**Schema:** CampaignState V5 remains PRE-ACTIVATION. No CampaignState fields, no V6, no migration.
+**Branch:** `m5-4a/temples-gates-operability`
+**BASE_SHA:** `c4e8b9ae78537161878e4e3b16f2261c97dffc2b` (`origin/main`, matches inspected expectation)
+
+## Approved scope
+
+Required: Temple-board-first Hierophant surface; improved Necromancer Gates board; atomic Create Supplicant; atomic Transform Soul into Ally; exact read-only Sorcerer Researcher presentation; reused LoreContextPanel; accessibility; focused tests; separate H/N commits.
+
+Conditional: Sermon, Steer, Holiday, Rebuff only if completeness gates pass.
+
+Explicitly deferred regardless of spare time: Hestar Provide; automatic five-Souls-to-Foe; compound Create Ghoul-Caller / broad Prophet/Cult creation; atomic Clear Hostility + Lore; full monthly movement/Visions automation.
+
+## Body checklist
+
+| Body | Status |
+|---|---|
+| A Shared extraction | SKIPPED — Lore panel and Sorcerer projection already exist; no identical helper proven yet |
+| B Hierophant | candidate committed — Temple board + atomic Receive Supplicant; Sermon/Steer/Holiday/Hestar deferred |
+| C Necromancer | pending |
+| D Diff review + `npm run check` | pending |
+| E Optional Mariner prep | pending |
+
+## Source distinctions (conditional actions)
+
+Inspected: existing H/N types, transitions, validation, and tests. No local H/N Codex/Materials PDFs/PPTX were required for the required board work. No `docs/` files named for Hierophant/Necromancer structural milestones.
+
+### Sermon — DEFER
+
+**SOURCE:** Sermon replaces Doctrine and costs one Abundance OR one Conviction per Supplicant. Insufficient Abundance causes Collapse; insufficient Conviction makes Doctrine Blasphemous. Collapse can entail Doctrine/Cult/Supplicant/Complication consequences. A Doctrine change at a Prophet's Temple can make that Prophet leave, become Disruptive, and create a Cult with the former Doctrine made Blasphemous. Blasphemous Temples cannot have Time spent there to change Doctrine or celebrate Holidays.
+
+**INFERENCE:** Existing `updateTemple` / resource correction can record exact Doctrine/status/resources after the table resolves those outcomes, but they do not encode Sermon costs or insufficiency routes.
+
+**APPLICATION DESIGN:** Completeness gate fails. No Collapse/Blasphemy/Prophet-leave/Cult-creation compound operation exists, and expanding a Cult/Collapse subsystem is not authorized. UI: source guidance plus exact Doctrine/resources correction tools. No "Give Sermon" button.
+
+### Steer — DEFER
+
+**SOURCE:** Steer moves one Supplicant to any Temple, including Hestar, then removes one Woe. Removing the last Woe makes the Supplicant depart and grants a class-based Benefaction (Gentry +4 Abundance; Merchant +2 Abundance; Artisan +1 Abundance; Peasant +1 Conviction; Pariah +2 Conviction). A Reliable Prophet modifies Abundance/Conviction production by an extra +1; stacking/batching is unsettled.
+
+**INFERENCE:** `updateSupplicant` can change host/Woe independently; it is not Steer.
+
+**APPLICATION DESIGN:** Completeness gate fails. No atomic movement + Woe reduction + last-Woe departure (role removal, not person deletion) + correct Benefaction/Prophet production. Custom-Class Benefactions and Prophet stacking remain unsettled. Do not relabel `updateSupplicant` as Steer.
+
+### Holiday — DEFER
+
+**SOURCE:** Holiday celebration grants the Temple each Supplicant's Benefaction and must honor settled production modifiers. It is not the ordinary departure rule.
+
+**INFERENCE:** `setTempleHoliday` only records a holiday marker.
+
+**APPLICATION DESIGN:** Completeness gate fails. Bare class summation ignoring Prophets is not acceptable; custom-Class Benefaction is unsettled. Keep Holiday markers prominent with base Benefaction *reference* values and a production-modifier reminder; retain resource recording labeled as recording/correction.
+
+### Rebuff — DEFER
+
+**SOURCE:** Rebuff moves all Foes, Allies and Souls present further into Death toward the next furthest Gate/appropriate terminal exit. Branch preferences differ by piece kind, Hostile Gates, Allies, and the Left-Hand Rule. Exits such as Final Death and the Void remove entering pieces. Valid persisted state may contain altered topology.
+
+**INFERENCE:** Directed-step and occupiable-space helpers exist; they do not determine piece-kind branch choice, Left-Hand tie breaking, or terminal removal for arbitrary valid maps.
+
+**APPLICATION DESIGN:** Completeness gate fails. No Left-Hand/Rebuff helper exists in repository types/tests. Do not invent a topology engine or a default-map-only button. Retain exact corrections.
+
+### Hestar conversion — DEFER
+
+**SOURCE conflict:** detailed text says the same amount; summary says half as much. No semantic Hestar provision operation. No selected ratio.
+
+## Implemented command names
+
+Recorded as implemented (Hierophant):
+
+- `create_hierophant_supplicant` / `createHierophantSupplicant` / event `hierophant_supplicant_created`
+
+Recorded as intended (Necromancer, Body C):
+
+- `transform_necromancer_soul_into_ally` / `transformNecromancerSoulIntoAlly` / event `necromancer_soul_transformed_into_ally`
+
+## Time-recording boundary
+
+APPLICATION DESIGN: these Domain operations record Domain results. Time is resolved in the shared Time workflow. UI copy must not imply Time was spent.
+
+## Verification
+
+### Body B (Hierophant)
+
+Focused tests: 3 files / 29 tests — `npx vitest run tests/hierophantOperability.test.ts tests/hierophantViewModel.test.ts tests/hierophantSurfacePresentation.test.tsx --watch=false`
+
+- Atomic `create_hierophant_supplicant` creates Denizen + Supplicant and emits one compound event.
+- Rejects Hestar area, collapsed destination, unknown class/temple, invalid name/woe, duplicate ID, stale `expectedTempleStatus`.
+- Ordinary-command harness: commit, replay, `COMMAND_ID_REUSED` on payload mismatch.
+- Presentation: board-first default, no “Give Sermon” button, Advanced/Correct Board reachable, one mutation not `addSupplicant` chain, exact Krolis Researcher, other-Domain markers ignored.
+
+H SHA recorded after the Hierophant commit.
+
+## Remaining morning checks
+
+- Workstream review of real H then N diffs
+- Browser visual inspection
+- Fresh disposable Convex proof of compound writes, derived presence, Lore, refresh/realtime
+- Do not mark M5.4 complete
