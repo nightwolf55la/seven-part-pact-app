@@ -4,7 +4,7 @@
 
 This roadmap supersedes the earlier provisional M3+ outline.
 
-The project has completed its persistence/core-play foundations and all seven Wizard Domain structural foundations. The next phase moves from representability toward shared Lore, practical Domain operability, realistic full-Pact use, complex magic, usability, and production readiness.
+The project has completed its persistence/core-play foundations, all seven Wizard Domain structural foundations, and the shared M5.3 Lore/Compendium foundation. M5.4 active-table Domain operability is now in progress, with Lore/Compendium UX and Sorcerer operability complete.
 
 The roadmap describes dependency order and milestone intent. Exact Workstream boundaries remain subject to Master/human approval as source and repository evidence develops.
 
@@ -130,64 +130,118 @@ Established the final Wizard Domain structural foundation, including Sorcerer To
 
 **STATUS: COMPLETE**
 
-Shared Lore structural foundation and canonical `add_lore_entry` / `revise_lore_entry` are implemented. Real disposable Convex integration closure succeeded. Representative nonempty Lore was proven through canonical persistence. Undo/Redo and portable backup/import preserved Lore through their existing whole-state semantics.
+PR #22 merged.
 
-CampaignState V5 remains **PRE-ACTIVATION**. No migration occurred. Do not mark V5 activated.
+### Delivered
 
-See `docs/m5-3-knowledge-compendium.md`.
+Established the shared persisted Lore/Compendium foundation used by Domain boards and later magic/research consumers:
 
-### Objective
+- fixed ruleset-bound source Lore catalogs;
+- sparse source overrides plus ordered campaign additions;
+- stable Lore collection and entry identity;
+- typed Lore subjects grounded in Seven-Part Pact entities/contexts;
+- canonical add/revise commands with stale-current-text protection;
+- campaign-created Lore collections;
+- derived Mariner owner/delegated context selection;
+- complete validation, fingerprinting, snapshots, audit, and idempotency through the existing persistence model.
 
-Establish a shared durable model for mutable Lore/Compendium knowledge that is used across actual Seven-Part-Pact systems rather than hidden in Domain-local notes.
+### Boundaries retained
 
-### Approved contract
-
-- Campaign `ruleset.id/version` is the sole persisted source-Lore baseline identity.
-- No staged source-entry activation.
-- Source collections and campaign-created collections remain distinct.
-- Stable first-use binding uses existing canonical IDs, never display labels.
-- Mariner Present/Silent/Absent/null context selection is derived APPLICATION DESIGN.
-
-### Boundaries
-
-Do not make M5.3:
-
-- a generic wiki;
-- a generic knowledge graph;
-- a generic notes platform;
-- full Sorcerer Research automation;
-- spellcasting;
-- broad UI.
-
-M5.3 should first close the shared state/semantic contract. Minimum editing UI may be included only when explicitly chartered.
+M5.3 did not become a generic wiki, knowledge graph, notes system, truth graph, ACL framework, full Research engine, or spellcasting system.
 
 ---
 
 ## M5.4 — Minimum Domain Operability & Board Views
 
-**STATUS: PLANNED**
-
-M5.4A-L Lore & Compendium UX is **completed**. The shared Lore UX pattern (PlayShell Compendium, subject-oriented effective Lore, Add/Revise, `LoreContextPanel`, Necromancer Gate representative integration) is recorded in `docs/m5-4a-l-lore-compendium-ux.md`. That work does **not** mark all of M5.4 complete.
+**STATUS: IN PROGRESS**
 
 ### Objective
 
-Turn the seven completed structural Domain models into practical table-facing tools without attempting exhaustive rules automation.
+Turn the completed structural Domain models into practical table-facing tools without attempting exhaustive rules automation. Common interactions should feel like manipulating a Seven-Part Pact board rather than editing normalized records.
 
-### Expected shape
+### Product direction
 
-For each Domain:
+For common behavior:
 
-- define the smallest coherent semantic command/editor surface required for normal state maintenance;
-- provide a useful owner/operator board or view;
-- provide simpler non-owner/read presentation where useful;
-- expose shared references coherently;
-- preserve manual interpretation when the rules expect it.
+- important state should be understandable at a glance;
+- common actions should use game language and live where the relevant object naturally appears;
+- compound tabletop actions should be one server-authoritative semantic operation rather than client-side mutation chains;
+- source Materials provide visual/spatial vocabulary, but digital boards may improve layout, hit targets, responsiveness, contextual actions, and dynamic presentation;
+- rare/unusual state may use progressive disclosure but must remain recordable without raw database access.
 
-### Explicit anti-goal
+### M5.4A-L — Lore & Compendium UX
 
-Do not implement every Codex action one command at a time.
+**STATUS: COMPLETE**
 
-A Domain is not incomplete merely because some narrative or table-resolved actions remain manual.
+PR #23 merged.
+
+Delivered:
+
+- first-class PlayShell Compendium;
+- subject-oriented effective Lore browsing;
+- search/shelf filtering;
+- Changed/Added-in-play and Printed wording presentation;
+- inline canonical Add/Revise flows with stale-edit draft preservation;
+- reusable `LoreContextPanel`;
+- Necromancer Gate contextual Lore integration;
+- presentation-oriented Lore read model/query without persistence changes.
+
+See `docs/m5-4a-l-lore-compendium-ux.md`.
+
+### M5.4A-S — Sorcerer Operability & Tower Board
+
+**STATUS: COMPLETE**
+
+Delivered:
+
+- first-class Working Tower PlayShell surface;
+- canonical common Sorcerer maintenance operations;
+- atomic personnel recruitment/promotion/refocus workflows;
+- Tower-centered board with ordered occupants and Researcher outposts;
+- provenance-aware Knowledge UX;
+- bounded Tower/Wizard Tome-Reagent movement;
+- contextual Spyrholm/Tower Lore;
+- Advanced / Correct Board support for already-represented rare Sorcerer state;
+- pure derived cross-Domain Sorcerer presence for Researchers and Disruptive Arcanists;
+- Orrery Researcher markers driven from authoritative Research Positions.
+
+Settled application Tower hierarchy is:
+
+`Students -> non-Student Academics -> Reliable Tower Arcanists`
+
+with relative ordering flexible inside those bands.
+
+No CampaignState schema change or migration occurred. CampaignState V5 remains PRE-ACTIVATION.
+
+See `docs/m5-4a-s-sorcerer-operability.md`.
+
+### Remaining active-table tranche
+
+Remaining active-player Domain operability:
+
+- Hierophant;
+- Necromancer;
+- Mariner;
+- Faustian.
+
+Warlock and Sage are intentionally deferred while they have no active players.
+
+Later Domain Workstreams own the board-local rendering of Sorcerer Researchers/Disruptive Arcanists present in those Domains; the authoritative placement remains Sorcerer state.
+
+The editable/vector `Patreon Materials [04.26.04].pptx` is available as a design source. It is expected to be especially useful for the Mariner map/geography and may also help the remaining visual board passes.
+
+### Explicit anti-goals
+
+Do not turn M5.4 into:
+
+- exhaustive Codex automation;
+- a generic Domain-board framework;
+- a generic Actor/GameEntity system;
+- generic inventory;
+- full spellcasting/Research automation;
+- M7-scale whole-product ergonomics.
+
+A Domain is not incomplete merely because narrative/table-resolved procedures remain manual.
 
 ---
 
@@ -325,6 +379,24 @@ Likely areas:
 
 ## Current Next Action
 
-Continue **M5.4 — Minimum Domain Operability & Board Views**.
+Merge M5.4A-S, verify the resulting `main` SHA, then select and charter the next bounded active-Domain operability Workstream.
 
-M5.3 is COMPLETE. CampaignState V5 remains **PRE-ACTIVATION**. Do not mark V5 activated.
+The previous sequencing hypothesis after Sorcerer was Hierophant -> Necromancer -> Mariner -> Faustian, but that order is not binding. The editable/vector Materials make Mariner more attractive to pull forward because source island/route geography may be reusable directly in a structured SVG map.
+
+The next-domain decision should weigh:
+
+- active-player value;
+- implementation complexity;
+- reusable UX lessons;
+- existing semantic-command readiness;
+- visual payoff.
+
+Warlock/Sage remain deferred. Do not mark M5.4 complete until the active tranche is finished and the Master/human explicitly decide how the deferred tranche is handled.
+
+### Execution guidance
+
+Prefer smaller coherent Cursor bodies for later M5.4 work. M5.4A-S demonstrated that large persistence-backed bodies can become 50–90 minute runs even when substantive; do not normalize that size.
+
+Use bounded repository search topology, focused tests during implementation, one meaningful full repository gate at closure, and the smallest manual integration proof that exercises a unique boundary.
+
+On Windows/PowerShell Convex closure, prefer JSON5/file-based CLI arguments early when quoting becomes fragile.
