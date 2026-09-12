@@ -35,6 +35,20 @@ vi.mock("../convex/_generated/api.js", () => ({
       adjustSorcererKnowledge: "m3Commands.adjustSorcererKnowledge",
       setSorcererArchivesOpen: "m3Commands.setSorcererArchivesOpen",
       moveSorcererTowerMagicConsumable: "m3Commands.moveSorcererTowerMagicConsumable",
+      setSorcererResearcherProductionMultipliers: "m3Commands.setSorcererResearcherProductionMultipliers",
+      setSorcererLaws: "m3Commands.setSorcererLaws",
+      createSorcererCampaignDefinition: "m3Commands.createSorcererCampaignDefinition",
+      updateSorcererCampaignDefinition: "m3Commands.updateSorcererCampaignDefinition",
+      addSorcererArcanist: "m3Commands.addSorcererArcanist",
+      updateSorcererArcanist: "m3Commands.updateSorcererArcanist",
+      addSorcererConstruct: "m3Commands.addSorcererConstruct",
+      setSorcererConstructInstructions: "m3Commands.setSorcererConstructInstructions",
+      addPowerfulDenizenTruth: "m3Commands.addPowerfulDenizenTruth",
+      removePowerfulDenizenTruth: "m3Commands.removePowerfulDenizenTruth",
+      addSorcererInnovation: "m3Commands.addSorcererInnovation",
+      reviseSorcererInnovation: "m3Commands.reviseSorcererInnovation",
+      removeSorcererInnovation: "m3Commands.removeSorcererInnovation",
+      rearrangeSorcererTower: "m3Commands.rearrangeSorcererTower",
     },
   },
 }));
@@ -111,13 +125,64 @@ const PRESENTATION: SorcererBoardReference = {
     text: "Magic requires oral recitation/chants.",
     status: "active",
   }],
-  arcanists: [],
-  constructs: [],
-  innovations: [],
-  campaignSchools: [],
-  campaignAcademicKinds: [],
-  campaignRecipes: [],
-  campaignKnowledgeMethods: [],
+  arcanists: [
+    {
+      denizenId: denizenId(10),
+      name: "Vesper",
+      school: { kind: "source", schoolId: "enchantment" },
+      schoolLabel: "Enchantment",
+      placement: { kind: "tower" },
+      disruptiveProfile: null,
+    },
+    {
+      denizenId: denizenId(15),
+      name: "Escaped",
+      school: { kind: "source", schoolId: "invocation" },
+      schoolLabel: "Invocation",
+      placement: { kind: "other_domain", seatId: "necromancer" },
+      disruptiveProfile: {
+        primaryElement: "fire",
+        rank: "prentice",
+        changesOfMagic: ["rewrites local weather"],
+        quirk: "Speaks only in questions",
+        prenticeSpellIds: ["speaking_the_names_of_beasts"],
+      },
+    },
+  ],
+  constructs: [{
+    denizenId: denizenId(20),
+    name: "Brass Sentinel",
+    instructions: [{ condition: "If a stranger climbs", result: "Then it bars the stair." }],
+    truths: [{ truthId: "pdtru_00000000-0000-0000-0000-0000000000aa" as never, text: "It never sleeps." }],
+  }],
+  innovations: [{
+    innovationId: "sinn_00000000-0000-0000-0000-0000000000aa" as never,
+    spellId: "hand_of_power",
+    spellName: "Hand of Power",
+    schoolId: "enchantment",
+    schoolLabel: "Enchantment",
+    text: "The chant may be whispered.",
+  }],
+  campaignSchools: [{
+    schoolId: "ssch_00000000-0000-0000-0000-0000000000aa" as never,
+    name: "Cartography",
+    description: "Maps of hidden ways",
+  }],
+  campaignAcademicKinds: [{
+    academicKindId: "sack_00000000-0000-0000-0000-0000000000ab" as never,
+    name: "Cartomancer",
+    action: "Reads the cards",
+  }],
+  campaignRecipes: [{
+    recipeId: "srec_00000000-0000-0000-0000-0000000000aa" as never,
+    name: "Moon Ink",
+    recipeText: "Mix silver and night.",
+  }],
+  campaignKnowledgeMethods: [{
+    knowledgeMethodId: "sknm_00000000-0000-0000-0000-0000000000aa" as never,
+    name: "Listening to bells",
+    description: "Hear the hidden hours",
+  }],
   externalPresence: [],
 };
 
@@ -237,6 +302,95 @@ describe("Sorcerer surface presentation", () => {
     expect(container.querySelector('[aria-label^="Lead reagent"]')).toBeNull();
     expect(container.querySelector('[aria-label="Enchantment tome, 3 in the Tower"]')).not.toBeNull();
     expect(container.querySelector('[aria-label="Gold reagent, 2 in the Tower"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps Advanced / Correct Board discoverable, collapsed, and subordinate", () => {
+    const { container, root } = renderSurface("full");
+    const advanced = [...container.querySelectorAll("details")].find((entry) => (
+      entry.querySelector("summary")?.textContent?.trim() === "Advanced / Correct Board"
+    ));
+    expect(advanced).toBeDefined();
+    expect(advanced?.open).toBe(false);
+    expect(container.textContent).toContain("Working Tower");
+    const outsideButtons = [...container.querySelectorAll("button")]
+      .filter((button) => !advanced!.contains(button))
+      .map((button) => button.textContent?.trim());
+    expect(outsideButtons).not.toContain("Save Tower order");
+    expect(outsideButtons).not.toContain("Record Personnel");
+    expect(container.innerHTML).not.toMatch(/Rearrange Tower/);
+    expect(container.textContent).toContain("Record Personnel");
+    expect(container.textContent).toContain("Vesper");
+    expect(container.textContent).toContain("Escaped");
+    expect(container.textContent).toContain("Necromancer");
+    expect(container.textContent).not.toMatch(/other_domain/);
+    expect(container.textContent).toContain("Brass Sentinel");
+    expect(container.textContent).toContain("Truths");
+    expect(container.textContent).toContain("If / Then statements");
+    expect(container.textContent).toContain("It never sleeps.");
+    expect(container.textContent).toContain("If a stranger climbs");
+    expect(container.textContent).toContain("Hand of Power");
+    expect(container.textContent).toContain("Cartography");
+    expect(container.textContent).toContain("Cartomancer");
+    expect(container.textContent).toContain("Moon Ink");
+    expect(container.textContent).toContain("Listening to bells");
+    expect(container.textContent).toContain("School name");
+    expect(container.textContent).toContain("Kind name");
+    expect(container.textContent).toContain("Recipe name");
+    expect(container.textContent).toContain("Method name");
+    expect(container.textContent).not.toContain("schoolId");
+    expect(container.textContent).not.toContain("academicKindId");
+    expect(container.textContent).not.toContain("recipeId");
+    expect(container.textContent).not.toContain("knowledgeMethodId");
+    expect(container.textContent).toContain("Current month multiplier");
+    expect(container.textContent).toContain("Exact correction of output multipliers");
+    root.unmount();
+    container.remove();
+  });
+
+  it("exposes Advanced Tower reorder, specialized personnel, and filtered selectors", () => {
+    const { container, root } = renderSurface("full");
+    const advanced = [...container.querySelectorAll("details")].find((entry) => (
+      entry.querySelector("summary")?.textContent?.trim() === "Advanced / Correct Board"
+    ));
+    expect(advanced).toBeDefined();
+    flushSync(() => {
+      advanced!.querySelector("summary")!.click();
+    });
+    expect(advanced!.open).toBe(true);
+    expect(container.textContent).toContain("Correct Tower order");
+    expect(container.textContent).toContain("BOTTOM · Students");
+    expect(container.textContent).toContain("MIDDLE · Academics");
+    expect(container.textContent).toContain("TOP · Reliable Arcanists");
+    expect(container.textContent).toContain("Move Up");
+    expect(container.textContent).toContain("Save Tower order");
+    expect(container.textContent).toContain("Record Personnel");
+    const innovationSelect = [...container.querySelectorAll("select")].find((select) => (
+      [...select.options].some((option) => option.textContent?.includes("Hand of Power"))
+    ));
+    expect(innovationSelect).toBeDefined();
+    const optionText = [...innovationSelect!.options].map((option) => option.textContent ?? "").join("\n");
+    expect(optionText).toContain("Hand of Power");
+    expect(optionText).not.toContain("Apotheosis");
+    expect(optionText).not.toContain("Titanomachy");
+    const addArcanistPlacement = [...container.querySelectorAll("select")].find((select) => (
+      [...select.options].some((option) => option.textContent === "Disruptive · other Domain")
+    ));
+    expect(addArcanistPlacement).toBeDefined();
+    flushSync(() => {
+      addArcanistPlacement!.value = "other_domain";
+      addArcanistPlacement!.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(container.textContent).toContain("Pact Domain");
+    expect(container.textContent).toContain("Necromancer");
+    const spellChooser = [...container.querySelectorAll("fieldset")].find((fieldset) => (
+      fieldset.querySelector("legend")?.textContent?.trim() === "Known School spells"
+    ));
+    expect(spellChooser).toBeDefined();
+    expect(spellChooser!.textContent).toContain("Hand of Power");
+    expect(spellChooser!.textContent).toContain("Bombardment");
+    expect(spellChooser!.textContent).not.toContain("Scrying");
     root.unmount();
     container.remove();
   });

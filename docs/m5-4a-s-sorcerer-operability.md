@@ -1,8 +1,8 @@
 # M5.4A-S — Sorcerer Operability & Tower Board
 
-**Status:** Body A in progress — semantic operability + presentation contract
+**Status:** Body A complete. Body B complete. Body C1 advanced/correction implementation complete. Orrery proof + real Convex/browser closure still pending Body C2.
 **Schema:** CampaignState V5 remains PRE-ACTIVATION. This Workstream adds no CampaignState fields and does not create V6.
-**Workstream boundary:** Sorcerer ordinary operability and Working Tower. This document does **not** mark all of M5.4 complete.
+**Workstream boundary:** Sorcerer ordinary operability, Working Tower, and bounded Advanced / Correct Board recording. This document does **not** mark all of M5.4 complete.
 
 ## Scope
 
@@ -14,7 +14,8 @@ Three implementation bodies:
 |---|---|
 | **A** | Semantic operability + presentation contract (this checkpoint) |
 | **B** | Working Tower board (React) |
-| **C** | Bounded advanced UX + Orrery proof + closure |
+| **C1** | Bounded Advanced / Correct Board recording + missing semantic operations for already-represented advanced state |
+| **C2** | Orrery Researcher marker rendering, final visual corrections, full repository closure gate, fresh real Convex/browser integration, closure documentation |
 
 Body A owns common state transitions, fingerprints, Convex canonical mutations, events/audit, atomic Denizen + Sorcerer personnel composition, Researcher Position/refocus/availability, hierarchy-constrained Tower order, provenance-aware Knowledge adjustment, Archives Open/Closed maintenance, narrow Tower-centric Tome/Reagent movement, a derived Sorcerer board read model, and a pure derived external-presence projection.
 
@@ -91,7 +92,7 @@ Do **not** invent a finer role hierarchy such as Student < Professor < Librarian
 | Tutor Student | The one ordinary action that grants Academic rearrangement. Same command performs the promotion and applies `nextAcademicOrder`. Reliable Arcanists stay at the top in their existing relative order and cannot be moved. |
 | `rearrange_sorcerer_tower` | **Advanced / Correct Board** — exact Tower ordering correction. Not an ordinary always-available Sorcerer action. May reorder seats within the three legal bands. Must still enforce the two outer hierarchy constraints. Body B must not offer this as a permanently available "rearrange everything" control. |
 
-### Future Reliable Arcanist addition (Body C)
+### Reliable Arcanist addition (Body C1)
 
 When a Reliable Arcanist is added without a special rearrangement rule:
 
@@ -239,25 +240,47 @@ Convex query: `getSorcererReference` — validate authoritative current Campaign
 
 External presence is the same derived projection, usable later by the Sorcerer board, an Orrery adapter, and other Domain presentation code. Body A does not modify those boards.
 
-A pure Orrery House-marker adapter may exist in Body A. Actual Orrery rendering belongs to Body C.
+A pure Orrery House-marker adapter may exist in Body A. Actual Orrery rendering belongs to Body C2.
 
-## Advanced state deferred to Body C
+## Body C1 semantic operations
 
-Body A does **not** automate rare represented Sorcerer state. Deferred:
+These are Advanced / Correct Board recording/correction operations. They do **not** automate monthly procedures, Research resolution, Discovery, or spellcasting.
 
-- Law reveal/change
-- campaign School / Academic-kind / Recipe / Knowledge-method authoring
-- Reliable/Disruptive Arcanist create/update
-- Construct instruction editing
-- Innovation authoring
-- campaign Research Position creation
-- Researcher production-multiplier exact correction
-- React Working Tower
-- Orrery visual marker integration
-- Spyrholm/Tower Lore panel wiring (reuse M5.4A-L)
+| Command | Meaning |
+|---|---|
+| `set_sorcerer_researcher_production_multipliers` | Exact CAS correction of current and next-month Researcher production multipliers. Positive safe integers. Does not roll next-month into current. |
+| `set_sorcerer_laws` | Exact CAS correction of `activeLawIds` / `unrevealedLawIds` from the canonical Law catalog. Unique and disjoint. Not a reveal procedure. |
+| `create_sorcerer_campaign_definition` | Closed create for campaign School, Academic kind, Recipe, or Knowledge method. Knowledge method atomically creates its paired `campaign_knowledge_method` Research Position. School create does **not** invent an Arcanist. |
+| `update_sorcerer_campaign_definition` | Closed revise of human text for the same four definition kinds. Stable IDs and Knowledge-method Research Position identity are preserved. |
+| `add_sorcerer_arcanist` | Atomic Denizen + Powerful arcanist profile + Sorcerer overlay. Reliable Tower Arcanists append at the top of the Reliable-Arcanist band. Disruptive Arcanists require another Pact Domain and a Disruptive profile. |
+| `update_sorcerer_arcanist` | Closed correction including Reliable Tower → Disruptive Domain and the reverse. Synchronizes overlay, Powerful status, `towerOrder` membership, and `disruptiveProfile`. Does not resolve Discoveries. |
+| `add_sorcerer_construct` | Atomic Denizen + Reliable Construct Powerful profile + campaign-origin Truths + If/Then overlay. |
+| `set_sorcerer_construct_instructions` | Exact CAS replacement of Construct If/Then instructions. Truth edits reuse shared Powerful-Denizen truth commands. |
+| `add_sorcerer_innovation` | Create an Innovation on an existing non-Great-Work Grimoire spell. School remains derived. |
+| `revise_sorcerer_innovation` | CAS correction of Innovation spell and/or text. Continues to reject Great Works. |
+| `remove_sorcerer_innovation` | CAS removal of an exact current Innovation. |
+
+Direct specialized personnel and exact Tower-order correction reuse Body A `recruit_sorcerer_personnel` and `rearrange_sorcerer_tower`. They are exposed only inside Advanced / Correct Board.
+
+## Body C1 product boundaries
+
+- Advanced / Correct Board is collapsed by default and visually subordinate to the Working Tower.
+- No raw JSON editor, generic state inspector, or arbitrary path/value patch.
+- Campaign School Impact reminder is UI-only: the table must still record the matching Arcanist separately.
+- No delete semantics for campaign definitions in C1.
+- No Orrery rendering change, no Convex deployment, and no Workstream closure in C1.
+
+## Advanced state deferred to Body C2 / later
+
+- Orrery Researcher marker rendering
+- final visual corrections
+- full repository closure gate
+- fresh real Convex/browser integration
+- closure documentation/report
+- Spyrholm/Tower Lore panel wiring remains reused from M5.4A-L; no new Lore subjects
 
 ## Notes for later bodies / M6
 
 - Denizen Tome/Reagent transfer is unsupported here because it would require a new definition of source-valid magic-user.
 - Source Archives timing is Wizardmoot; Body B UI should explain that without adding phase policing.
-- Body C owns advanced UX and Orrery consumption of the Body A presence adapter.
+- Body C1 owns bounded Advanced / Correct Board recording. Body C2 owns Orrery consumption of the Body A presence adapter, real Convex/browser closure, and Workstream completion.

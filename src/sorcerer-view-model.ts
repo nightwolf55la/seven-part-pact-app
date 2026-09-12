@@ -1,8 +1,21 @@
-import type { DenizenId, WizardId } from "../shared/domain";
+import type {
+  DenizenId,
+  PowerfulDenizenTruthId,
+  WizardId,
+} from "../shared/domain";
 import {
+  ELEMENT_IDS,
+  GRIMOIRE_SPELL_DEFINITIONS,
+  PACT_SEAT_IDS,
+  SORCERER_BUILTIN_ALCHEMICAL_RECIPE_DEFINITIONS,
+  SORCERER_LAW_OF_MAGIC_DEFINITIONS,
+  SORCERER_SOURCE_SCHOOL_DEFINITIONS,
+  pactSeatDisplayName,
   sorcererSourceReagentDefinition,
   sorcererSourceSchoolDefinition,
+  type GrimoireSpellId,
   type MagicSchoolRef,
+  type PactSeatId,
   type SorcererBoardResearchPosition,
   type SorcererBoardTowerOccupant,
   type SorcererBoardTomeStack,
@@ -10,12 +23,14 @@ import {
   type SorcererBoardWizardConsumables,
   type SorcererKnowledgePoolId,
   type SorcererKnowledgeState,
+  type SorcererPersonnelRoleDestination,
   type SorcererResearcherRefocusDestination,
   type SorcererStudentTutorDestination,
   type SorcererTowerMagicConsumableDirection,
   type SorcererTowerMagicConsumableItem,
   type SorcererResearchPositionTarget,
   type SorcererSourceReagentId,
+  type SorcererSourceSchoolId,
 } from "../shared/domain";
 
 export function newCommandId(uuid: string = crypto.randomUUID()): string {
@@ -653,4 +668,210 @@ export function sorcererMutationErrorMessage(error: unknown): string {
 
 export function researcherOperationalLabel(operationalThisMonth: boolean): string {
   return operationalThisMonth ? "Working" : "Unavailable this month";
+}
+
+export function newInnovationId(uuid: string = crypto.randomUUID()): string {
+  return `sinn_${uuid}`;
+}
+
+export function newCampaignSchoolId(uuid: string = crypto.randomUUID()): string {
+  return `ssch_${uuid}`;
+}
+
+export function newCampaignAcademicKindId(uuid: string = crypto.randomUUID()): string {
+  return `sack_${uuid}`;
+}
+
+export function newCampaignRecipeId(uuid: string = crypto.randomUUID()): string {
+  return `srec_${uuid}`;
+}
+
+export function newCampaignKnowledgeMethodId(uuid: string = crypto.randomUUID()): string {
+  return `sknm_${uuid}`;
+}
+
+export function newCampaignResearchPositionId(uuid: string = crypto.randomUUID()): string {
+  return `srp_${uuid}`;
+}
+
+export function newTruthId(uuid: string = crypto.randomUUID()): PowerfulDenizenTruthId {
+  return `pdtru_${uuid}` as PowerfulDenizenTruthId;
+}
+
+export function innovationEligibleSpells(): readonly {
+  readonly spellId: GrimoireSpellId;
+  readonly name: string;
+  readonly schoolId: SorcererSourceSchoolId;
+  readonly schoolLabel: string;
+}[] {
+  return GRIMOIRE_SPELL_DEFINITIONS
+    .filter((spell) => !spell.isGreatWork)
+    .map((spell) => ({
+      spellId: spell.spellId,
+      name: spell.name,
+      schoolId: spell.schoolId,
+      schoolLabel: sorcererSourceSchoolDefinition(spell.schoolId).name,
+    }));
+}
+
+export function sourceSchoolSpells(schoolId: SorcererSourceSchoolId): readonly {
+  readonly spellId: GrimoireSpellId;
+  readonly name: string;
+}[] {
+  return GRIMOIRE_SPELL_DEFINITIONS
+    .filter((spell) => spell.schoolId === schoolId)
+    .map((spell) => ({ spellId: spell.spellId, name: spell.name }));
+}
+
+export function otherPactDomainOptions(): readonly {
+  readonly seatId: Exclude<PactSeatId, "sorcerer">;
+  readonly label: string;
+}[] {
+  return PACT_SEAT_IDS
+    .filter((seatId): seatId is Exclude<PactSeatId, "sorcerer"> => seatId !== "sorcerer")
+    .map((seatId) => ({ seatId, label: pactSeatDisplayName(seatId) }));
+}
+
+export function sourceSchoolOptions(): readonly {
+  readonly schoolId: SorcererSourceSchoolId;
+  readonly name: string;
+}[] {
+  return SORCERER_SOURCE_SCHOOL_DEFINITIONS.map((school) => ({
+    schoolId: school.schoolId,
+    name: school.name,
+  }));
+}
+
+export function lawCatalogOptions(): readonly {
+  readonly lawId: (typeof SORCERER_LAW_OF_MAGIC_DEFINITIONS)[number]["id"];
+  readonly label: string;
+}[] {
+  return SORCERER_LAW_OF_MAGIC_DEFINITIONS.map((law) => ({
+    lawId: law.id,
+    label: law.applicationLabel,
+  }));
+}
+
+export function builtinRecipeOptions(): readonly {
+  readonly recipeId: string;
+  readonly name: string;
+}[] {
+  return SORCERER_BUILTIN_ALCHEMICAL_RECIPE_DEFINITIONS.map((recipe) => ({
+    recipeId: recipe.recipeId,
+    name: recipe.applicationLabel,
+  }));
+}
+
+export function elementOptions(): readonly string[] {
+  return ELEMENT_IDS;
+}
+
+export type TowerCorrectionBandId = "students" | "academics" | "arcanists";
+
+export function towerCorrectionBands(occupants: readonly SorcererBoardTowerOccupant[]): {
+  readonly students: readonly SorcererBoardTowerOccupant[];
+  readonly academics: readonly SorcererBoardTowerOccupant[];
+  readonly arcanists: readonly SorcererBoardTowerOccupant[];
+} {
+  return {
+    students: occupants.filter(isStudentOccupant),
+    academics: occupants.filter(isNonStudentAcademicOccupant),
+    arcanists: occupants.filter(isReliableArcanistOccupant),
+  };
+}
+
+export function canMoveWithinTowerBand(
+  bandOrder: readonly DenizenId[],
+  index: number,
+  direction: AcademicMoveDirection,
+): boolean {
+  const swapWith = direction === "up" ? index + 1 : index - 1;
+  return swapWith >= 0 && swapWith < bandOrder.length;
+}
+
+export function moveWithinTowerBand(
+  bandOrder: readonly DenizenId[],
+  index: number,
+  direction: AcademicMoveDirection,
+): readonly DenizenId[] {
+  if (!canMoveWithinTowerBand(bandOrder, index, direction)) {
+    throw new Error("That move would cross a Tower band boundary");
+  }
+  const swapWith = direction === "up" ? index + 1 : index - 1;
+  const next = [...bandOrder];
+  const current = next[index]!;
+  next[index] = next[swapWith]!;
+  next[swapWith] = current;
+  return next;
+}
+
+export function assembleTowerOrderFromBands(args: {
+  readonly students: readonly DenizenId[];
+  readonly academics: readonly DenizenId[];
+  readonly arcanists: readonly DenizenId[];
+}): readonly DenizenId[] {
+  return [...args.students, ...args.academics, ...args.arcanists];
+}
+
+export type SpecializedPersonnelKind =
+  | "researcher"
+  | "professor"
+  | "librarian"
+  | "alchemist"
+  | "campaign_academic";
+
+export function specializedPersonnelLabel(kind: SpecializedPersonnelKind): string {
+  switch (kind) {
+    case "researcher":
+      return "Researcher";
+    case "professor":
+      return "Professor";
+    case "librarian":
+      return "Librarian";
+    case "alchemist":
+      return "Alchemist";
+    case "campaign_academic":
+      return "Campaign Academic";
+  }
+}
+
+export function buildRecruitSpecializedPersonnelPayload(args: {
+  readonly denizenId: DenizenId;
+  readonly name: string;
+  readonly description: string;
+  readonly destination: Exclude<SorcererPersonnelRoleDestination, { kind: "student" }>;
+  readonly occupants: readonly SorcererBoardTowerOccupant[];
+  readonly insertionIndex: number;
+}): {
+  readonly subject: {
+    readonly kind: "create_denizen";
+    readonly denizenId: DenizenId;
+    readonly name: string;
+    readonly representation: "individual";
+    readonly description: string | null;
+  };
+  readonly destination: Exclude<SorcererPersonnelRoleDestination, { kind: "student" }>;
+  readonly expectedTowerOrder?: readonly DenizenId[];
+  readonly nextAcademicOrder?: readonly DenizenId[];
+} {
+  const subject = {
+    kind: "create_denizen" as const,
+    denizenId: args.denizenId,
+    name: args.name.trim(),
+    representation: "individual" as const,
+    description: args.description.trim().length === 0 ? null : args.description.trim(),
+  };
+  if (args.destination.kind === "researcher") {
+    return { subject, destination: args.destination };
+  }
+  return {
+    subject,
+    destination: args.destination,
+    expectedTowerOrder: args.occupants.map((occupant) => occupant.denizenId),
+    nextAcademicOrder: insertAcademicIntoNonStudentBand(
+      args.occupants,
+      args.denizenId,
+      args.insertionIndex,
+    ),
+  };
 }

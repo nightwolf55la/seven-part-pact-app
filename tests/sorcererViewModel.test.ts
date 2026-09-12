@@ -29,6 +29,14 @@ import {
   visualTowerBands,
   visualTowerOccupants,
   wizardConsumableCount,
+  assembleTowerOrderFromBands,
+  buildRecruitSpecializedPersonnelPayload,
+  canMoveWithinTowerBand,
+  innovationEligibleSpells,
+  moveWithinTowerBand,
+  sourceSchoolSpells,
+  specializedPersonnelLabel,
+  towerCorrectionBands,
 } from "../src/sorcerer-view-model";
 
 function denizenId(n: number): DenizenId {
@@ -516,6 +524,57 @@ describe("consumable movement payloads", () => {
     expect(resolveTransferSelection(calebReturn, "tome:source:artifice")).toBeNull();
     expect(resolveTransferSelection(takeOptions, "tome:source:artifice")).toBeNull();
     expect(resolveTransferSelection(takeOptions, "tome:source:enchantment")).toBe("tome:source:enchantment");
+  });
+
+  it("keeps Advanced Tower moves inside legal bands and specialized personnel off the ordinary path", () => {
+    const bands = towerCorrectionBands(TOWER);
+    expect(bands.students.map((occupant) => occupant.name)).toEqual(["S1", "S2", "S3"]);
+    expect(bands.academics.map((occupant) => occupant.name)).toEqual(["Professor", "Librarian", "Alchemist"]);
+    expect(bands.arcanists.map((occupant) => occupant.name)).toEqual(["Tower Arc"]);
+    const students = bands.students.map((occupant) => occupant.denizenId);
+    expect(canMoveWithinTowerBand(students, 0, "up")).toBe(true);
+    expect(canMoveWithinTowerBand(students, 0, "down")).toBe(false);
+    expect(moveWithinTowerBand(students, 0, "up")).toEqual([denizenId(5), denizenId(4), denizenId(6)]);
+    expect(assembleTowerOrderFromBands({
+      students: [denizenId(5), denizenId(4), denizenId(6)],
+      academics: bands.academics.map((occupant) => occupant.denizenId),
+      arcanists: bands.arcanists.map((occupant) => occupant.denizenId),
+    })).toEqual([
+      denizenId(5), denizenId(4), denizenId(6),
+      denizenId(7), denizenId(9), denizenId(8),
+      denizenId(10),
+    ]);
+    expect(specializedPersonnelLabel("professor")).toBe("Professor");
+    const researcher = buildRecruitSpecializedPersonnelPayload({
+      denizenId: denizenId(64),
+      name: "Nim",
+      description: "",
+      destination: { kind: "researcher", positionId: "srp_sea_1" },
+      occupants: TOWER,
+      insertionIndex: 0,
+    });
+    expect(researcher.expectedTowerOrder).toBeUndefined();
+    expect(researcher.nextAcademicOrder).toBeUndefined();
+    const professor = buildRecruitSpecializedPersonnelPayload({
+      denizenId: denizenId(64),
+      name: "Nim",
+      description: "",
+      destination: { kind: "professor" },
+      occupants: TOWER,
+      insertionIndex: 0,
+    });
+    expect(professor.expectedTowerOrder).toEqual(TOWER.map((occupant) => occupant.denizenId));
+    expect(professor.nextAcademicOrder?.[3]).toBe(denizenId(64));
+  });
+
+  it("filters Innovation spells away from Great Works and Prentice spells to the chosen School", () => {
+    const spells = innovationEligibleSpells();
+    expect(spells.some((spell) => spell.name === "Hand of Power")).toBe(true);
+    expect(spells.some((spell) => spell.name === "Apotheosis")).toBe(false);
+    expect(spells.some((spell) => spell.name === "Titanomachy")).toBe(false);
+    const enchantment = sourceSchoolSpells("enchantment");
+    expect(enchantment.map((spell) => spell.name)).toContain("Hand of Power");
+    expect(enchantment.map((spell) => spell.name)).not.toContain("Scrying");
   });
 
   it("presents School and Reagent glyphs with human names from catalogs", () => {

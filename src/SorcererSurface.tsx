@@ -11,6 +11,7 @@ import type {
 } from "../shared/domain";
 import LoreContextPanel from "./LoreContextPanel";
 import { findPresentationSubjectByRef, type LoreCompendiumUiState } from "./lore-view-model";
+import SorcererAdvancedBoard from "./SorcererAdvancedBoard";
 import SorcererResearchOutposts, {
   LEFT_RESEARCH_OUTPOST_GROUPS,
   RIGHT_RESEARCH_OUTPOST_GROUPS,
@@ -569,6 +570,14 @@ export default function SorcererSurface({
         <SorcererResearchOutposts {...outpostProps} />
         {archivesAndLore}
         {laws}
+        <SorcererAdvancedBoard
+          presentation={presentation}
+          campaignId={campaignId}
+          layout={layout}
+          pending={pending}
+          actionError={actionError}
+          onAction={handleAction}
+        />
       </div>
     );
   }
@@ -590,6 +599,14 @@ export default function SorcererSurface({
       </div>
       <div className="mt-4">{workbench}</div>
       <div className="mt-3">{laws}</div>
+      <SorcererAdvancedBoard
+        presentation={presentation}
+        campaignId={campaignId}
+        layout={layout}
+        pending={pending}
+        actionError={actionError}
+        onAction={handleAction}
+      />
     </div>
   );
 }
