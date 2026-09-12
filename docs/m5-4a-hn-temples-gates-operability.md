@@ -1,6 +1,6 @@
 # M5.4A-HN — Temples & Gates Operability
 
-**Status:** deterministic candidate; real integration and visual closure pending. Not Workstream complete; not M5.4 complete.
+**Status:** deterministic candidate plus morning UI correction; real integration and visual closure pending. Not Workstream complete; not M5.4 complete.
 **Schema:** CampaignState V5 remains PRE-ACTIVATION. No CampaignState fields, no V6, no migration.
 **Branch:** `m5-4a/temples-gates-operability`
 **BASE_SHA:** `c4e8b9ae78537161878e4e3b16f2261c97dffc2b` (`origin/main`, matches inspected expectation)
@@ -115,9 +115,24 @@ Deterministic gate (local binaries; `npm run check` classifier-blocked so equiva
 
 Visual review: pending. No isolated in-memory H/N board preview exists in-repo (`backup-preview` / `preview-indicator` are unrelated). Browser/Convex proof was not performed.
 
+## Morning correction checkpoint
+
+Bounded UI-local pass after Workstream review. No schema, persistence, command/event, or compound-transition changes.
+
+Root cause: both new compound-action UIs mixed board selection with action start, and drafts reread live Temple/Soul/Gate preconditions at submit.
+
+Corrections:
+
+- Temple/Gate selection only inspects. Receive Supplicant and Transform Soul into Ally start only from the inspector controls.
+- Each draft captures `commandId`, `denizenId`, target id, and the authoritative expected preconditions at explicit action start. Submit uses those captured values. Retry after mutation failure keeps the same ids and expecteds.
+- Explicit Cancel clears the draft. Selecting another space does not. Starting the same action at another target keeps the unfinished draft and shows a concise unfinished-draft message.
+
+Focused GREEN: `tests/hierophantSurfacePresentation.test.tsx` and `tests/necromancerSurfacePresentation.test.tsx` — 2 files / 26 tests. `npm run build` exit 0. `git diff --check` on the correction files exit 0.
+
+Not done: browser visual inspection; disposable Convex proof; Workstream closure.
+
 ## Remaining morning checks
 
-- Workstream review of real H then N diffs
 - Browser visual inspection (desktop and narrow)
 - Fresh disposable Convex proof of compound writes, derived presence, Lore, refresh/realtime
 - Do not mark M5.4 complete

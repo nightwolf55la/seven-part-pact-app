@@ -151,6 +151,7 @@ export default function HierophantSurface({
     commandId: string;
     denizenId: string;
     templeId: string;
+    expectedTempleStatus: HierophantTemple["status"];
     name: string;
     classId: string;
     woe: string;
@@ -208,25 +209,34 @@ export default function HierophantSurface({
   }
 
   function openReceive(temple: HierophantTemple): void {
-    setSelectedTempleId(temple.templeId);
-    setReceiveDraft((current) => {
-      if (current !== null && current.templeId === temple.templeId) return current;
-      return {
-        commandId: newCommandId(),
-        denizenId: newDenizenId(),
-        templeId: temple.templeId,
-        name: "",
-        classId: "peasant",
-        woe: "0",
-        area: temple.kind === "hestar" ? "" : "",
-      };
+    if (receiveDraft !== null && receiveDraft.templeId !== temple.templeId) {
+      const existing = hierophant.temples.find((candidate) => candidate.templeId === receiveDraft.templeId);
+      const name = existing === undefined ? receiveDraft.templeId : templeDisplayName(existing, world.places);
+      setError(`An unfinished Receive Supplicant draft exists for ${name}. Return there or cancel it before starting a new one.`);
+      return;
+    }
+    if (receiveDraft !== null) return;
+    setError(null);
+    setReceiveDraft({
+      commandId: newCommandId(),
+      denizenId: newDenizenId(),
+      templeId: temple.templeId,
+      expectedTempleStatus: temple.status,
+      name: "",
+      classId: "peasant",
+      woe: "0",
+      area: "",
     });
+  }
+
+  function cancelReceive(): void {
+    setReceiveDraft(null);
+    setError(null);
   }
 
   async function handleReceiveSupplicant(): Promise<void> {
     if (receiveDraft === null) return;
-    const temple = hierophant.temples.find((candidate) => candidate.templeId === receiveDraft.templeId);
-    if (temple === undefined) return;
+    if (hierophant.temples.find((candidate) => candidate.templeId === receiveDraft.templeId) === undefined) return;
     const woe = parseNonNegInt(receiveDraft.woe);
     if (woe === null) {
       setError("Woe must be a non-negative integer.");
@@ -240,8 +250,8 @@ export default function HierophantSurface({
       classId: receiveDraft.classId,
       woe,
       templeId: receiveDraft.templeId,
-      area: temple.kind === "hestar" ? null : receiveDraft.area === "" ? null : receiveDraft.area,
-      expectedTempleStatus: temple.status,
+      area: receiveDraft.area === "" ? null : receiveDraft.area,
+      expectedTempleStatus: receiveDraft.expectedTempleStatus,
     });
     setPending(true);
     setError(null);
@@ -809,8 +819,6 @@ export default function HierophantSurface({
             selectedTempleId={selectedTempleId ?? hierophant.temples[0]?.templeId ?? null}
             onSelectTemple={(templeId) => {
               setSelectedTempleId(templeId);
-              const temple = hierophant.temples.find((candidate) => candidate.templeId === templeId);
-              if (temple !== undefined) openReceive(temple);
             }}
           />
           {(() => {
@@ -830,7 +838,7 @@ export default function HierophantSurface({
                     Receive Supplicant
                   </button>
                 )}
-                {selected.status === "active" && receiveOpen && (
+                {receiveOpen && (
                   <form
                     className="space-y-2"
                     onSubmit={(event) => {
@@ -885,12 +893,23 @@ export default function HierophantSurface({
                         </select>
                       </label>
                     )}
-                    <button type="submit" className={btnClass} disabled={pending}>
-                      Receive Supplicant
-                    </button>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="submit" className={btnClass} disabled={pending}>
+                        Receive Supplicant
+                      </button>
+                      <button
+                        type="button"
+                        className={ghostBtn}
+                        disabled={pending}
+                        aria-label="Cancel Receive Supplicant"
+                        onClick={cancelReceive}
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </form>
                 )}
-                {selected.status !== "active" && (
+                {selected.status !== "active" && !receiveOpen && (
                   <p className="text-sm">Receive Supplicant is not available at a collapsed Temple. Use Advanced correction if the table records an unusual placement.</p>
                 )}
                 <div className="flex flex-wrap gap-2">

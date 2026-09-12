@@ -278,6 +278,8 @@ export default function NecromancerSurface({
     commandId: string;
     denizenId: string;
     gateId: string;
+    expectedSoulCount: number;
+    expectedGateStatus: NecromancerGateStatus;
     name: string;
   } | null>(null);
 
@@ -340,31 +342,43 @@ export default function NecromancerSurface({
     });
   }
 
-  function ensureTransformDraft(gateId: string): void {
-    setTransformDraft((current) => {
-      if (current !== null && current.gateId === gateId) return current;
-      return {
-        commandId: newCommandId(),
-        denizenId: newDenizenId(),
-        gateId,
-        name: "",
-      };
+  function openTransform(gateId: string): void {
+    if (transformDraft !== null && transformDraft.gateId !== gateId) {
+      const existing = findGate(necromancer, transformDraft.gateId);
+      const name = existing === undefined ? transformDraft.gateId : gateDisplayName(existing);
+      setError(`An unfinished Transform Soul into Ally draft exists for ${name}. Return there or cancel it before starting a new one.`);
+      return;
+    }
+    if (transformDraft !== null) return;
+    const gate = findGate(necromancer, gateId);
+    if (gate === undefined) return;
+    setError(null);
+    setTransformDraft({
+      commandId: newCommandId(),
+      denizenId: newDenizenId(),
+      gateId,
+      expectedSoulCount: piecesAtSpace(necromancer, { kind: "gate", gateId: gate.gateId }).souls,
+      expectedGateStatus: gate.status,
+      name: "",
     });
+  }
+
+  function cancelTransform(): void {
+    setTransformDraft(null);
+    setError(null);
   }
 
   async function handleTransformSoulIntoAlly(): Promise<void> {
     if (transformDraft === null) return;
-    const gate = findGate(necromancer, transformDraft.gateId);
-    if (gate === undefined) return;
-    const souls = piecesAtSpace(necromancer, { kind: "gate", gateId: gate.gateId }).souls;
+    if (findGate(necromancer, transformDraft.gateId) === undefined) return;
     const payload = buildTransformNecromancerSoulIntoAllyPayload({
       commandId: transformDraft.commandId,
       expectedCampaignId: campaignId,
       denizenId: transformDraft.denizenId,
       name: transformDraft.name,
       gateId: transformDraft.gateId,
-      expectedSoulCount: souls,
-      expectedGateStatus: gate.status,
+      expectedSoulCount: transformDraft.expectedSoulCount,
+      expectedGateStatus: transformDraft.expectedGateStatus,
     });
     setPending(true);
     setError(null);
@@ -483,13 +497,6 @@ export default function NecromancerSurface({
           selection={selection}
           onSelect={(next) => {
             setSelection(next);
-            if (next.kind === "gate") {
-              const gate = findGate(necromancer, next.gateId);
-              const souls = piecesAtSpace(necromancer, { kind: "gate", gateId: next.gateId as never }).souls;
-              if (canTransformSoulIntoAlly(gate, souls)) {
-                ensureTransformDraft(next.gateId);
-              }
-            }
           }}
           sorcererPresence={sorcererPresence}
         />
@@ -516,8 +523,9 @@ export default function NecromancerSurface({
           }}
           onOpenTransform={() => {
             if (selectedGate === undefined) return;
-            ensureTransformDraft(selectedGate.gateId);
+            openTransform(selectedGate.gateId);
           }}
+          onCancelTransform={cancelTransform}
           onTransformSoulIntoAlly={() => { void handleTransformSoulIntoAlly(); }}
           onSetSouls={async () => {
             if (selectedLocation === null) return;
@@ -1104,6 +1112,7 @@ function Inspector({
   transformDraft,
   setTransformName,
   onOpenTransform,
+  onCancelTransform,
   onTransformSoulIntoAlly,
   onSetSouls,
   onMoveSouls,
@@ -1125,9 +1134,17 @@ function Inspector({
   pending: boolean;
   campaignId: string;
   loreCompendium: LoreCompendiumUiState;
-  transformDraft: { commandId: string; denizenId: string; gateId: string; name: string } | null;
+  transformDraft: {
+    commandId: string;
+    denizenId: string;
+    gateId: string;
+    expectedSoulCount: number;
+    expectedGateStatus: NecromancerGateStatus;
+    name: string;
+  } | null;
   setTransformName: (name: string) => void;
   onOpenTransform: () => void;
+  onCancelTransform: () => void;
   onTransformSoulIntoAlly: () => void;
   onSetSouls: () => Promise<void>;
   onMoveSouls: () => Promise<void>;
@@ -1154,7 +1171,7 @@ function Inspector({
     : undefined;
   const transformEligible = canTransformSoulIntoAlly(selectedGate, pieces.souls);
   const warning = fivePlusSoulWarning(pieces.souls);
-  const showTransformForm = transformEligible && transformDraft !== null && selectedGate !== undefined && transformDraft.gateId === selectedGate.gateId;
+  const showTransformForm = transformDraft !== null && selectedGate !== undefined && transformDraft.gateId === selectedGate.gateId;
   return (
     <aside aria-label="Selected space" className="rounded-xl border border-slate-200 dark:border-slate-800 p-3 space-y-3">
       <div>
@@ -1206,7 +1223,7 @@ function Inspector({
           </ul>
         )}
       </section>
-      {transformEligible && (
+      {(transformEligible || showTransformForm) && (
         <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-3">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Transform Soul into Ally</h4>
           {!showTransformForm && (
@@ -1230,9 +1247,20 @@ function Inspector({
                   onChange={(event) => setTransformName(event.target.value)}
                 />
               </label>
-              <button type="submit" className={btnClass} disabled={pending}>
-                {pending ? "Transforming…" : "Transform Soul into Ally"}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button type="submit" className={btnClass} disabled={pending}>
+                  {pending ? "Transforming…" : "Transform Soul into Ally"}
+                </button>
+                <button
+                  type="button"
+                  className={ghostBtn}
+                  disabled={pending}
+                  aria-label="Cancel Transform Soul into Ally"
+                  onClick={onCancelTransform}
+                >
+                  Cancel
+                </button>
+              </div>
             </form>
           )}
         </div>

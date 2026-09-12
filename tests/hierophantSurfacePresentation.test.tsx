@@ -65,10 +65,45 @@ function renderSurface(hierophant = EMPTY_HIEROPHANT_STATE) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
-  flushSync(() => {
-    root.render(createElement(HierophantSurface, { hierophant, world: WORLD, campaignId: CAMPAIGN_ID }));
-  });
-  return { container, root };
+  function paint(next = hierophant) {
+    flushSync(() => {
+      root.render(createElement(HierophantSurface, { hierophant: next, world: WORLD, campaignId: CAMPAIGN_ID }));
+    });
+  }
+  paint();
+  return {
+    container,
+    root,
+    rerender(next = hierophant) {
+      paint(next);
+    },
+  };
+}
+
+function setControlledInput(input: HTMLInputElement, value: string): void {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+  setter?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function templeSelectButton(container: HTMLElement, name: string): HTMLButtonElement {
+  const found = Array.from(container.querySelectorAll("button")).find((button) =>
+    (button.getAttribute("aria-label") ?? "").includes(name),
+  );
+  if (found === undefined) throw new Error(`Missing Temple select: ${name}`);
+  return found as HTMLButtonElement;
+}
+
+function receiveOfferButton(container: HTMLElement): HTMLButtonElement | undefined {
+  return Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Receive Supplicant");
+}
+
+function receiveForm(container: HTMLElement): HTMLFormElement | null {
+  return container.querySelector('[aria-label="Selected Temple"] form');
+}
+
+function receiveNameInput(container: HTMLElement): HTMLInputElement | null {
+  return receiveForm(container)?.querySelector("input") ?? null;
 }
 
 describe("Hierophant surface setup", () => {
@@ -225,14 +260,11 @@ describe("Hierophant Temple board interactions", () => {
   it("submits Receive Supplicant as one compound mutation and keeps the draft after error", async () => {
     mockMutations["m3Commands.createHierophantSupplicant"] = vi.fn(async () => {});
     const { container, root } = renderSurface(hierophant as typeof EMPTY_HIEROPHANT_STATE);
-    const receive = Array.from(container.querySelectorAll("button")).find((b) => b.textContent === "Receive Supplicant");
+    const receive = receiveOfferButton(container);
     flushSync(() => { receive!.click(); });
-    const name = container.querySelector("input") as HTMLInputElement;
-    flushSync(() => {
-      name.value = "New Acolyte";
-      name.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-    const form = container.querySelector("form") as HTMLFormElement;
+    const name = receiveNameInput(container) as HTMLInputElement;
+    flushSync(() => { setControlledInput(name, "New Acolyte"); });
+    const form = receiveForm(container) as HTMLFormElement;
     flushSync(() => { form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
     await Promise.resolve();
     expect(mockMutations["m3Commands.createHierophantSupplicant"]).toHaveBeenCalledTimes(1);
@@ -242,6 +274,93 @@ describe("Hierophant Temple board interactions", () => {
     expect(args.classId).toBe("peasant");
     expect(args.commandId).toMatch(/^cmd_/);
     expect(args.denizenId).toMatch(/^den_/);
+    root.unmount();
+    container.remove();
+  });
+
+  it("does not open Receive Supplicant merely by selecting another Temple", () => {
+    const { container, root } = renderSurface(hierophant as typeof EMPTY_HIEROPHANT_STATE);
+    flushSync(() => { templeSelectButton(container, "Notor").click(); });
+    expect(container.querySelector('[aria-label="Selected Temple"]')?.textContent).toContain("Temple Notor");
+    expect(receiveForm(container)).toBeNull();
+    expect(receiveNameInput(container)).toBeNull();
+    expect(receiveOfferButton(container)).toBeDefined();
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps an entered Receive draft when inspecting another Temple and returning", () => {
+    const { container, root } = renderSurface(hierophant as typeof EMPTY_HIEROPHANT_STATE);
+    flushSync(() => { receiveOfferButton(container)!.click(); });
+    flushSync(() => { setControlledInput(receiveNameInput(container) as HTMLInputElement, "Kept Acolyte"); });
+    flushSync(() => { templeSelectButton(container, "Notor").click(); });
+    expect(receiveForm(container)).toBeNull();
+    flushSync(() => { templeSelectButton(container, "Krolis").click(); });
+    expect(receiveNameInput(container)?.value).toBe("Kept Acolyte");
+    root.unmount();
+    container.remove();
+  });
+
+  it("does not silently replace an existing Receive draft when starting Receive at another Temple", () => {
+    const { container, root } = renderSurface(hierophant as typeof EMPTY_HIEROPHANT_STATE);
+    flushSync(() => { receiveOfferButton(container)!.click(); });
+    flushSync(() => { setControlledInput(receiveNameInput(container) as HTMLInputElement, "First Intent"); });
+    flushSync(() => { templeSelectButton(container, "Notor").click(); });
+    flushSync(() => { receiveOfferButton(container)!.click(); });
+    expect(container.textContent).toMatch(/unfinished/i);
+    expect(container.textContent).toContain("Temple Krolis");
+    expect(receiveForm(container)).toBeNull();
+    flushSync(() => { templeSelectButton(container, "Krolis").click(); });
+    expect(receiveNameInput(container)?.value).toBe("First Intent");
+    root.unmount();
+    container.remove();
+  });
+
+  it("clears the Receive draft only from explicit Cancel", () => {
+    const { container, root } = renderSurface(hierophant as typeof EMPTY_HIEROPHANT_STATE);
+    flushSync(() => { receiveOfferButton(container)!.click(); });
+    flushSync(() => { setControlledInput(receiveNameInput(container) as HTMLInputElement, "Discarded Acolyte"); });
+    const cancel = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.getAttribute("aria-label") === "Cancel Receive Supplicant",
+    );
+    expect(cancel).toBeDefined();
+    flushSync(() => { cancel!.click(); });
+    expect(receiveForm(container)).toBeNull();
+    flushSync(() => { receiveOfferButton(container)!.click(); });
+    expect(receiveNameInput(container)?.value).toBe("");
+    root.unmount();
+    container.remove();
+  });
+
+  it("retries a failed Receive with the same ids and captured expectedTempleStatus", async () => {
+    mockMutations["m3Commands.createHierophantSupplicant"] = vi.fn(async () => {
+      throw new Error("stale temple status");
+    });
+    const { container, root, rerender } = renderSurface(hierophant as typeof EMPTY_HIEROPHANT_STATE);
+    flushSync(() => { receiveOfferButton(container)!.click(); });
+    flushSync(() => { setControlledInput(receiveNameInput(container) as HTMLInputElement, "Retry Acolyte"); });
+    const form = receiveForm(container) as HTMLFormElement;
+    flushSync(() => { form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+    await Promise.resolve();
+    const firstArgs = mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[0]?.[0];
+    expect(firstArgs.expectedTempleStatus).toBe("active");
+    expect(firstArgs.commandId).toMatch(/^cmd_/);
+    expect(firstArgs.denizenId).toMatch(/^den_/);
+    rerender({
+      ...hierophant,
+      temples: hierophant.temples.map((temple) =>
+        temple.templeId === "krolis" ? { ...temple, status: "collapsed" as const } : temple,
+      ),
+    } as typeof EMPTY_HIEROPHANT_STATE);
+    expect(receiveNameInput(container)?.value).toBe("Retry Acolyte");
+    flushSync(() => {
+      receiveForm(container)!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await Promise.resolve();
+    const secondArgs = mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[1]?.[0];
+    expect(secondArgs.commandId).toBe(firstArgs.commandId);
+    expect(secondArgs.denizenId).toBe(firstArgs.denizenId);
+    expect(secondArgs.expectedTempleStatus).toBe("active");
     root.unmount();
     container.remove();
   });
