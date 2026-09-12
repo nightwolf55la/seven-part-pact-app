@@ -1,6 +1,6 @@
 # M5.4A-S — Sorcerer Operability & Tower Board
 
-**Status:** Body A complete. Body B complete. Body C1 advanced/correction implementation complete. Body C2A Orrery Researcher marker proof implemented from the authoritative external-presence presentation (no duplicated placement state; no Orrery rule change). Real Convex/browser closure still pending Body C2B. This Workstream is not complete.
+**Status:** COMPLETE — Bodies A, B, C1, C2A, and C2B are implemented. Real disposable Convex Development + browser/realtime/refresh closure succeeded. M5.4A-S is complete. ALL OF M5.4 is NOT complete.
 **Schema:** CampaignState V5 remains PRE-ACTIVATION. This Workstream adds no CampaignState fields and does not create V6.
 **Workstream boundary:** Sorcerer ordinary operability, Working Tower, and bounded Advanced / Correct Board recording. This document does **not** mark all of M5.4 complete.
 
@@ -15,7 +15,7 @@ Three implementation bodies:
 | **A** | Semantic operability + presentation contract (this checkpoint) |
 | **B** | Working Tower board (React) |
 | **C1** | Bounded Advanced / Correct Board recording + missing semantic operations for already-represented advanced state |
-| **C2** | Orrery Researcher marker rendering, final visual corrections, full repository closure gate, fresh real Convex/browser integration, closure documentation |
+| **C2** | Orrery Researcher marker rendering, Sun-house visual clearance, full repository closure gate, fresh real Convex/browser integration, closure documentation |
 
 Body A owns common state transitions, fingerprints, Convex canonical mutations, events/audit, atomic Denizen + Sorcerer personnel composition, Researcher Position/refocus/availability, hierarchy-constrained Tower order, provenance-aware Knowledge adjustment, Archives Open/Closed maintenance, narrow Tower-centric Tome/Reagent movement, a derived Sorcerer board read model, and a pure derived external-presence projection.
 
@@ -277,16 +277,34 @@ Direct specialized personnel and exact Tower-order correction reuse Body A `recr
 - Primary and secondary Orrery surfaces share the same current marker presentation from `getSorcererReference`.
 - Orrery continues to render normally when Sorcerer presentation is loading, unavailable, uninitialized, or has no Orrery Researcher.
 
-## Advanced state deferred to Body C2B / later
+## Body C2B closure
 
-- full repository closure gate
-- fresh real Convex/browser integration
-- final visual corrections
-- closure documentation/report
-- Spyrholm/Tower Lore panel wiring remains reused from M5.4A-L; no new Lore subjects
+M5.4A-S is complete. Final semantic/common command surface is the Body A + Body C1 tables above. No CampaignState shape, migration, or persistence/recovery semantic change.
 
-## Notes for later bodies / M6
+**Working Tower.** Ordinary play is the Tower-centric board: Recruit Student, Tutor/Promote with Academic-order control, Researcher Refocus / Working / Unavailable this month, Knowledge adjustment, Archives Open/Closed, and vacant Research Positions. There is no standing ordinary Rearrange Tower action.
 
-- Denizen Tome/Reagent transfer is unsupported here because it would require a new definition of source-valid magic-user.
-- Source Archives timing is Wizardmoot; Body B UI should explain that without adding phase policing.
-- Body C1 owns bounded Advanced / Correct Board recording. Body C2A owns Orrery consumption of the Body A presence adapter. Body C2B owns real Convex/browser closure and Workstream completion.
+**Tower hierarchy interpretation.** Exact `towerOrder` remains authoritative. Students occupy the visual bottom; non-Student Academics occupy the middle; Reliable Tower Arcanists occupy the visual top. The two outer constraints remain application canon: every Student ranks below every non-Student Academic, and every Academic ranks below every Reliable Tower Arcanist.
+
+**Researcher external-presence contract.** One authoritative Researcher record per Denizen. Exact typed `positionId` is the placement. `operationalThisMonth` is explicit persisted Working / Unavailable this month. Orrery markers consume the derived external-presence projection only.
+
+**Advanced / Correct Board.** Collapsed and visually subordinate by default. Closed recording for Laws, production multipliers, specialized personnel, exact Tower-order correction, campaign definitions (including Knowledge method + paired Research Position), Arcanists, Constructs (Truths distinct from If/Then), and Innovations. No generic state editor.
+
+**Orrery marker proof.** Working and Unavailable markers show House, name, status text, and a non-color unavailable distinction (dashed stroke + slash). Markers are keyboard-focusable with meaningful `aria-label`s. They do not cover House names, month labels, or planet tracks. Primary and secondary panes show the same authoritative current data.
+
+**Sun-house clearance.** When a Researcher occupies the Sun's House, markers keep radius 248 and take a deterministic +8° angular offset so Sun halo + badge + margin do not collide. Multi-marker fan behavior is unchanged, only shifted as a group. Proven by geometry regression (`orrerySunMarkerMinSeparation`). Real April closure campaign had the Sun in Aries with Researchers in Pisces and Leo, so live Sun-house occupancy was not forced.
+
+**Patreon Materials PPTX.** The editable/vector source is available and is likely particularly useful for later: Mariner structured map/geography; Faustian card-table presentation; Necromancer/Hierophant visual refinements. Those Domains are not in this Workstream.
+
+**Fresh disposable Convex closure.** Development deployment purpose `dev/m5-4a-s-closure`, slug `kindred-tern-983`, type `dev` — not Production and not Preview. Empty proof before seed: `verifyMigration` returned `no_canonical_campaign`. Seed and representative writes used existing public commands only. Closure campaign `cmp_961756c4-0f2c-4e8f-a969-710425f15a5c` initialized at revision 41; final health-valid revision 55.
+
+**Real browser / realtime / refresh.** Vite against that Development deployment — not the local fixture preview. Full-width and narrow Working Tower, Spyrholm/Tower Lore via existing M5.4A-L subjects, primary/secondary Orrery, and one realtime Researcher availability write observed in a second live tab without refresh, then confirmed after reload.
+
+**Deterministic full gate.** `npm run check` and `git diff --check` at final HEAD.
+
+## Deferred / out of this Workstream
+
+- Denizen Tome/Reagent transfer is unsupported here because it would require a new definition of source-valid magic-user. Fresh valid M5.4A-S initialization leaves the shared `magicConsumables` ledger empty, and this Workstream has no source operation that creates a Tome/Reagent. Deterministic transition/UI tests cover the movement contract.
+- Source Archives timing is Wizardmoot; the UI explains that without adding phase policing.
+- No automatic Research, Academic monthly procedure, Discovery automation, or spellcasting.
+- Undo/Redo, Checkpoint Restore, Backup/Import, and recovery architecture were not changed and were not replayed.
+- High-level milestone roadmap updates remain with the Master after handoff.
