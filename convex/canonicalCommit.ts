@@ -213,6 +213,7 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   add_necromancer_wizard_traversal: { required: ["necromancer_wizard_traversal_added"] },
   update_necromancer_wizard_traversal: { required: ["necromancer_wizard_traversal_updated"] },
   remove_necromancer_wizard_traversal: { required: ["necromancer_wizard_traversal_removed"] },
+  transform_necromancer_soul_into_ally: { required: ["necromancer_soul_transformed_into_ally"] },
   add_necromancer_ally: { required: ["necromancer_ally_added"] },
   update_necromancer_ally: { required: ["necromancer_ally_updated"] },
   remove_necromancer_ally: { required: ["necromancer_ally_removed"] },

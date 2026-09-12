@@ -81,6 +81,7 @@ import {
   type UpdateNecromancerCampaignGateFields,
   type UpdateNecromancerFoeFields,
   type UpdateNecromancerGhoulCallerFields,
+  type SorcererExternalPresence,
 } from "../shared/domain";
 import type { DenizenRef, IsleRef, PlaceRef } from "./WorldSurface";
 
@@ -210,6 +211,10 @@ export function isNecromancerInitialized(necromancer: NecromancerState): boolean
 
 export function newCommandId(uuid: string = crypto.randomUUID()): string {
   return `cmd_${uuid}`;
+}
+
+export function newDenizenId(uuid: string = crypto.randomUUID()): string {
+  return `den_${uuid}`;
 }
 
 export function newCampaignGateId(uuid: string = crypto.randomUUID()): string {
@@ -1566,6 +1571,159 @@ export function stepAlreadyPresent(
 ): boolean {
   return steps.some((candidate) => necromancerDirectedStepsEqual(candidate, step));
 }
+
+export const MAX_VISIBLE_SOUL_BEADS = 8;
+export const MAX_VISIBLE_OCCUPANT_TOKENS = 3;
+export const FIVE_PLUS_SOUL_THRESHOLD = 5;
+
+export function visibleSoulBeadCount(souls: number): number {
+  if (!Number.isFinite(souls) || souls <= 0) return 0;
+  return Math.min(Math.floor(souls), MAX_VISIBLE_SOUL_BEADS);
+}
+
+export function fivePlusSoulWarning(souls: number): string | null {
+  if (souls < FIVE_PLUS_SOUL_THRESHOLD) return null;
+  return "Five or more Souls: table resolution pending; this is not an automatic Foe conversion.";
+}
+
+export function gateBoardTitle(gate: NecromancerGateState): string {
+  if (gate.origin === "builtin") {
+    const definition = necromancerBuiltinGateDefinition(gate.gateId);
+    return `${definition.romanNumeral} ${definition.displayName}`;
+  }
+  return gate.name;
+}
+
+export function gateBoardAriaLabel(gate: NecromancerGateState): string {
+  return `${gateBoardTitle(gate)} ${gate.status}`;
+}
+
+export interface BoardOccupantToken {
+  readonly key: string;
+  readonly kind: "foe" | "ally" | "ghoul_caller" | "wizard_traversal";
+  readonly name: string;
+  readonly roleLabel: string;
+}
+
+export function namedOccupantTokens(
+  pieces: ReturnType<typeof piecesAtSpace>,
+  denizens: readonly DenizenRef[],
+  wizards: readonly NecromancerWizardNameRef[],
+): readonly BoardOccupantToken[] {
+  const tokens: BoardOccupantToken[] = [];
+  for (const foe of pieces.foes) {
+    tokens.push({
+      key: `foe:${foeSubjectKey(foe)}`,
+      kind: "foe",
+      name: foeDisplayName(denizens, wizards, foe),
+      roleLabel: "Foe",
+    });
+  }
+  for (const ally of pieces.allies) {
+    tokens.push({
+      key: `ally:${ally.denizenId}`,
+      kind: "ally",
+      name: denizenName(denizens, ally.denizenId),
+      roleLabel: "Ally",
+    });
+  }
+  for (const ghoul of pieces.ghoulCallers) {
+    tokens.push({
+      key: `ghoul:${ghoul.denizenId}`,
+      kind: "ghoul_caller",
+      name: denizenName(denizens, ghoul.denizenId),
+      roleLabel: "Ghoul-Caller",
+    });
+  }
+  for (const traversal of pieces.wizardTraversals) {
+    const name = wizards.find((wizard) => wizard.wizardId === traversal.wizardId)?.name ?? traversal.wizardId;
+    tokens.push({
+      key: `traversal:${traversal.wizardId}`,
+      kind: "wizard_traversal",
+      name,
+      roleLabel: "Wizard traversal",
+    });
+  }
+  return tokens;
+}
+
+export function visibleOccupantTokens(
+  tokens: readonly BoardOccupantToken[],
+): { readonly visible: readonly BoardOccupantToken[]; readonly overflowCount: number } {
+  if (tokens.length <= MAX_VISIBLE_OCCUPANT_TOKENS) {
+    return { visible: tokens, overflowCount: 0 };
+  }
+  return {
+    visible: tokens.slice(0, MAX_VISIBLE_OCCUPANT_TOKENS),
+    overflowCount: tokens.length - MAX_VISIBLE_OCCUPANT_TOKENS,
+  };
+}
+
+export function occupantSummaryLabel(tokens: readonly BoardOccupantToken[], souls: number): string {
+  const parts = [`${souls} Souls`];
+  for (const token of tokens) {
+    parts.push(`${token.roleLabel} ${token.name}`);
+  }
+  return parts.join(". ");
+}
+
+export function canTransformSoulIntoAlly(
+  gate: NecromancerGateState | undefined,
+  souls: number,
+): boolean {
+  return gate !== undefined && gate.status === "ordinary" && souls >= 1;
+}
+
+export function finalDeathResearchers(
+  presence: readonly SorcererExternalPresence[],
+): Extract<SorcererExternalPresence, { kind: "researcher" }>[] {
+  return presence.filter(
+    (entry): entry is Extract<SorcererExternalPresence, { kind: "researcher" }> =>
+      entry.kind === "researcher" && entry.target.kind === "necromancer_final_death",
+  );
+}
+
+export function necromancerDomainDisruptiveArcanists(
+  presence: readonly SorcererExternalPresence[],
+): Extract<SorcererExternalPresence, { kind: "disruptive_arcanist" }>[] {
+  return presence.filter(
+    (entry): entry is Extract<SorcererExternalPresence, { kind: "disruptive_arcanist" }> =>
+      entry.kind === "disruptive_arcanist" && entry.seatId === "necromancer",
+  );
+}
+
+export function researcherOperationalLabel(operationalThisMonth: boolean): string {
+  return operationalThisMonth ? "Working this month" : "Unavailable this month";
+}
+
+export function buildTransformNecromancerSoulIntoAllyPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly denizenId: string;
+  readonly name: string;
+  readonly gateId: string;
+  readonly expectedSoulCount: number;
+  readonly expectedGateStatus: NecromancerGateStatus;
+}) {
+  return {
+    commandId: args.commandId,
+    expectedCampaignId: args.expectedCampaignId,
+    denizenId: args.denizenId,
+    name: args.name,
+    gateId: args.gateId,
+    expectedSoulCount: args.expectedSoulCount,
+    expectedGateStatus: args.expectedGateStatus,
+  };
+}
+
+export const TIME_RECORDING_BOUNDARY =
+  "Resolve or record Time in the shared workflow; this control records the Domain result.";
+
+export const HOSTILE_GATE_REMINDER =
+  "Hostile Gates still require table-resolved Hostility/Lore handling. Status recording is not a Cleanse Gate action.";
+
+export const REBUFF_DEFER_GUIDANCE =
+  "Rebuff is not automated. Piece-kind branch choice, Hostile/Ally preferences, Left-Hand tie breaking, and terminal removal are not encoded for arbitrary valid maps. Record exact resulting locations with the correction tools.";
 
 export {
   NECROMANCER_ABOMINATION_KINDS,

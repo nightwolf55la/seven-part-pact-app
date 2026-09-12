@@ -1898,6 +1898,19 @@ const necromancerWizardTraversalRemovedEventV1Validator = v.object({
   data: v.object({ traversal: necromancerWizardTraversalValidator }),
 });
 
+const necromancerSoulTransformedIntoAllyEventV1Validator = v.object({
+  type: v.literal("necromancer_soul_transformed_into_ally"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    denizenName: v.string(),
+    gateId: v.string(),
+    previousSoulCount: v.number(),
+    newSoulCount: v.number(),
+    expectedGateStatus: v.union(v.literal("ordinary"), v.literal("hostile"), v.literal("destroyed")),
+  }),
+});
+
 const necromancerAllyAddedEventV1Validator = v.object({
   type: v.literal("necromancer_ally_added"),
   version: v.literal(1),
@@ -3029,6 +3042,7 @@ export const campaignEventValidator = v.union(
   necromancerWizardTraversalAddedEventV1Validator,
   necromancerWizardTraversalUpdatedEventV1Validator,
   necromancerWizardTraversalRemovedEventV1Validator,
+  necromancerSoulTransformedIntoAllyEventV1Validator,
   necromancerAllyAddedEventV1Validator,
   necromancerAllyUpdatedEventV1Validator,
   necromancerAllyRemovedEventV1Validator,

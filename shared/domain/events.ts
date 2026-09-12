@@ -1515,6 +1515,20 @@ export interface NecromancerWizardTraversalRemovedEventV1 {
   readonly data: NecromancerWizardTraversalRemovedDataV1;
 }
 
+export interface NecromancerSoulTransformedIntoAllyDataV1 {
+  readonly denizenId: DenizenId;
+  readonly denizenName: string;
+  readonly gateId: NecromancerGateId;
+  readonly previousSoulCount: number;
+  readonly newSoulCount: number;
+  readonly expectedGateStatus: NecromancerGateStatus;
+}
+export interface NecromancerSoulTransformedIntoAllyEventV1 {
+  readonly type: "necromancer_soul_transformed_into_ally";
+  readonly version: 1;
+  readonly data: NecromancerSoulTransformedIntoAllyDataV1;
+}
+
 export interface NecromancerAllyAddedDataV1 {
   readonly ally: NecromancerAllyState;
 }
@@ -1643,6 +1657,7 @@ export type NecromancerEvent =
   | NecromancerWizardTraversalAddedEventV1
   | NecromancerWizardTraversalUpdatedEventV1
   | NecromancerWizardTraversalRemovedEventV1
+  | NecromancerSoulTransformedIntoAllyEventV1
   | NecromancerAllyAddedEventV1
   | NecromancerAllyUpdatedEventV1
   | NecromancerAllyRemovedEventV1

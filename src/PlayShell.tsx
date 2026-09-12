@@ -118,7 +118,7 @@ function paneBody(
   if (surface === "hierophant") return renderHierophant(hierRef, worldRef, campaignId, sorcererRef, loreCompendiumUiStateFromQuery(loreCompendiumRef));
   if (surface === "mariner") return renderMariner(marinerRef, worldRef, ref, campaignId);
   if (surface === "necromancer") {
-    return renderNecromancer(necromancerRef, worldRef, ref, campaignId, loreCompendiumUiStateFromQuery(loreCompendiumRef));
+    return renderNecromancer(necromancerRef, worldRef, ref, campaignId, loreCompendiumUiStateFromQuery(loreCompendiumRef), sorcererRef);
   }
   if (surface === "sorcerer") {
     return renderSorcerer(sorcererRef, campaignId, layout, loreCompendiumUiStateFromQuery(loreCompendiumRef));
@@ -244,6 +244,7 @@ function renderNecromancer(
   playRef: Parameters<typeof renderSurface>[1],
   campaignId: string,
   loreCompendium: ReturnType<typeof loreCompendiumUiStateFromQuery>,
+  sorcererRef: ReturnType<typeof useQuery<typeof api.m3Queries.getSorcererReference>>,
 ) {
   if (necromancerRef === undefined || worldRef === undefined) {
     return <div className="py-12 text-center text-sm text-slate-400">Loading Necromancer…</div>;
@@ -263,6 +264,7 @@ function renderNecromancer(
         mortalityState: wizard.mortalityState ?? "not_deceased",
       }))}
       loreCompendium={loreCompendium}
+      sorcererPresence={sorcererRef?.presentation.externalPresence ?? []}
     />
   );
 }

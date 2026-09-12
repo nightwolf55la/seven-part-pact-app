@@ -37,12 +37,16 @@ import {
   buildUpdateNecromancerFoePayload,
   builtinInternalStepPresentation,
   campaignStructureInspectTargets,
+  canTransformSoulIntoAlly,
   denizenName,
   duplicateStartingSetupDenizenIds,
   emptyNecromancerSetupDraft,
   escapedFoesGroupedBySeat,
+  finalDeathResearchers,
+  fivePlusSoulWarning,
   ghoulCallerProfileLines,
   foesAtSpace,
+  gateBoardAriaLabel,
   hasFixedBoardPresentationPoint,
   isNecromancerInitialized,
   necromancerSetupReady,
@@ -54,6 +58,8 @@ import {
   presentationPointForOccupiable,
   resolveOccupiableSelection,
   soulCountAt,
+  visibleSoulBeadCount,
+  MAX_VISIBLE_SOUL_BEADS,
   withSetupArrangement,
   type NecromancerSetupDraft,
 } from "../src/necromancer-view-model";
@@ -713,5 +719,45 @@ describe("Ghoul-Caller profile payloads and presentation", () => {
       "Strange Quirk counts backwards from thirteen",
       "Age 47",
     ]);
+  });
+});
+
+describe("operability presentation helpers", () => {
+  it("caps Soul bead counts and warns at five-plus Souls", () => {
+    expect(visibleSoulBeadCount(0)).toBe(0);
+    expect(visibleSoulBeadCount(3)).toBe(3);
+    expect(visibleSoulBeadCount(5000)).toBe(MAX_VISIBLE_SOUL_BEADS);
+    expect(fivePlusSoulWarning(4)).toBeNull();
+    expect(fivePlusSoulWarning(5)).toMatch(/pending/);
+  });
+
+  it("allows Transform only at ordinary Gates with Souls and labels builtin Gates with Roman numerals", () => {
+    const ordinary = { origin: "builtin" as const, gateId: "amber" as const, status: "ordinary" as const };
+    expect(canTransformSoulIntoAlly(ordinary, 1)).toBe(true);
+    expect(canTransformSoulIntoAlly({ ...ordinary, status: "hostile" }, 2)).toBe(false);
+    expect(canTransformSoulIntoAlly(ordinary, 0)).toBe(false);
+    expect(gateBoardAriaLabel(ordinary)).toBe("I Amber ordinary");
+  });
+
+  it("selects Final Death Researchers by exact target kind", () => {
+    const found = finalDeathResearchers([
+      {
+        kind: "researcher",
+        denizenId: "den_1" as never,
+        name: "Ashen Watcher",
+        operationalThisMonth: true,
+        positionId: "srp_necromancer_final_death",
+        target: { kind: "necromancer_final_death" },
+      },
+      {
+        kind: "researcher",
+        denizenId: "den_2" as never,
+        name: "Lina",
+        operationalThisMonth: true,
+        positionId: "srp_temple_krolis",
+        target: { kind: "hierophant_temple", templeId: "krolis" },
+      },
+    ]);
+    expect(found.map((entry) => entry.name)).toEqual(["Ashen Watcher"]);
   });
 });

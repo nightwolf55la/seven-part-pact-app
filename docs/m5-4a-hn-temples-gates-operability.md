@@ -18,8 +18,8 @@ Explicitly deferred regardless of spare time: Hestar Provide; automatic five-Sou
 | Body | Status |
 |---|---|
 | A Shared extraction | SKIPPED — Lore panel and Sorcerer projection already exist; no identical helper proven yet |
-| B Hierophant | candidate committed — Temple board + atomic Receive Supplicant; Sermon/Steer/Holiday/Hestar deferred |
-| C Necromancer | pending |
+| B Hierophant | candidate committed `a5867e990452d1ca350ee890795b3a4a9245b6a3` — Temple board + atomic Receive Supplicant; Sermon/Steer/Holiday/Hestar deferred |
+| C Necromancer | candidate ready to commit — Gates board + atomic Transform Soul into Ally; Rebuff deferred |
 | D Diff review + `npm run check` | pending |
 | E Optional Mariner prep | pending |
 
@@ -69,7 +69,7 @@ Recorded as implemented (Hierophant):
 
 - `create_hierophant_supplicant` / `createHierophantSupplicant` / event `hierophant_supplicant_created`
 
-Recorded as intended (Necromancer, Body C):
+Recorded as implemented (Necromancer):
 
 - `transform_necromancer_soul_into_ally` / `transformNecromancerSoulIntoAlly` / event `necromancer_soul_transformed_into_ally`
 
@@ -88,7 +88,20 @@ Focused tests: 3 files / 29 tests — `npx vitest run tests/hierophantOperabilit
 - Ordinary-command harness: commit, replay, `COMMAND_ID_REUSED` on payload mismatch.
 - Presentation: board-first default, no “Give Sermon” button, Advanced/Correct Board reachable, one mutation not `addSupplicant` chain, exact Krolis Researcher, other-Domain markers ignored.
 
-H SHA recorded after the Hierophant commit.
+H SHA: `a5867e990452d1ca350ee890795b3a4a9245b6a3`
+
+### Body C (Necromancer)
+
+Focused tests: 3 files / 62 tests — `npm test -- tests/necromancerOperability.test.ts tests/necromancerViewModel.test.ts tests/necromancerSurfacePresentation.test.tsx`
+
+- Atomic `transform_necromancer_soul_into_ally` creates Denizen + Ally, decrements one Soul, sparse-omits zero.
+- Rejects hostile/destroyed/missing/path/zero-soul/invalid name/duplicate/stale soul and Gate status; campaign Gate uses the same contract.
+- Ordinary-command harness: one commit, replay without double consumption, payload mismatch rejected.
+- Presentation: Roman/name Gate frames, Hostile/Destroyed text, bounded Soul beads, named pieces, five-plus warning, Final Death Researcher not on Terminus, one compound mutation, Rebuff not a working button.
+
+N SHA recorded after the Necromancer commit.
+
+`researcherOperationalLabel` is a duplicated one-line helper; Body A extraction remains skipped.
 
 ## Remaining morning checks
 

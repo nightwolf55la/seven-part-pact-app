@@ -269,6 +269,8 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Updated Necromancer Wizard traversal";
     case "necromancer_wizard_traversal_removed":
       return "Removed Necromancer Wizard traversal";
+    case "necromancer_soul_transformed_into_ally":
+      return `Transformed Soul into Ally "${event.data.denizenName}"`;
     case "necromancer_ally_added":
       return "Added Necromancer Ally";
     case "necromancer_ally_updated":
@@ -550,6 +552,7 @@ export function mapEventToActivityEntry(
     case "necromancer_wizard_traversal_added":
     case "necromancer_wizard_traversal_updated":
     case "necromancer_wizard_traversal_removed":
+    case "necromancer_soul_transformed_into_ally":
     case "necromancer_ally_added":
     case "necromancer_ally_updated":
     case "necromancer_ally_removed":

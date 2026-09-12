@@ -90,6 +90,7 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "add_necromancer_wizard_traversal",
   "update_necromancer_wizard_traversal",
   "remove_necromancer_wizard_traversal",
+  "transform_necromancer_soul_into_ally",
   "add_necromancer_ally",
   "update_necromancer_ally",
   "remove_necromancer_ally",
@@ -252,6 +253,7 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "add_necromancer_wizard_traversal":
     case "update_necromancer_wizard_traversal":
     case "remove_necromancer_wizard_traversal":
+    case "transform_necromancer_soul_into_ally":
     case "add_necromancer_ally":
     case "update_necromancer_ally":
     case "remove_necromancer_ally":

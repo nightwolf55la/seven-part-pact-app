@@ -161,6 +161,8 @@ export type {
   NecromancerFoeUpdatedEventV1,
   NecromancerFoeRemovedEventV1,
   NecromancerAllyAddedEventV1,
+  NecromancerSoulTransformedIntoAllyDataV1,
+  NecromancerSoulTransformedIntoAllyEventV1,
   NecromancerAllyUpdatedEventV1,
   NecromancerAllyRemovedEventV1,
   NecromancerGhoulCallerAddedEventV1,
@@ -443,6 +445,7 @@ export {
   updateNecromancerWizardTraversalFingerprint,
   removeNecromancerWizardTraversalFingerprint,
   addNecromancerAllyFingerprint,
+  transformNecromancerSoulIntoAllyFingerprint,
   updateNecromancerAllyFingerprint,
   removeNecromancerAllyFingerprint,
   addNecromancerGhoulCallerFingerprint,
@@ -1739,6 +1742,15 @@ export {
   applyAddNecromancerStep,
   applyRemoveNecromancerStep,
 } from "./necromancer-transitions";
+
+export type {
+  TransformNecromancerSoulIntoAllyInput,
+  NecromancerOperabilityTransitionResult,
+} from "./necromancer-operability-transitions";
+export {
+  canonicalizeTransformNecromancerSoulIntoAllyInput,
+  applyTransformNecromancerSoulIntoAlly,
+} from "./necromancer-operability-transitions";
 
 export type {
   MarinerTransitionResult,

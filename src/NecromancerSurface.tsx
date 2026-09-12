@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState, type KeyboardEvent } from "react";
+import { useLayoutEffect, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api.js";
 import {
@@ -29,21 +29,17 @@ import {
   type DenizenId,
   type PowerfulDenizenStatus,
   powerfulStatusLabel,
+  type SorcererExternalPresence,
 } from "../shared/domain";
 import type { WorldReference } from "./WorldSurface";
 import LoreContextPanel from "./LoreContextPanel";
 import { findPresentationSubjectByRef, type LoreCompendiumUiState } from "./lore-view-model";
+import NecromancerGatesBoard from "./NecromancerGatesBoard";
 import {
   NECROMANCER_ABOMINATION_KINDS,
   NECROMANCER_ARRANGEMENT_OPTIONS,
-  NECROMANCER_BOARD_BAND_LABELS,
-  NECROMANCER_BOARD_VIEWBOX,
   NECROMANCER_BUILTIN_GATE_DEFINITIONS,
-  NECROMANCER_BUILTIN_GATE_IDS,
-  NECROMANCER_BUILTIN_GATE_MAP_POINTS,
   NECROMANCER_BUILTIN_PATH_SPACE_DEFINITIONS,
-  NECROMANCER_BUILTIN_PATH_SPACE_IDS,
-  NECROMANCER_BUILTIN_PATH_MAP_POINTS,
   NECROMANCER_EDGE_PATH_SPACE_IDS,
   NECROMANCER_FAR_BUILTIN_GATE_IDS,
   NECROMANCER_GATE_BANDS,
@@ -53,7 +49,6 @@ import {
   NECROMANCER_NEAR_BUILTIN_GATE_IDS,
   NECROMANCER_PATH_REGIONS,
   NECROMANCER_PRIMARY_ELEMENT_OPTIONS,
-  NECROMANCER_STATIC_TERMINAL_PRESENTATIONS,
   activeEdgeOfLifePathSpaces,
   activeOccupiableSpaces,
   arrangementSetupSlots,
@@ -84,16 +79,17 @@ import {
   buildSetNecromancerGateStatusPayload,
   buildSetNecromancerSoulCountPayload,
   buildSetSelectedDeathLawsPayload,
+  buildTransformNecromancerSoulIntoAllyPayload,
   buildUpdateNecromancerAllyPayload,
   buildUpdateNecromancerCampaignGatePayload,
   buildUpdateNecromancerFoePayload,
   buildUpdateNecromancerGhoulCallerPayload,
   buildUpdateNecromancerWizardFoeTruthPayload,
   buildUpdateNecromancerWizardTraversalPayload,
-  builtinInternalStepPresentation,
   campaignGates,
   campaignPathSpaces,
   campaignStructureInspectTargets,
+  canTransformSoulIntoAlly,
   denizenFoeTruths,
   denizenName,
   emptyNecromancerSetupDraft,
@@ -103,16 +99,20 @@ import {
   foeSubjectKey,
   ghoulCallerProfileLines,
   foeLocationLabel,
+  fivePlusSoulWarning,
   gateBandLabel,
   gateBandOf,
   gateDisplayName,
   gateStatusLabel,
+  HOSTILE_GATE_REMINDER,
   isNecromancerInitialized,
+  namedOccupantTokens,
   necromancerDepthUiKind,
   necromancerSetupReady,
   newCampaignGateId,
   newCampaignPathSpaceId,
   newCommandId,
+  newDenizenId,
   occupiableRefKey,
   occupiableSpaceLabel,
   ordinaryLawReadView,
@@ -124,6 +124,7 @@ import {
   piecesAtSpace,
   placeName,
   resolveOccupiableSelection,
+  REBUFF_DEFER_GUIDANCE,
   stepsInvolvingCustomNodes,
   unusedAllyDenizens,
   unusedFoeDenizens,
@@ -131,6 +132,7 @@ import {
   unusedIndividualGhoulDenizens,
   unusedTraversalWizards,
   newTruthId,
+  TIME_RECORDING_BOUNDARY,
   withSetupArrangement,
   worldIsleName,
   type NecromancerSetupDraft,
@@ -150,13 +152,6 @@ const btnClass =
   "text-xs font-medium rounded-lg px-3 py-1.5 cursor-pointer bg-violet-800 dark:bg-violet-200 text-white dark:text-violet-950 hover:bg-violet-700 dark:hover:bg-violet-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors";
 const ghostBtn =
   "text-xs font-medium rounded-lg px-3 py-1.5 cursor-pointer border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50";
-
-function activate(event: KeyboardEvent<Element>, action: () => void): void {
-  if (event.key === "Enter" || event.key === " ") {
-    event.preventDefault();
-    action();
-  }
-}
 
 function selectedLawKey(laws: readonly NecromancerSelectedLaw[]): string {
   return JSON.stringify(laws);
@@ -226,6 +221,7 @@ export default function NecromancerSurface({
   necromancerWizard,
   wizards,
   loreCompendium = { status: "loading" },
+  sorcererPresence = [],
 }: {
   necromancer: NecromancerState;
   world: WorldReference;
@@ -233,6 +229,7 @@ export default function NecromancerSurface({
   necromancerWizard: NecromancerWizardRef | null;
   wizards: readonly NecromancerWizardNameRef[];
   loreCompendium?: LoreCompendiumUiState;
+  sorcererPresence?: readonly SorcererExternalPresence[];
 }) {
   const initializeNecromancer = useMutation(api.m3Commands.initializeNecromancer);
   const setNecromancerDepth = useMutation(api.m3Commands.setNecromancerDepth);
@@ -251,6 +248,7 @@ export default function NecromancerSurface({
   const updateNecromancerWizardTraversal = useMutation(api.m3Commands.updateNecromancerWizardTraversal);
   const removeNecromancerWizardTraversal = useMutation(api.m3Commands.removeNecromancerWizardTraversal);
   const addNecromancerAlly = useMutation(api.m3Commands.addNecromancerAlly);
+  const transformNecromancerSoulIntoAlly = useMutation(api.m3Commands.transformNecromancerSoulIntoAlly);
   const updateNecromancerAlly = useMutation(api.m3Commands.updateNecromancerAlly);
   const removeNecromancerAlly = useMutation(api.m3Commands.removeNecromancerAlly);
   const addNecromancerGhoulCaller = useMutation(api.m3Commands.addNecromancerGhoulCaller);
@@ -276,6 +274,12 @@ export default function NecromancerSurface({
   const [soulDraft, setSoulDraft] = useState("0");
   const [moveAmount, setMoveAmount] = useState("1");
   const [moveToKey, setMoveToKey] = useState("");
+  const [transformDraft, setTransformDraft] = useState<{
+    commandId: string;
+    denizenId: string;
+    gateId: string;
+    name: string;
+  } | null>(null);
 
   const initialized = isNecromancerInitialized(necromancer);
   const authoritativeLawKey = selectedLawKey(necromancer.selectedLaws);
@@ -334,6 +338,44 @@ export default function NecromancerSurface({
     await run(async () => {
       await initializeNecromancer(payload);
     });
+  }
+
+  function ensureTransformDraft(gateId: string): void {
+    setTransformDraft((current) => {
+      if (current !== null && current.gateId === gateId) return current;
+      return {
+        commandId: newCommandId(),
+        denizenId: newDenizenId(),
+        gateId,
+        name: "",
+      };
+    });
+  }
+
+  async function handleTransformSoulIntoAlly(): Promise<void> {
+    if (transformDraft === null) return;
+    const gate = findGate(necromancer, transformDraft.gateId);
+    if (gate === undefined) return;
+    const souls = piecesAtSpace(necromancer, { kind: "gate", gateId: gate.gateId }).souls;
+    const payload = buildTransformNecromancerSoulIntoAllyPayload({
+      commandId: transformDraft.commandId,
+      expectedCampaignId: campaignId,
+      denizenId: transformDraft.denizenId,
+      name: transformDraft.name,
+      gateId: transformDraft.gateId,
+      expectedSoulCount: souls,
+      expectedGateStatus: gate.status,
+    });
+    setPending(true);
+    setError(null);
+    try {
+      await transformNecromancerSoulIntoAlly(payload);
+      setTransformDraft(null);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Mutation failed.");
+    } finally {
+      setPending(false);
+    }
   }
 
   if (!initialized) {
@@ -434,12 +476,22 @@ export default function NecromancerSurface({
         />
       </div>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,1fr)]">
-        <DeathBoard
+        <NecromancerGatesBoard
           necromancer={necromancer}
           world={world}
           wizards={wizards}
           selection={selection}
-          onSelect={setSelection}
+          onSelect={(next) => {
+            setSelection(next);
+            if (next.kind === "gate") {
+              const gate = findGate(necromancer, next.gateId);
+              const souls = piecesAtSpace(necromancer, { kind: "gate", gateId: next.gateId as never }).souls;
+              if (canTransformSoulIntoAlly(gate, souls)) {
+                ensureTransformDraft(next.gateId);
+              }
+            }
+          }}
+          sorcererPresence={sorcererPresence}
         />
         <Inspector
           necromancer={necromancer}
@@ -458,6 +510,15 @@ export default function NecromancerSurface({
           pending={pending}
           campaignId={campaignId}
           loreCompendium={loreCompendium}
+          transformDraft={transformDraft}
+          setTransformName={(name) => {
+            setTransformDraft((current) => current === null ? current : { ...current, name });
+          }}
+          onOpenTransform={() => {
+            if (selectedGate === undefined) return;
+            ensureTransformDraft(selectedGate.gateId);
+          }}
+          onTransformSoulIntoAlly={() => { void handleTransformSoulIntoAlly(); }}
           onSetSouls={async () => {
             if (selectedLocation === null) return;
             const count = parseNonNegInt(soulDraft);
@@ -519,32 +580,6 @@ export default function NecromancerSurface({
         />
       </div>
       <EscapedFoeTray necromancer={necromancer} world={world} wizards={wizards} />
-      <RoleManagement
-        necromancer={necromancer}
-        world={world}
-        wizards={wizards}
-        campaignId={campaignId}
-        pending={pending}
-        run={run}
-        addNecromancerFoe={addNecromancerFoe}
-        updateNecromancerFoe={updateNecromancerFoe}
-        removeNecromancerFoe={removeNecromancerFoe}
-        escapeNecromancerWizardFoe={escapeNecromancerWizardFoe}
-        addNecromancerWizardFoeTruth={addNecromancerWizardFoeTruth}
-        updateNecromancerWizardFoeTruth={updateNecromancerWizardFoeTruth}
-        removeNecromancerWizardFoeTruth={removeNecromancerWizardFoeTruth}
-        addNecromancerWizardTraversal={addNecromancerWizardTraversal}
-        updateNecromancerWizardTraversal={updateNecromancerWizardTraversal}
-        removeNecromancerWizardTraversal={removeNecromancerWizardTraversal}
-        addNecromancerAlly={addNecromancerAlly}
-        updateNecromancerAlly={updateNecromancerAlly}
-        removeNecromancerAlly={removeNecromancerAlly}
-        addNecromancerGhoulCaller={addNecromancerGhoulCaller}
-        updateNecromancerGhoulCaller={updateNecromancerGhoulCaller}
-        removeNecromancerGhoulCaller={removeNecromancerGhoulCaller}
-        setPowerfulDenizenStatus={setPowerfulDenizenStatus}
-        onSelectSpace={(ref) => setSelection(selectionOf(ref))}
-      />
       <AdvancedStructure
         necromancer={necromancer}
         campaignId={campaignId}
@@ -558,6 +593,38 @@ export default function NecromancerSurface({
         addNecromancerStep={addNecromancerStep}
         removeNecromancerStep={removeNecromancerStep}
       />
+      <details className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
+        <summary className="text-sm font-semibold cursor-pointer">Advanced / Correct Board — pieces</summary>
+        <p className="text-xs text-slate-500 mt-2">{REBUFF_DEFER_GUIDANCE}</p>
+        <div className="mt-3">
+          <RoleManagement
+            necromancer={necromancer}
+            world={world}
+            wizards={wizards}
+            campaignId={campaignId}
+            pending={pending}
+            run={run}
+            addNecromancerFoe={addNecromancerFoe}
+            updateNecromancerFoe={updateNecromancerFoe}
+            removeNecromancerFoe={removeNecromancerFoe}
+            escapeNecromancerWizardFoe={escapeNecromancerWizardFoe}
+            addNecromancerWizardFoeTruth={addNecromancerWizardFoeTruth}
+            updateNecromancerWizardFoeTruth={updateNecromancerWizardFoeTruth}
+            removeNecromancerWizardFoeTruth={removeNecromancerWizardFoeTruth}
+            addNecromancerWizardTraversal={addNecromancerWizardTraversal}
+            updateNecromancerWizardTraversal={updateNecromancerWizardTraversal}
+            removeNecromancerWizardTraversal={removeNecromancerWizardTraversal}
+            addNecromancerAlly={addNecromancerAlly}
+            updateNecromancerAlly={updateNecromancerAlly}
+            removeNecromancerAlly={removeNecromancerAlly}
+            addNecromancerGhoulCaller={addNecromancerGhoulCaller}
+            updateNecromancerGhoulCaller={updateNecromancerGhoulCaller}
+            removeNecromancerGhoulCaller={removeNecromancerGhoulCaller}
+            setPowerfulDenizenStatus={setPowerfulDenizenStatus}
+            onSelectSpace={(ref) => setSelection(selectionOf(ref))}
+          />
+        </div>
+      </details>
     </div>
   );
 }
@@ -1016,170 +1083,6 @@ function LawsPanel({
   );
 }
 
-function DeathBoard({
-  necromancer,
-  world,
-  wizards,
-  selection,
-  onSelect,
-}: {
-  necromancer: NecromancerState;
-  world: WorldReference;
-  wizards: readonly NecromancerWizardNameRef[];
-  selection: Selection | null;
-  onSelect: (selection: Selection) => void;
-}) {
-  return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2 overflow-x-auto">
-      <svg
-        role="img"
-        aria-label="Gates of Death board"
-        viewBox={`0 0 ${NECROMANCER_BOARD_VIEWBOX.width} ${NECROMANCER_BOARD_VIEWBOX.height}`}
-        className="w-full min-w-[640px] h-auto text-slate-800 dark:text-slate-100"
-      >
-        <defs>
-          <marker id="nec-step-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
-          </marker>
-          <marker id="nec-terminal-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
-          </marker>
-        </defs>
-        {NECROMANCER_BOARD_BAND_LABELS.map((label) => (
-          <text key={label.text} x={label.x} y={label.y} fontSize={16} fill="currentColor">{label.text}</text>
-        ))}
-        {necromancer.steps.map((step, index) => {
-          const path = builtinInternalStepPresentation(step);
-          if (path === null) return null;
-          return (
-            <line
-              key={`step-${index}`}
-              x1={path.a.x}
-              y1={path.a.y}
-              x2={path.b.x}
-              y2={path.b.y}
-              stroke="#64748b"
-              strokeWidth={2}
-              markerEnd="url(#nec-step-arrow)"
-            />
-          );
-        })}
-        {NECROMANCER_STATIC_TERMINAL_PRESENTATIONS.map((exit) => (
-          <g key={exit.terminalId}>
-            <line
-              x1={exit.fromPoint.x}
-              y1={exit.fromPoint.y}
-              x2={exit.toPoint.x}
-              y2={exit.toPoint.y}
-              stroke="#94a3b8"
-              strokeWidth={2}
-              strokeDasharray="6 5"
-              markerEnd="url(#nec-terminal-arrow)"
-            />
-            <rect
-              x={exit.toPoint.x - 54}
-              y={exit.toPoint.y - 16}
-              width={108}
-              height={32}
-              rx={6}
-              fill="#f8fafc"
-              stroke="#94a3b8"
-            />
-            <text x={exit.toPoint.x} y={exit.toPoint.y + 4} textAnchor="middle" fontSize={11} fill="#334155">
-              {exit.label}
-            </text>
-          </g>
-        ))}
-        {NECROMANCER_BUILTIN_PATH_SPACE_IDS.map((pathSpaceId) => {
-          const point = NECROMANCER_BUILTIN_PATH_MAP_POINTS[pathSpaceId];
-          const location = { kind: "path" as const, pathSpaceId };
-          const pieces = piecesAtSpace(necromancer, location);
-          const selected = selection?.kind === "path" && selection.pathSpaceId === pathSpaceId;
-          const definition = NECROMANCER_BUILTIN_PATH_SPACE_DEFINITIONS.find((path) => path.pathSpaceId === pathSpaceId);
-          return (
-            <g
-              key={pathSpaceId}
-              role="button"
-              tabIndex={0}
-              aria-label={definition?.applicationLabel ?? pathSpaceId}
-              onClick={() => onSelect({ kind: "path", pathSpaceId })}
-              onKeyDown={(event) => activate(event, () => onSelect({ kind: "path", pathSpaceId }))}
-            >
-              <circle
-                cx={point.x}
-                cy={point.y}
-                r={28}
-                fill={selected ? "#ddd6fe" : "#e2e8f0"}
-                stroke="#4c1d95"
-                strokeWidth={selected ? 3 : 1.5}
-              />
-              <text x={point.x} y={point.y - 6} textAnchor="middle" fontSize={9} fill="#0f172a">
-                {(definition?.applicationLabel ?? pathSpaceId).replace(" Edge of Life", "").replace(" Far Lands", " Far").replace(" Abyss", "")}
-              </text>
-              <text x={point.x} y={point.y + 8} textAnchor="middle" fontSize={9} fill="#4c1d95">
-                {compactPieceText(pieces, world, wizards)}
-              </text>
-            </g>
-          );
-        })}
-        {NECROMANCER_BUILTIN_GATE_IDS.map((gateId) => {
-          const point = NECROMANCER_BUILTIN_GATE_MAP_POINTS[gateId];
-          const gate = findGate(necromancer, gateId);
-          const location = { kind: "gate" as const, gateId };
-          const pieces = piecesAtSpace(necromancer, location);
-          const selected = selection?.kind === "gate" && selection.gateId === gateId;
-          const status = gate?.status ?? "ordinary";
-          const fill = status === "destroyed" ? "#1e293b" : status === "hostile" ? "#fecaca" : selected ? "#ddd6fe" : "#f5f3ff";
-          const textFill = status === "destroyed" ? "#e2e8f0" : "#0f172a";
-          return (
-            <g
-              key={gateId}
-              role="button"
-              tabIndex={0}
-              aria-label={`${gateDisplayName(gate ?? { origin: "builtin", gateId, status })} ${status}`}
-              onClick={() => onSelect({ kind: "gate", gateId })}
-              onKeyDown={(event) => activate(event, () => onSelect({ kind: "gate", gateId }))}
-            >
-              <rect
-                x={point.x - 42}
-                y={point.y - 24}
-                width={84}
-                height={48}
-                rx={8}
-                fill={fill}
-                stroke={selected ? "#5b21b6" : "#4c1d95"}
-                strokeWidth={selected ? 3 : 1.5}
-              />
-              <text x={point.x} y={point.y - 6} textAnchor="middle" fontSize={11} fill={textFill}>
-                {NECROMANCER_BUILTIN_GATE_DEFINITIONS.find((entry) => entry.gateId === gateId)?.displayName}
-              </text>
-              <text x={point.x} y={point.y + 10} textAnchor="middle" fontSize={9} fill={textFill}>
-                {status}{compactPieceText(pieces, world, wizards) !== "" ? ` · ${compactPieceText(pieces, world, wizards)}` : ""}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
-function compactPieceText(
-  pieces: ReturnType<typeof piecesAtSpace>,
-  world: WorldReference,
-  wizards: readonly NecromancerWizardNameRef[],
-): string {
-  const bits: string[] = [];
-  if (pieces.souls > 0) bits.push(`${pieces.souls}S`);
-  for (const foe of pieces.foes) bits.push(`F:${foeDisplayName(world.denizens, wizards, foe)}`);
-  for (const ally of pieces.allies) bits.push(`A:${denizenName(world.denizens, ally.denizenId)}`);
-  for (const ghoul of pieces.ghoulCallers) bits.push(`G:${denizenName(world.denizens, ghoul.denizenId)}`);
-  for (const traversal of pieces.wizardTraversals) {
-    const name = wizards.find((wizard) => wizard.wizardId === traversal.wizardId)?.name ?? traversal.wizardId;
-    bits.push(`T:${name}`);
-  }
-  return bits.join(" · ");
-}
 
 function Inspector({
   necromancer,
@@ -1198,6 +1101,10 @@ function Inspector({
   pending,
   campaignId,
   loreCompendium,
+  transformDraft,
+  setTransformName,
+  onOpenTransform,
+  onTransformSoulIntoAlly,
   onSetSouls,
   onMoveSouls,
   onSetGateStatus,
@@ -1218,6 +1125,10 @@ function Inspector({
   pending: boolean;
   campaignId: string;
   loreCompendium: LoreCompendiumUiState;
+  transformDraft: { commandId: string; denizenId: string; gateId: string; name: string } | null;
+  setTransformName: (name: string) => void;
+  onOpenTransform: () => void;
+  onTransformSoulIntoAlly: () => void;
   onSetSouls: () => Promise<void>;
   onMoveSouls: () => Promise<void>;
   onSetGateStatus: (status: NecromancerGateStatus) => Promise<void>;
@@ -1230,6 +1141,7 @@ function Inspector({
     );
   }
   const pieces = piecesAtSpace(necromancer, selectedLocation);
+  const occupants = namedOccupantTokens(pieces, world.denizens, wizards);
   const destinations = activeOccupiableSpaces(necromancer).filter(
     (space) => occupiableRefKey(space) !== occupiableRefKey(selectedLocation),
   );
@@ -1240,6 +1152,9 @@ function Inspector({
       gateId: selectedGate.gateId,
     })
     : undefined;
+  const transformEligible = canTransformSoulIntoAlly(selectedGate, pieces.souls);
+  const warning = fivePlusSoulWarning(pieces.souls);
+  const showTransformForm = transformEligible && transformDraft !== null && selectedGate !== undefined && transformDraft.gateId === selectedGate.gateId;
   return (
     <aside aria-label="Selected space" className="rounded-xl border border-slate-200 dark:border-slate-800 p-3 space-y-3">
       <div>
@@ -1254,7 +1169,15 @@ function Inspector({
               : ""}
         </p>
       </div>
+      {selectedGate?.status === "hostile" && (
+        <p className="text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 rounded-md px-2 py-1">{HOSTILE_GATE_REMINDER}</p>
+      )}
       <p className="text-sm">Souls: <strong>{pieces.souls}</strong></p>
+      {warning !== null && (
+        <p role="status" className="text-sm font-medium text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 rounded-md px-2 py-1">
+          {warning}
+        </p>
+      )}
       <PieceList label="Foes" items={pieces.foes.map((foe) => foeDisplayName(world.denizens, wizards, foe))} />
       <PieceList
         label="Wizard traversals"
@@ -1270,6 +1193,50 @@ function Inspector({
           `${denizenName(world.denizens, ghoul.denizenId)} · ${ghoulCallerProfileLines(ghoul).join(" · ")}`
         ))}
       />
+      <section aria-label="All occupants">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">All occupants</h4>
+        {occupants.length === 0 && pieces.souls === 0 ? (
+          <p className="text-sm text-slate-500">Empty space.</p>
+        ) : (
+          <ul className="text-sm list-disc pl-4">
+            <li>{pieces.souls} Souls</li>
+            {occupants.map((token) => (
+              <li key={token.key}>{token.roleLabel}: {token.name}</li>
+            ))}
+          </ul>
+        )}
+      </section>
+      {transformEligible && (
+        <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-3">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Transform Soul into Ally</h4>
+          {!showTransformForm && (
+            <button className={btnClass} disabled={pending} onClick={onOpenTransform}>Transform Soul into Ally</button>
+          )}
+          {showTransformForm && (
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                onTransformSoulIntoAlly();
+              }}
+              className="space-y-2"
+            >
+              <p className="text-xs text-slate-500">{TIME_RECORDING_BOUNDARY}</p>
+              <label className="text-sm block">
+                Name
+                <input
+                  aria-label="New Ally name"
+                  className={`${fieldClass} mt-1`}
+                  value={transformDraft.name}
+                  onChange={(event) => setTransformName(event.target.value)}
+                />
+              </label>
+              <button type="submit" className={btnClass} disabled={pending}>
+                {pending ? "Transforming…" : "Transform Soul into Ally"}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
       {selectedGate !== undefined && gateLoreSubject !== undefined && (
         <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
           <LoreContextPanel subject={gateLoreSubject} campaignId={campaignId} compact contextConstraint={{ kind: "any" }} />
@@ -1278,6 +1245,7 @@ function Inspector({
       {selectedGate !== undefined && (
         <div className="space-y-1">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Gate status</h4>
+          <p className="text-xs text-slate-500">Recording/correction. This is not a Cleanse Gate action.</p>
           {statusOptions.length === 0 && (
             <p className="text-xs text-slate-500">Destroyed Gates cannot be restored from this control.</p>
           )}
@@ -1297,6 +1265,7 @@ function Inspector({
       )}
       <div className="space-y-1">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Soul count</h4>
+        <p className="text-xs text-slate-500">Recording/correction, not automated monthly movement.</p>
         <div className="flex gap-2 items-end">
           <label className="text-sm flex-1">
             Exact count
@@ -1312,7 +1281,7 @@ function Inspector({
       </div>
       <div className="space-y-1">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Move Souls</h4>
-        <p className="text-xs text-slate-500">Manual editing. Adjacency, direction, and blocking are not enforced here.</p>
+        <p className="text-xs text-slate-500">Recording/correction. Adjacency, direction, and blocking are not enforced here.</p>
         <label className="text-sm block">
           Amount
           <input
@@ -2359,7 +2328,7 @@ function AdvancedStructure({
   const [stepTo, setStepTo] = useState("");
   return (
     <details className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
-      <summary className="text-sm font-semibold cursor-pointer">Edit Death Structure</summary>
+      <summary className="text-sm font-semibold cursor-pointer">Advanced / Correct Board — structure</summary>
       <p className="text-xs text-slate-500 mt-2">
         Manual structural operations only. This is not a graph editor. Custom Gates and path spaces stay in this list rather than being auto-placed on the Draft-4 board.
       </p>

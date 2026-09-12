@@ -746,6 +746,10 @@ export function removeNecromancerWizardTraversalFingerprint(
   })}`;
 }
 
+export function transformNecromancerSoulIntoAllyFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `transform_necromancer_soul_into_ally:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
 export function addNecromancerAllyFingerprint(expectedCampaignId: string, ally: unknown): string {
   return `add_necromancer_ally:v1:${canonicalJsonStringify({ expectedCampaignId, ally })}`;
 }
