@@ -780,6 +780,40 @@ export function validateMagicConsumablesReferenceIntegrity(state: CampaignStateV
   return consumables;
 }
 
+function validateSorcererTowerHierarchy(sorcerer: SorcererState): void {
+  const academicById = new Map(sorcerer.academics.map((academic) => [academic.denizenId, academic]));
+  const reliableArcanistIds = new Set(
+    sorcerer.arcanists
+      .filter((arcanist) => arcanist.placement.kind === "tower")
+      .map((arcanist) => arcanist.denizenId),
+  );
+  let seenNonStudentAcademic = false;
+  let seenReliableArcanist = false;
+  for (const denizenId of sorcerer.towerOrder) {
+    const academic = academicById.get(denizenId);
+    if (academic !== undefined) {
+      if (seenReliableArcanist) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `sorcerer.towerOrder places a Reliable Tower Arcanist below an Academic: ${denizenId}`,
+        );
+      }
+      if (academic.role.kind === "student") {
+        if (seenNonStudentAcademic) {
+          throw new DomainError(
+            "INVALID_CAMPAIGN_STATE",
+            `sorcerer.towerOrder places a non-Student Academic below a Student: ${denizenId}`,
+          );
+        }
+      } else {
+        seenNonStudentAcademic = true;
+      }
+    } else if (reliableArcanistIds.has(denizenId)) {
+      seenReliableArcanist = true;
+    }
+  }
+}
+
 export function validateSorcererReferenceIntegrity(state: CampaignStateV5): void {
   const sorcerer = validateSorcererStructure(state.sorcerer);
   validateMagicConsumablesReferenceIntegrity(state);
@@ -961,6 +995,8 @@ export function validateSorcererReferenceIntegrity(state: CampaignStateV5): void
       throw new DomainError("INVALID_CAMPAIGN_STATE", `sorcerer.towerOrder must not include Researcher ${denizenId}`);
     }
   }
+
+  validateSorcererTowerHierarchy(sorcerer);
 
   for (let i = 0; i < sorcerer.constructs.length; i++) {
     const path = `sorcerer.constructs[${i}]`;

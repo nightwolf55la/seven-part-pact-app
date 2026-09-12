@@ -1059,6 +1059,106 @@ export function initializeSorcererFingerprint(expectedCampaignId: string, input:
   return `initialize_sorcerer:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
 }
 
+export function recruitSorcererPersonnelFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `recruit_sorcerer_personnel:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function refocusSorcererResearcherFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `refocus_sorcerer_researcher:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function tutorSorcererStudentFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `tutor_sorcerer_student:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function rearrangeSorcererTowerFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `rearrange_sorcerer_tower:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function setSorcererResearcherOperationalThisMonthFingerprint(
+  expectedCampaignId: string,
+  input: unknown,
+): string {
+  return `set_sorcerer_researcher_operational_this_month:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    input,
+  })}`;
+}
+
+export function adjustSorcererKnowledgeFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `adjust_sorcerer_knowledge:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function setSorcererArchivesOpenFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `set_sorcerer_archives_open:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function moveSorcererTowerMagicConsumableFingerprint(
+  expectedCampaignId: string,
+  input: unknown,
+): string {
+  return `move_sorcerer_tower_magic_consumable:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function setSorcererResearcherProductionMultipliersFingerprint(
+  expectedCampaignId: string,
+  input: unknown,
+): string {
+  return `set_sorcerer_researcher_production_multipliers:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    input,
+  })}`;
+}
+
+export function setSorcererLawsFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `set_sorcerer_laws:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function createSorcererCampaignDefinitionFingerprint(
+  expectedCampaignId: string,
+  input: unknown,
+): string {
+  return `create_sorcerer_campaign_definition:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function updateSorcererCampaignDefinitionFingerprint(
+  expectedCampaignId: string,
+  input: unknown,
+): string {
+  return `update_sorcerer_campaign_definition:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function addSorcererArcanistFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `add_sorcerer_arcanist:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function updateSorcererArcanistFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `update_sorcerer_arcanist:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function addSorcererConstructFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `add_sorcerer_construct:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function setSorcererConstructInstructionsFingerprint(
+  expectedCampaignId: string,
+  input: unknown,
+): string {
+  return `set_sorcerer_construct_instructions:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function addSorcererInnovationFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `add_sorcerer_innovation:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function reviseSorcererInnovationFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `revise_sorcerer_innovation:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function removeSorcererInnovationFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `remove_sorcerer_innovation:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
 export function addLoreEntryFingerprint(
   expectedCampaignId: string,
   input: {

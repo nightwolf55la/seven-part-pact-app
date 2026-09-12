@@ -12,6 +12,7 @@ import type { MarinerWizardRef } from "./MarinerSurface";
 import NecromancerSurface from "./NecromancerSurface";
 import type { NecromancerWizardRef } from "./NecromancerSurface";
 import LoreSurface from "./LoreSurface";
+import SorcererSurface from "./SorcererSurface";
 import { loreCompendiumUiStateFromQuery } from "./lore-view-model";
 import {
   initPlaySurface,
@@ -26,6 +27,8 @@ import {
 import type { PlaySurfaceState, SurfaceId, PaneLabel } from "./play-surface-model";
 import { playShellWidthMode } from "./play-shell-layout";
 import type { LunarPhase } from "../shared/domain";
+import { orreryResearcherMarkersFromSorcererQuery } from "./orrery-view-model";
+import type { SorcererOrreryHouseMarkerPresentation } from "../shared/domain/sorcerer-presentation";
 
 const PHASE_DISPLAY: Record<LunarPhase, string> = {
   new_moon: "New Moon",
@@ -45,12 +48,14 @@ const SURFACE_LABELS: Record<SurfaceId, string> = {
   mariner: "Mariner",
   necromancer: "Necromancer",
   compendium: "Compendium",
+  sorcerer: "Sorcerer",
 };
 
 function renderSurface(
   surface: SurfaceId,
   ref: { campaignId: string; monthOrdinal: number; orreryPositions: Record<string, number>; phase: LunarPhase; pactSeats: Record<string, { status: string | null; wizardId: string | null; watcherPlayerId: string | null }>; pactFragmentOperationalState?: import("../shared/domain").PactFragmentOperationalMap; players: { playerId: string; name: string }[]; wizards: { wizardId: string; name: string; portrayedByPlayerId: string | null; character: { elements: { air: number; fire: number; earth: number; water: number } | null; pactFragmentPersonalForm: string | null; familiarDescription: string | null; ageYears: number | null; publicChangesOfMagic: readonly string[]; importantNotes: string | null }; homeIsleId: string | null; sanctumPlaceId: string | null; mortalityState?: "not_deceased" | "deceased" }[] },
   worldRef: { readonly denizens: readonly { readonly denizenId: string; readonly name: string; readonly representation: "individual" | "collective"; readonly description: string | null }[]; readonly isles: readonly { readonly isleId: string; readonly name: string; readonly description: string | null }[]; readonly places: readonly { readonly placeId: string; readonly name: string; readonly description: string | null; readonly placement: { readonly kind: "unspecified" } | { readonly kind: "on_isle"; readonly isleId: string } | { readonly kind: "mobile"; readonly associatedIsleId: string | null } }[] } | null | undefined,
+  researcherMarkers: readonly SorcererOrreryHouseMarkerPresentation[] = [],
 ) {
   switch (surface) {
     case "current_phase":
@@ -68,7 +73,13 @@ function renderSurface(
         />
       );
     case "orrery":
-      return <OrreryView monthOrdinal={ref.monthOrdinal} orreryPositions={ref.orreryPositions} />;
+      return (
+        <OrreryView
+          monthOrdinal={ref.monthOrdinal}
+          orreryPositions={ref.orreryPositions}
+          researcherMarkers={researcherMarkers}
+        />
+      );
     case "table_wizards":
       return <TableWizards pactSeats={ref.pactSeats} players={ref.players} wizards={ref.wizards} worldRef={worldRef} campaignId={ref.campaignId} pactFragmentOperationalState={ref.pactFragmentOperationalState} />;
     case "world":
@@ -76,6 +87,7 @@ function renderSurface(
     case "mariner":
     case "necromancer":
     case "compendium":
+    case "sorcerer":
       return null;
   }
 }
@@ -98,6 +110,7 @@ function paneBody(
   marinerRef: ReturnType<typeof useQuery<typeof api.m3Queries.getMarinerReference>>,
   necromancerRef: ReturnType<typeof useQuery<typeof api.m3Queries.getNecromancerReference>>,
   loreCompendiumRef: ReturnType<typeof useQuery<typeof api.m3Queries.getLoreCompendiumReference>>,
+  sorcererRef: ReturnType<typeof useQuery<typeof api.m3Queries.getSorcererReference>>,
   campaignId: string,
   layout: "full" | "narrow",
 ) {
@@ -106,6 +119,9 @@ function paneBody(
   if (surface === "mariner") return renderMariner(marinerRef, worldRef, ref, campaignId);
   if (surface === "necromancer") {
     return renderNecromancer(necromancerRef, worldRef, ref, campaignId, loreCompendiumUiStateFromQuery(loreCompendiumRef));
+  }
+  if (surface === "sorcerer") {
+    return renderSorcerer(sorcererRef, campaignId, layout, loreCompendiumUiStateFromQuery(loreCompendiumRef));
   }
   if (surface === "compendium") {
     return (
@@ -116,7 +132,12 @@ function paneBody(
       />
     );
   }
-  return renderSurface(surface, ref, worldRef);
+  return renderSurface(
+    surface,
+    ref,
+    worldRef,
+    orreryResearcherMarkersFromSorcererQuery(sorcererRef),
+  );
 }
 
 function renderHierophant(
@@ -185,6 +206,28 @@ function necromancerWizardFromPlayRef(
   };
 }
 
+function renderSorcerer(
+  sorcererRef: ReturnType<typeof useQuery<typeof api.m3Queries.getSorcererReference>>,
+  campaignId: string,
+  layout: "full" | "narrow",
+  loreCompendium: ReturnType<typeof loreCompendiumUiStateFromQuery>,
+) {
+  if (sorcererRef === undefined) {
+    return <div className="py-12 text-center text-sm text-slate-400">Loading Sorcerer…</div>;
+  }
+  if (sorcererRef === null) {
+    return <div className="py-12 text-center text-sm text-slate-400">Sorcerer unavailable.</div>;
+  }
+  return (
+    <SorcererSurface
+      presentation={sorcererRef.presentation}
+      campaignId={campaignId}
+      layout={layout}
+      loreCompendium={loreCompendium}
+    />
+  );
+}
+
 function renderNecromancer(
   necromancerRef: ReturnType<typeof useQuery<typeof api.m3Queries.getNecromancerReference>>,
   worldRef: ReturnType<typeof useQuery<typeof api.m3Queries.getWorldReference>>,
@@ -236,6 +279,7 @@ export default function PlayShell({
   const marinerRef = useQuery(api.m3Queries.getMarinerReference, {});
   const necromancerRef = useQuery(api.m3Queries.getNecromancerReference, {});
   const loreCompendiumRef = useQuery(api.m3Queries.getLoreCompendiumReference, {});
+  const sorcererRef = useQuery(api.m3Queries.getSorcererReference, {});
 
   const nav = useMemo(() => ({
     navigate: (pane: PaneLabel, target: SurfaceId) => setSurfaceState((s) => navigateSurface(s, pane, target)),
@@ -335,7 +379,7 @@ export default function PlayShell({
         ) : showSecondary && surfaceState.secondary ? (
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 min-w-0">
-              {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, loreCompendiumRef, campaignId, "full")}
+              {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, loreCompendiumRef, sorcererRef, campaignId, "full")}
             </div>
             <div className="hidden md:block md:w-80 lg:w-96 flex-shrink-0">
               <div className="flex items-center gap-1 mb-2">
@@ -367,12 +411,12 @@ export default function PlayShell({
                   Fwd
                 </button>
               </div>
-              {paneBody(surfaceState.secondary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, loreCompendiumRef, campaignId, "narrow")}
+              {paneBody(surfaceState.secondary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, loreCompendiumRef, sorcererRef, campaignId, "narrow")}
             </div>
           </div>
         ) : (
           <div className="w-full">
-            {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, loreCompendiumRef, campaignId, "full")}
+            {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, loreCompendiumRef, sorcererRef, campaignId, "full")}
           </div>
         )}
       </div>

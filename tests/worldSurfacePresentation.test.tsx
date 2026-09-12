@@ -76,6 +76,8 @@ vi.mock("../convex/_generated/api.js", () => ({
       getHierophantReference: "m3Queries.getHierophantReference",
       getMarinerReference: "m3Queries.getMarinerReference",
       getNecromancerReference: "m3Queries.getNecromancerReference",
+      getSorcererReference: "m3Queries.getSorcererReference",
+      getLoreCompendiumReference: "m3Queries.getLoreCompendiumReference",
     },
     m3Commands: {
       createDenizen: "m3Commands.createDenizen",

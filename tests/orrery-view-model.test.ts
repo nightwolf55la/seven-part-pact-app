@@ -1,6 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   buildOrreryDisplayModel,
+  buildOrreryResearcherMarkers,
+  orreryResearcherMarkersFromSorcererQuery,
+  houseCenterSvgAngle,
+  orreryResearcherMarkerPlacement,
+  orreryPolarPoint,
+  ORRERY_RESEARCHER_MARKER_R,
+  ORRERY_SUN_CENTER_R,
+  orrerySunMarkerMinSeparation,
   centidegreesToSvgAngle,
   arcSvgAngles,
   sunDisplayPosition,
@@ -12,6 +20,7 @@ import {
   buildHouseHoverSummary,
   BODY_DISPLAY_SYMBOLS,
 } from "../src/orrery-view-model";
+import type { DenizenId, SorcererExternalPresence } from "../shared/domain";
 import {
   legalPositionsForPlanet,
   MOVABLE_PLANET_IDS,
@@ -417,5 +426,142 @@ describe("buildHouseHoverSummary (House->bodies query)", () => {
 
     expect(summary.houseName).toBe("Virgo");
     expect(summary.bodyIds).toEqual(["mars"]);
+  });
+});
+
+function denizenId(n: number): DenizenId {
+  return `den_00000000-0000-0000-0000-${String(n).padStart(12, "0")}` as DenizenId;
+}
+
+const ORRERY_HOUSE_III_RESEARCHER: SorcererExternalPresence = {
+  kind: "researcher",
+  denizenId: denizenId(1),
+  name: "Ada",
+  operationalThisMonth: true,
+  positionId: "srp_orrery_1",
+  target: { kind: "orrery_house", house: 2 },
+};
+
+const TEMPLE_RESEARCHER: SorcererExternalPresence = {
+  kind: "researcher",
+  denizenId: denizenId(2),
+  name: "Nim",
+  operationalThisMonth: false,
+  positionId: "srp_temple_krolis",
+  target: { kind: "hierophant_temple", templeId: "krolis" },
+};
+
+const DISRUPTIVE_ARCANIST: SorcererExternalPresence = {
+  kind: "disruptive_arcanist",
+  denizenId: denizenId(15),
+  name: "Escaped",
+  school: { kind: "source", schoolId: "invocation" },
+  seatId: "necromancer",
+};
+
+describe("buildOrreryResearcherMarkers", () => {
+  it("keeps only the Orrery House researcher and preserves marker fields", () => {
+    const markers = buildOrreryResearcherMarkers([
+      ORRERY_HOUSE_III_RESEARCHER,
+      TEMPLE_RESEARCHER,
+      DISRUPTIVE_ARCANIST,
+    ]);
+    expect(markers).toEqual([{
+      kind: "researcher",
+      denizenId: denizenId(1),
+      name: "Ada",
+      operationalThisMonth: true,
+      positionId: "srp_orrery_1",
+      house: 2,
+    }]);
+  });
+
+  it("returns no markers when external presence is missing or empty", () => {
+    expect(buildOrreryResearcherMarkers(undefined)).toEqual([]);
+    expect(buildOrreryResearcherMarkers(null)).toEqual([]);
+    expect(buildOrreryResearcherMarkers([])).toEqual([]);
+  });
+});
+
+describe("orreryResearcherMarkersFromSorcererQuery", () => {
+  it("returns no markers while the existing Sorcerer query is loading, unavailable, or uninitialized", () => {
+    expect(orreryResearcherMarkersFromSorcererQuery(undefined)).toEqual([]);
+    expect(orreryResearcherMarkersFromSorcererQuery(null)).toEqual([]);
+    expect(orreryResearcherMarkersFromSorcererQuery({
+      presentation: { initialized: false, externalPresence: [ORRERY_HOUSE_III_RESEARCHER] },
+    })).toEqual([]);
+  });
+
+  it("projects current initialized presentation from the existing query path", () => {
+    const markers = orreryResearcherMarkersFromSorcererQuery({
+      presentation: {
+        initialized: true,
+        externalPresence: [ORRERY_HOUSE_III_RESEARCHER, TEMPLE_RESEARCHER, DISRUPTIVE_ARCANIST],
+      },
+    });
+    expect(markers).toEqual([{
+      kind: "researcher",
+      denizenId: denizenId(1),
+      name: "Ada",
+      operationalThisMonth: true,
+      positionId: "srp_orrery_1",
+      house: 2,
+    }]);
+  });
+});
+
+describe("orrery researcher marker geometry", () => {
+  it("places representative Houses at the House-center angle and a fixed marker radius", () => {
+    const aries = orreryResearcherMarkerPlacement(0, 0, 1);
+    const gemini = orreryResearcherMarkerPlacement(2, 0, 1);
+    const pisces = orreryResearcherMarkerPlacement(11, 0, 1);
+
+    expect(houseCenterSvgAngle(0)).toBe(15);
+    expect(houseCenterSvgAngle(2)).toBe(75);
+    expect(houseCenterSvgAngle(11)).toBe(345);
+
+    expect(aries).toEqual({ angle: 15, radius: ORRERY_RESEARCHER_MARKER_R });
+    expect(gemini).toEqual({ angle: 75, radius: ORRERY_RESEARCHER_MARKER_R });
+    expect(pisces).toEqual({ angle: 345, radius: ORRERY_RESEARCHER_MARKER_R });
+
+    const point = orreryPolarPoint(290, 290, aries.radius, aries.angle);
+    const expected = orreryPolarPoint(290, 290, ORRERY_RESEARCHER_MARKER_R, houseCenterSvgAngle(0));
+    expect(point).toEqual(expected);
+  });
+
+  it("fans multiple markers in one House around the House-center angle", () => {
+    const first = orreryResearcherMarkerPlacement(0, 0, 2);
+    const second = orreryResearcherMarkerPlacement(0, 1, 2);
+    expect(first.radius).toBe(ORRERY_RESEARCHER_MARKER_R);
+    expect(second.radius).toBe(ORRERY_RESEARCHER_MARKER_R);
+    expect(first.angle).not.toBe(second.angle);
+    expect((first.angle + second.angle) / 2).toBe(houseCenterSvgAngle(0));
+  });
+
+  it("places a Researcher in the Sun's House with safe visual separation from the Sun halo", () => {
+    const origin = { x: 290, y: 290 };
+    const sunHouse = 0 as HouseIndex;
+    const otherHouse = 2 as HouseIndex;
+    const sunAngle = houseCenterSvgAngle(sunHouse);
+    const sunPoint = orreryPolarPoint(origin.x, origin.y, ORRERY_SUN_CENTER_R, sunAngle);
+    const minSeparation = orrerySunMarkerMinSeparation();
+
+    const sunHousePlacement = orreryResearcherMarkerPlacement(sunHouse, 0, 1, sunHouse);
+    const sunHousePoint = orreryPolarPoint(
+      origin.x,
+      origin.y,
+      sunHousePlacement.radius,
+      sunHousePlacement.angle,
+    );
+    const separation = Math.hypot(sunHousePoint.x - sunPoint.x, sunHousePoint.y - sunPoint.y);
+
+    expect(sunHousePlacement.radius).toBe(ORRERY_RESEARCHER_MARKER_R);
+    expect(separation).toBeGreaterThanOrEqual(minSeparation);
+
+    const otherPlacement = orreryResearcherMarkerPlacement(otherHouse, 0, 1, sunHouse);
+    expect(otherPlacement).toEqual({
+      angle: houseCenterSvgAngle(otherHouse),
+      radius: ORRERY_RESEARCHER_MARKER_R,
+    });
   });
 });
