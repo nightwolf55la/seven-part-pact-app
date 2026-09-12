@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
@@ -44,6 +44,7 @@ vi.mock("../convex/_generated/api.js", () => ({
       addSorcererConstruct: "m3Commands.addSorcererConstruct",
       setSorcererConstructInstructions: "m3Commands.setSorcererConstructInstructions",
       addPowerfulDenizenTruth: "m3Commands.addPowerfulDenizenTruth",
+      updatePowerfulDenizenTruth: "m3Commands.updatePowerfulDenizenTruth",
       removePowerfulDenizenTruth: "m3Commands.removePowerfulDenizenTruth",
       addSorcererInnovation: "m3Commands.addSorcererInnovation",
       reviseSorcererInnovation: "m3Commands.reviseSorcererInnovation",
@@ -234,7 +235,94 @@ function clickNamedButton(container: HTMLElement, name: string) {
   flushSync(() => button!.click());
 }
 
+function openAdvancedBoard(container: HTMLElement) {
+  const advanced = [...container.querySelectorAll("details")].find((entry) => (
+    entry.querySelector("summary")?.textContent?.trim() === "Advanced / Correct Board"
+  ));
+  expect(advanced).toBeDefined();
+  flushSync(() => {
+    advanced!.querySelector("summary")!.click();
+  });
+  return advanced!;
+}
+
+function openAdvancedSection(container: HTMLElement, summaryText: string) {
+  const summary = [...container.querySelectorAll("summary")].find((entry) => (
+    entry.textContent?.trim() === summaryText
+  ));
+  expect(summary).toBeDefined();
+  flushSync(() => {
+    summary!.click();
+  });
+}
+
+function formWithSubmitButton(container: HTMLElement, buttonLabel: string): HTMLFormElement {
+  const button = [...container.querySelectorAll("button")].find((entry) => (
+    entry.textContent?.trim() === buttonLabel
+  ));
+  expect(button).toBeDefined();
+  return button!.closest("form") as HTMLFormElement;
+}
+
+function controlInForm(form: HTMLFormElement, labelText: string): HTMLElement {
+  const label = [...form.querySelectorAll("label")].find((entry) => (
+    entry.textContent?.trim().startsWith(labelText)
+  ));
+  expect(label).toBeDefined();
+  return label!.querySelector("select, input, textarea") as HTMLElement;
+}
+
+function setControlValue(control: HTMLInputElement | HTMLTextAreaElement, value: string) {
+  const prototype = control instanceof HTMLTextAreaElement
+    ? HTMLTextAreaElement.prototype
+    : HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+  expect(setter).toBeDefined();
+  setter!.call(control, value);
+  flushSync(() => {
+    control.dispatchEvent(new Event("input", { bubbles: true }));
+    control.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+}
+
+const MULTI_REVISION_PRESENTATION: SorcererBoardReference = {
+  ...PRESENTATION,
+  innovations: [
+    PRESENTATION.innovations[0]!,
+    {
+      innovationId: "sinn_00000000-0000-0000-0000-0000000000bb" as never,
+      spellId: "bombardment",
+      spellName: "Bombardment",
+      schoolId: "enchantment",
+      schoolLabel: "Enchantment",
+      text: "Second innovation text",
+    },
+  ],
+  campaignSchools: [
+    PRESENTATION.campaignSchools[0]!,
+    {
+      schoolId: "ssch_00000000-0000-0000-0000-0000000000ab" as never,
+      name: "Astronomy",
+      description: "Stars and secrets",
+    },
+  ],
+  campaignRecipes: [
+    PRESENTATION.campaignRecipes[0]!,
+    {
+      recipeId: "srec_00000000-0000-0000-0000-0000000000ab" as never,
+      name: "Star Ink",
+      recipeText: "Crush comets",
+    },
+  ],
+};
+
 describe("Sorcerer surface presentation", () => {
+  beforeEach(() => {
+    for (const mutation of Object.values(mockMutations)) {
+      mutation.mockClear();
+    }
+  });
+
   it("presents the Working Tower as the primary region with ordered occupants", () => {
     const { container, root } = renderSurface("full");
     const html = container.innerHTML;
@@ -391,6 +479,137 @@ describe("Sorcerer surface presentation", () => {
     expect(spellChooser!.textContent).toContain("Hand of Power");
     expect(spellChooser!.textContent).toContain("Bombardment");
     expect(spellChooser!.textContent).not.toContain("Scrying");
+    root.unmount();
+    container.remove();
+  });
+
+  it("revise Innovation uses the selected second Innovation", () => {
+    const { container, root } = renderSurface("full", MULTI_REVISION_PRESENTATION);
+    openAdvancedBoard(container);
+    openAdvancedSection(container, "Innovations");
+
+    let reviseForm = formWithSubmitButton(container, "Revise Innovation");
+    const targetSelect = controlInForm(reviseForm, "Innovation to revise") as HTMLSelectElement;
+    flushSync(() => {
+      targetSelect.value = "sinn_00000000-0000-0000-0000-0000000000bb";
+      targetSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    reviseForm = formWithSubmitButton(container, "Revise Innovation");
+    const textArea = controlInForm(reviseForm, "Innovation text") as HTMLTextAreaElement;
+    expect(textArea.value).toBe("Second innovation text");
+    setControlValue(textArea, "Revised second innovation");
+
+    clickNamedButton(container, "Revise Innovation");
+
+    expect(mockMutations["m3Commands.reviseSorcererInnovation"]).toHaveBeenCalledWith(
+      expect.objectContaining({
+        innovationId: "sinn_00000000-0000-0000-0000-0000000000bb",
+        expectedSpellId: "bombardment",
+        expectedText: "Second innovation text",
+        spellId: "bombardment",
+        text: "Revised second innovation",
+      }),
+    );
+    root.unmount();
+    container.remove();
+  });
+
+  it("revise School uses the selected second campaign School", () => {
+    const { container, root } = renderSurface("full", MULTI_REVISION_PRESENTATION);
+    openAdvancedBoard(container);
+    openAdvancedSection(container, "University Definitions");
+
+    let reviseForm = formWithSubmitButton(container, "Revise School");
+    const targetSelect = controlInForm(reviseForm, "School to revise") as HTMLSelectElement;
+    flushSync(() => {
+      targetSelect.value = "ssch_00000000-0000-0000-0000-0000000000ab";
+      targetSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    reviseForm = formWithSubmitButton(container, "Revise School");
+    const nameInput = controlInForm(reviseForm, "School name") as HTMLInputElement;
+    expect(nameInput.value).toBe("Astronomy");
+    setControlValue(nameInput, "Revised Astronomy");
+
+    clickNamedButton(container, "Revise School");
+
+    expect(mockMutations["m3Commands.updateSorcererCampaignDefinition"]).toHaveBeenCalledWith(
+      expect.objectContaining({
+        definition: expect.objectContaining({
+          kind: "school",
+          schoolId: "ssch_00000000-0000-0000-0000-0000000000ab",
+          expectedName: "Astronomy",
+          expectedDescription: "Stars and secrets",
+          name: "Revised Astronomy",
+          description: "Stars and secrets",
+        }),
+      }),
+    );
+    root.unmount();
+    container.remove();
+  });
+
+  it("revise Recipe uses the selected second campaign Recipe", () => {
+    const { container, root } = renderSurface("full", MULTI_REVISION_PRESENTATION);
+    openAdvancedBoard(container);
+    openAdvancedSection(container, "University Definitions");
+
+    let reviseForm = formWithSubmitButton(container, "Revise Recipe");
+    const targetSelect = controlInForm(reviseForm, "Recipe to revise") as HTMLSelectElement;
+    flushSync(() => {
+      targetSelect.value = "srec_00000000-0000-0000-0000-0000000000ab";
+      targetSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    reviseForm = formWithSubmitButton(container, "Revise Recipe");
+    const recipeText = controlInForm(reviseForm, "Recipe text") as HTMLInputElement;
+    expect(recipeText.value).toBe("Crush comets");
+    setControlValue(recipeText, "Crush comets twice");
+
+    clickNamedButton(container, "Revise Recipe");
+
+    expect(mockMutations["m3Commands.updateSorcererCampaignDefinition"]).toHaveBeenCalledWith(
+      expect.objectContaining({
+        definition: expect.objectContaining({
+          kind: "recipe",
+          recipeId: "srec_00000000-0000-0000-0000-0000000000ab",
+          expectedName: "Star Ink",
+          expectedRecipeText: "Crush comets",
+          recipeText: "Crush comets twice",
+        }),
+      }),
+    );
+    root.unmount();
+    container.remove();
+  });
+
+  it("Construct Truth edit preserves truthId and uses updatePowerfulDenizenTruth", () => {
+    const { container, root } = renderSurface("full");
+    openAdvancedBoard(container);
+    openAdvancedSection(container, "Constructs");
+
+    expect(container.textContent).toContain("Add Truth");
+    expect(container.textContent).toContain("Remove Truth");
+    clickNamedButton(container, "Edit Truth");
+
+    const saveForm = formWithSubmitButton(container, "Save Truth");
+    const truthInput = controlInForm(saveForm, "Truth text") as HTMLInputElement;
+    expect(truthInput.value).toBe("It never sleeps.");
+    setControlValue(truthInput, "It watches always.");
+
+    clickNamedButton(container, "Save Truth");
+
+    expect(mockMutations["m3Commands.updatePowerfulDenizenTruth"]).toHaveBeenCalledWith(
+      expect.objectContaining({
+        denizenId: denizenId(20),
+        truthId: "pdtru_00000000-0000-0000-0000-0000000000aa",
+        change: {
+          expected: "It never sleeps.",
+          value: "It watches always.",
+        },
+      }),
+    );
     root.unmount();
     container.remove();
   });

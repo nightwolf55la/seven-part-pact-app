@@ -7,6 +7,8 @@ import type {
   PactSeatId,
   SorcererArcanistPlacement,
   SorcererBoardArcanist,
+  SorcererBoardConstructTruth,
+  SorcererBoardInnovation,
   SorcererBoardReference,
   SorcererDisruptiveArcanistProfile,
   SorcererLawOfMagicId,
@@ -91,6 +93,7 @@ export default function SorcererAdvancedBoard({
   const addConstruct = useMutation(api.m3Commands.addSorcererConstruct);
   const setConstructInstructions = useMutation(api.m3Commands.setSorcererConstructInstructions);
   const addTruth = useMutation(api.m3Commands.addPowerfulDenizenTruth);
+  const updateTruth = useMutation(api.m3Commands.updatePowerfulDenizenTruth);
   const removeTruth = useMutation(api.m3Commands.removePowerfulDenizenTruth);
   const addInnovation = useMutation(api.m3Commands.addSorcererInnovation);
   const reviseInnovation = useMutation(api.m3Commands.reviseSorcererInnovation);
@@ -360,23 +363,25 @@ export default function SorcererAdvancedBoard({
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-[#5c4300]">Truths</p>
                   <ul className="mt-1 space-y-1 text-xs">
                     {construct.truths.map((truth) => (
-                      <li key={truth.truthId} className="flex items-start justify-between gap-2">
-                        <span>{truth.text}</span>
-                        <button
-                          type="button"
-                          className={ghostBtn}
-                          disabled={pending}
-                          onClick={() => onAction(() => removeTruth({
-                            commandId: newCommandId(),
-                            expectedCampaignId: campaignId,
-                            denizenId: construct.denizenId,
-                            truthId: truth.truthId,
-                            expectedTruth: { truthId: truth.truthId, text: truth.text, origin: "campaign" },
-                          }))}
-                        >
-                          Remove Truth
-                        </button>
-                      </li>
+                      <ConstructTruthRow
+                        key={truth.truthId}
+                        truth={truth}
+                        pending={pending}
+                        onRemove={() => onAction(() => removeTruth({
+                          commandId: newCommandId(),
+                          expectedCampaignId: campaignId,
+                          denizenId: construct.denizenId,
+                          truthId: truth.truthId,
+                          expectedTruth: { truthId: truth.truthId, text: truth.text, origin: "campaign" },
+                        }))}
+                        onUpdate={(value) => onAction(() => updateTruth({
+                          commandId: newCommandId(),
+                          expectedCampaignId: campaignId,
+                          denizenId: construct.denizenId,
+                          truthId: truth.truthId,
+                          change: { expected: truth.text, value },
+                        }))}
+                      />
                     ))}
                   </ul>
                   <AddTruthForm
@@ -470,25 +475,21 @@ export default function SorcererAdvancedBoard({
                 text,
               }))}
             />
-            {presentation.innovations[0] !== undefined && (
-              <InnovationForm
-                label="Revise Innovation"
-                spells={eligibleSpells}
-                pending={pending}
-                defaultSpellId={presentation.innovations[0].spellId}
-                defaultText={presentation.innovations[0].text}
-                errorLine={errorLine()}
-                onSubmit={(spellId, text) => onAction(() => reviseInnovation({
-                  commandId: newCommandId(),
-                  expectedCampaignId: campaignId,
-                  innovationId: presentation.innovations[0]!.innovationId,
-                  expectedSpellId: presentation.innovations[0]!.spellId,
-                  expectedText: presentation.innovations[0]!.text,
-                  spellId,
-                  text,
-                }))}
-              />
-            )}
+            <ReviseInnovationPanel
+              innovations={presentation.innovations}
+              spells={eligibleSpells}
+              pending={pending}
+              errorLine={errorLine()}
+              onSubmit={(target, spellId, text) => onAction(() => reviseInnovation({
+                commandId: newCommandId(),
+                expectedCampaignId: campaignId,
+                innovationId: target.innovationId,
+                expectedSpellId: target.spellId,
+                expectedText: target.text,
+                spellId,
+                text,
+              }))}
+            />
           </div>
         </details>
 
@@ -585,114 +586,106 @@ export default function SorcererAdvancedBoard({
                 },
               }))}
             />
-            {presentation.campaignSchools[0] !== undefined && (
-              <DefinitionForm
-                title="Revise School"
-                fields={[
-                  { key: "name", label: "School name" },
-                  { key: "description", label: "School description" },
-                ]}
-                pending={pending}
-                defaults={{
-                  name: presentation.campaignSchools[0].name,
-                  description: presentation.campaignSchools[0].description,
-                }}
-                errorLine={errorLine()}
-                onSubmit={(values) => onAction(() => updateDefinition({
-                  commandId: newCommandId(),
-                  expectedCampaignId: campaignId,
-                  definition: {
-                    kind: "school",
-                    schoolId: presentation.campaignSchools[0]!.schoolId,
-                    expectedName: presentation.campaignSchools[0]!.name,
-                    expectedDescription: presentation.campaignSchools[0]!.description,
-                    name: values.name,
-                    description: values.description,
-                  },
-                }))}
-              />
-            )}
-            {presentation.campaignAcademicKinds[0] !== undefined && (
-              <DefinitionForm
-                title="Revise Academic kind"
-                fields={[
-                  { key: "name", label: "Kind name" },
-                  { key: "action", label: "Monthly action" },
-                ]}
-                pending={pending}
-                defaults={{
-                  name: presentation.campaignAcademicKinds[0].name,
-                  action: presentation.campaignAcademicKinds[0].action,
-                }}
-                errorLine={errorLine()}
-                onSubmit={(values) => onAction(() => updateDefinition({
-                  commandId: newCommandId(),
-                  expectedCampaignId: campaignId,
-                  definition: {
-                    kind: "academic_kind",
-                    academicKindId: presentation.campaignAcademicKinds[0]!.academicKindId,
-                    expectedName: presentation.campaignAcademicKinds[0]!.name,
-                    expectedAction: presentation.campaignAcademicKinds[0]!.action,
-                    name: values.name,
-                    action: values.action,
-                  },
-                }))}
-              />
-            )}
-            {presentation.campaignRecipes[0] !== undefined && (
-              <DefinitionForm
-                title="Revise Recipe"
-                fields={[
-                  { key: "name", label: "Recipe name" },
-                  { key: "recipeText", label: "Recipe text" },
-                ]}
-                pending={pending}
-                defaults={{
-                  name: presentation.campaignRecipes[0].name,
-                  recipeText: presentation.campaignRecipes[0].recipeText,
-                }}
-                errorLine={errorLine()}
-                onSubmit={(values) => onAction(() => updateDefinition({
-                  commandId: newCommandId(),
-                  expectedCampaignId: campaignId,
-                  definition: {
-                    kind: "recipe",
-                    recipeId: presentation.campaignRecipes[0]!.recipeId,
-                    expectedName: presentation.campaignRecipes[0]!.name,
-                    expectedRecipeText: presentation.campaignRecipes[0]!.recipeText,
-                    name: values.name,
-                    recipeText: values.recipeText,
-                  },
-                }))}
-              />
-            )}
-            {presentation.campaignKnowledgeMethods[0] !== undefined && (
-              <DefinitionForm
-                title="Revise Knowledge method"
-                fields={[
-                  { key: "name", label: "Method name" },
-                  { key: "description", label: "How Knowledge is obtained" },
-                ]}
-                pending={pending}
-                defaults={{
-                  name: presentation.campaignKnowledgeMethods[0].name,
-                  description: presentation.campaignKnowledgeMethods[0].description,
-                }}
-                errorLine={errorLine()}
-                onSubmit={(values) => onAction(() => updateDefinition({
-                  commandId: newCommandId(),
-                  expectedCampaignId: campaignId,
-                  definition: {
-                    kind: "knowledge_method",
-                    knowledgeMethodId: presentation.campaignKnowledgeMethods[0]!.knowledgeMethodId,
-                    expectedName: presentation.campaignKnowledgeMethods[0]!.name,
-                    expectedDescription: presentation.campaignKnowledgeMethods[0]!.description,
-                    name: values.name,
-                    description: values.description,
-                  },
-                }))}
-              />
-            )}
+            <ReviseDefinitionPanel
+              title="Revise School"
+              selectLabel="School to revise"
+              items={presentation.campaignSchools}
+              getId={(school) => school.schoolId}
+              formatOption={(school) => school.name}
+              fields={[
+                { key: "name", label: "School name", read: (school) => school.name },
+                { key: "description", label: "School description", read: (school) => school.description },
+              ]}
+              pending={pending}
+              errorLine={errorLine()}
+              onSubmit={(school, values) => onAction(() => updateDefinition({
+                commandId: newCommandId(),
+                expectedCampaignId: campaignId,
+                definition: {
+                  kind: "school",
+                  schoolId: school.schoolId,
+                  expectedName: school.name,
+                  expectedDescription: school.description,
+                  name: values.name,
+                  description: values.description,
+                },
+              }))}
+            />
+            <ReviseDefinitionPanel
+              title="Revise Academic kind"
+              selectLabel="Academic kind to revise"
+              items={presentation.campaignAcademicKinds}
+              getId={(kind) => kind.academicKindId}
+              formatOption={(kind) => kind.name}
+              fields={[
+                { key: "name", label: "Kind name", read: (kind) => kind.name },
+                { key: "action", label: "Monthly action", read: (kind) => kind.action },
+              ]}
+              pending={pending}
+              errorLine={errorLine()}
+              onSubmit={(kind, values) => onAction(() => updateDefinition({
+                commandId: newCommandId(),
+                expectedCampaignId: campaignId,
+                definition: {
+                  kind: "academic_kind",
+                  academicKindId: kind.academicKindId,
+                  expectedName: kind.name,
+                  expectedAction: kind.action,
+                  name: values.name,
+                  action: values.action,
+                },
+              }))}
+            />
+            <ReviseDefinitionPanel
+              title="Revise Recipe"
+              selectLabel="Recipe to revise"
+              items={presentation.campaignRecipes}
+              getId={(recipe) => recipe.recipeId}
+              formatOption={(recipe) => recipe.name}
+              fields={[
+                { key: "name", label: "Recipe name", read: (recipe) => recipe.name },
+                { key: "recipeText", label: "Recipe text", read: (recipe) => recipe.recipeText },
+              ]}
+              pending={pending}
+              errorLine={errorLine()}
+              onSubmit={(recipe, values) => onAction(() => updateDefinition({
+                commandId: newCommandId(),
+                expectedCampaignId: campaignId,
+                definition: {
+                  kind: "recipe",
+                  recipeId: recipe.recipeId,
+                  expectedName: recipe.name,
+                  expectedRecipeText: recipe.recipeText,
+                  name: values.name,
+                  recipeText: values.recipeText,
+                },
+              }))}
+            />
+            <ReviseDefinitionPanel
+              title="Revise Knowledge method"
+              selectLabel="Knowledge method to revise"
+              items={presentation.campaignKnowledgeMethods}
+              getId={(method) => method.knowledgeMethodId}
+              formatOption={(method) => method.name}
+              fields={[
+                { key: "name", label: "Method name", read: (method) => method.name },
+                { key: "description", label: "How Knowledge is obtained", read: (method) => method.description },
+              ]}
+              pending={pending}
+              errorLine={errorLine()}
+              onSubmit={(method, values) => onAction(() => updateDefinition({
+                commandId: newCommandId(),
+                expectedCampaignId: campaignId,
+                definition: {
+                  kind: "knowledge_method",
+                  knowledgeMethodId: method.knowledgeMethodId,
+                  expectedName: method.name,
+                  expectedDescription: method.description,
+                  name: values.name,
+                  description: values.description,
+                },
+              }))}
+            />
           </div>
         </details>
       </div>
@@ -1245,6 +1238,195 @@ function CorrectArcanistForm({
   );
 }
 
+function ConstructTruthRow({
+  truth,
+  pending,
+  onRemove,
+  onUpdate,
+}: {
+  readonly truth: SorcererBoardConstructTruth;
+  readonly pending: boolean;
+  readonly onRemove: () => Promise<boolean>;
+  readonly onUpdate: (value: string) => Promise<boolean>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(truth.text);
+
+  if (!editing) {
+    return (
+      <li className="flex items-start justify-between gap-2">
+        <span>{truth.text}</span>
+        <div className="flex shrink-0 gap-1">
+          <button
+            type="button"
+            className={ghostBtn}
+            disabled={pending}
+            onClick={() => {
+              setDraft(truth.text);
+              setEditing(true);
+            }}
+          >
+            Edit Truth
+          </button>
+          <button type="button" className={ghostBtn} disabled={pending} onClick={() => { void onRemove(); }}>
+            Remove Truth
+          </button>
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <form
+        className="space-y-1"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onUpdate(draft.trim()).then((ok) => {
+            if (ok) {
+              setEditing(false);
+            }
+          });
+        }}
+      >
+        <label className="block text-xs">
+          Truth text
+          <input className={fieldClass} value={draft} onChange={(event) => setDraft(event.target.value)} />
+        </label>
+        <div className="flex gap-1">
+          <button type="submit" className={ghostBtn} disabled={pending}>Save Truth</button>
+          <button
+            type="button"
+            className={ghostBtn}
+            disabled={pending}
+            onClick={() => {
+              setDraft(truth.text);
+              setEditing(false);
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </li>
+  );
+}
+
+function ReviseInnovationPanel({
+  innovations,
+  spells,
+  pending,
+  errorLine,
+  onSubmit,
+}: {
+  readonly innovations: readonly SorcererBoardInnovation[];
+  readonly spells: ReturnType<typeof innovationEligibleSpells>;
+  readonly pending: boolean;
+  readonly errorLine: ReactNode;
+  readonly onSubmit: (
+    target: SorcererBoardInnovation,
+    spellId: string,
+    text: string,
+  ) => Promise<boolean>;
+}) {
+  if (innovations.length === 0) {
+    return null;
+  }
+  const [selectedId, setSelectedId] = useState(innovations[0]!.innovationId);
+  const selected = innovations.find((entry) => entry.innovationId === selectedId) ?? innovations[0]!;
+  const targetSelector = innovations.length > 1 ? (
+    <label className="block text-xs">
+      Innovation to revise
+      <select
+        className={fieldClass}
+        value={selectedId}
+        onChange={(event) => setSelectedId(event.target.value as SorcererBoardInnovation["innovationId"])}
+      >
+        {innovations.map((innovation) => (
+          <option key={innovation.innovationId} value={innovation.innovationId}>
+            {innovation.spellName} · {innovation.schoolLabel}: {innovation.text}
+          </option>
+        ))}
+      </select>
+    </label>
+  ) : null;
+
+  return (
+    <InnovationForm
+      key={selected.innovationId}
+      label="Revise Innovation"
+      spells={spells}
+      pending={pending}
+      defaultSpellId={selected.spellId}
+      defaultText={selected.text}
+      errorLine={errorLine}
+      header={targetSelector}
+      onSubmit={(spellId, text) => {
+        const target = innovations.find((entry) => entry.innovationId === selectedId) ?? innovations[0]!;
+        return onSubmit(target, spellId, text);
+      }}
+    />
+  );
+}
+
+function ReviseDefinitionPanel<T>({
+  title,
+  selectLabel,
+  items,
+  getId,
+  formatOption,
+  fields,
+  pending,
+  errorLine,
+  onSubmit,
+}: {
+  readonly title: string;
+  readonly selectLabel: string;
+  readonly items: readonly T[];
+  readonly getId: (item: T) => string;
+  readonly formatOption: (item: T) => string;
+  readonly fields: readonly {
+    readonly key: string;
+    readonly label: string;
+    readonly read: (item: T) => string;
+  }[];
+  readonly pending: boolean;
+  readonly errorLine: ReactNode;
+  readonly onSubmit: (item: T, values: Record<string, string>) => Promise<boolean>;
+}) {
+  if (items.length === 0) {
+    return null;
+  }
+  const [selectedId, setSelectedId] = useState(getId(items[0]!));
+  const selected = items.find((item) => getId(item) === selectedId) ?? items[0]!;
+  const targetSelector = items.length > 1 ? (
+    <label className="block text-xs">
+      {selectLabel}
+      <select className={fieldClass} value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
+        {items.map((item) => (
+          <option key={getId(item)} value={getId(item)}>{formatOption(item)}</option>
+        ))}
+      </select>
+    </label>
+  ) : null;
+
+  return (
+    <DefinitionForm
+      key={selectedId}
+      title={title}
+      fields={fields.map((field) => ({ key: field.key, label: field.label }))}
+      pending={pending}
+      defaults={Object.fromEntries(fields.map((field) => [field.key, field.read(selected)]))}
+      errorLine={errorLine}
+      header={targetSelector}
+      onSubmit={(values) => {
+        const target = items.find((item) => getId(item) === selectedId) ?? items[0]!;
+        return onSubmit(target, values);
+      }}
+    />
+  );
+}
+
 function AddTruthForm({
   pending,
   onSubmit,
@@ -1403,6 +1585,7 @@ function InnovationForm({
   pending,
   defaultSpellId = "",
   defaultText = "",
+  header,
   errorLine,
   onSubmit,
 }: {
@@ -1411,6 +1594,7 @@ function InnovationForm({
   readonly pending: boolean;
   readonly defaultSpellId?: string;
   readonly defaultText?: string;
+  readonly header?: ReactNode;
   readonly errorLine: ReactNode;
   readonly onSubmit: (spellId: string, text: string) => Promise<boolean>;
 }) {
@@ -1425,6 +1609,7 @@ function InnovationForm({
       }}
     >
       <p className="text-xs font-medium">{label}</p>
+      {header}
       <label className="block text-xs">
         Spell
         <select className={fieldClass} value={spellId} onChange={(event) => setSpellId(event.target.value)}>
@@ -1470,6 +1655,7 @@ function DefinitionForm({
   pending,
   defaults = {},
   reminder,
+  header,
   errorLine,
   onSubmit,
 }: {
@@ -1478,6 +1664,7 @@ function DefinitionForm({
   readonly pending: boolean;
   readonly defaults?: Record<string, string>;
   readonly reminder?: string;
+  readonly header?: ReactNode;
   readonly errorLine: ReactNode;
   readonly onSubmit: (values: Record<string, string>) => Promise<boolean>;
 }) {
@@ -1494,6 +1681,7 @@ function DefinitionForm({
     >
       <p className="text-xs font-medium">{title}</p>
       {reminder !== undefined && <p className="text-[11px] text-[#5c4300]">{reminder}</p>}
+      {header}
       {fields.map((field) => (
         <label key={field.key} className="block text-xs">
           {field.label}
