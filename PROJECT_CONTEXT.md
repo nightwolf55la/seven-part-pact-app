@@ -296,7 +296,7 @@ See `docs/m5-4a-hn-temples-gates-operability.md`.
 
 **COMPLETE — PR #26**
 
-Branch `m5-4a/mariner-operability`; closure HEAD `d4a9c9d`. Real Convex Development closure succeeded on disposable deployment `dev/m5-4a-mariner-closure` (`wry-boar-766`); no Production deployment. Closure repaired persisted Mariner operability event validators in `convex/validators.ts` and verified representative `create_mariner_ship` persistence through revision 18 on campaign `cmp_f06495fd-7675-405a-9b76-5b9157e78219`.
+Branch `m5-4a/mariner-operability`; closure HEAD `4cdd52d`. Real Convex Development closure succeeded on disposable deployment `dev/m5-4a-mariner-closure` (`wry-boar-766`); no Production deployment. Closure repaired persisted Mariner operability event validators in `convex/validators.ts` and verified representative `create_mariner_ship` persistence through revision 18 on campaign `cmp_f06495fd-7675-405a-9b76-5b9157e78219`.
 
 No CampaignState schema change or migration occurred. CampaignState V5 remains PRE-ACTIVATION.
 
