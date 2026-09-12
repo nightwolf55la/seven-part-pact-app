@@ -1329,17 +1329,17 @@ function ReviseInnovationPanel({
     text: string,
   ) => Promise<boolean>;
 }) {
-  if (innovations.length === 0) {
+  const [selectedId, setSelectedId] = useState<SorcererBoardInnovation["innovationId"] | null>(null);
+  const selected = innovations.find((entry) => entry.innovationId === selectedId) ?? innovations[0] ?? null;
+  if (selected === null) {
     return null;
   }
-  const [selectedId, setSelectedId] = useState(innovations[0]!.innovationId);
-  const selected = innovations.find((entry) => entry.innovationId === selectedId) ?? innovations[0]!;
   const targetSelector = innovations.length > 1 ? (
     <label className="block text-xs">
       Innovation to revise
       <select
         className={fieldClass}
-        value={selectedId}
+        value={selected.innovationId}
         onChange={(event) => setSelectedId(event.target.value as SorcererBoardInnovation["innovationId"])}
       >
         {innovations.map((innovation) => (
@@ -1361,10 +1361,7 @@ function ReviseInnovationPanel({
       defaultText={selected.text}
       errorLine={errorLine}
       header={targetSelector}
-      onSubmit={(spellId, text) => {
-        const target = innovations.find((entry) => entry.innovationId === selectedId) ?? innovations[0]!;
-        return onSubmit(target, spellId, text);
-      }}
+      onSubmit={(spellId, text) => onSubmit(selected, spellId, text)}
     />
   );
 }
@@ -1394,15 +1391,16 @@ function ReviseDefinitionPanel<T>({
   readonly errorLine: ReactNode;
   readonly onSubmit: (item: T, values: Record<string, string>) => Promise<boolean>;
 }) {
-  if (items.length === 0) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = items.find((item) => getId(item) === selectedId) ?? items[0] ?? null;
+  if (selected === null) {
     return null;
   }
-  const [selectedId, setSelectedId] = useState(getId(items[0]!));
-  const selected = items.find((item) => getId(item) === selectedId) ?? items[0]!;
+  const effectiveId = getId(selected);
   const targetSelector = items.length > 1 ? (
     <label className="block text-xs">
       {selectLabel}
-      <select className={fieldClass} value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
+      <select className={fieldClass} value={effectiveId} onChange={(event) => setSelectedId(event.target.value)}>
         {items.map((item) => (
           <option key={getId(item)} value={getId(item)}>{formatOption(item)}</option>
         ))}
@@ -1412,17 +1410,14 @@ function ReviseDefinitionPanel<T>({
 
   return (
     <DefinitionForm
-      key={selectedId}
+      key={effectiveId}
       title={title}
       fields={fields.map((field) => ({ key: field.key, label: field.label }))}
       pending={pending}
       defaults={Object.fromEntries(fields.map((field) => [field.key, field.read(selected)]))}
       errorLine={errorLine}
       header={targetSelector}
-      onSubmit={(values) => {
-        const target = items.find((item) => getId(item) === selectedId) ?? items[0]!;
-        return onSubmit(target, values);
-      }}
+      onSubmit={(values) => onSubmit(selected, values)}
     />
   );
 }

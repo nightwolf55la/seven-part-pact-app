@@ -229,6 +229,41 @@ function renderSurface(
   return { container, root };
 }
 
+function rerenderSurface(
+  root: ReturnType<typeof createRoot>,
+  presentation: SorcererBoardReference,
+  layout: "full" | "narrow" = "full",
+) {
+  flushSync(() => {
+    root.render(createElement(SorcererSurface, {
+      presentation,
+      campaignId: CAMPAIGN_ID,
+      layout,
+      loreCompendium: LORE,
+    }));
+  });
+}
+
+function hookOrderMessages(messages: readonly string[]): string[] {
+  return messages.filter((message) => /Rendered more hooks|change in the order of Hooks/i.test(message));
+}
+
+function captureRenderErrors(run: () => void): string[] {
+  const messages: string[] = [];
+  const spy = vi.spyOn(console, "error").mockImplementation((...args) => {
+    messages.push(args.map(String).join(" "));
+  });
+  try {
+    run();
+  } catch (error) {
+    messages.push(String(error));
+    throw error;
+  } finally {
+    spy.mockRestore();
+  }
+  return messages;
+}
+
 function clickNamedButton(container: HTMLElement, name: string) {
   const button = [...container.querySelectorAll("button")].find((entry) => entry.textContent?.trim() === name);
   expect(button).toBeDefined();
@@ -251,6 +286,10 @@ function openAdvancedSection(container: HTMLElement, summaryText: string) {
     entry.textContent?.trim() === summaryText
   ));
   expect(summary).toBeDefined();
+  const details = summary!.closest("details");
+  if (details?.open === true) {
+    return;
+  }
   flushSync(() => {
     summary!.click();
   });
@@ -610,6 +649,98 @@ describe("Sorcerer surface presentation", () => {
         },
       }),
     );
+    root.unmount();
+    container.remove();
+  });
+
+  it("rerenders empty Innovations into a Revise form without a hook-order failure", () => {
+    const empty = { ...PRESENTATION, innovations: [] };
+    const { container, root } = renderSurface("full", empty);
+    openAdvancedBoard(container);
+    openAdvancedSection(container, "Innovations");
+    expect([...container.querySelectorAll("button")].some((button) => (
+      button.textContent?.trim() === "Revise Innovation"
+    ))).toBe(false);
+
+    let renderErrors: string[] = [];
+    expect(() => {
+      renderErrors = captureRenderErrors(() => rerenderSurface(root, PRESENTATION));
+    }).not.toThrow();
+    expect(hookOrderMessages(renderErrors)).toEqual([]);
+    openAdvancedSection(container, "Innovations");
+    const reviseForm = formWithSubmitButton(container, "Revise Innovation");
+    expect((controlInForm(reviseForm, "Innovation text") as HTMLTextAreaElement).value).toBe(
+      "The chant may be whispered.",
+    );
+    root.unmount();
+    container.remove();
+  });
+
+  it("rerenders empty campaign Schools into a Revise form without a hook-order failure", () => {
+    const empty = { ...PRESENTATION, campaignSchools: [] };
+    const { container, root } = renderSurface("full", empty);
+    openAdvancedBoard(container);
+    openAdvancedSection(container, "University Definitions");
+    expect([...container.querySelectorAll("button")].some((button) => (
+      button.textContent?.trim() === "Revise School"
+    ))).toBe(false);
+
+    let renderErrors: string[] = [];
+    expect(() => {
+      renderErrors = captureRenderErrors(() => rerenderSurface(root, PRESENTATION));
+    }).not.toThrow();
+    expect(hookOrderMessages(renderErrors)).toEqual([]);
+    openAdvancedSection(container, "University Definitions");
+    const reviseForm = formWithSubmitButton(container, "Revise School");
+    expect((controlInForm(reviseForm, "School name") as HTMLInputElement).value).toBe("Cartography");
+    root.unmount();
+    container.remove();
+  });
+
+  it("falls back when the selected Innovation disappears", () => {
+    const { container, root } = renderSurface("full", MULTI_REVISION_PRESENTATION);
+    openAdvancedBoard(container);
+    openAdvancedSection(container, "Innovations");
+    let reviseForm = formWithSubmitButton(container, "Revise Innovation");
+    const targetSelect = controlInForm(reviseForm, "Innovation to revise") as HTMLSelectElement;
+    flushSync(() => {
+      targetSelect.value = "sinn_00000000-0000-0000-0000-0000000000bb";
+      targetSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    reviseForm = formWithSubmitButton(container, "Revise Innovation");
+    expect((controlInForm(reviseForm, "Innovation text") as HTMLTextAreaElement).value).toBe(
+      "Second innovation text",
+    );
+
+    rerenderSurface(root, PRESENTATION);
+    openAdvancedSection(container, "Innovations");
+    reviseForm = formWithSubmitButton(container, "Revise Innovation");
+    expect(reviseForm.querySelector("select")?.value).not.toBe("sinn_00000000-0000-0000-0000-0000000000bb");
+    expect((controlInForm(reviseForm, "Innovation text") as HTMLTextAreaElement).value).toBe(
+      "The chant may be whispered.",
+    );
+    root.unmount();
+    container.remove();
+  });
+
+  it("falls back when the selected campaign School disappears", () => {
+    const { container, root } = renderSurface("full", MULTI_REVISION_PRESENTATION);
+    openAdvancedBoard(container);
+    openAdvancedSection(container, "University Definitions");
+    let reviseForm = formWithSubmitButton(container, "Revise School");
+    const targetSelect = controlInForm(reviseForm, "School to revise") as HTMLSelectElement;
+    flushSync(() => {
+      targetSelect.value = "ssch_00000000-0000-0000-0000-0000000000ab";
+      targetSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    reviseForm = formWithSubmitButton(container, "Revise School");
+    expect((controlInForm(reviseForm, "School name") as HTMLInputElement).value).toBe("Astronomy");
+
+    rerenderSurface(root, PRESENTATION);
+    openAdvancedSection(container, "University Definitions");
+    reviseForm = formWithSubmitButton(container, "Revise School");
+    expect(reviseForm.querySelector("select")?.value).not.toBe("ssch_00000000-0000-0000-0000-0000000000ab");
+    expect((controlInForm(reviseForm, "School name") as HTMLInputElement).value).toBe("Cartography");
     root.unmount();
     container.remove();
   });
