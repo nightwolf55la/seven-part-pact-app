@@ -342,10 +342,20 @@ export function orreryResearcherMarkersFromSorcererQuery(
 
 /** Just outside the House outer ring (245), inward of the Sun (268). */
 export const ORRERY_RESEARCHER_MARKER_R = 248;
+export const ORRERY_SUN_CENTER_R = 268;
+export const ORRERY_SUN_HALO_R = 17;
+export const ORRERY_RESEARCHER_BADGE_R = 7.5;
+export const ORRERY_SUN_MARKER_CLEARANCE_MARGIN = 2;
+/** Angular shift so a Sun-house marker clears the Sun halo without entering the label band. */
+export const ORRERY_SUN_HOUSE_MARKER_OFFSET_DEGREES = 8;
 const RESEARCHER_MARKER_FAN_DEGREES = 7;
 
 export function houseCenterSvgAngle(house: HouseIndex): number {
   return centidegreesToSvgAngle(house * HOUSE_WIDTH_CENTIDEGREES + HOUSE_WIDTH_CENTIDEGREES / 2);
+}
+
+export function orrerySunMarkerMinSeparation(): number {
+  return ORRERY_SUN_HALO_R + ORRERY_RESEARCHER_BADGE_R + ORRERY_SUN_MARKER_CLEARANCE_MARGIN;
 }
 
 export function orreryPolarPoint(
@@ -365,14 +375,18 @@ export function orreryResearcherMarkerPlacement(
   house: HouseIndex,
   siblingIndex: number,
   siblingCount: number,
+  sunHouse?: HouseIndex,
 ): { angle: number; radius: number } {
   const center = houseCenterSvgAngle(house);
+  const sunHouseOffset = sunHouse !== undefined && house === sunHouse
+    ? ORRERY_SUN_HOUSE_MARKER_OFFSET_DEGREES
+    : 0;
   if (siblingCount <= 1) {
-    return { angle: center, radius: ORRERY_RESEARCHER_MARKER_R };
+    return { angle: center + sunHouseOffset, radius: ORRERY_RESEARCHER_MARKER_R };
   }
   const spread = RESEARCHER_MARKER_FAN_DEGREES * (siblingCount - 1);
   const offset = -spread / 2 + siblingIndex * RESEARCHER_MARKER_FAN_DEGREES;
-  return { angle: center + offset, radius: ORRERY_RESEARCHER_MARKER_R };
+  return { angle: center + sunHouseOffset + offset, radius: ORRERY_RESEARCHER_MARKER_R };
 }
 
 export function orreryResearcherMarkerStatusText(operationalThisMonth: boolean): string {

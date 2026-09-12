@@ -7,6 +7,8 @@ import {
   orreryResearcherMarkerPlacement,
   orreryPolarPoint,
   ORRERY_RESEARCHER_MARKER_R,
+  ORRERY_SUN_CENTER_R,
+  orrerySunMarkerMinSeparation,
   centidegreesToSvgAngle,
   arcSvgAngles,
   sunDisplayPosition,
@@ -534,5 +536,32 @@ describe("orrery researcher marker geometry", () => {
     expect(second.radius).toBe(ORRERY_RESEARCHER_MARKER_R);
     expect(first.angle).not.toBe(second.angle);
     expect((first.angle + second.angle) / 2).toBe(houseCenterSvgAngle(0));
+  });
+
+  it("places a Researcher in the Sun's House with safe visual separation from the Sun halo", () => {
+    const origin = { x: 290, y: 290 };
+    const sunHouse = 0 as HouseIndex;
+    const otherHouse = 2 as HouseIndex;
+    const sunAngle = houseCenterSvgAngle(sunHouse);
+    const sunPoint = orreryPolarPoint(origin.x, origin.y, ORRERY_SUN_CENTER_R, sunAngle);
+    const minSeparation = orrerySunMarkerMinSeparation();
+
+    const sunHousePlacement = orreryResearcherMarkerPlacement(sunHouse, 0, 1, sunHouse);
+    const sunHousePoint = orreryPolarPoint(
+      origin.x,
+      origin.y,
+      sunHousePlacement.radius,
+      sunHousePlacement.angle,
+    );
+    const separation = Math.hypot(sunHousePoint.x - sunPoint.x, sunHousePoint.y - sunPoint.y);
+
+    expect(sunHousePlacement.radius).toBe(ORRERY_RESEARCHER_MARKER_R);
+    expect(separation).toBeGreaterThanOrEqual(minSeparation);
+
+    const otherPlacement = orreryResearcherMarkerPlacement(otherHouse, 0, 1, sunHouse);
+    expect(otherPlacement).toEqual({
+      angle: houseCenterSvgAngle(otherHouse),
+      radius: ORRERY_RESEARCHER_MARKER_R,
+    });
   });
 });

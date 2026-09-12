@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { buildOrreryDisplayModel, arcSvgAngles, centidegreesToSvgAngle, sunDisplaySvgAngle, bodiesConjunctWith, occupiedHousesOfBody, buildBodyHoverSummary, buildBodyIndexedConjunctionReference, buildHouseHoverSummary, BODY_DISPLAY_SYMBOLS, orreryPolarPoint, orreryResearcherMarkerPlacement, orreryResearcherMarkerAccessibleLabel, orreryResearcherMarkerReferenceLine } from "./orrery-view-model";
+import { buildOrreryDisplayModel, arcSvgAngles, centidegreesToSvgAngle, sunDisplaySvgAngle, bodiesConjunctWith, occupiedHousesOfBody, buildBodyHoverSummary, buildBodyIndexedConjunctionReference, buildHouseHoverSummary, BODY_DISPLAY_SYMBOLS, orreryPolarPoint, orreryResearcherMarkerPlacement, orreryResearcherMarkerAccessibleLabel, orreryResearcherMarkerReferenceLine, ORRERY_SUN_CENTER_R, ORRERY_SUN_HALO_R, ORRERY_RESEARCHER_BADGE_R } from "./orrery-view-model";
 import type { OrreryDisplayModel, BodyHoverSummary, BodyIndexedConjunctionEntry, HouseHoverSummary } from "./orrery-view-model";
 import { MOVABLE_PLANET_IDS, PLANET_DEFINITIONS, FULL_CIRCLE_CENTIDEGREES, HOUSE_WIDTH_CENTIDEGREES, HOUSE_NAMES, legalPositionsForPlanet, CELESTIAL_BODY_IDS } from "../shared/domain/orrery";
 import type { MovablePlanetId, CentidegreePosition, HouseIndex, CelestialBodyId } from "../shared/domain/orrery";
@@ -59,7 +59,6 @@ const SVG_CENTER = SVG_VIEWBOX / 2;
 const HOUSE_OUTER_R = 245;
 const HOUSE_INNER_R = 205;
 const LABEL_R = 225;
-const SUN_R = 268;
 const TRACK_BAND_WIDTH = 28;
 const TRACK_GAP = 4;
 const PLANET_TRACK_BASE_R = 192;
@@ -188,7 +187,7 @@ export default function OrreryView({
   );
 
   const sunAngle = sunDisplaySvgAngle(monthOrdinal as MonthOrdinal);
-  const sunPoint = polarToCartesian(SVG_CENTER, SVG_CENTER, SUN_R, sunAngle);
+  const sunPoint = polarToCartesian(SVG_CENTER, SVG_CENTER, ORRERY_SUN_CENTER_R, sunAngle);
   const researcherMarkerLayouts = useMemo(() => {
     const counts = researcherMarkerSiblingCounts(researcherMarkers);
     const seen = new Map<HouseIndex, number>();
@@ -196,14 +195,19 @@ export default function OrreryView({
       const siblingCount = counts.get(marker.house) ?? 1;
       const siblingIndex = seen.get(marker.house) ?? 0;
       seen.set(marker.house, siblingIndex + 1);
-      const placement = orreryResearcherMarkerPlacement(marker.house, siblingIndex, siblingCount);
+      const placement = orreryResearcherMarkerPlacement(
+        marker.house,
+        siblingIndex,
+        siblingCount,
+        model.sun.houseIndex,
+      );
       return {
         marker,
         point: orreryPolarPoint(SVG_CENTER, SVG_CENTER, placement.radius, placement.angle),
         label: orreryResearcherMarkerAccessibleLabel(marker),
       };
     });
-  }, [researcherMarkers]);
+  }, [researcherMarkers, model.sun.houseIndex]);
 
   const isBodyEmphasized = (bodyId: CelestialBodyId): boolean => {
     if (hoverTarget === null) return true;
@@ -474,7 +478,7 @@ export default function OrreryView({
             <circle
               cx={sunPoint.x}
               cy={sunPoint.y}
-              r={isBodyEmphasized("sun") && hoverTarget !== null ? 19 : 17}
+              r={isBodyEmphasized("sun") && hoverTarget !== null ? ORRERY_SUN_HALO_R + 2 : ORRERY_SUN_HALO_R}
               fill="none"
               stroke="#f59e0b"
               strokeWidth={1.5}
@@ -514,7 +518,7 @@ export default function OrreryView({
               >
                 <title>{label}</title>
                 <circle
-                  r={7.5}
+                  r={ORRERY_RESEARCHER_BADGE_R}
                   fill={working ? "#f8fafc" : "#e2e8f0"}
                   stroke={working ? "#b45309" : "#64748b"}
                   strokeWidth={working ? 1.6 : 1.4}
