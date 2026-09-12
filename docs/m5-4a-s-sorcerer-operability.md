@@ -1,6 +1,6 @@
 # M5.4A-S — Sorcerer Operability & Tower Board
 
-**Status:** Body A complete. Body B complete. Body C1 advanced/correction implementation complete. Orrery proof + real Convex/browser closure still pending Body C2.
+**Status:** Body A complete. Body B complete. Body C1 advanced/correction implementation complete. Body C2A Orrery Researcher marker proof implemented from the authoritative external-presence presentation (no duplicated placement state; no Orrery rule change). Real Convex/browser closure still pending Body C2B. This Workstream is not complete.
 **Schema:** CampaignState V5 remains PRE-ACTIVATION. This Workstream adds no CampaignState fields and does not create V6.
 **Workstream boundary:** Sorcerer ordinary operability, Working Tower, and bounded Advanced / Correct Board recording. This document does **not** mark all of M5.4 complete.
 
@@ -270,12 +270,18 @@ Direct specialized personnel and exact Tower-order correction reuse Body A `recr
 - No delete semantics for campaign definitions in C1.
 - No Orrery rendering change, no Convex deployment, and no Workstream closure in C1.
 
-## Advanced state deferred to Body C2 / later
+## Body C2A Orrery marker proof
 
-- Orrery Researcher marker rendering
-- final visual corrections
+- Orrery Researcher markers render from `presentation.externalPresence` via the existing House-marker adapter.
+- No duplicated Researcher placement state and no Orrery celestial-mechanics / occupancy / command change.
+- Primary and secondary Orrery surfaces share the same current marker presentation from `getSorcererReference`.
+- Orrery continues to render normally when Sorcerer presentation is loading, unavailable, uninitialized, or has no Orrery Researcher.
+
+## Advanced state deferred to Body C2B / later
+
 - full repository closure gate
 - fresh real Convex/browser integration
+- final visual corrections
 - closure documentation/report
 - Spyrholm/Tower Lore panel wiring remains reused from M5.4A-L; no new Lore subjects
 
@@ -283,4 +289,4 @@ Direct specialized personnel and exact Tower-order correction reuse Body A `recr
 
 - Denizen Tome/Reagent transfer is unsupported here because it would require a new definition of source-valid magic-user.
 - Source Archives timing is Wizardmoot; Body B UI should explain that without adding phase policing.
-- Body C1 owns bounded Advanced / Correct Board recording. Body C2 owns Orrery consumption of the Body A presence adapter, real Convex/browser closure, and Workstream completion.
+- Body C1 owns bounded Advanced / Correct Board recording. Body C2A owns Orrery consumption of the Body A presence adapter. Body C2B owns real Convex/browser closure and Workstream completion.

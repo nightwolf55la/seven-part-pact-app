@@ -1,9 +1,10 @@
 import { useState, useMemo } from "react";
-import { buildOrreryDisplayModel, arcSvgAngles, centidegreesToSvgAngle, sunDisplaySvgAngle, bodiesConjunctWith, occupiedHousesOfBody, buildBodyHoverSummary, buildBodyIndexedConjunctionReference, buildHouseHoverSummary, BODY_DISPLAY_SYMBOLS } from "./orrery-view-model";
+import { buildOrreryDisplayModel, arcSvgAngles, centidegreesToSvgAngle, sunDisplaySvgAngle, bodiesConjunctWith, occupiedHousesOfBody, buildBodyHoverSummary, buildBodyIndexedConjunctionReference, buildHouseHoverSummary, BODY_DISPLAY_SYMBOLS, orreryPolarPoint, orreryResearcherMarkerPlacement, orreryResearcherMarkerAccessibleLabel, orreryResearcherMarkerReferenceLine } from "./orrery-view-model";
 import type { OrreryDisplayModel, BodyHoverSummary, BodyIndexedConjunctionEntry, HouseHoverSummary } from "./orrery-view-model";
 import { MOVABLE_PLANET_IDS, PLANET_DEFINITIONS, FULL_CIRCLE_CENTIDEGREES, HOUSE_WIDTH_CENTIDEGREES, HOUSE_NAMES, legalPositionsForPlanet, CELESTIAL_BODY_IDS } from "../shared/domain/orrery";
 import type { MovablePlanetId, CentidegreePosition, HouseIndex, CelestialBodyId } from "../shared/domain/orrery";
 import type { MonthOrdinal } from "../shared/domain/calendar";
+import type { SorcererOrreryHouseMarkerPresentation } from "../shared/domain/sorcerer-presentation";
 
 const PLANET_COLORS: Record<MovablePlanetId, string> = {
   saturn: "#1a1a1a",
@@ -107,12 +108,24 @@ function trackRadii(idx: number): { innerR: number; outerR: number; midR: number
   return { innerR, outerR, midR };
 }
 
+function researcherMarkerSiblingCounts(
+  markers: readonly SorcererOrreryHouseMarkerPresentation[],
+): Map<HouseIndex, number> {
+  const counts = new Map<HouseIndex, number>();
+  for (const marker of markers) {
+    counts.set(marker.house, (counts.get(marker.house) ?? 0) + 1);
+  }
+  return counts;
+}
+
 export default function OrreryView({
   monthOrdinal,
   orreryPositions,
+  researcherMarkers = [],
 }: {
   monthOrdinal: number;
   orreryPositions: Record<string, number>;
+  researcherMarkers?: readonly SorcererOrreryHouseMarkerPresentation[];
 }) {
   const positions = {} as Record<MovablePlanetId, CentidegreePosition>;
   for (const p of MOVABLE_PLANET_IDS) {
@@ -176,6 +189,21 @@ export default function OrreryView({
 
   const sunAngle = sunDisplaySvgAngle(monthOrdinal as MonthOrdinal);
   const sunPoint = polarToCartesian(SVG_CENTER, SVG_CENTER, SUN_R, sunAngle);
+  const researcherMarkerLayouts = useMemo(() => {
+    const counts = researcherMarkerSiblingCounts(researcherMarkers);
+    const seen = new Map<HouseIndex, number>();
+    return researcherMarkers.map((marker) => {
+      const siblingCount = counts.get(marker.house) ?? 1;
+      const siblingIndex = seen.get(marker.house) ?? 0;
+      seen.set(marker.house, siblingIndex + 1);
+      const placement = orreryResearcherMarkerPlacement(marker.house, siblingIndex, siblingCount);
+      return {
+        marker,
+        point: orreryPolarPoint(SVG_CENTER, SVG_CENTER, placement.radius, placement.angle),
+        label: orreryResearcherMarkerAccessibleLabel(marker),
+      };
+    });
+  }, [researcherMarkers]);
 
   const isBodyEmphasized = (bodyId: CelestialBodyId): boolean => {
     if (hoverTarget === null) return true;
@@ -469,6 +497,52 @@ export default function OrreryView({
               fill="#7c2d12"
             />
           </g>
+
+          {researcherMarkerLayouts.map(({ marker, point, label }) => {
+            const working = marker.operationalThisMonth;
+            return (
+              <g
+                key={marker.denizenId}
+                transform={`translate(${point.x} ${point.y})`}
+                tabIndex={0}
+                role="img"
+                aria-label={label}
+                data-testid={`orrery-researcher-marker-${marker.denizenId}`}
+                data-operational={working ? "working" : "unavailable"}
+                className="group cursor-pointer outline-none"
+                style={{ outline: "none" }}
+              >
+                <title>{label}</title>
+                <circle
+                  r={7.5}
+                  fill={working ? "#f8fafc" : "#e2e8f0"}
+                  stroke={working ? "#b45309" : "#64748b"}
+                  strokeWidth={working ? 1.6 : 1.4}
+                  strokeDasharray={working ? undefined : "3 2"}
+                  className="group-hover:stroke-[2.2] group-focus-visible:stroke-[2.4]"
+                />
+                <text
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fill={working ? "#78350f" : "#475569"}
+                  style={{ fontSize: 9, fontWeight: 700, pointerEvents: "none" }}
+                >
+                  R
+                </text>
+                {!working && (
+                  <line
+                    x1={-5}
+                    y1={-5}
+                    x2={5}
+                    y2={5}
+                    stroke="#475569"
+                    strokeWidth={1.4}
+                    pointerEvents="none"
+                  />
+                )}
+              </g>
+            );
+          })}
         </svg>
       </div>
 
@@ -489,6 +563,19 @@ export default function OrreryView({
           </div>
         ))}
       </div>
+
+      {researcherMarkers.length > 0 && (
+        <div className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="font-medium mb-1">Research stations:</p>
+          <ul className="flex flex-col gap-0.5">
+            {researcherMarkers.map((marker) => (
+              <li key={marker.denizenId}>
+                {orreryResearcherMarkerReferenceLine(marker)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Hover/focus summary or body-indexed idle reference */}
       {hoveredBody !== null && hoverSummary !== null ? (

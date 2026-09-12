@@ -27,6 +27,8 @@ import {
 import type { PlaySurfaceState, SurfaceId, PaneLabel } from "./play-surface-model";
 import { playShellWidthMode } from "./play-shell-layout";
 import type { LunarPhase } from "../shared/domain";
+import { orreryResearcherMarkersFromSorcererQuery } from "./orrery-view-model";
+import type { SorcererOrreryHouseMarkerPresentation } from "../shared/domain/sorcerer-presentation";
 
 const PHASE_DISPLAY: Record<LunarPhase, string> = {
   new_moon: "New Moon",
@@ -53,6 +55,7 @@ function renderSurface(
   surface: SurfaceId,
   ref: { campaignId: string; monthOrdinal: number; orreryPositions: Record<string, number>; phase: LunarPhase; pactSeats: Record<string, { status: string | null; wizardId: string | null; watcherPlayerId: string | null }>; pactFragmentOperationalState?: import("../shared/domain").PactFragmentOperationalMap; players: { playerId: string; name: string }[]; wizards: { wizardId: string; name: string; portrayedByPlayerId: string | null; character: { elements: { air: number; fire: number; earth: number; water: number } | null; pactFragmentPersonalForm: string | null; familiarDescription: string | null; ageYears: number | null; publicChangesOfMagic: readonly string[]; importantNotes: string | null }; homeIsleId: string | null; sanctumPlaceId: string | null; mortalityState?: "not_deceased" | "deceased" }[] },
   worldRef: { readonly denizens: readonly { readonly denizenId: string; readonly name: string; readonly representation: "individual" | "collective"; readonly description: string | null }[]; readonly isles: readonly { readonly isleId: string; readonly name: string; readonly description: string | null }[]; readonly places: readonly { readonly placeId: string; readonly name: string; readonly description: string | null; readonly placement: { readonly kind: "unspecified" } | { readonly kind: "on_isle"; readonly isleId: string } | { readonly kind: "mobile"; readonly associatedIsleId: string | null } }[] } | null | undefined,
+  researcherMarkers: readonly SorcererOrreryHouseMarkerPresentation[] = [],
 ) {
   switch (surface) {
     case "current_phase":
@@ -70,7 +73,13 @@ function renderSurface(
         />
       );
     case "orrery":
-      return <OrreryView monthOrdinal={ref.monthOrdinal} orreryPositions={ref.orreryPositions} />;
+      return (
+        <OrreryView
+          monthOrdinal={ref.monthOrdinal}
+          orreryPositions={ref.orreryPositions}
+          researcherMarkers={researcherMarkers}
+        />
+      );
     case "table_wizards":
       return <TableWizards pactSeats={ref.pactSeats} players={ref.players} wizards={ref.wizards} worldRef={worldRef} campaignId={ref.campaignId} pactFragmentOperationalState={ref.pactFragmentOperationalState} />;
     case "world":
@@ -123,7 +132,12 @@ function paneBody(
       />
     );
   }
-  return renderSurface(surface, ref, worldRef);
+  return renderSurface(
+    surface,
+    ref,
+    worldRef,
+    orreryResearcherMarkersFromSorcererQuery(sorcererRef),
+  );
 }
 
 function renderHierophant(

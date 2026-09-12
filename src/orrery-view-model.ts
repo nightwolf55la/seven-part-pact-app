@@ -22,6 +22,11 @@ import type {
   HouseIndex,
   CelestialBodyId,
 } from "../shared/domain/orrery";
+import {
+  sorcererOrreryHouseMarkerFromExternalPresence,
+  type SorcererExternalPresence,
+  type SorcererOrreryHouseMarkerPresentation,
+} from "../shared/domain/sorcerer-presentation";
 
 export interface HouseDisplayInfo {
   readonly index: HouseIndex;
@@ -300,4 +305,88 @@ export function buildHouseHoverSummary(
     bodyIds,
     bodyNames: bodyIds.map((b) => BODY_DISPLAY_NAMES[b]),
   };
+}
+
+export function buildOrreryResearcherMarkers(
+  externalPresence: readonly SorcererExternalPresence[] | null | undefined,
+): readonly SorcererOrreryHouseMarkerPresentation[] {
+  if (externalPresence == null) {
+    return [];
+  }
+  const markers: SorcererOrreryHouseMarkerPresentation[] = [];
+  for (const presence of externalPresence) {
+    const marker = sorcererOrreryHouseMarkerFromExternalPresence(presence);
+    if (marker !== null) {
+      markers.push(marker);
+    }
+  }
+  return markers;
+}
+
+export function orreryResearcherMarkersFromSorcererQuery(
+  sorcererRef:
+    | {
+        readonly presentation: {
+          readonly initialized: boolean;
+          readonly externalPresence: readonly SorcererExternalPresence[];
+        };
+      }
+    | null
+    | undefined,
+): readonly SorcererOrreryHouseMarkerPresentation[] {
+  if (sorcererRef == null || !sorcererRef.presentation.initialized) {
+    return [];
+  }
+  return buildOrreryResearcherMarkers(sorcererRef.presentation.externalPresence);
+}
+
+/** Just outside the House outer ring (245), inward of the Sun (268). */
+export const ORRERY_RESEARCHER_MARKER_R = 248;
+const RESEARCHER_MARKER_FAN_DEGREES = 7;
+
+export function houseCenterSvgAngle(house: HouseIndex): number {
+  return centidegreesToSvgAngle(house * HOUSE_WIDTH_CENTIDEGREES + HOUSE_WIDTH_CENTIDEGREES / 2);
+}
+
+export function orreryPolarPoint(
+  cx: number,
+  cy: number,
+  radius: number,
+  angleDeg: number,
+): { x: number; y: number } {
+  const rad = (angleDeg - 90) * (Math.PI / 180);
+  return {
+    x: cx + radius * Math.cos(rad),
+    y: cy + radius * Math.sin(rad),
+  };
+}
+
+export function orreryResearcherMarkerPlacement(
+  house: HouseIndex,
+  siblingIndex: number,
+  siblingCount: number,
+): { angle: number; radius: number } {
+  const center = houseCenterSvgAngle(house);
+  if (siblingCount <= 1) {
+    return { angle: center, radius: ORRERY_RESEARCHER_MARKER_R };
+  }
+  const spread = RESEARCHER_MARKER_FAN_DEGREES * (siblingCount - 1);
+  const offset = -spread / 2 + siblingIndex * RESEARCHER_MARKER_FAN_DEGREES;
+  return { angle: center + offset, radius: ORRERY_RESEARCHER_MARKER_R };
+}
+
+export function orreryResearcherMarkerStatusText(operationalThisMonth: boolean): string {
+  return operationalThisMonth ? "Working" : "Unavailable this month";
+}
+
+export function orreryResearcherMarkerAccessibleLabel(
+  marker: SorcererOrreryHouseMarkerPresentation,
+): string {
+  return `Researcher ${marker.name} in ${HOUSE_NAMES[marker.house]} — ${orreryResearcherMarkerStatusText(marker.operationalThisMonth)}`;
+}
+
+export function orreryResearcherMarkerReferenceLine(
+  marker: SorcererOrreryHouseMarkerPresentation,
+): string {
+  return `${marker.name} — ${HOUSE_NAMES[marker.house]} — ${orreryResearcherMarkerStatusText(marker.operationalThisMonth)}`;
 }
