@@ -26,6 +26,8 @@ import { MARINER_MAP_MIN_WIDTH_PX } from "../src/mariner-map-geometry";
 import type { LoreCompendiumUiState } from "../src/lore-view-model";
 import {
   CREATE_BEAST_LABEL,
+  CREATE_SHIP_LABEL,
+  MOVE_BEAST_LABEL,
   MOVE_SHIP_LABEL,
   MOVE_STORM_LABEL,
   NEST_BEAST_LABEL,
@@ -97,6 +99,18 @@ const SHIP_ROUTE = marinerRouteId(
   { kind: "board_isle", boardIsleId: "thyras" },
   { kind: "board_isle", boardIsleId: "far_reach" },
 );
+const SUNKEN_ORRERY_FAR = marinerRouteId(
+  { kind: "board_isle", boardIsleId: "orrery" },
+  { kind: "board_isle", boardIsleId: "far_reach" },
+);
+const SUNKEN_CARAVESSE_FAR = marinerRouteId(
+  { kind: "board_isle", boardIsleId: "caravesse" },
+  { kind: "board_isle", boardIsleId: "far_reach" },
+);
+const SUNKEN_CARAVESSE_ORRERY = marinerRouteId(
+  { kind: "board_isle", boardIsleId: "caravesse" },
+  { kind: "board_isle", boardIsleId: "orrery" },
+);
 
 function initializedMariner() {
   return buildInitializedDefaultMarinerState({
@@ -155,6 +169,8 @@ vi.mock("../convex/_generated/api.js", () => ({
       createMarinerBeast: "m3Commands.createMarinerBeast",
       moveMarinerStorm: "m3Commands.moveMarinerStorm",
       moveMarinerShip: "m3Commands.moveMarinerShip",
+      createMarinerShip: "m3Commands.createMarinerShip",
+      moveMarinerBeast: "m3Commands.moveMarinerBeast",
       nestMarinerBeast: "m3Commands.nestMarinerBeast",
       recordMarinerRavageResult: "m3Commands.recordMarinerRavageResult",
       addLoreEntry: "m3Commands.addLoreEntry",
@@ -931,6 +947,87 @@ describe("Mariner semantic operability actions", () => {
     expect(container.innerHTML).toContain(RAVAGE_INCOMPLETE_COPY);
     expect(container.innerHTML).toContain(RAVAGE_LORE_FOLLOW_THROUGH);
     expect(container.innerHTML).toContain(RAVAGE_LOCATION_FOLLOW_THROUGH);
+    root.unmount();
+    container.remove();
+  });
+
+  it("reaches Create Ship and Move Distrusting Beast and submits their semantic payloads", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickIsle(container, "World orrery");
+    expect(button(container, CREATE_SHIP_LABEL)).toBeDefined();
+    flushSync(() => { button(container, CREATE_SHIP_LABEL).click(); });
+    setSelect(select(container, "Create Ship target Route"), SUNKEN_ORRERY_FAR);
+    flushSync(() => { button(container, CREATE_SHIP_LABEL).click(); });
+    expect(mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0]).toMatchObject({
+      sourceIsleId: "orrery",
+      targetRouteId: SUNKEN_ORRERY_FAR,
+      rampageResolutions: [],
+    });
+    root.unmount();
+    container.remove();
+
+    const again = renderSurface(initializedMariner(), WIZARD);
+    clickSea(again.container, "The Sunken Fleet");
+    expect(button(again.container, MOVE_BEAST_LABEL)).toBeDefined();
+    flushSync(() => { button(again.container, MOVE_BEAST_LABEL).click(); });
+    setSelect(select(again.container, "Beast destination"), "thyrian_sea");
+    flushSync(() => { button(again.container, MOVE_BEAST_LABEL).click(); });
+    expect(mockMutations["m3Commands.moveMarinerBeast"].mock.calls[0][0]).toMatchObject({
+      denizenId: DEN_A,
+      sourceRegionId: "sunken_fleet",
+      destinationRegionId: "thyrian_sea",
+      rampageResolution: null,
+    });
+    again.root.unmount();
+    again.container.remove();
+  });
+
+  it("submits predicted Move Ship Rampage resolutions instead of an empty placeholder", () => {
+    const almost = {
+      ...initializedMariner(),
+      routes: initializedMariner().routes.map((route) => (
+        route.routeId === SUNKEN_ORRERY_FAR || route.routeId === SUNKEN_CARAVESSE_FAR
+          ? { ...route, occupancy: { kind: "ship" as const } }
+          : route
+      )),
+    };
+    const { container, root } = renderSurface(almost, WIZARD);
+    clickIsle(container, "World far reach");
+    flushSync(() => { button(container, MOVE_SHIP_LABEL).click(); });
+    setSelect(select(container, "Ship destination Route"), SUNKEN_CARAVESSE_ORRERY);
+    expect(container.querySelector('[aria-label^="Rampage destination"]')).not.toBeNull();
+    setSelect(select(container, "Rampage destination"), "hierophant");
+    flushSync(() => { button(container, MOVE_SHIP_LABEL).click(); });
+    const payload = mockMutations["m3Commands.moveMarinerShip"].mock.calls[0][0];
+    expect(payload.destinationRouteId).toBe(SUNKEN_CARAVESSE_ORRERY);
+    expect(payload.rampageResolutions).toEqual([expect.objectContaining({
+      denizenId: DEN_A,
+      destinationSeatId: "hierophant",
+    })]);
+    expect(payload.rampageResolutions[0].rampagingMethodEntryId).toMatch(/^pdmth_/);
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps an open Help Beast Nest draft after a realtime change makes the captured Beast stale", () => {
+    const initial = initializedMariner();
+    const { container, root } = renderSurface(initial, WIZARD);
+    clickSea(container, "The Sunken Fleet");
+    flushSync(() => { button(container, NEST_BEAST_LABEL).click(); });
+    expect(container.querySelector('[aria-label="Nest target Isle"]')).not.toBeNull();
+    rerenderSurface(root, withBeast(initial, {
+      ...baselineBeast(initial),
+      location: { kind: "sea_region", regionId: "thyrian_sea" },
+    }));
+    expect(container.querySelector('[aria-label="Nest target Isle"]')).not.toBeNull();
+    setSelect(select(container, "Nest target Isle"), "orrery");
+    flushSync(() => { button(container, NEST_BEAST_LABEL).click(); });
+    expect(mockMutations["m3Commands.nestMarinerBeast"].mock.calls[0][0]).toMatchObject({
+      denizenId: DEN_A,
+      boardIsleId: "orrery",
+      expectedBeastLocation: { kind: "sea_region", regionId: "sunken_fleet" },
+      expectedBeastCondition: "distrusting",
+    });
     root.unmount();
     container.remove();
   });

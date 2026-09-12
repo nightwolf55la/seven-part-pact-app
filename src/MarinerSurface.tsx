@@ -51,6 +51,8 @@ import {
   buildSetMarinerShipPayload,
   buildSetSelectedSeaLawsPayload,
   buildCreateMarinerBeastPayload,
+  buildCreateMarinerShipPayload,
+  buildMoveMarinerBeastPayload,
   buildMoveMarinerShipPayload,
   buildMoveMarinerStormPayload,
   buildNestMarinerBeastPayload,
@@ -59,12 +61,16 @@ import {
   buildUpdateMarinerBeastPayload,
   captureOperabilityBoard,
   createBeastWouldRampage,
+  emptyRoutesBorderingIsle,
   expectedForCreateBeast,
+  expectedForCreateShip,
+  expectedForMoveBeast,
   expectedForMoveShip,
   expectedForMoveStorm,
   expectedForNestBeast,
   expectedForRavageResult,
   CREATE_BEAST_LABEL,
+  CREATE_SHIP_LABEL,
   distrustingBeastsInRegion,
   builtinBeastElement,
   builtinBeastName,
@@ -94,9 +100,12 @@ import {
   RAVAGE_LORE_FOLLOW_THROUGH,
   RAVAGE_MARKET_ABSORBED_COPY,
   RAVAGE_RESULT_LABEL,
+  MOVE_BEAST_LABEL,
   MOVE_SHIP_LABEL,
   MOVE_STORM_LABEL,
   NEST_BEAST_LABEL,
+  predictedMovedBeastWouldRampage,
+  predictedNewlyTrappedBeastIdsAfterShipPlacement,
   WIND_CONFIRMATION_LABEL,
   parseNonNegInt,
   placeName,
@@ -219,6 +228,8 @@ export default function MarinerSurface({
   const createMarinerBeast = useMutation(api.m3Commands.createMarinerBeast);
   const moveMarinerStorm = useMutation(api.m3Commands.moveMarinerStorm);
   const moveMarinerShip = useMutation(api.m3Commands.moveMarinerShip);
+  const createMarinerShip = useMutation(api.m3Commands.createMarinerShip);
+  const moveMarinerBeast = useMutation(api.m3Commands.moveMarinerBeast);
   const nestMarinerBeast = useMutation(api.m3Commands.nestMarinerBeast);
   const recordMarinerRavageResult = useMutation(api.m3Commands.recordMarinerRavageResult);
 
@@ -330,6 +341,8 @@ export default function MarinerSurface({
             onCreateBeast={(payload) => run(async () => { await createMarinerBeast(payload); })}
             onMoveStorm={(payload) => run(async () => { await moveMarinerStorm(payload); })}
             onMoveShip={(payload) => run(async () => { await moveMarinerShip(payload); })}
+            onCreateShip={(payload) => run(async () => { await createMarinerShip(payload); })}
+            onMoveBeast={(payload) => run(async () => { await moveMarinerBeast(payload); })}
             onNestBeast={(payload) => run(async () => { await nestMarinerBeast(payload); })}
             onRecordRavage={(payload) => run(async () => { await recordMarinerRavageResult(payload); })}
             onSubmitRoute={(routeId, occupancy) => {
@@ -1154,6 +1167,8 @@ function Inspector({
   onCreateBeast,
   onMoveStorm,
   onMoveShip,
+  onCreateShip,
+  onMoveBeast,
   onNestBeast,
   onRecordRavage,
   onSubmitRoute,
@@ -1171,6 +1186,8 @@ function Inspector({
   onCreateBeast: (payload: ReturnType<typeof buildCreateMarinerBeastPayload>) => Promise<boolean>;
   onMoveStorm: (payload: ReturnType<typeof buildMoveMarinerStormPayload>) => Promise<boolean>;
   onMoveShip: (payload: ReturnType<typeof buildMoveMarinerShipPayload>) => Promise<boolean>;
+  onCreateShip: (payload: ReturnType<typeof buildCreateMarinerShipPayload>) => Promise<boolean>;
+  onMoveBeast: (payload: ReturnType<typeof buildMoveMarinerBeastPayload>) => Promise<boolean>;
   onNestBeast: (payload: ReturnType<typeof buildNestMarinerBeastPayload>) => Promise<boolean>;
   onRecordRavage: (payload: ReturnType<typeof buildRecordMarinerRavageResultPayload>) => Promise<boolean>;
   onSubmitRoute: (routeId: string, occupancy: MarinerRouteOccupancy) => void;
@@ -1195,6 +1212,7 @@ function Inspector({
         onSubmit={onSubmitStorm}
         onCreateBeast={onCreateBeast}
         onMoveStorm={onMoveStorm}
+        onMoveBeast={onMoveBeast}
         onNestBeast={onNestBeast}
       />
     );
@@ -1211,6 +1229,7 @@ function Inspector({
       onSubmitMarket={onSubmitMarket}
       onSubmitRavage={onSubmitRavage}
       onMoveShip={onMoveShip}
+      onCreateShip={onCreateShip}
       onRecordRavage={onRecordRavage}
     />
   );
@@ -1291,6 +1310,14 @@ function RouteInspector({
   );
 }
 
+function stableMethodId(store: Map<string, string>, denizenId: string): string {
+  const existing = store.get(denizenId);
+  if (existing !== undefined) return existing;
+  const created = newMethodEntryId();
+  store.set(denizenId, created);
+  return created;
+}
+
 function endpointKey(endpoint: { kind: string; boardIsleId?: string; externalLandId?: string }): string {
   return endpoint.kind === "board_isle" ? `board:${endpoint.boardIsleId}` : `land:${endpoint.externalLandId}`;
 }
@@ -1304,6 +1331,7 @@ function RegionInspector({
   onSubmit,
   onCreateBeast,
   onMoveStorm,
+  onMoveBeast,
   onNestBeast,
 }: {
   regionId: MarinerSeaRegionId;
@@ -1314,6 +1342,7 @@ function RegionInspector({
   onSubmit: (regionId: MarinerSeaRegionId, stormCount: number) => void;
   onCreateBeast: (payload: ReturnType<typeof buildCreateMarinerBeastPayload>) => Promise<boolean>;
   onMoveStorm: (payload: ReturnType<typeof buildMoveMarinerStormPayload>) => Promise<boolean>;
+  onMoveBeast: (payload: ReturnType<typeof buildMoveMarinerBeastPayload>) => Promise<boolean>;
   onNestBeast: (payload: ReturnType<typeof buildNestMarinerBeastPayload>) => Promise<boolean>;
 }) {
   const definition = MARINER_SEA_REGION_CATALOG.find((region) => region.regionId === regionId);
@@ -1321,14 +1350,16 @@ function RegionInspector({
   const [storms, setStorms] = useState(String(current?.stormCount ?? 0));
   const [createOpen, setCreateOpen] = useState(false);
   const [stormMoveOpen, setStormMoveOpen] = useState(false);
-  const [nestDenizenId, setNestDenizenId] = useState<string | null>(null);
+  const [nestDraft, setNestDraft] = useState<MarinerBeastState | null>(null);
+  const [moveDraft, setMoveDraft] = useState<MarinerBeastState | null>(null);
   useEffect(() => {
     setStorms(String(current?.stormCount ?? 0));
   }, [regionId, current?.stormCount]);
   useEffect(() => {
     setCreateOpen(false);
     setStormMoveOpen(false);
-    setNestDenizenId(null);
+    setNestDraft(null);
+    setMoveDraft(null);
   }, [regionId]);
   if (definition === undefined || current === undefined) {
     return <div className="text-sm text-slate-500">Unknown region.</div>;
@@ -1398,27 +1429,51 @@ function RegionInspector({
           onSubmit={onMoveStorm}
         />
       )}
-      {nestable.map((beast) => (
-        <div key={beast.denizenId} className="space-y-2">
-          {nestDenizenId !== beast.denizenId && (
-            <button className={btnClass} disabled={pending} onClick={() => setNestDenizenId(beast.denizenId)}>
-              {NEST_BEAST_LABEL}
-            </button>
-          )}
-          {nestDenizenId === beast.denizenId && (
-            <NestBeastForm
-              beast={beast}
-              adjacentIsleIds={definition.adjacentBoardIsleIds}
-              mariner={mariner}
-              world={world}
-              campaignId={campaignId}
-              pending={pending}
-              onCancel={() => setNestDenizenId(null)}
-              onSubmit={onNestBeast}
-            />
-          )}
-        </div>
+      {nestable.filter((beast) => beast.denizenId !== nestDraft?.denizenId).map((beast) => (
+        <button
+          key={`nest-${beast.denizenId}`}
+          className={btnClass}
+          disabled={pending}
+          onClick={() => setNestDraft({ ...beast, location: beast.location })}
+        >
+          {NEST_BEAST_LABEL}
+        </button>
       ))}
+      {nestDraft !== null && (
+        <NestBeastForm
+          beast={nestDraft}
+          adjacentIsleIds={definition.adjacentBoardIsleIds}
+          mariner={mariner}
+          world={world}
+          campaignId={campaignId}
+          pending={pending}
+          onCancel={() => setNestDraft(null)}
+          onSubmit={onNestBeast}
+        />
+      )}
+      {nestable.filter((beast) => beast.denizenId !== moveDraft?.denizenId).map((beast) => (
+        <button
+          key={`move-${beast.denizenId}`}
+          className={btnClass}
+          disabled={pending}
+          onClick={() => setMoveDraft({ ...beast, location: beast.location })}
+        >
+          {MOVE_BEAST_LABEL}
+        </button>
+      ))}
+      {moveDraft !== null && (
+        <MoveBeastForm
+          beast={moveDraft}
+          sourceRegionId={regionId}
+          adjacentRegionIds={definition.adjacentRegionIds}
+          mariner={mariner}
+          world={world}
+          campaignId={campaignId}
+          pending={pending}
+          onCancel={() => setMoveDraft(null)}
+          onSubmit={onMoveBeast}
+        />
+      )}
     </section>
   );
 }
@@ -1434,6 +1489,7 @@ function IsleInspector({
   onSubmitMarket,
   onSubmitRavage,
   onMoveShip,
+  onCreateShip,
   onRecordRavage,
 }: {
   boardIsleId: MarinerBoardIsleId;
@@ -1446,6 +1502,7 @@ function IsleInspector({
   onSubmitMarket: (boardIsleId: MarinerBoardIsleId, market: MarinerIsleMarket) => void;
   onSubmitRavage: (boardIsleId: MarinerBoardIsleId, ravageStormCount: number) => void;
   onMoveShip: (payload: ReturnType<typeof buildMoveMarinerShipPayload>) => Promise<boolean>;
+  onCreateShip: (payload: ReturnType<typeof buildCreateMarinerShipPayload>) => Promise<boolean>;
   onRecordRavage: (payload: ReturnType<typeof buildRecordMarinerRavageResultPayload>) => Promise<boolean>;
 }) {
   const current = mariner.boardIsles.find((isle) => isle.boardIsleId === boardIsleId);
@@ -1453,6 +1510,7 @@ function IsleInspector({
   const [rarity, setRarity] = useState(current?.market.present === true ? current.market.rarity ?? "" : "");
   const [ravage, setRavage] = useState(String(current?.ravageStormCount ?? 0));
   const [shipOpen, setShipOpen] = useState(false);
+  const [createShipOpen, setCreateShipOpen] = useState(false);
   const [ravageOpen, setRavageOpen] = useState(false);
   const [ravageOutcome, setRavageOutcome] = useState<"market_absorbed" | "isle_ravaged" | null>(null);
   useEffect(() => {
@@ -1462,6 +1520,7 @@ function IsleInspector({
   }, [boardIsleId, current]);
   useEffect(() => {
     setShipOpen(false);
+    setCreateShipOpen(false);
     setRavageOpen(false);
     setRavageOutcome(null);
   }, [boardIsleId]);
@@ -1536,6 +1595,22 @@ function IsleInspector({
           onSubmit={onMoveShip}
         />
       )}
+      {!createShipOpen && (
+        <button className={btnClass} disabled={pending} onClick={() => setCreateShipOpen(true)}>
+          {CREATE_SHIP_LABEL}
+        </button>
+      )}
+      {createShipOpen && (
+        <CreateShipForm
+          boardIsleId={boardIsleId}
+          mariner={mariner}
+          world={world}
+          campaignId={campaignId}
+          pending={pending}
+          onCancel={() => setCreateShipOpen(false)}
+          onSubmit={onCreateShip}
+        />
+      )}
       {!ravageOpen && (
         <button className={btnClass} disabled={pending} onClick={() => setRavageOpen(true)}>
           {RAVAGE_RESULT_LABEL}
@@ -1574,6 +1649,103 @@ function IsleInspector({
         campaignId={campaignId}
       />
     </section>
+  );
+}
+
+function CreateShipForm({
+  boardIsleId,
+  mariner,
+  world,
+  campaignId,
+  pending,
+  onCancel,
+  onSubmit,
+}: {
+  boardIsleId: MarinerBoardIsleId;
+  mariner: MarinerState;
+  world: WorldReference;
+  campaignId: string;
+  pending: boolean;
+  onCancel: () => void;
+  onSubmit: (payload: ReturnType<typeof buildCreateMarinerShipPayload>) => Promise<boolean>;
+}) {
+  const [snapshot] = useState(() => captureOperabilityBoard(mariner));
+  const [methodIds] = useState(() => new Map<string, string>());
+  const empty = emptyRoutesBorderingIsle(snapshot, boardIsleId);
+  const [targetRouteId, setTargetRouteId] = useState("");
+  const [rampageSeats, setRampageSeats] = useState<Record<string, string>>({});
+  const predictedBeastIds = targetRouteId === ""
+    ? []
+    : predictedNewlyTrappedBeastIdsAfterShipPlacement(snapshot, targetRouteId, { kind: "ship" });
+  return (
+    <div className="rounded-lg border border-teal-200 dark:border-teal-900 p-3 space-y-2">
+      <h4 className="text-sm font-medium">{CREATE_SHIP_LABEL}</h4>
+      <label className="text-sm block">
+        Target Route
+        <select
+          aria-label="Create Ship target Route"
+          className={`${fieldClass} mt-1`}
+          value={targetRouteId}
+          onChange={(e) => {
+            setTargetRouteId(e.target.value);
+            setRampageSeats({});
+          }}
+        >
+          <option value="">Select empty adjacent Route…</option>
+          {empty.map((route) => (
+            <option key={route.routeId} value={route.routeId}>
+              {routeEndpointLabel(route.endpointA, mariner, world.isles)} — {routeEndpointLabel(route.endpointB, mariner, world.isles)}
+            </option>
+          ))}
+        </select>
+      </label>
+      {predictedBeastIds.map((denizenId) => (
+        <label key={denizenId} className="text-sm block">
+          Rampage destination
+          <select
+            aria-label={predictedBeastIds.length === 1 ? "Rampage destination" : `Rampage destination for ${denizenId}`}
+            className={`${fieldClass} mt-1`}
+            value={rampageSeats[denizenId] ?? ""}
+            onChange={(e) => setRampageSeats((current) => ({ ...current, [denizenId]: e.target.value }))}
+          >
+            <option value="">Select destination Domain…</option>
+            {otherDomainSeatOptions().map((seatId) => (
+              <option key={seatId} value={seatId}>{pactSeatDisplayName(seatId)}</option>
+            ))}
+          </select>
+        </label>
+      ))}
+      <div className="flex gap-2">
+        <button
+          className={btnClass}
+          disabled={
+            pending
+            || targetRouteId === ""
+            || predictedBeastIds.some((denizenId) => (rampageSeats[denizenId] ?? "") === "")
+          }
+          onClick={() => {
+            const expected = expectedForCreateShip(snapshot, targetRouteId);
+            void onSubmit(buildCreateMarinerShipPayload({
+              commandId: newCommandId(),
+              expectedCampaignId: campaignId,
+              sourceIsleId: boardIsleId,
+              targetRouteId,
+              ...expected,
+              rampageResolutions: predictedBeastIds.map((denizenId) => ({
+                denizenId,
+                destinationSeatId: rampageSeats[denizenId],
+                rampagingMethodEntryId: stableMethodId(methodIds, denizenId),
+              })),
+            })).then((ok) => {
+              if (ok) onCancel();
+            });
+          }}
+        >
+          {CREATE_SHIP_LABEL}
+        </button>
+        <button className={ghostBtn} onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
   );
 }
 
@@ -1784,6 +1956,100 @@ function MoveStormForm({
   );
 }
 
+function MoveBeastForm({
+  beast,
+  sourceRegionId,
+  adjacentRegionIds,
+  mariner,
+  world,
+  campaignId,
+  pending,
+  onCancel,
+  onSubmit,
+}: {
+  beast: MarinerBeastState;
+  sourceRegionId: MarinerSeaRegionId;
+  adjacentRegionIds: readonly MarinerSeaRegionId[];
+  mariner: MarinerState;
+  world: WorldReference;
+  campaignId: string;
+  pending: boolean;
+  onCancel: () => void;
+  onSubmit: (payload: ReturnType<typeof buildMoveMarinerBeastPayload>) => Promise<boolean>;
+}) {
+  const [snapshot] = useState(() => captureOperabilityBoard(mariner));
+  const [methodIds] = useState(() => new Map<string, string>());
+  const [destinationRegionId, setDestinationRegionId] = useState("");
+  const [rampageSeat, setRampageSeat] = useState("");
+  const dest = destinationRegionId as MarinerSeaRegionId;
+  const wouldRampage = destinationRegionId !== ""
+    && predictedMovedBeastWouldRampage(snapshot, beast.denizenId, dest);
+  const capturedSource = beast.location.kind === "sea_region" ? beast.location.regionId : sourceRegionId;
+  return (
+    <div className="rounded-lg border border-teal-200 dark:border-teal-900 p-3 space-y-2">
+      <h4 className="text-sm font-medium">{MOVE_BEAST_LABEL}</h4>
+      <p className="text-xs text-slate-500">{denizenName(world.denizens, beast.denizenId)}</p>
+      <label className="text-sm block">
+        Destination
+        <select
+          aria-label="Beast destination"
+          className={`${fieldClass} mt-1`}
+          value={destinationRegionId}
+          onChange={(e) => {
+            setDestinationRegionId(e.target.value);
+            setRampageSeat("");
+          }}
+        >
+          <option value="">Select adjacent Sea/Horizon…</option>
+          {adjacentRegionIds.map((id) => (
+            <option key={id} value={id}>{seaRegionDisplayName(id)}</option>
+          ))}
+        </select>
+      </label>
+      {wouldRampage && (
+        <label className="text-sm block">
+          Rampage destination
+          <select aria-label="Rampage destination" className={`${fieldClass} mt-1`} value={rampageSeat} onChange={(e) => setRampageSeat(e.target.value)}>
+            <option value="">Select destination Domain…</option>
+            {otherDomainSeatOptions().map((seatId) => (
+              <option key={seatId} value={seatId}>{pactSeatDisplayName(seatId)}</option>
+            ))}
+          </select>
+        </label>
+      )}
+      <div className="flex gap-2">
+        <button
+          className={btnClass}
+          disabled={pending || destinationRegionId === "" || (wouldRampage && rampageSeat === "")}
+          onClick={() => {
+            const expected = expectedForMoveBeast(snapshot, beast.denizenId, capturedSource, dest);
+            void onSubmit(buildMoveMarinerBeastPayload({
+              commandId: newCommandId(),
+              expectedCampaignId: campaignId,
+              denizenId: beast.denizenId,
+              sourceRegionId: capturedSource,
+              destinationRegionId: dest,
+              ...expected,
+              rampageResolution: wouldRampage
+                ? {
+                    denizenId: beast.denizenId,
+                    destinationSeatId: rampageSeat,
+                    rampagingMethodEntryId: stableMethodId(methodIds, beast.denizenId),
+                  }
+                : null,
+            })).then((ok) => {
+              if (ok) onCancel();
+            });
+          }}
+        >
+          {MOVE_BEAST_LABEL}
+        </button>
+        <button className={ghostBtn} onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 function NestBeastForm({
   beast,
   adjacentIsleIds,
@@ -1861,14 +2127,31 @@ function MoveShipForm({
   onSubmit: (payload: ReturnType<typeof buildMoveMarinerShipPayload>) => Promise<boolean>;
 }) {
   const [snapshot] = useState(() => captureOperabilityBoard(mariner));
+  const [methodIds] = useState(() => new Map<string, string>());
   const occupied = occupiedRoutesBorderingIsle(snapshot, boardIsleId);
   const [sourceRouteId, setSourceRouteId] = useState<string>(occupied[0]?.routeId ?? "");
   const [destinationRouteId, setDestinationRouteId] = useState("");
   const [towardKey, setTowardKey] = useState("");
+  const [rampageSeats, setRampageSeats] = useState<Record<string, string>>({});
   const sourceOccupancy = snapshot.routes.find((route) => route.routeId === sourceRouteId)?.occupancy;
   const isRaider = sourceOccupancy?.kind === "raider";
   const destDefinition = MARINER_ROUTE_CATALOG.find((route) => route.routeId === destinationRouteId);
   const destEndpoints = destDefinition === undefined ? [] : [destDefinition.endpointA, destDefinition.endpointB];
+  const toward = destEndpoints.find((endpoint) => endpointKey(endpoint) === towardKey) ?? destEndpoints[0];
+  const placementOccupancy: MarinerRouteOccupancy | null =
+    sourceOccupancy?.kind === "ship"
+      ? { kind: "ship" }
+      : sourceOccupancy?.kind === "raider" && toward !== undefined
+        ? { kind: "raider", toward }
+        : null;
+  const predictedBeastIds = destinationRouteId === "" || placementOccupancy === null
+    ? []
+    : predictedNewlyTrappedBeastIdsAfterShipPlacement(
+        snapshot,
+        destinationRouteId,
+        placementOccupancy,
+        sourceRouteId,
+      );
   return (
     <div className="rounded-lg border border-teal-200 dark:border-teal-900 p-3 space-y-2">
       <h4 className="text-sm font-medium">{MOVE_SHIP_LABEL}</h4>
@@ -1888,6 +2171,7 @@ function MoveShipForm({
         <select aria-label="Ship destination Route" className={`${fieldClass} mt-1`} value={destinationRouteId} onChange={(e) => {
           setDestinationRouteId(e.target.value);
           setTowardKey("");
+          setRampageSeats({});
         }}>
           <option value="">Select any other Route…</option>
           {MARINER_ROUTE_CATALOG.filter((route) => route.routeId !== sourceRouteId).map((route) => (
@@ -1910,21 +2194,48 @@ function MoveShipForm({
           </select>
         </label>
       )}
+      {predictedBeastIds.map((denizenId) => (
+        <label key={denizenId} className="text-sm block">
+          Rampage destination
+          <select
+            aria-label={predictedBeastIds.length === 1 ? "Rampage destination" : `Rampage destination for ${denizenId}`}
+            className={`${fieldClass} mt-1`}
+            value={rampageSeats[denizenId] ?? ""}
+            onChange={(e) => setRampageSeats((current) => ({ ...current, [denizenId]: e.target.value }))}
+          >
+            <option value="">Select destination Domain…</option>
+            {otherDomainSeatOptions().map((seatId) => (
+              <option key={seatId} value={seatId}>{pactSeatDisplayName(seatId)}</option>
+            ))}
+          </select>
+        </label>
+      ))}
       <div className="flex gap-2">
         <button
           className={btnClass}
-          disabled={pending || sourceRouteId === "" || destinationRouteId === "" || (isRaider && towardKey === "")}
+          disabled={
+            pending
+            || sourceRouteId === ""
+            || destinationRouteId === ""
+            || (isRaider && towardKey === "")
+            || predictedBeastIds.some((denizenId) => (rampageSeats[denizenId] ?? "") === "")
+          }
           onClick={() => {
             const expected = expectedForMoveShip(snapshot, sourceRouteId, destinationRouteId);
-            const toward = destEndpoints.find((endpoint) => endpointKey(endpoint) === towardKey) ?? null;
+            const chosenToward = destEndpoints.find((endpoint) => endpointKey(endpoint) === towardKey) ?? null;
             void onSubmit(buildMoveMarinerShipPayload({
               commandId: newCommandId(),
               expectedCampaignId: campaignId,
               sourceIsleId: boardIsleId,
               sourceRouteId,
               destinationRouteId,
-              destinationToward: isRaider ? toward : null,
+              destinationToward: isRaider ? chosenToward : null,
               ...expected,
+              rampageResolutions: predictedBeastIds.map((denizenId) => ({
+                denizenId,
+                destinationSeatId: rampageSeats[denizenId],
+                rampagingMethodEntryId: stableMethodId(methodIds, denizenId),
+              })),
             })).then((ok) => {
               if (ok) onCancel();
             });
