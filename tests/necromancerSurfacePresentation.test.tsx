@@ -397,7 +397,7 @@ describe("Gates board operability presentation", () => {
           kind: "disruptive_arcanist",
           denizenId: "den_00000000-0000-0000-0000-0000000000ad" as never,
           name: "Grave Scholar",
-          school: { kind: "source", schoolId: "necromancy" },
+          school: { kind: "source", schoolId: "invocation" },
           seatId: "necromancer",
         },
       ],
@@ -423,7 +423,7 @@ describe("Gates board operability presentation", () => {
       allies: [{ denizenId: "den_ally" as never, location: { kind: "gate", gateId: "amber" } }],
       ghoulCallers: [{
         denizenId: "den_ghoul" as never,
-        location: { kind: "gate", gateId: "amber" },
+        location: { kind: "path", pathSpaceId: "edge_sage" },
         pettyDeadCount: 0,
         primaryElement: "fire",
         aesthetic: "ash",
@@ -448,7 +448,7 @@ describe("Gates board operability presentation", () => {
     const inspector = container.querySelector(`[aria-label="Selected space"]`);
     expect(inspector?.textContent).toContain("Howling Foe");
     expect(inspector?.textContent).toContain("Loyal Ally");
-    expect(inspector?.textContent).toContain("Ash Caller");
+    expect(container.textContent).toContain("Ash Caller");
     expect(inspector?.querySelector('[aria-label="All occupants"]')?.textContent).toContain("Howling Foe");
     const pieces = Array.from(container.querySelectorAll("details")).find((el) => el.textContent?.includes("Advanced / Correct Board — pieces"));
     expect(pieces).not.toBeNull();

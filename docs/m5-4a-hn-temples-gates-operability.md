@@ -1,6 +1,6 @@
 # M5.4A-HN — Temples & Gates Operability
 
-**Status:** implementation in progress — not Workstream complete; not M5.4 complete.
+**Status:** deterministic candidate; real integration and visual closure pending. Not Workstream complete; not M5.4 complete.
 **Schema:** CampaignState V5 remains PRE-ACTIVATION. No CampaignState fields, no V6, no migration.
 **Branch:** `m5-4a/temples-gates-operability`
 **BASE_SHA:** `c4e8b9ae78537161878e4e3b16f2261c97dffc2b` (`origin/main`, matches inspected expectation)
@@ -19,9 +19,9 @@ Explicitly deferred regardless of spare time: Hestar Provide; automatic five-Sou
 |---|---|
 | A Shared extraction | SKIPPED — Lore panel and Sorcerer projection already exist; no identical helper proven yet |
 | B Hierophant | candidate committed `a5867e990452d1ca350ee890795b3a4a9245b6a3` — Temple board + atomic Receive Supplicant; Sermon/Steer/Holiday/Hestar deferred |
-| C Necromancer | candidate ready to commit — Gates board + atomic Transform Soul into Ally; Rebuff deferred |
-| D Diff review + `npm run check` | pending |
-| E Optional Mariner prep | pending |
+| C Necromancer | candidate committed `dbc14220f9d9d5c17644669710855227b3caffe8` — Gates board + atomic Transform Soul into Ally; Rebuff deferred |
+| D Diff review + `npm run check` | deterministic candidate — 129 files / 2445 tests green; `tsc -b` + `vite build` green; visual/Convex pending |
+| E Optional Mariner prep | SKIPPED — `Patreon Materials [04.26.04].pptx` is not in the repository |
 
 ## Source distinctions (conditional actions)
 
@@ -99,13 +99,25 @@ Focused tests: 3 files / 62 tests — `npm test -- tests/necromancerOperability.
 - Ordinary-command harness: one commit, replay without double consumption, payload mismatch rejected.
 - Presentation: Roman/name Gate frames, Hostile/Destroyed text, bounded Soul beads, named pieces, five-plus warning, Final Death Researcher not on Terminus, one compound mutation, Rebuff not a working button.
 
-N SHA recorded after the Necromancer commit.
+N SHA: `dbc14220f9d9d5c17644669710855227b3caffe8`
 
 `researcherOperationalLabel` is a duplicated one-line helper; Body A extraction remains skipped.
+
+### Body D
+
+Actual diff vs BASE_SHA `c4e8b9ae78537161878e4e3b16f2261c97dffc2b` reviewed. Feature range is 24 files, H then N commits plus this review-fix. No CampaignState/schema/migration edits. Both compound operations are wired through transition, fingerprint, events, validators, canonical map, Convex mutation, and UI. No Sermon/Steer/Holiday/Rebuff/Cleanse working buttons. Nested action buttons are not inside the Temple select control.
+
+Deterministic gate (local binaries; `npm run check` classifier-blocked so equivalent `vitest run` + `tsc -b` + `vite build` used):
+
+- Tests: 129 files passed, 2445 tests passed, 0 failed/skipped
+- `tsc -b`: exit 0
+- `vite build`: exit 0 (chunk-size warning only)
+
+Visual review: pending. No isolated in-memory H/N board preview exists in-repo (`backup-preview` / `preview-indicator` are unrelated). Browser/Convex proof was not performed.
 
 ## Remaining morning checks
 
 - Workstream review of real H then N diffs
-- Browser visual inspection
+- Browser visual inspection (desktop and narrow)
 - Fresh disposable Convex proof of compound writes, derived presence, Lore, refresh/realtime
 - Do not mark M5.4 complete

@@ -264,7 +264,7 @@ describe("Hierophant Temple board interactions", () => {
         sorcererPresence: [
           {
             kind: "researcher",
-            denizenId: "den_00000000-0000-0000-0000-0000000000aa",
+            denizenId: "den_00000000-0000-0000-0000-0000000000aa" as never,
             name: "Lina the Seer",
             operationalThisMonth: false,
             positionId: "srp_temple_krolis",
@@ -272,7 +272,7 @@ describe("Hierophant Temple board interactions", () => {
           },
           {
             kind: "researcher",
-            denizenId: "den_00000000-0000-0000-0000-0000000000ab",
+            denizenId: "den_00000000-0000-0000-0000-0000000000ab" as never,
             name: "Sea Scout",
             operationalThisMonth: true,
             positionId: "srp_sea_1",
@@ -280,7 +280,7 @@ describe("Hierophant Temple board interactions", () => {
           },
           {
             kind: "disruptive_arcanist",
-            denizenId: "den_00000000-0000-0000-0000-0000000000ac",
+            denizenId: "den_00000000-0000-0000-0000-0000000000ac" as never,
             name: "Vex",
             school: { kind: "source", schoolId: "invocation" },
             seatId: "necromancer",
