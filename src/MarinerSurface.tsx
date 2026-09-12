@@ -15,20 +15,17 @@ import {
   type MarinerSeaRegionId,
   type MarinerState,
   type PactSeatId,
+  type SorcererExternalPresence,
 } from "../shared/domain";
 import type { WorldReference } from "./WorldSurface";
 import {
   MARINER_ARRANGEMENT_OPTIONS,
   MARINER_BEAST_DEFINITIONS,
-  MARINER_BOARD_ISLE_MAP_POINTS,
   MARINER_BOARD_SLOTS,
   MARINER_ELEMENTS,
-  MARINER_EXTERNAL_LAND_MAP_POINTS,
   MARINER_LAW_OPTIONS,
-  MARINER_MAP_VIEWBOX,
   MARINER_ROUTE_CATALOG,
   MARINER_SEA_REGION_CATALOG,
-  MARINER_SEA_REGION_MAP_POINTS,
   arrangementNeedsRarity,
   arrangementNeedsStartingBeast,
   arrangementSetupSummary,
@@ -36,6 +33,7 @@ import {
   availableMobileShipPlaces,
   beastLocationLabel,
   beastsInRegion,
+  beastsOnIsle,
   boardIsleDisplayName,
   boardIsleWorldName,
   buildAddMarinerBeastPayload,
@@ -59,6 +57,9 @@ import {
   externalLandDisplayName,
   isMarinerInitialized,
   isTyphoon,
+  marinerDomainDisruptiveArcanists,
+  marinerRouteGeometry,
+  marinerSeaResearchers,
   marinerSetupReady,
   marketBeastConflict,
   nestingBeastsOnIsle,
@@ -66,12 +67,14 @@ import {
   otherDomainSeatOptions,
   parseNonNegInt,
   placeName,
+  raiderDirectionDeg,
+  researcherOperationalLabel,
   routeEndpointLabel,
   routeOccupancyLabel,
-  routePresentationPath,
   seaRegionDisplayName,
   seaRegionStateLabel,
   shipSanctumMismatch,
+  stormPiecePresentation,
   uniqueSelectedLawIds,
   worldIsleName,
   worldIsleOptionsForSlot,
@@ -79,6 +82,16 @@ import {
   type MarinerSetupDraft,
   type MarinerWizardRef,
 } from "./mariner-view-model";
+import {
+  MARINER_DOMAIN_PRESENCE_ANCHOR,
+  MARINER_EXTERNAL_LAND_GEOMETRY,
+  MARINER_ISLE_GEOMETRY,
+  MARINER_MAP_FRAME,
+  MARINER_MAP_MIN_WIDTH_PX,
+  MARINER_MAP_VIEWBOX,
+  MARINER_ROUTE_HIT_STROKE_WIDTH,
+  MARINER_SEA_GEOMETRY,
+} from "./mariner-map-geometry";
 
 export type { MarinerWizardRef };
 
@@ -130,11 +143,13 @@ export default function MarinerSurface({
   world,
   campaignId,
   marinerWizard,
+  sorcererPresence = [],
 }: {
   mariner: MarinerState;
   world: WorldReference;
   campaignId: string;
   marinerWizard: MarinerWizardRef | null;
+  sorcererPresence?: readonly SorcererExternalPresence[];
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -257,6 +272,7 @@ export default function MarinerSurface({
             world={world}
             selection={selection}
             onSelect={setSelection}
+            sorcererPresence={sorcererPresence}
           />
         </div>
         <div className="xl:col-span-2 min-w-0">
@@ -675,159 +691,392 @@ function ShipSanctumSummary({
   );
 }
 
+const FOCUS_CLASS = "outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800 dark:focus-visible:outline-teal-200";
+
+function activate(event: KeyboardEvent<Element>, action: () => void): void {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    action();
+  }
+}
+
+function towardLabel(toward: MarinerRouteEndpoint): string {
+  return toward.kind === "board_isle"
+    ? boardIsleDisplayName(toward.boardIsleId)
+    : externalLandDisplayName(toward.externalLandId);
+}
+
 function MarinerMap({
   mariner,
   world,
   selection,
   onSelect,
+  sorcererPresence,
 }: {
   mariner: MarinerState;
   world: WorldReference;
   selection: Selection | null;
   onSelect: (selection: Selection) => void;
+  sorcererPresence: readonly SorcererExternalPresence[];
 }) {
-  function activate(event: KeyboardEvent, action: () => void): void {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      action();
-    }
-  }
+  const disruptive = marinerDomainDisruptiveArcanists(sorcererPresence);
 
   return (
-    <svg
-      viewBox={`0 0 ${MARINER_MAP_VIEWBOX.width} ${MARINER_MAP_VIEWBOX.height}`}
-      className="w-full h-auto min-h-[28rem] bg-slate-50 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800"
-      role="img"
-      aria-label="Mariner schematic map"
-    >
-      <defs>
-        <marker id="raider-arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
-          <path d="M0,0 L8,4 L0,8 z" fill="#b45309" />
-        </marker>
-      </defs>
-      {MARINER_ROUTE_CATALOG.map((route) => {
-        const path = routePresentationPath(route.routeId);
-        if (path === null) return null;
-        const occupancy = mariner.routes.find((entry) => entry.routeId === route.routeId)?.occupancy ?? { kind: "empty" as const };
-        const selected = selection?.kind === "route" && selection.routeId === route.routeId;
-        const d = path.control
-          ? `M ${path.a.x} ${path.a.y} Q ${path.control.x} ${path.control.y} ${path.b.x} ${path.b.y}`
-          : `M ${path.a.x} ${path.a.y} L ${path.b.x} ${path.b.y}`;
-        const label = routeOccupancyLabel(occupancy, mariner, world.isles);
-        const aName = routeEndpointLabel(route.endpointA, mariner, world.isles);
-        const bName = routeEndpointLabel(route.endpointB, mariner, world.isles);
-        const mid = path.control ?? { x: (path.a.x + path.b.x) / 2, y: (path.a.y + path.b.y) / 2 };
-        const towardPoint = occupancy.kind === "raider" ? mapTowardPoint(path.a, path.b, occupancy.toward, route.endpointA, route.endpointB) : null;
-        return (
-          <g
-            key={route.routeId}
-            role="button"
-            tabIndex={0}
-            aria-label={`Route ${aName} to ${bName}: ${label}`}
-            onClick={() => onSelect({ kind: "route", routeId: route.routeId })}
-            onKeyDown={(event) => activate(event, () => onSelect({ kind: "route", routeId: route.routeId }))}
-          >
-            <path d={d} fill="none" stroke="transparent" strokeWidth={18} />
-            <path
-              d={d}
-              fill="none"
-              stroke={occupancy.kind === "empty" ? "#94a3b8" : occupancy.kind === "ship" ? "#0f766e" : "#b45309"}
-              strokeWidth={occupancy.kind === "empty" ? 2 : 4}
-              strokeDasharray={occupancy.kind === "empty" ? "6 5" : undefined}
-              markerEnd={occupancy.kind === "raider" ? "url(#raider-arrow)" : undefined}
-            />
-            {selected && <path d={d} fill="none" stroke="#0f766e" strokeWidth={8} opacity={0.25} />}
-            <text x={mid.x} y={mid.y - 8} textAnchor="middle" fontSize={11} fill="currentColor">
-              {occupancy.kind === "empty" ? "" : occupancy.kind === "ship" ? "Ship" : `Raider → ${towardPoint?.label ?? ""}`}
-            </text>
-          </g>
-        );
-      })}
-      {MARINER_SEA_REGION_CATALOG.map((region) => {
-        const point = MARINER_SEA_REGION_MAP_POINTS[region.regionId];
-        const stormCount = mariner.seaRegions.find((entry) => entry.regionId === region.regionId)?.stormCount ?? 0;
-        const beasts = beastsInRegion(mariner.beasts, region.regionId);
-        const selected = selection?.kind === "region" && selection.regionId === region.regionId;
-        return (
-          <g
-            key={region.regionId}
-            role="button"
-            tabIndex={0}
-            aria-label={`${region.kind === "horizon" ? "Horizon" : "Sea"} ${region.displayName}: ${seaRegionStateLabel(stormCount)}`}
-            onClick={() => onSelect({ kind: "region", regionId: region.regionId })}
-            onKeyDown={(event) => activate(event, () => onSelect({ kind: "region", regionId: region.regionId }))}
-          >
-            <circle cx={point.x} cy={point.y} r={22} fill={selected ? "#99f6e4" : region.kind === "horizon" ? "#e2e8f0" : "#ccfbf1"} stroke="#0f766e" />
-            <text x={point.x} y={point.y - 4} textAnchor="middle" fontSize={10} fill="#0f172a">{region.displayName}</text>
-            <text x={point.x} y={point.y + 10} textAnchor="middle" fontSize={10} fill="#134e4a">
-              {seaRegionStateLabel(stormCount)}{beasts.length > 0 ? ` · Beast ${beasts.length}` : ""}
-            </text>
-          </g>
-        );
-      })}
-      {MARINER_BOARD_ISLE_IDS.map((boardIsleId) => {
-        const point = MARINER_BOARD_ISLE_MAP_POINTS[boardIsleId];
-        const isle = mariner.boardIsles.find((entry) => entry.boardIsleId === boardIsleId);
-        const worldName = boardIsleWorldName(mariner, world.isles, boardIsleId);
-        const market = isle?.market.present === true;
-        const rarity = isle?.market.present === true ? isle.market.rarity : null;
-        const ravage = isle?.ravageStormCount ?? 0;
-        const nested = nestingBeastsOnIsle(mariner.beasts, boardIsleId);
-        const selected = selection?.kind === "isle" && selection.boardIsleId === boardIsleId;
-        const bits = [
-          market ? "Market" : null,
-          rarity ? `Rarity ${rarity}` : null,
-          ravage > 0 ? `Ravage ${ravage}` : null,
-          nested.length > 0 ? "Nesting Beast" : null,
-        ].filter((bit): bit is string => bit !== null);
-        return (
-          <g
-            key={boardIsleId}
-            role="button"
-            tabIndex={0}
-            aria-label={`Isle ${worldName}${bits.length > 0 ? `: ${bits.join(", ")}` : ""}`}
-            onClick={() => onSelect({ kind: "isle", boardIsleId })}
-            onKeyDown={(event) => activate(event, () => onSelect({ kind: "isle", boardIsleId }))}
-          >
-            <circle cx={point.x} cy={point.y} r={26} fill={selected ? "#5eead4" : "#f8fafc"} stroke="#0f766e" strokeWidth={2} />
-            <text x={point.x} y={point.y - 4} textAnchor="middle" fontSize={11} fontWeight={600} fill="#0f172a">{worldName}</text>
-            <text x={point.x} y={point.y + 10} textAnchor="middle" fontSize={9} fill="#334155">
-              {[market ? "Mkt" : null, rarity ? "Rar" : null, ravage > 0 ? `Rav ${ravage}` : null, nested.length > 0 ? "Beast" : null]
-                .filter(Boolean)
-                .join(" · ")}
-            </text>
-          </g>
-        );
-      })}
-      {Object.entries(MARINER_EXTERNAL_LAND_MAP_POINTS).map(([externalLandId, point]) => (
-        <g key={externalLandId}>
-          <rect x={point.x - 28} y={point.y - 16} width={56} height={32} rx={4} fill="#fef3c7" stroke="#b45309" />
-          <text x={point.x} y={point.y + 4} textAnchor="middle" fontSize={11} fill="#78350f">
-            {externalLandDisplayName(externalLandId as keyof typeof MARINER_EXTERNAL_LAND_MAP_POINTS)}
-          </text>
+    <div data-mariner-board-scroll className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-sky-50 dark:bg-slate-950">
+      <svg
+        viewBox={`0 0 ${MARINER_MAP_VIEWBOX.width} ${MARINER_MAP_VIEWBOX.height}`}
+        className="h-auto w-full text-slate-800 dark:text-slate-100"
+        style={{ minWidth: MARINER_MAP_MIN_WIDTH_PX }}
+        role="img"
+        aria-label="Archipelago of Isha map"
+        data-mariner-board
+        data-min-width={MARINER_MAP_MIN_WIDTH_PX}
+      >
+        <defs>
+          <pattern id="mariner-ravage-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <rect width="8" height="8" fill="#fef3c7" />
+            <line x1="0" y1="0" x2="0" y2="8" stroke="#9a3412" strokeWidth="3" />
+          </pattern>
+          <pattern id="mariner-unavailable-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(-30)">
+            <rect width="6" height="6" fill="#eef2ff" />
+            <line x1="0" y1="0" x2="6" y2="0" stroke="#4338ca" strokeWidth="2" />
+          </pattern>
+        </defs>
+        <g data-map-layer="frame" pointerEvents="none">
+          <circle cx={MARINER_MAP_FRAME.cx} cy={MARINER_MAP_FRAME.cy} r={MARINER_MAP_FRAME.r + 8} fill="#dbeafe" />
+          <circle cx={MARINER_MAP_FRAME.cx} cy={MARINER_MAP_FRAME.cy} r={MARINER_MAP_FRAME.r} fill="#bfdbfe" stroke="#1e3a5f" strokeWidth={3} />
         </g>
-      ))}
-    </svg>
+        {MARINER_SEA_GEOMETRY.map((sea) => {
+          const definition = MARINER_SEA_REGION_CATALOG.find((region) => region.regionId === sea.regionId);
+          const stormCount = mariner.seaRegions.find((entry) => entry.regionId === sea.regionId)?.stormCount ?? 0;
+          const selected = selection?.kind === "region" && selection.regionId === sea.regionId;
+          const kind = definition?.kind === "horizon" ? "Horizon" : "Sea";
+          const name = definition?.displayName ?? sea.regionId;
+          return (
+            <g
+              key={sea.regionId}
+              data-map-layer="sea-hit"
+              data-region-id={sea.regionId}
+              role="button"
+              tabIndex={0}
+              aria-selected={selected}
+              aria-label={`${kind} ${name}: ${seaRegionStateLabel(stormCount)}`}
+              className={FOCUS_CLASS}
+              onClick={() => onSelect({ kind: "region", regionId: sea.regionId })}
+              onKeyDown={(event) => activate(event, () => onSelect({ kind: "region", regionId: sea.regionId }))}
+            >
+              <path d={sea.hitPath} fill={selected ? "#99f6e4" : definition?.kind === "horizon" ? "#e2e8f0" : "#7dd3fc"} fillOpacity={selected ? 0.55 : 0.22} stroke={selected ? "#0f766e" : "transparent"} strokeWidth={selected ? 3 : 0} strokeDasharray={selected ? "5 3" : undefined} />
+            </g>
+          );
+        })}
+        <g data-map-layer="routes-visible" pointerEvents="none">
+          {MARINER_ROUTE_CATALOG.map((route) => {
+            const geometry = marinerRouteGeometry(route.routeId);
+            if (geometry === null) return null;
+            const occupancy = mariner.routes.find((entry) => entry.routeId === route.routeId)?.occupancy ?? { kind: "empty" as const };
+            const selected = selection?.kind === "route" && selection.routeId === route.routeId;
+            return (
+              <path
+                key={`visible-${route.routeId}`}
+                d={geometry.pathD}
+                fill="none"
+                stroke={occupancy.kind === "empty" ? "#64748b" : occupancy.kind === "ship" ? "#0f766e" : "#9a3412"}
+                strokeWidth={selected ? 5 : occupancy.kind === "empty" ? 2 : 3.5}
+                strokeDasharray={occupancy.kind === "empty" ? "6 5" : undefined}
+              />
+            );
+          })}
+        </g>
+        {MARINER_ROUTE_CATALOG.map((route) => {
+          const geometry = marinerRouteGeometry(route.routeId);
+          if (geometry === null) return null;
+          const occupancy = mariner.routes.find((entry) => entry.routeId === route.routeId)?.occupancy ?? { kind: "empty" as const };
+          const selected = selection?.kind === "route" && selection.routeId === route.routeId;
+          const label = routeOccupancyLabel(occupancy, mariner, world.isles);
+          const aName = routeEndpointLabel(route.endpointA, mariner, world.isles);
+          const bName = routeEndpointLabel(route.endpointB, mariner, world.isles);
+          return (
+            <g
+              key={`hit-${route.routeId}`}
+              data-map-layer="route-hit"
+              data-route-id={route.routeId}
+              role="button"
+              tabIndex={0}
+              aria-selected={selected}
+              aria-label={`Route ${aName} to ${bName}: ${label}`}
+              className={FOCUS_CLASS}
+              onClick={() => onSelect({ kind: "route", routeId: route.routeId })}
+              onKeyDown={(event) => activate(event, () => onSelect({ kind: "route", routeId: route.routeId }))}
+            >
+              <path d={geometry.pathD} fill="none" stroke="transparent" strokeWidth={MARINER_ROUTE_HIT_STROKE_WIDTH} />
+              {selected && <path d={geometry.pathD} fill="none" stroke="#0f766e" strokeWidth={8} opacity={0.28} strokeDasharray="4 3" />}
+            </g>
+          );
+        })}
+        {MARINER_ISLE_GEOMETRY.map((isle) => {
+          const current = mariner.boardIsles.find((entry) => entry.boardIsleId === isle.boardIsleId);
+          const worldName = boardIsleWorldName(mariner, world.isles, isle.boardIsleId);
+          const market = current?.market.present === true;
+          const rarity = current?.market.present === true ? current.market.rarity : null;
+          const ravage = current?.ravageStormCount ?? 0;
+          const nested = nestingBeastsOnIsle(mariner.beasts, isle.boardIsleId);
+          const selected = selection?.kind === "isle" && selection.boardIsleId === isle.boardIsleId;
+          const bits = [
+            market ? "Market" : null,
+            rarity ? `Rarity ${rarity}` : null,
+            ravage > 0 ? `Ravage ${ravage}` : null,
+            nested.length > 0 ? "Nesting Beast" : null,
+          ].filter((bit): bit is string => bit !== null);
+          return (
+            <g
+              key={isle.boardIsleId}
+              data-map-layer="isle"
+              data-isle-id={isle.boardIsleId}
+              role="button"
+              tabIndex={0}
+              aria-selected={selected}
+              aria-label={`Isle ${worldName}${bits.length > 0 ? `: ${bits.join(", ")}` : ""}`}
+              className={FOCUS_CLASS}
+              onClick={() => onSelect({ kind: "isle", boardIsleId: isle.boardIsleId })}
+              onKeyDown={(event) => activate(event, () => onSelect({ kind: "isle", boardIsleId: isle.boardIsleId }))}
+            >
+              <ellipse cx={isle.hit.cx} cy={isle.hit.cy} rx={isle.hit.rx} ry={isle.hit.ry} fill="transparent" />
+              {isle.shapes.map((shape, index) => (
+                <ellipse
+                  key={`${isle.boardIsleId}-shape-${index}`}
+                  cx={shape.cx}
+                  cy={shape.cy}
+                  rx={shape.rx}
+                  ry={shape.ry}
+                  transform={shape.rotate ? `rotate(${shape.rotate} ${shape.cx} ${shape.cy})` : undefined}
+                  fill={ravage > 0 ? "url(#mariner-ravage-hatch)" : selected ? "#5eead4" : "#f8fafc"}
+                  stroke={selected ? "#0f766e" : "#115e59"}
+                  strokeWidth={selected ? 3 : 1.5}
+                  strokeDasharray={selected ? "4 2" : undefined}
+                  pointerEvents="none"
+                />
+              ))}
+            </g>
+          );
+        })}
+        <g data-map-layer="labels" pointerEvents="none">
+          {MARINER_EXTERNAL_LAND_GEOMETRY.map((land) => (
+            <g key={land.externalLandId} data-external-land={land.externalLandId}>
+              <path d={land.pathD} fill="#fef3c7" stroke="#b45309" />
+              <text x={land.label.x} y={land.label.y + 4} textAnchor="middle" fontSize={11} fill="#78350f">
+                {externalLandDisplayName(land.externalLandId)}
+              </text>
+            </g>
+          ))}
+          {MARINER_SEA_GEOMETRY.map((sea) => {
+            const definition = MARINER_SEA_REGION_CATALOG.find((region) => region.regionId === sea.regionId);
+            return (
+              <text key={`label-${sea.regionId}`} x={sea.label.x} y={sea.label.y + 3} textAnchor="middle" fontSize={9} fill="#0f172a">
+                {definition?.displayName ?? sea.regionId}
+              </text>
+            );
+          })}
+          {MARINER_ISLE_GEOMETRY.map((isle) => (
+            <text key={`label-${isle.boardIsleId}`} x={isle.label.x} y={isle.label.y + 3} textAnchor="middle" fontSize={11} fontWeight={600} fill="#0f172a">
+              {boardIsleWorldName(mariner, world.isles, isle.boardIsleId)}
+            </text>
+          ))}
+        </g>
+        <g data-map-layer="pieces">
+          {MARINER_SEA_GEOMETRY.map((sea) => {
+            const stormCount = mariner.seaRegions.find((entry) => entry.regionId === sea.regionId)?.stormCount ?? 0;
+            const storms = stormPiecePresentation(stormCount);
+            const beasts = beastsInRegion(mariner.beasts, sea.regionId);
+            const researchers = marinerSeaResearchers(sorcererPresence, sea.regionId);
+            return (
+              <g key={`pieces-${sea.regionId}`}>
+                {storms.tokenCount > 0 && (
+                  <g
+                    data-piece="storm"
+                    data-region-id={sea.regionId}
+                    data-storm-count={stormCount}
+                    data-typhoon={storms.typhoon ? "true" : "false"}
+                    aria-label={storms.accessibleCount}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelect({ kind: "region", regionId: sea.regionId });
+                    }}
+                  >
+                    {Array.from({ length: storms.tokenCount }, (_, index) => (
+                      <g key={index} transform={`translate(${sea.slots.storm.x + index * 7} ${sea.slots.storm.y - index * 6})`}>
+                        <path d="M -10 4 Q -4 -10 4 -6 Q 10 -2 8 6 Q 0 10 -10 4 Z" fill={storms.typhoon ? "#1e293b" : "#334155"} stroke="#0f172a" />
+                        {storms.typhoon && index === 0 && (
+                          <text x={0} y={18} textAnchor="middle" fontSize={8} fill="#0f172a">Typhoon</text>
+                        )}
+                      </g>
+                    ))}
+                    <title>{storms.accessibleCount}</title>
+                  </g>
+                )}
+                {beasts.map((beast, index) => (
+                  <g
+                    key={beast.denizenId}
+                    data-piece="beast"
+                    data-beast-id={beast.denizenId}
+                    aria-label={`Beast ${denizenName(world.denizens, beast.denizenId)}`}
+                    transform={`translate(${sea.slots.beast.x + index * 16} ${sea.slots.beast.y})`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelect({ kind: "region", regionId: sea.regionId });
+                    }}
+                  >
+                    <polygon points="0,-12 10,-2 6,12 -6,12 -10,-2" fill="#14532d" stroke="#052e16" />
+                    <text x={0} y={20} textAnchor="middle" fontSize={8} fill="#14532d">Beast</text>
+                  </g>
+                ))}
+                {researchers.map((researcher, index) => (
+                  <g
+                    key={researcher.denizenId}
+                    data-researcher-target={sea.regionId}
+                    data-researcher-status={researcher.operationalThisMonth ? "working" : "unavailable"}
+                    aria-label={`${researcher.name} at ${seaRegionDisplayName(sea.regionId)}, ${researcherOperationalLabel(researcher.operationalThisMonth)}`}
+                    transform={`translate(${sea.slots.researcher.x} ${sea.slots.researcher.y + index * 28})`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelect({ kind: "region", regionId: sea.regionId });
+                    }}
+                  >
+                    <rect
+                      x={-36}
+                      y={-12}
+                      width={72}
+                      height={24}
+                      rx={5}
+                      fill={researcher.operationalThisMonth ? "#eef2ff" : "url(#mariner-unavailable-hatch)"}
+                      stroke="#4338ca"
+                      strokeDasharray={researcher.operationalThisMonth ? undefined : "3 2"}
+                    />
+                    {!researcher.operationalThisMonth && (
+                      <line x1={-28} y1={-6} x2={28} y2={6} stroke="#312e81" strokeWidth={1.5} />
+                    )}
+                    <text x={0} y={-1} textAnchor="middle" fontSize={8} fill="#312e81">{researcher.name}</text>
+                    <text x={0} y={8} textAnchor="middle" fontSize={7} fill="#4338ca">
+                      {researcherOperationalLabel(researcher.operationalThisMonth)}
+                    </text>
+                  </g>
+                ))}
+              </g>
+            );
+          })}
+          {MARINER_ROUTE_CATALOG.map((route) => {
+            const geometry = marinerRouteGeometry(route.routeId);
+            const occupancy = mariner.routes.find((entry) => entry.routeId === route.routeId)?.occupancy ?? { kind: "empty" as const };
+            if (geometry === null || occupancy.kind === "empty") return null;
+            if (occupancy.kind === "ship") {
+              return (
+                <g
+                  key={`ship-${route.routeId}`}
+                  data-piece="ship"
+                  data-route-id={route.routeId}
+                  aria-label="Ship"
+                  transform={`translate(${geometry.pieceAnchor.x} ${geometry.pieceAnchor.y}) rotate(${geometry.tangentDeg})`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onSelect({ kind: "route", routeId: route.routeId });
+                  }}
+                >
+                  <path d="M -14 4 L -8 -6 L 10 -6 L 16 4 Z" fill="#0f766e" stroke="#042f2e" />
+                  <rect x={-2} y={-12} width={5} height={7} fill="#134e4a" />
+                  <text x={0} y={16} textAnchor="middle" fontSize={8} fill="#0f766e" transform={`rotate(${-geometry.tangentDeg})`}>Ship</text>
+                </g>
+              );
+            }
+            const heading = raiderDirectionDeg(route.routeId, occupancy.toward);
+            return (
+              <g
+                key={`raider-${route.routeId}`}
+                data-piece="raider"
+                data-route-id={route.routeId}
+                data-raider-toward={occupancy.toward.kind === "board_isle" ? occupancy.toward.boardIsleId : occupancy.toward.externalLandId}
+                aria-label={`Raider toward ${towardLabel(occupancy.toward)}`}
+                transform={`translate(${geometry.pieceAnchor.x} ${geometry.pieceAnchor.y}) rotate(${heading})`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onSelect({ kind: "route", routeId: route.routeId });
+                }}
+              >
+                <path d="M -12 5 L -6 -5 L 8 -5 L 14 5 Z" fill="#7f1d1d" stroke="#450a0a" />
+                <polygon points="16,0 28,-7 28,7" fill="#b45309" stroke="#7c2d12" />
+                <text x={4} y={18} textAnchor="middle" fontSize={8} fill="#7c2d12" transform={`rotate(${-heading})`}>
+                  {`Raider → ${towardLabel(occupancy.toward)}`}
+                </text>
+              </g>
+            );
+          })}
+          {MARINER_ISLE_GEOMETRY.map((isle) => {
+            const current = mariner.boardIsles.find((entry) => entry.boardIsleId === isle.boardIsleId);
+            const market = current?.market.present === true;
+            const ravage = current?.ravageStormCount ?? 0;
+            const beasts = beastsOnIsle(mariner.beasts, isle.boardIsleId);
+            return (
+              <g key={`isle-pieces-${isle.boardIsleId}`}>
+                {market && (
+                  <g
+                    data-piece="market"
+                    data-isle-id={isle.boardIsleId}
+                    aria-label="Market"
+                    transform={`translate(${isle.slots.market.x} ${isle.slots.market.y})`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelect({ kind: "isle", boardIsleId: isle.boardIsleId });
+                    }}
+                  >
+                    <rect x={-8} y={-6} width={16} height={12} fill="#b45309" stroke="#78350f" />
+                    <path d="M -10 -6 L 0 -14 L 10 -6" fill="#f59e0b" stroke="#78350f" />
+                    <text x={0} y={16} textAnchor="middle" fontSize={8} fill="#78350f">Market</text>
+                  </g>
+                )}
+                {ravage > 0 && (
+                  <g
+                    data-piece="ravage"
+                    data-isle-id={isle.boardIsleId}
+                    data-ravage-count={ravage}
+                    aria-label={`Ravage ${ravage}`}
+                    transform={`translate(${isle.slots.ravage.x} ${isle.slots.ravage.y + isle.hit.ry + 10})`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelect({ kind: "isle", boardIsleId: isle.boardIsleId });
+                    }}
+                  >
+                    <text textAnchor="middle" fontSize={9} fill="#9a3412">Ravaged {ravage}</text>
+                  </g>
+                )}
+                {beasts.map((beast, index) => (
+                  <g
+                    key={beast.denizenId}
+                    data-piece="beast"
+                    data-beast-id={beast.denizenId}
+                    aria-label={`Beast ${denizenName(world.denizens, beast.denizenId)}`}
+                    transform={`translate(${isle.slots.beast.x + index * 16} ${isle.slots.beast.y})`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelect({ kind: "isle", boardIsleId: isle.boardIsleId });
+                    }}
+                  >
+                    <polygon points="0,-12 10,-2 6,12 -6,12 -10,-2" fill="#14532d" stroke="#052e16" />
+                    <text x={0} y={20} textAnchor="middle" fontSize={8} fill="#14532d">Beast</text>
+                  </g>
+                ))}
+              </g>
+            );
+          })}
+          {disruptive.length > 0 && (
+            <g data-domain-presence="disruptive-arcanist" pointerEvents="none">
+              <rect x={MARINER_DOMAIN_PRESENCE_ANCHOR.x - 160} y={MARINER_DOMAIN_PRESENCE_ANCHOR.y - 16} width={320} height={30} rx={6} fill="#f5f3ff" stroke="#5b21b6" />
+              <text x={MARINER_DOMAIN_PRESENCE_ANCHOR.x} y={MARINER_DOMAIN_PRESENCE_ANCHOR.y + 4} textAnchor="middle" fontSize={9} fill="#4c1d95">
+                {disruptive.map((entry) => `${entry.name} (Mariner Domain presence)`).join(" · ")}
+              </text>
+            </g>
+          )}
+        </g>
+      </svg>
+    </div>
   );
-}
-
-function mapTowardPoint(
-  a: { x: number; y: number },
-  b: { x: number; y: number },
-  toward: MarinerRouteEndpoint,
-  endpointA: MarinerRouteEndpoint,
-  endpointB: MarinerRouteEndpoint,
-): { label: string } {
-  const towardA = endpointA.kind === toward.kind && (
-    (toward.kind === "board_isle" && endpointA.kind === "board_isle" && toward.boardIsleId === endpointA.boardIsleId)
-    || (toward.kind === "external_land" && endpointA.kind === "external_land" && toward.externalLandId === endpointA.externalLandId)
-  );
-  void a;
-  void b;
-  if (towardA) {
-    return { label: endpointA.kind === "board_isle" ? boardIsleDisplayName(endpointA.boardIsleId) : externalLandDisplayName(endpointA.externalLandId) };
-  }
-  return { label: endpointB.kind === "board_isle" ? boardIsleDisplayName(endpointB.boardIsleId) : externalLandDisplayName(endpointB.externalLandId) };
 }
 
 function Inspector({

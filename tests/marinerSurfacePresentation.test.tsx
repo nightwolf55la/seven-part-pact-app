@@ -16,8 +16,10 @@ import {
   type PlaceId,
   type PowerfulDenizenMethodEntryId,
 } from "../shared/domain";
+import type { SorcererExternalPresence } from "../shared/domain";
 import MarinerSurface from "../src/MarinerSurface";
 import type { WorldReference } from "../src/WorldSurface";
+import { MARINER_MAP_MIN_WIDTH_PX } from "../src/mariner-map-geometry";
 
 const CAMPAIGN_ID = "cmp_00000000-0000-0000-0000-000000000001";
 const SHIP = "plc_00000000-0000-0000-0000-0000000000aa";
@@ -139,6 +141,7 @@ vi.mock("../convex/_generated/api.js", () => ({
 function renderSurface(
   mariner = EMPTY_MARINER_STATE,
   wizard: typeof WIZARD | null = null,
+  sorcererPresence: readonly SorcererExternalPresence[] = [],
 ) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -149,6 +152,7 @@ function renderSurface(
       world: WORLD,
       campaignId: CAMPAIGN_ID,
       marinerWizard: wizard,
+      sorcererPresence,
     }));
   });
   return { container, root };
@@ -256,7 +260,7 @@ describe("Mariner surface setup", () => {
 describe("Mariner initialized map", () => {
   it("renders map state, World names, Typhoon, Ship/Raider, and distinct ship/Sanctum", () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    expect(container.querySelector('[aria-label="Mariner schematic map"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Archipelago of Isha map"]')).not.toBeNull();
     expect(container.innerHTML).toContain("Moonlit Atoll");
     expect(container.innerHTML).toContain("World ishana");
     expect(container.innerHTML).toContain("Typhoon");
@@ -371,7 +375,7 @@ describe("Mariner realtime draft synchronization", () => {
     const { container, root } = renderSurface(EMPTY_MARINER_STATE, WIZARD);
     expect(container.innerHTML).toContain("Initialize Mariner");
     rerenderSurface(root, initializedMariner());
-    expect(container.querySelector('[aria-label="Mariner schematic map"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Archipelago of Isha map"]')).not.toBeNull();
     expect(select(container, "Change Mariner ship").value).toBe(SHIP);
     expect(lawCheckbox(container, "First Law of the Sea").checked).toBe(true);
     expect(lawCheckbox(container, "Second Law of the Sea").checked).toBe(true);
@@ -473,6 +477,139 @@ describe("Mariner Beast baseline concurrency", () => {
     });
     expect(container.innerHTML).not.toContain("Save Beast");
     expect(button(container, "Edit Beast")).toBeDefined();
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("Mariner source-map piece presentation", () => {
+  it("renders Storms as physical tokens, with Typhoon cluster and accessible exact count", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    expect(container.querySelector('[data-piece="storm"][data-region-id="sidereal_sea"]')?.getAttribute("data-typhoon")).toBe("true");
+    expect(container.querySelector('[data-piece="storm"][data-region-id="sidereal_sea"]')?.getAttribute("aria-label")).toContain("Storms 2");
+    expect(container.querySelector('[data-piece="storm"][data-region-id="bay_of_ishana"]')?.getAttribute("data-typhoon")).toBe("false");
+    expect(container.querySelector('[data-piece="storm"][data-region-id="sunken_fleet"]')).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("renders Ship, directional Raider, Beast, Market, and Ravage pieces", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    expect(container.querySelector('[data-piece="ship"][aria-label="Ship"]')).not.toBeNull();
+    const raider = container.querySelector('[data-piece="raider"]');
+    expect(raider?.getAttribute("aria-label")).toContain("Raider toward");
+    expect(raider?.getAttribute("data-raider-toward")).toBe("ishana");
+    expect(container.querySelector('[data-piece="beast"]')?.textContent).toContain("Beast");
+    expect(container.querySelector('[data-piece="market"][data-isle-id="scuttleport"]')).not.toBeNull();
+    expect(container.querySelector('[data-piece="ravage"][data-isle-id="druntyr"]')?.getAttribute("aria-label")).toBe("Ravage 3");
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("Mariner Sorcerer presence on the map", () => {
+  const presence: readonly SorcererExternalPresence[] = [
+    {
+      kind: "researcher",
+      denizenId: "den_00000000-0000-0000-0000-0000000000aa" as never,
+      name: "Tide Reader",
+      operationalThisMonth: true,
+      positionId: "srp_sea_1",
+      target: { kind: "mariner_sea_region", seaRegionId: "sunken_fleet" },
+    },
+    {
+      kind: "researcher",
+      denizenId: "den_00000000-0000-0000-0000-0000000000ab" as never,
+      name: "Idle Cartographer",
+      operationalThisMonth: false,
+      positionId: "srp_sea_2",
+      target: { kind: "mariner_sea_region", seaRegionId: "sidereal_sea" },
+    },
+    {
+      kind: "researcher",
+      denizenId: "den_00000000-0000-0000-0000-0000000000ac" as never,
+      name: "Temple Seer",
+      operationalThisMonth: true,
+      positionId: "srp_temple_krolis",
+      target: { kind: "hierophant_temple", templeId: "krolis" },
+    },
+    {
+      kind: "disruptive_arcanist",
+      denizenId: "den_00000000-0000-0000-0000-0000000000ad" as never,
+      name: "Salt Vex",
+      school: { kind: "source", schoolId: "invocation" },
+      seatId: "mariner",
+    },
+  ];
+
+  it("places Mariner-targeted Researchers on the exact Sea and distinguishes Working from Unavailable without color alone", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD, presence);
+    const working = container.querySelector('[data-researcher-target="sunken_fleet"]');
+    const unavailable = container.querySelector('[data-researcher-target="sidereal_sea"]');
+    expect(working?.textContent).toContain("Tide Reader");
+    expect(working?.textContent).toContain("Working this month");
+    expect(working?.getAttribute("data-researcher-status")).toBe("working");
+    expect(unavailable?.textContent).toContain("Idle Cartographer");
+    expect(unavailable?.textContent).toContain("Unavailable this month");
+    expect(unavailable?.getAttribute("data-researcher-status")).toBe("unavailable");
+    expect(unavailable?.querySelector("line")).not.toBeNull();
+    expect(container.textContent).not.toContain("Temple Seer");
+    expect(container.querySelector('[data-domain-presence="disruptive-arcanist"]')?.textContent).toContain("Salt Vex");
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("Mariner map interaction and narrow treatment", () => {
+  it("keeps Sea hit regions under Route hits and decorative labels non-interactive", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const sea = container.querySelector('[data-map-layer="sea-hit"]');
+    const route = container.querySelector('[data-map-layer="route-hit"]');
+    const labels = container.querySelector('[data-map-layer="labels"]');
+    expect(sea).not.toBeNull();
+    expect(route).not.toBeNull();
+    expect(sea!.compareDocumentPosition(route!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(labels?.getAttribute("pointer-events")).toBe("none");
+    expect(container.querySelector('[data-map-layer="frame"]')?.getAttribute("pointer-events")).toBe("none");
+    root.unmount();
+    container.remove();
+  });
+
+  it("selects the Route when a Ship piece is activated instead of an underlying Sea", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const ship = container.querySelector('[data-piece="ship"]') as SVGElement;
+    flushSync(() => { ship.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(container.innerHTML).toContain("Route inspector");
+    expect(container.querySelector('[aria-label="Route occupancy"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("makes Isle, Sea, and Route keyboard reachable with visible selected state", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const isle = container.querySelector('[data-map-layer="isle"][data-isle-id="ishana"]') as SVGElement;
+    const sea = container.querySelector('[data-map-layer="sea-hit"][data-region-id="sunken_fleet"]') as SVGElement;
+    const route = container.querySelector('[data-map-layer="route-hit"]') as SVGElement;
+    expect(isle.tabIndex).toBe(0);
+    expect(sea.tabIndex).toBe(0);
+    expect(route.tabIndex).toBe(0);
+    flushSync(() => {
+      isle.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    expect(isle.getAttribute("aria-selected")).toBe("true");
+    expect(container.innerHTML).toContain("Isle inspector");
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps an intentional minimum map width inside a horizontal scroll container", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const scroller = container.querySelector("[data-mariner-board-scroll]");
+    const board = container.querySelector("[data-mariner-board]");
+    expect(scroller?.className).toContain("overflow-x-auto");
+    expect(board?.getAttribute("data-min-width")).toBe(String(MARINER_MAP_MIN_WIDTH_PX));
+    expect((board as SVGSVGElement | null)?.viewBox.baseVal.width).toBe(1000);
+    expect((board as SVGSVGElement | null)?.viewBox.baseVal.height).toBe(1000);
     root.unmount();
     container.remove();
   });

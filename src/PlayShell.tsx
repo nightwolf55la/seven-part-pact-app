@@ -116,7 +116,7 @@ function paneBody(
 ) {
   if (surface === "world") return renderWorld(worldRef, campaignId);
   if (surface === "hierophant") return renderHierophant(hierRef, worldRef, campaignId, sorcererRef, loreCompendiumUiStateFromQuery(loreCompendiumRef));
-  if (surface === "mariner") return renderMariner(marinerRef, worldRef, ref, campaignId);
+  if (surface === "mariner") return renderMariner(marinerRef, worldRef, ref, campaignId, sorcererRef);
   if (surface === "necromancer") {
     return renderNecromancer(necromancerRef, worldRef, ref, campaignId, loreCompendiumUiStateFromQuery(loreCompendiumRef), sorcererRef);
   }
@@ -184,6 +184,7 @@ function renderMariner(
   worldRef: ReturnType<typeof useQuery<typeof api.m3Queries.getWorldReference>>,
   playRef: Parameters<typeof renderSurface>[1],
   campaignId: string,
+  sorcererRef: ReturnType<typeof useQuery<typeof api.m3Queries.getSorcererReference>>,
 ) {
   if (marinerRef === undefined || worldRef === undefined) {
     return <div className="py-12 text-center text-sm text-slate-400">Loading Mariner…</div>;
@@ -197,6 +198,7 @@ function renderMariner(
       world={worldRef}
       campaignId={campaignId}
       marinerWizard={marinerWizardFromPlayRef(playRef)}
+      sorcererPresence={sorcererRef?.presentation.externalPresence ?? []}
     />
   );
 }

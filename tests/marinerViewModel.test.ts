@@ -12,6 +12,7 @@ import {
   type MarinerBoardIsleId,
   type MarinerBeastState,
   type PlaceId,
+  type SorcererExternalPresence,
 } from "../shared/domain";
 import {
   MARINER_BOARD_ISLE_MAP_POINTS,
@@ -31,10 +32,14 @@ import {
   isTyphoon,
   mapEndpointPoint,
   marinerBeastLocationEqual,
+  marinerDomainDisruptiveArcanists,
+  marinerSeaResearchers,
   marinerSetupReady,
+  researcherOperationalLabel,
   routeOccupancyLabel,
   routePresentationPath,
   setupLawsValid,
+  stormPiecePresentation,
   uniqueSelectedLawIds,
   type MarinerSetupDraft,
 } from "../src/mariner-view-model";
@@ -318,5 +323,55 @@ describe("route id helper used by occupancy tests", () => {
       { kind: "board_isle", boardIsleId: "scuttleport" },
       { kind: "board_isle", boardIsleId: "ishana" },
     )).toBe("ishana__scuttleport");
+  });
+});
+
+describe("Mariner piece and Sorcerer presentation helpers", () => {
+  it("renders Storm tokens as none / one / Typhoon cluster with accessible count", () => {
+    expect(stormPiecePresentation(0)).toEqual({ tokenCount: 0, typhoon: false, accessibleCount: "Storms 0" });
+    expect(stormPiecePresentation(1)).toEqual({ tokenCount: 1, typhoon: false, accessibleCount: "Storms 1" });
+    expect(stormPiecePresentation(2)).toEqual({ tokenCount: 2, typhoon: true, accessibleCount: "Storms 2 · Typhoon" });
+    expect(stormPiecePresentation(5).tokenCount).toBe(3);
+    expect(stormPiecePresentation(5).accessibleCount).toBe("Storms 5 · Typhoon");
+  });
+
+  it("projects only Mariner-targeted Researchers and Mariner Disruptive Arcanists", () => {
+    const presence: readonly SorcererExternalPresence[] = [
+      {
+        kind: "researcher" as const,
+        denizenId: "den_a" as never,
+        name: "Tide Reader",
+        operationalThisMonth: false,
+        positionId: "srp_sea_1" as const,
+        target: { kind: "mariner_sea_region" as const, seaRegionId: "sunken_fleet" as const },
+      },
+      {
+        kind: "researcher" as const,
+        denizenId: "den_b" as never,
+        name: "Temple Seer",
+        operationalThisMonth: true,
+        positionId: "srp_temple_krolis" as const,
+        target: { kind: "hierophant_temple" as const, templeId: "krolis" as const },
+      },
+      {
+        kind: "disruptive_arcanist" as const,
+        denizenId: "den_c" as never,
+        name: "Salt Vex",
+        school: { kind: "source" as const, schoolId: "invocation" as const },
+        seatId: "mariner" as const,
+      },
+      {
+        kind: "disruptive_arcanist" as const,
+        denizenId: "den_d" as never,
+        name: "Other Vex",
+        school: { kind: "source" as const, schoolId: "invocation" as const },
+        seatId: "hierophant" as const,
+      },
+    ];
+    expect(marinerSeaResearchers(presence, "sunken_fleet").map((entry) => entry.name)).toEqual(["Tide Reader"]);
+    expect(marinerSeaResearchers(presence, "bay_of_ishana")).toEqual([]);
+    expect(marinerDomainDisruptiveArcanists(presence).map((entry) => entry.name)).toEqual(["Salt Vex"]);
+    expect(researcherOperationalLabel(true)).toBe("Working this month");
+    expect(researcherOperationalLabel(false)).toBe("Unavailable this month");
   });
 });

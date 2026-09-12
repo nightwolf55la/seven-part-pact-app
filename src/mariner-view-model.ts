@@ -13,7 +13,6 @@ import {
   isValidMarinerBuiltinBeastId,
   isValidMarinerLawOfSeaId,
   marinerArrangementDefinition,
-  marinerRouteDefinition,
   pactSeatDisplayName,
   type ElementId,
   type MarinerArrangementId,
@@ -31,12 +30,41 @@ import {
   type MarinerState,
   type PactSeatId,
   type PowerfulDenizenProfile,
+  type SorcererExternalPresence,
   type UpdateMarinerBeastFields,
   denizenHasBuiltinTaxonomy,
   profileHasStandardRampagingMethod,
   powerfulStatusLabel,
 } from "../shared/domain";
 import type { PlaceRef } from "./WorldSurface";
+
+export {
+  MARINER_BOARD_ISLE_MAP_POINTS,
+  MARINER_DOMAIN_PRESENCE_ANCHOR,
+  MARINER_EXTERNAL_LAND_GEOMETRY,
+  MARINER_EXTERNAL_LAND_MAP_POINTS,
+  MARINER_ISLE_GEOMETRY,
+  MARINER_MAP_FRAME,
+  MARINER_MAP_MIN_WIDTH_PX,
+  MARINER_MAP_VIEWBOX,
+  MARINER_ROUTE_GEOMETRY,
+  MARINER_ROUTE_HIT_STROKE_WIDTH,
+  MARINER_SEA_GEOMETRY,
+  MARINER_SEA_REGION_MAP_POINTS,
+  mapEndpointPoint,
+  marinerExternalLandGeometry,
+  marinerIsleGeometry,
+  marinerRouteGeometry,
+  marinerSeaGeometry,
+  raiderDirectionDeg,
+  routePresentationPath,
+  type MapEllipse,
+  type MapPoint,
+  type MarinerExternalLandGeometry,
+  type MarinerIsleGeometry,
+  type MarinerRouteGeometry,
+  type MarinerSeaGeometry,
+} from "./mariner-map-geometry";
 
 export interface NamedDenizen {
   readonly denizenId: string;
@@ -57,70 +85,6 @@ export interface NamedPlace {
 }
 
 export type MarinerIsleBindings = Partial<Record<MarinerBoardIsleId, string>>;
-
-export interface MapPoint {
-  readonly x: number;
-  readonly y: number;
-}
-
-export const MARINER_MAP_VIEWBOX = { width: 1000, height: 940 } as const;
-
-/**
- * Schematic presentation coordinates inspired by the Draft-4 Materials map.
- * Not persisted; not domain topology.
- */
-export const MARINER_BOARD_ISLE_MAP_POINTS: Record<MarinerBoardIsleId, MapPoint> = {
-  thyras: { x: 560, y: 150 },
-  far_reach: { x: 340, y: 210 },
-  koire: { x: 150, y: 400 },
-  orrery: { x: 340, y: 360 },
-  caravesse: { x: 430, y: 340 },
-  druntyr: { x: 600, y: 300 },
-  scuttleport: { x: 740, y: 360 },
-  spyrholm: { x: 200, y: 520 },
-  halcyon_isles: { x: 400, y: 520 },
-  ishana: { x: 580, y: 520 },
-  izor: { x: 800, y: 600 },
-  sage_atoll: { x: 180, y: 690 },
-  tahv: { x: 420, y: 660 },
-  graven_isle: { x: 560, y: 700 },
-  yeraine: { x: 340, y: 800 },
-};
-
-export const MARINER_EXTERNAL_LAND_MAP_POINTS: Record<MarinerExternalLandId, MapPoint> = {
-  nebelheim: { x: 560, y: 36 },
-  druj_lands: { x: 48, y: 430 },
-  hecares: { x: 340, y: 910 },
-  ur: { x: 960, y: 500 },
-};
-
-export const MARINER_SEA_REGION_MAP_POINTS: Record<MarinerSeaRegionId, MapPoint> = {
-  thyrian_sea: { x: 470, y: 250 },
-  ruins_of_old_ishana: { x: 660, y: 240 },
-  sunken_fleet: { x: 370, y: 280 },
-  koiran_reef: { x: 250, y: 360 },
-  scuttle_channel: { x: 650, y: 400 },
-  wizard_strait: { x: 340, y: 440 },
-  bay_of_ishana: { x: 500, y: 420 },
-  devil_sea: { x: 720, y: 500 },
-  kings_gulf: { x: 470, y: 580 },
-  sidereal_sea: { x: 290, y: 620 },
-  chalk_cliffs: { x: 660, y: 620 },
-  wainways: { x: 480, y: 720 },
-  northwest_horizon: { x: 220, y: 120 },
-  northeast_horizon: { x: 840, y: 140 },
-  southeast_horizon: { x: 860, y: 800 },
-  southwest_horizon: { x: 80, y: 780 },
-};
-
-const ROUTE_CONTROL_POINTS: Partial<Record<string, MapPoint>> = {
-  scuttleport__thyras: { x: 700, y: 220 },
-  druntyr__ishana: { x: 640, y: 410 },
-  caravesse__far_reach: { x: 400, y: 250 },
-  orrery__spyrholm: { x: 250, y: 430 },
-  halcyon_isles__ishana: { x: 490, y: 500 },
-  ishana__thyras: { x: 620, y: 330 },
-};
 
 export function isMarinerInitialized(mariner: Pick<MarinerState, keyof MarinerState>): boolean {
   return (
@@ -205,6 +169,56 @@ export function seaRegionStateLabel(stormCount: number): string {
   return `Storms ${stormCount}${typhoon}`;
 }
 
+export function stormPiecePresentation(stormCount: number): {
+  readonly tokenCount: number;
+  readonly typhoon: boolean;
+  readonly accessibleCount: string;
+} {
+  if (stormCount <= 0) {
+    return { tokenCount: 0, typhoon: false, accessibleCount: "Storms 0" };
+  }
+  if (stormCount === 1) {
+    return { tokenCount: 1, typhoon: false, accessibleCount: "Storms 1" };
+  }
+  return {
+    tokenCount: Math.min(stormCount, 3),
+    typhoon: true,
+    accessibleCount: `Storms ${stormCount} · Typhoon`,
+  };
+}
+
+export function researcherOperationalLabel(operationalThisMonth: boolean): string {
+  return operationalThisMonth ? "Working this month" : "Unavailable this month";
+}
+
+export function marinerSeaResearchers(
+  presence: readonly SorcererExternalPresence[],
+  regionId: MarinerSeaRegionId,
+): Extract<SorcererExternalPresence, { kind: "researcher" }>[] {
+  return presence.filter(
+    (entry): entry is Extract<SorcererExternalPresence, { kind: "researcher" }> =>
+      entry.kind === "researcher"
+      && entry.target.kind === "mariner_sea_region"
+      && entry.target.seaRegionId === regionId,
+  );
+}
+
+export function marinerDomainDisruptiveArcanists(
+  presence: readonly SorcererExternalPresence[],
+): Extract<SorcererExternalPresence, { kind: "disruptive_arcanist" }>[] {
+  return presence.filter(
+    (entry): entry is Extract<SorcererExternalPresence, { kind: "disruptive_arcanist" }> =>
+      entry.kind === "disruptive_arcanist" && entry.seatId === "mariner",
+  );
+}
+
+export function beastsOnIsle(
+  beasts: readonly MarinerBeastState[],
+  boardIsleId: MarinerBoardIsleId,
+): MarinerBeastState[] {
+  return beasts.filter((beast) => beast.location.kind === "board_isle" && beast.location.boardIsleId === boardIsleId);
+}
+
 export function marinerBeastLocationEqual(a: MarinerBeastLocation, b: MarinerBeastLocation): boolean {
   if (a.kind !== b.kind) return false;
   if (a.kind === "sea_region" && b.kind === "sea_region") return a.regionId === b.regionId;
@@ -266,25 +280,6 @@ export function denizenSharedStatusLabel(denizen: NamedDenizen | undefined): str
 
 export function otherDomainSeatOptions(): PactSeatId[] {
   return PACT_SEAT_IDS.filter((seatId) => seatId !== "mariner");
-}
-
-export function mapEndpointPoint(endpoint: MarinerRouteEndpoint): MapPoint {
-  if (endpoint.kind === "board_isle") return MARINER_BOARD_ISLE_MAP_POINTS[endpoint.boardIsleId];
-  return MARINER_EXTERNAL_LAND_MAP_POINTS[endpoint.externalLandId];
-}
-
-export function routePresentationPath(routeId: string): {
-  readonly a: MapPoint;
-  readonly b: MapPoint;
-  readonly control: MapPoint | null;
-} | null {
-  const definition = marinerRouteDefinition(routeId);
-  if (definition === undefined) return null;
-  return {
-    a: mapEndpointPoint(definition.endpointA),
-    b: mapEndpointPoint(definition.endpointB),
-    control: ROUTE_CONTROL_POINTS[routeId] ?? null,
-  };
 }
 
 export function nestingBeastsOnIsle(
