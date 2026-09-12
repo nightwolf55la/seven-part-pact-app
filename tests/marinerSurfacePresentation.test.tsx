@@ -15,9 +15,30 @@ import {
   type MarinerState,
   type PlaceId,
   type PowerfulDenizenMethodEntryId,
+  type PactSeatId,
+  type PactSeatStatus,
+  MARINER_SEA_REGION_DEFINITIONS,
 } from "../shared/domain";
+import type { SorcererExternalPresence } from "../shared/domain";
 import MarinerSurface from "../src/MarinerSurface";
 import type { WorldReference } from "../src/WorldSurface";
+import { MARINER_MAP_MIN_WIDTH_PX } from "../src/mariner-map-geometry";
+import type { LoreCompendiumUiState } from "../src/lore-view-model";
+import {
+  CREATE_BEAST_LABEL,
+  CREATE_SHIP_LABEL,
+  MOVE_BEAST_LABEL,
+  MOVE_SHIP_LABEL,
+  MOVE_STORM_LABEL,
+  NEST_BEAST_LABEL,
+  NO_LORE_CONTEXT_COPY,
+  RAVAGE_INCOMPLETE_COPY,
+  RAVAGE_LOCATION_FOLLOW_THROUGH,
+  RAVAGE_LORE_FOLLOW_THROUGH,
+  RAVAGE_MARKET_ABSORBED_COPY,
+  RAVAGE_RESULT_LABEL,
+  WIND_CONFIRMATION_LABEL,
+} from "../src/mariner-view-model";
 
 const CAMPAIGN_ID = "cmp_00000000-0000-0000-0000-000000000001";
 const SHIP = "plc_00000000-0000-0000-0000-0000000000aa";
@@ -78,6 +99,18 @@ const SHIP_ROUTE = marinerRouteId(
   { kind: "board_isle", boardIsleId: "thyras" },
   { kind: "board_isle", boardIsleId: "far_reach" },
 );
+const SUNKEN_ORRERY_FAR = marinerRouteId(
+  { kind: "board_isle", boardIsleId: "orrery" },
+  { kind: "board_isle", boardIsleId: "far_reach" },
+);
+const SUNKEN_CARAVESSE_FAR = marinerRouteId(
+  { kind: "board_isle", boardIsleId: "caravesse" },
+  { kind: "board_isle", boardIsleId: "far_reach" },
+);
+const SUNKEN_CARAVESSE_ORRERY = marinerRouteId(
+  { kind: "board_isle", boardIsleId: "caravesse" },
+  { kind: "board_isle", boardIsleId: "orrery" },
+);
 
 function initializedMariner() {
   return buildInitializedDefaultMarinerState({
@@ -86,6 +119,7 @@ function initializedMariner() {
     selectedLawOfSeaIds: ["first", "second"],
     boardIsleOverrides: {
       scuttleport: { market: { present: true, rarity: "amber glass" } },
+      ishana: { market: { present: true, rarity: null } },
       druntyr: { ravageStormCount: 3 },
     },
     routeOccupancy: {
@@ -132,6 +166,15 @@ vi.mock("../convex/_generated/api.js", () => ({
       addMarinerBeast: "m3Commands.addMarinerBeast",
       updateMarinerBeast: "m3Commands.updateMarinerBeast",
       removeMarinerBeast: "m3Commands.removeMarinerBeast",
+      createMarinerBeast: "m3Commands.createMarinerBeast",
+      moveMarinerStorm: "m3Commands.moveMarinerStorm",
+      moveMarinerShip: "m3Commands.moveMarinerShip",
+      createMarinerShip: "m3Commands.createMarinerShip",
+      moveMarinerBeast: "m3Commands.moveMarinerBeast",
+      nestMarinerBeast: "m3Commands.nestMarinerBeast",
+      recordMarinerRavageResult: "m3Commands.recordMarinerRavageResult",
+      addLoreEntry: "m3Commands.addLoreEntry",
+      reviseLoreEntry: "m3Commands.reviseLoreEntry",
     },
   },
 }));
@@ -139,6 +182,11 @@ vi.mock("../convex/_generated/api.js", () => ({
 function renderSurface(
   mariner = EMPTY_MARINER_STATE,
   wizard: typeof WIZARD | null = null,
+  sorcererPresence: readonly SorcererExternalPresence[] = [],
+  extras: {
+    loreCompendium?: LoreCompendiumUiState;
+    pactSeatStatuses?: Partial<Record<PactSeatId, PactSeatStatus | null>>;
+  } = {},
 ) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -149,6 +197,9 @@ function renderSurface(
       world: WORLD,
       campaignId: CAMPAIGN_ID,
       marinerWizard: wizard,
+      sorcererPresence,
+      loreCompendium: extras.loreCompendium,
+      pactSeatStatuses: extras.pactSeatStatuses,
     }));
   });
   return { container, root };
@@ -177,6 +228,10 @@ function rerenderSurface(
   root: ReturnType<typeof createRoot>,
   mariner: MarinerState,
   wizard: typeof WIZARD | null = WIZARD,
+  extras: {
+    loreCompendium?: LoreCompendiumUiState;
+    pactSeatStatuses?: Partial<Record<PactSeatId, PactSeatStatus | null>>;
+  } = {},
 ): void {
   flushSync(() => {
     root.render(createElement(MarinerSurface, {
@@ -184,6 +239,8 @@ function rerenderSurface(
       world: WORLD,
       campaignId: CAMPAIGN_ID,
       marinerWizard: wizard,
+      loreCompendium: extras.loreCompendium,
+      pactSeatStatuses: extras.pactSeatStatuses,
     }));
   });
 }
@@ -256,7 +313,13 @@ describe("Mariner surface setup", () => {
 describe("Mariner initialized map", () => {
   it("renders map state, World names, Typhoon, Ship/Raider, and distinct ship/Sanctum", () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    expect(container.querySelector('[aria-label="Mariner schematic map"]')).not.toBeNull();
+    const map = container.querySelector('[aria-label="Interactive Archipelago of Isha map"]');
+    expect(map).not.toBeNull();
+    expect(map?.getAttribute("role")).toBe("group");
+    expect(container.querySelector('[role="img"][aria-label*="Archipelago of Isha"]')).toBeNull();
+    expect(map?.querySelector('[role="button"][data-map-layer="isle"]')).not.toBeNull();
+    expect(map?.querySelector('[role="button"][data-map-layer="sea-hit"]')).not.toBeNull();
+    expect(map?.querySelector('[role="button"][data-map-layer="route-hit"]')).not.toBeNull();
     expect(container.innerHTML).toContain("Moonlit Atoll");
     expect(container.innerHTML).toContain("World ishana");
     expect(container.innerHTML).toContain("Typhoon");
@@ -371,7 +434,8 @@ describe("Mariner realtime draft synchronization", () => {
     const { container, root } = renderSurface(EMPTY_MARINER_STATE, WIZARD);
     expect(container.innerHTML).toContain("Initialize Mariner");
     rerenderSurface(root, initializedMariner());
-    expect(container.querySelector('[aria-label="Mariner schematic map"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Interactive Archipelago of Isha map"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Interactive Archipelago of Isha map"]')?.getAttribute("role")).toBe("group");
     expect(select(container, "Change Mariner ship").value).toBe(SHIP);
     expect(lawCheckbox(container, "First Law of the Sea").checked).toBe(true);
     expect(lawCheckbox(container, "Second Law of the Sea").checked).toBe(true);
@@ -473,6 +537,511 @@ describe("Mariner Beast baseline concurrency", () => {
     });
     expect(container.innerHTML).not.toContain("Save Beast");
     expect(button(container, "Edit Beast")).toBeDefined();
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("Mariner source-map piece presentation", () => {
+  it("renders Storms as physical tokens, with Typhoon cluster and accessible exact count", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    expect(container.querySelector('[data-piece="storm"][data-region-id="sidereal_sea"]')?.getAttribute("data-typhoon")).toBe("true");
+    expect(container.querySelector('[data-piece="storm"][data-region-id="sidereal_sea"]')?.getAttribute("aria-label")).toContain("Storms 2");
+    expect(container.querySelector('[data-piece="storm"][data-region-id="bay_of_ishana"]')?.getAttribute("data-typhoon")).toBe("false");
+    expect(container.querySelector('[data-piece="storm"][data-region-id="sunken_fleet"]')).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("renders Ship, directional Raider, Beast, Market, and Ravage pieces", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    expect(container.querySelector('[data-piece="ship"][aria-label="Ship"]')).not.toBeNull();
+    const raider = container.querySelector('[data-piece="raider"]');
+    expect(raider?.getAttribute("aria-label")).toContain("Raider toward");
+    expect(raider?.getAttribute("data-raider-toward")).toBe("ishana");
+    expect(container.querySelector('[data-piece="beast"]')?.textContent).toContain("Beast");
+    expect(container.querySelector('[data-piece="market"][data-isle-id="scuttleport"]')).not.toBeNull();
+    expect(container.querySelector('[data-piece="ravage"][data-isle-id="druntyr"]')?.getAttribute("aria-label")).toBe("Ravage 3");
+    root.unmount();
+    container.remove();
+  });
+
+  it("shows a Market Rarity cue only when a Rarity is present", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const withRarity = container.querySelector('[data-piece="market"][data-isle-id="scuttleport"]');
+    const withoutRarity = container.querySelector('[data-piece="market"][data-isle-id="ishana"]');
+    expect(withRarity).not.toBeNull();
+    expect(withoutRarity).not.toBeNull();
+    expect(withRarity?.getAttribute("data-rarity")).toBe("true");
+    expect(withRarity?.getAttribute("aria-label")).toBe("Market with a Rarity");
+    expect(withRarity?.querySelector('[data-rarity-cue="true"]')).not.toBeNull();
+    expect(withRarity?.textContent).toContain("Rarity");
+    expect(withoutRarity?.getAttribute("data-rarity")).toBe("false");
+    expect(withoutRarity?.getAttribute("aria-label")).toBe("Market");
+    expect(withoutRarity?.querySelector('[data-rarity-cue="true"]')).toBeNull();
+    expect(withoutRarity?.textContent).toBe("Market");
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("Mariner Sorcerer presence on the map", () => {
+  const presence: readonly SorcererExternalPresence[] = [
+    {
+      kind: "researcher",
+      denizenId: "den_00000000-0000-0000-0000-0000000000aa" as never,
+      name: "Tide Reader",
+      operationalThisMonth: true,
+      positionId: "srp_sea_1",
+      target: { kind: "mariner_sea_region", seaRegionId: "sunken_fleet" },
+    },
+    {
+      kind: "researcher",
+      denizenId: "den_00000000-0000-0000-0000-0000000000ab" as never,
+      name: "Idle Cartographer",
+      operationalThisMonth: false,
+      positionId: "srp_sea_2",
+      target: { kind: "mariner_sea_region", seaRegionId: "sidereal_sea" },
+    },
+    {
+      kind: "researcher",
+      denizenId: "den_00000000-0000-0000-0000-0000000000ac" as never,
+      name: "Temple Seer",
+      operationalThisMonth: true,
+      positionId: "srp_temple_krolis",
+      target: { kind: "hierophant_temple", templeId: "krolis" },
+    },
+    {
+      kind: "disruptive_arcanist",
+      denizenId: "den_00000000-0000-0000-0000-0000000000ad" as never,
+      name: "Salt Vex",
+      school: { kind: "source", schoolId: "invocation" },
+      seatId: "mariner",
+    },
+  ];
+
+  it("places Mariner-targeted Researchers on the exact Sea and distinguishes Working from Unavailable without color alone", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD, presence);
+    const working = container.querySelector('[data-researcher-target="sunken_fleet"]');
+    const unavailable = container.querySelector('[data-researcher-target="sidereal_sea"]');
+    expect(working?.textContent).toContain("Tide Reader");
+    expect(working?.textContent).toContain("Working this month");
+    expect(working?.getAttribute("data-researcher-status")).toBe("working");
+    expect(unavailable?.textContent).toContain("Idle Cartographer");
+    expect(unavailable?.textContent).toContain("Unavailable this month");
+    expect(unavailable?.getAttribute("data-researcher-status")).toBe("unavailable");
+    expect(unavailable?.querySelector("line")).not.toBeNull();
+    expect(container.textContent).not.toContain("Temple Seer");
+    expect(container.querySelector('[data-domain-presence="disruptive-arcanist"]')?.textContent).toContain("Salt Vex");
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("Mariner map interaction and narrow treatment", () => {
+  it("keeps Sea hit regions under Route hits and decorative labels non-interactive", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const sea = container.querySelector('[data-map-layer="sea-hit"]');
+    const route = container.querySelector('[data-map-layer="route-hit"]');
+    const labels = container.querySelector('[data-map-layer="labels"]');
+    expect(sea).not.toBeNull();
+    expect(route).not.toBeNull();
+    expect(sea!.compareDocumentPosition(route!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(labels?.getAttribute("pointer-events")).toBe("none");
+    expect(container.querySelector('[data-map-layer="frame"]')?.getAttribute("pointer-events")).toBe("none");
+    root.unmount();
+    container.remove();
+  });
+
+  it("selects the Route when a Ship piece is activated instead of an underlying Sea", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const ship = container.querySelector('[data-piece="ship"]') as SVGElement;
+    flushSync(() => { ship.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(container.innerHTML).toContain("Route inspector");
+    expect(container.querySelector('[aria-label="Route occupancy"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("makes Isle, Sea, and Route keyboard reachable with visible selected state", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const isle = container.querySelector('[data-map-layer="isle"][data-isle-id="ishana"]') as SVGElement;
+    const sea = container.querySelector('[data-map-layer="sea-hit"][data-region-id="sunken_fleet"]') as SVGElement;
+    const route = container.querySelector('[data-map-layer="route-hit"]') as SVGElement;
+    expect(isle.tabIndex).toBe(0);
+    expect(sea.tabIndex).toBe(0);
+    expect(route.tabIndex).toBe(0);
+    flushSync(() => {
+      isle.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    expect(isle.getAttribute("aria-pressed")).toBe("true");
+    expect(isle.getAttribute("aria-selected")).toBeNull();
+    expect(sea.getAttribute("aria-pressed")).toBe("false");
+    expect(route.getAttribute("aria-pressed")).toBe("false");
+    expect(container.innerHTML).toContain("Isle inspector");
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps an intentional minimum map width inside a horizontal scroll container", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const scroller = container.querySelector("[data-mariner-board-scroll]");
+    const board = container.querySelector("[data-mariner-board]");
+    expect(scroller?.className).toContain("overflow-x-auto");
+    expect(board?.getAttribute("data-min-width")).toBe(String(MARINER_MAP_MIN_WIDTH_PX));
+    expect((board as SVGSVGElement | null)?.viewBox.baseVal.width).toBe(1000);
+    expect((board as SVGSVGElement | null)?.viewBox.baseVal.height).toBe(1000);
+    root.unmount();
+    container.remove();
+  });
+});
+
+function setInput(el: HTMLInputElement, value: string): void {
+  flushSync(() => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    setter.call(el, value);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+function clickSea(container: HTMLElement, name: string): void {
+  const region = container.querySelector(`[aria-label^="Sea ${name}"]`) as SVGElement | null;
+  if (region === null) throw new Error(`Missing sea: ${name}`);
+  flushSync(() => { region.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+}
+
+function clickIsle(container: HTMLElement, name: string): void {
+  const isle = container.querySelector(`[aria-label^="Isle ${name}"]`) as SVGElement | null;
+  if (isle === null) throw new Error(`Missing isle: ${name}`);
+  flushSync(() => { isle.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+}
+
+function surroundRegion(mariner: MarinerState, regionId: string): MarinerState {
+  const definition = MARINER_SEA_REGION_DEFINITIONS.find((region) => region.regionId === regionId);
+  if (definition === undefined) throw new Error(`Unknown region ${regionId}`);
+  return {
+    ...mariner,
+    seaRegions: mariner.seaRegions.map((region) =>
+      region.regionId === regionId ? { ...region, stormCount: 0 } : region,
+    ),
+    routes: mariner.routes.map((route) =>
+      definition.boundingRouteIds.includes(route.routeId as never)
+        ? { ...route, occupancy: { kind: "ship" as const } }
+        : route,
+    ),
+  };
+}
+
+function isleLoreReady(isleId: IsleId, ownerLabel: string, delegatedLabel: string): LoreCompendiumUiState {
+  const write = {
+    writable: true as const,
+    add: { operation: "add_lore_entry" as const, targetForm: "new_campaign" as const, subject: { kind: "isle" as const, isleId } },
+  };
+  return {
+    status: "ready",
+    presentation: {
+      ok: true,
+      subjects: [{
+        presentationKey: `isle:${isleId}`,
+        subject: { kind: "isle", isleId },
+        subjectLabel: ownerLabel,
+        shelf: { id: "isles", label: "Isles" },
+        hasEffectiveLore: true,
+        eligibleToReceiveLore: true,
+        compendiumPresence: "has_lore",
+        ordinaryFirstAdd: null,
+        advancedParallelCampaignLore: null,
+        contexts: [
+          {
+            kind: "source",
+            sourceCollectionId: "faustian.home.scuttleport",
+            contextLabel: ownerLabel,
+            headingLabel: ownerLabel,
+            attribution: { work: "Test", pages: "1", anchor: "owner" },
+            readable: true,
+            entries: [{ provenance: "printed", provenanceLabel: "Printed wording", sourceEntryId: "e1", text: "Owner Scuttleport lore.", revise: null }],
+            write,
+            mariner: null,
+            ordinaryAddPath: true,
+          },
+          {
+            kind: "source",
+            sourceCollectionId: "mariner.delegated.scuttleport",
+            contextLabel: delegatedLabel,
+            headingLabel: delegatedLabel,
+            attribution: { work: "Test", pages: "2", anchor: "delegated" },
+            readable: true,
+            entries: [{ provenance: "printed", provenanceLabel: "Printed wording", sourceEntryId: "e2", text: "Delegated Scuttleport lore.", revise: null }],
+            write,
+            mariner: null,
+            ordinaryAddPath: true,
+          },
+        ],
+      }],
+      marinerIsleSelections: [],
+    },
+  };
+}
+
+const SCUTTLE_WORLD_ISLE = isleId(2);
+
+describe("Mariner semantic operability actions", () => {
+  it("reaches Create Beast, Guided Storm, and Nest from a selected Sea", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickSea(container, "The Sunken Fleet");
+    expect(button(container, CREATE_BEAST_LABEL)).toBeDefined();
+    expect(button(container, MOVE_STORM_LABEL)).toBeDefined();
+    expect(button(container, NEST_BEAST_LABEL)).toBeDefined();
+    root.unmount();
+    container.remove();
+  });
+
+  it("reaches Ship Move, Ravage Result, and contextual Lore from a selected Isle", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD, [], {
+      loreCompendium: isleLoreReady(SCUTTLE_WORLD_ISLE, "Owner Scuttleport lore context", "Delegated Scuttleport lore context"),
+      pactSeatStatuses: { faustian: "present" },
+    });
+    clickIsle(container, "World scuttleport");
+    expect(button(container, MOVE_SHIP_LABEL)).toBeDefined();
+    expect(button(container, RAVAGE_RESULT_LABEL)).toBeDefined();
+    expect(container.querySelector('[aria-label="Lore context panel"]')).not.toBeNull();
+    expect(container.innerHTML).toContain("Owner Scuttleport lore context");
+    expect(container.innerHTML).not.toContain("Delegated Scuttleport lore context");
+    root.unmount();
+    container.remove();
+  });
+
+  it("captures Create Beast expected storms at action start and keeps them after a realtime rerender", () => {
+    const initial = initializedMariner();
+    const { container, root } = renderSurface(initial, WIZARD);
+    clickSea(container, "The Sidereal Sea");
+    flushSync(() => { button(container, CREATE_BEAST_LABEL).click(); });
+    setInput(container.querySelector('input[aria-label="Beast name"]') as HTMLInputElement, "New Kraken");
+    setSelect(select(container, "Powerful status"), "malignant");
+    setSelect(select(container, "Beast element"), "water");
+    rerenderSurface(root, withStormCount(initial, 9));
+    expect((container.querySelector('input[aria-label="Beast name"]') as HTMLInputElement).value).toBe("New Kraken");
+    flushSync(() => { button(container, CREATE_BEAST_LABEL).click(); });
+    const payload = mockMutations["m3Commands.createMarinerBeast"].mock.calls[0][0];
+    expect(payload.expectedStormCounts.find((entry: { regionId: string }) => entry.regionId === "sidereal_sea")?.stormCount).toBe(2);
+    expect(payload.status).toEqual({ kind: "standard", value: "malignant" });
+    expect(payload.denizenId).toMatch(/^den_/);
+    expect(mockMutations["m3Commands.addMarinerBeast"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.createDenizen"]).toBeUndefined();
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps Create Beast input and captured expected values after a server error", async () => {
+    const initial = initializedMariner();
+    const { container, root } = renderSurface(initial, WIZARD);
+    clickSea(container, "The Sidereal Sea");
+    flushSync(() => { button(container, CREATE_BEAST_LABEL).click(); });
+    setInput(container.querySelector('input[aria-label="Beast name"]') as HTMLInputElement, "Kept Kraken");
+    setSelect(select(container, "Powerful status"), "disruptive");
+    setSelect(select(container, "Beast element"), "water");
+    mockMutations["m3Commands.createMarinerBeast"].mockRejectedValueOnce(new Error("stale storm count"));
+    await act(async () => {
+      button(container, CREATE_BEAST_LABEL).click();
+    });
+    rerenderSurface(root, withStormCount(initial, 9));
+    expect((container.querySelector('input[aria-label="Beast name"]') as HTMLInputElement).value).toBe("Kept Kraken");
+    expect((container.querySelector('select[aria-label="Powerful status"]') as HTMLSelectElement).value).toBe("disruptive");
+    await act(async () => {
+      button(container, CREATE_BEAST_LABEL).click();
+    });
+    const second = mockMutations["m3Commands.createMarinerBeast"].mock.calls[1][0];
+    expect(second.expectedStormCounts.find((entry: { regionId: string }) => entry.regionId === "sidereal_sea")?.stormCount).toBe(2);
+    expect(second.status).toEqual({ kind: "standard", value: "disruptive" });
+    root.unmount();
+    container.remove();
+  });
+
+  it("requires Wind confirmation for a Guided Storm move and does not infer season", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickSea(container, "The Sidereal Sea");
+    flushSync(() => { button(container, MOVE_STORM_LABEL).click(); });
+    expect(container.innerHTML).toContain(WIND_CONFIRMATION_LABEL);
+    expect(container.innerHTML).not.toContain("season");
+    setSelect(select(container, "Storm destination"), "wizard_strait");
+    expect(button(container, MOVE_STORM_LABEL).disabled).toBe(true);
+    flushSync(() => {
+      (container.querySelector('input[aria-label="Wind confirmation"]') as HTMLInputElement).click();
+    });
+    expect(button(container, MOVE_STORM_LABEL).disabled).toBe(false);
+    flushSync(() => { button(container, MOVE_STORM_LABEL).click(); });
+    expect(mockMutations["m3Commands.moveMarinerStorm"].mock.calls[0][0]).toMatchObject({
+      sourceRegionId: "sidereal_sea",
+      destinationRegionId: "wizard_strait",
+      confirmedNotAgainstPrevailingWind: true,
+    });
+    root.unmount();
+    container.remove();
+  });
+
+  it("shows Raider toward only for a Raider ship move", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickIsle(container, "World scuttleport");
+    flushSync(() => { button(container, MOVE_SHIP_LABEL).click(); });
+    expect(container.querySelector('[aria-label="Ship Raider toward"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+    const again = renderSurface(initializedMariner(), WIZARD);
+    clickIsle(again.container, "World far reach");
+    flushSync(() => { button(again.container, MOVE_SHIP_LABEL).click(); });
+    expect(again.container.querySelector('[aria-label="Ship Raider toward"]')).toBeNull();
+    again.root.unmount();
+    again.container.remove();
+  });
+
+  it("shows Rampage destination when Create Beast would be surrounded", () => {
+    const surrounded = surroundRegion(initializedMariner(), "bay_of_ishana");
+    const { container, root } = renderSurface(surrounded, WIZARD);
+    clickSea(container, "Bay of Ishana");
+    flushSync(() => { button(container, CREATE_BEAST_LABEL).click(); });
+    expect(container.querySelector('[aria-label="Rampage destination"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("does not show Rampage destination for an ordinary Create Beast", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickSea(container, "The Sidereal Sea");
+    flushSync(() => { button(container, CREATE_BEAST_LABEL).click(); });
+    expect(container.querySelector('[aria-label="Rampage destination"]')).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("records a Market-absorbed Ravage without claiming Lore follow-through", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickIsle(container, "World scuttleport");
+    flushSync(() => { button(container, RAVAGE_RESULT_LABEL).click(); });
+    await act(async () => {
+      button(container, RAVAGE_RESULT_LABEL).click();
+    });
+    expect(mockMutations["m3Commands.recordMarinerRavageResult"].mock.calls[0][0]).toMatchObject({
+      boardIsleId: "scuttleport",
+      expectedMarket: { present: true, rarity: "amber glass" },
+      expectedRavageStormCount: 0,
+    });
+    expect(container.innerHTML).toContain(RAVAGE_MARKET_ABSORBED_COPY);
+    expect(container.innerHTML).not.toContain(RAVAGE_INCOMPLETE_COPY);
+    expect(container.innerHTML).not.toContain(RAVAGE_LORE_FOLLOW_THROUGH);
+    root.unmount();
+    container.remove();
+  });
+
+  it("says an actual Ravage board result is not the complete source procedure and surfaces follow-through", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickIsle(container, "World orrery");
+    flushSync(() => { button(container, RAVAGE_RESULT_LABEL).click(); });
+    await act(async () => {
+      button(container, RAVAGE_RESULT_LABEL).click();
+    });
+    expect(mockMutations["m3Commands.recordMarinerRavageResult"].mock.calls[0][0]).toMatchObject({
+      boardIsleId: "orrery",
+      expectedMarket: { present: false },
+      expectedRavageStormCount: 0,
+    });
+    expect(container.innerHTML).toContain(RAVAGE_INCOMPLETE_COPY);
+    expect(container.innerHTML).toContain(RAVAGE_LORE_FOLLOW_THROUGH);
+    expect(container.innerHTML).toContain(RAVAGE_LOCATION_FOLLOW_THROUGH);
+    root.unmount();
+    container.remove();
+  });
+
+  it("reaches Create Ship and Move Distrusting Beast and submits their semantic payloads", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickIsle(container, "World orrery");
+    expect(button(container, CREATE_SHIP_LABEL)).toBeDefined();
+    flushSync(() => { button(container, CREATE_SHIP_LABEL).click(); });
+    setSelect(select(container, "Create Ship target Route"), SUNKEN_ORRERY_FAR);
+    flushSync(() => { button(container, CREATE_SHIP_LABEL).click(); });
+    expect(mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0]).toMatchObject({
+      sourceIsleId: "orrery",
+      targetRouteId: SUNKEN_ORRERY_FAR,
+      rampageResolutions: [],
+    });
+    root.unmount();
+    container.remove();
+
+    const again = renderSurface(initializedMariner(), WIZARD);
+    clickSea(again.container, "The Sunken Fleet");
+    expect(button(again.container, MOVE_BEAST_LABEL)).toBeDefined();
+    flushSync(() => { button(again.container, MOVE_BEAST_LABEL).click(); });
+    setSelect(select(again.container, "Beast destination"), "thyrian_sea");
+    flushSync(() => { button(again.container, MOVE_BEAST_LABEL).click(); });
+    expect(mockMutations["m3Commands.moveMarinerBeast"].mock.calls[0][0]).toMatchObject({
+      denizenId: DEN_A,
+      sourceRegionId: "sunken_fleet",
+      destinationRegionId: "thyrian_sea",
+      rampageResolution: null,
+    });
+    again.root.unmount();
+    again.container.remove();
+  });
+
+  it("submits predicted Move Ship Rampage resolutions instead of an empty placeholder", () => {
+    const almost = {
+      ...initializedMariner(),
+      routes: initializedMariner().routes.map((route) => (
+        route.routeId === SUNKEN_ORRERY_FAR || route.routeId === SUNKEN_CARAVESSE_FAR
+          ? { ...route, occupancy: { kind: "ship" as const } }
+          : route
+      )),
+    };
+    const { container, root } = renderSurface(almost, WIZARD);
+    clickIsle(container, "World far reach");
+    flushSync(() => { button(container, MOVE_SHIP_LABEL).click(); });
+    setSelect(select(container, "Ship destination Route"), SUNKEN_CARAVESSE_ORRERY);
+    expect(container.querySelector('[aria-label^="Rampage destination"]')).not.toBeNull();
+    setSelect(select(container, "Rampage destination"), "hierophant");
+    flushSync(() => { button(container, MOVE_SHIP_LABEL).click(); });
+    const payload = mockMutations["m3Commands.moveMarinerShip"].mock.calls[0][0];
+    expect(payload.destinationRouteId).toBe(SUNKEN_CARAVESSE_ORRERY);
+    expect(payload.rampageResolutions).toEqual([expect.objectContaining({
+      denizenId: DEN_A,
+      destinationSeatId: "hierophant",
+    })]);
+    expect(payload.rampageResolutions[0].rampagingMethodEntryId).toMatch(/^pdmth_/);
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps an open Help Beast Nest draft after a realtime change makes the captured Beast stale", () => {
+    const initial = initializedMariner();
+    const { container, root } = renderSurface(initial, WIZARD);
+    clickSea(container, "The Sunken Fleet");
+    flushSync(() => { button(container, NEST_BEAST_LABEL).click(); });
+    expect(container.querySelector('[aria-label="Nest target Isle"]')).not.toBeNull();
+    rerenderSurface(root, withBeast(initial, {
+      ...baselineBeast(initial),
+      location: { kind: "sea_region", regionId: "thyrian_sea" },
+    }));
+    expect(container.querySelector('[aria-label="Nest target Isle"]')).not.toBeNull();
+    setSelect(select(container, "Nest target Isle"), "orrery");
+    flushSync(() => { button(container, NEST_BEAST_LABEL).click(); });
+    expect(mockMutations["m3Commands.nestMarinerBeast"].mock.calls[0][0]).toMatchObject({
+      denizenId: DEN_A,
+      boardIsleId: "orrery",
+      expectedBeastLocation: { kind: "sea_region", regionId: "sunken_fleet" },
+      expectedBeastCondition: "distrusting",
+    });
+    root.unmount();
+    container.remove();
+  });
+
+  it("does not substitute another Lore context when status is null", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD, [], {
+      loreCompendium: isleLoreReady(SCUTTLE_WORLD_ISLE, "Owner Scuttleport lore context", "Delegated Scuttleport lore context"),
+      pactSeatStatuses: { faustian: null },
+    });
+    clickIsle(container, "World scuttleport");
+    expect(container.innerHTML).toContain(NO_LORE_CONTEXT_COPY);
+    expect(container.querySelector('[aria-label="Lore context panel"]')).toBeNull();
+    expect(container.innerHTML).not.toContain("Owner Scuttleport lore context");
+    expect(container.innerHTML).not.toContain("Delegated Scuttleport lore context");
     root.unmount();
     container.remove();
   });

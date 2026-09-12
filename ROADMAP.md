@@ -4,7 +4,7 @@
 
 This roadmap supersedes the earlier provisional M3+ outline.
 
-The project has completed its persistence/core-play foundations, all seven Wizard Domain structural foundations, and the shared M5.3 Lore/Compendium foundation. M5.4 active-table Domain operability is now in progress, with Lore/Compendium UX, Sorcerer operability, and the Hierophant + Necromancer Temples/Gates operability Workstream complete. Mariner and Faustian remain in the active tranche.
+The project has completed its persistence/core-play foundations, all seven Wizard Domain structural foundations, and the shared M5.3 Lore/Compendium foundation. M5.4 active-table Domain operability is now in progress, with Lore/Compendium UX, Sorcerer operability, Hierophant + Necromancer Temples/Gates operability, and Mariner Interactive Map & Operability complete. Faustian remains in the active tranche.
 
 The roadmap describes dependency order and milestone intent. Exact Workstream boundaries remain subject to Master/human approval as source and repository evidence develops.
 
@@ -240,11 +240,20 @@ Deliberately deferred automation includes complete Sermon, Steer Supplicant, Hol
 
 See `docs/m5-4a-hn-temples-gates-operability.md`.
 
+### M5.4A-M — Mariner Interactive Map & Operability
+
+**COMPLETE — PR #26**
+
+Branch `m5-4a/mariner-operability`; closure HEAD `4cdd52d`. Real Convex Development closure on `wry-boar-766` (`dev/m5-4a-mariner-closure`); no Production deployment. Persisted Mariner operability semantic events aligned in `convex/validators.ts`; representative `create_mariner_ship` integration verified.
+
+No CampaignState schema or migration change. CampaignState V5 remains PRE-ACTIVATION.
+
+Deliberately deferred: repeat-Ravage semantics; off-Horizon Beast movement (table-resolved per SOURCE).
+
 ### Remaining active-table tranche
 
 Remaining active-player Domain operability:
 
-- Mariner;
 - Faustian.
 
 Warlock and Sage are intentionally deferred while they have no active players.
@@ -402,13 +411,11 @@ Likely areas:
 
 ## Current Next Action
 
-M5.4A-HN is complete in PR #25. Merge/integrate PR #25 if not already merged and verify the resulting `main` SHA.
+M5.4A-M is complete in PR #26. PR #26 is ready for final review/merge.
 
-Then release **M5.4A-M — Mariner Interactive Map & Operability** as the next implementation Workstream from the newly merged main. Mariner design/geometry preparation is already substantially complete, including the editable-PPTX map-source investigation.
+Release **M5.4A-F — Faustian Operability** as the next implementation Workstream from the merged result. Continue Faustian design/preparation in parallel, but keep production implementation sequential: **Mariner -> Faustian**.
 
-Continue Faustian design/preparation in parallel, but keep production implementation sequential: **HN -> Mariner -> Faustian**. Do not run Mariner and Faustian as competing implementation feature branches unless the Master explicitly changes that policy.
-
-Warlock/Sage remain deferred. Do not mark M5.4 complete until Mariner and Faustian are complete and the Master/human explicitly decide how the deferred tranche is handled.
+Warlock/Sage remain deferred. Do not mark M5.4 complete until Faustian is complete and the Master/human explicitly decide how the deferred tranche is handled.
 
 ### Execution guidance
 

@@ -115,6 +115,13 @@ import {
   addMarinerBeastFingerprint,
   updateMarinerBeastFingerprint,
   removeMarinerBeastFingerprint,
+  createMarinerBeastFingerprint,
+  moveMarinerStormFingerprint,
+  moveMarinerShipFingerprint,
+  createMarinerShipFingerprint,
+  moveMarinerBeastFingerprint,
+  nestMarinerBeastFingerprint,
+  recordMarinerRavageResultFingerprint,
   applyCreateDenizenV5Candidate,
   applyUpdateDenizenV5Candidate,
   applyCreateIsleV5Candidate,
@@ -161,6 +168,20 @@ import {
   applyAddMarinerBeast,
   applyUpdateMarinerBeast,
   applyRemoveMarinerBeast,
+  canonicalizeCreateMarinerBeastInput,
+  canonicalizeMoveMarinerStormInput,
+  canonicalizeMoveMarinerShipInput,
+  canonicalizeCreateMarinerShipInput,
+  canonicalizeMoveMarinerBeastInput,
+  canonicalizeNestMarinerBeastInput,
+  canonicalizeRecordMarinerRavageResultInput,
+  applyCreateMarinerBeast,
+  applyMoveMarinerStorm,
+  applyMoveMarinerShip,
+  applyCreateMarinerShip,
+  applyMoveMarinerBeast,
+  applyNestMarinerBeast,
+  applyRecordMarinerRavageResult,
   initializeNecromancerFingerprint,
   setNecromancerDepthFingerprint,
   setSelectedDeathLawsFingerprint,
@@ -378,6 +399,13 @@ import type {
   ReviseLoreEntryInput,
   CreateHierophantSupplicantInput,
   TransformNecromancerSoulIntoAllyInput,
+  CreateMarinerBeastInput,
+  MoveMarinerStormInput,
+  MoveMarinerShipInput,
+  CreateMarinerShipInput,
+  MoveMarinerBeastInput,
+  NestMarinerBeastInput,
+  RecordMarinerRavageResultInput,
 } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
 import type { WizardInitIds } from "../shared/domain/begin-play";
@@ -2889,6 +2917,317 @@ export const removeMarinerBeast = mutation({
           args.expectedBeast as MarinerBeastState,
         ),
       }),
+    );
+  },
+});
+
+const marinerPowerfulStatusArg = v.union(
+  v.object({ kind: v.literal("standard"), value: v.string() }),
+  v.object({ kind: v.literal("other"), label: v.string() }),
+);
+
+const marinerExpectedStormArg = v.object({
+  regionId: v.string(),
+  stormCount: v.number(),
+});
+
+const marinerExpectedRouteArg = v.object({
+  routeId: v.string(),
+  occupancy: marinerRouteOccupancyArg,
+});
+
+const marinerExpectedBeastArg = v.object({
+  denizenId: v.string(),
+  location: marinerBeastLocationArg,
+});
+
+const marinerExpectedBeastStateArg = v.object({
+  denizenId: v.string(),
+  location: marinerBeastLocationArg,
+  condition: v.string(),
+});
+
+const marinerRampageResolutionArg = v.object({
+  denizenId: v.string(),
+  destinationSeatId: v.string(),
+  rampagingMethodEntryId: v.union(v.string(), v.null()),
+});
+
+export const createMarinerBeast = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    name: v.string(),
+    description: v.union(v.string(), v.null()),
+    status: marinerPowerfulStatusArg,
+    element: v.string(),
+    definitionId: v.union(v.string(), v.null()),
+    regionId: v.string(),
+    expectedStormCounts: v.array(marinerExpectedStormArg),
+    expectedRouteOccupancies: v.array(marinerExpectedRouteArg),
+    expectedRelevantBeasts: v.array(marinerExpectedBeastArg),
+    rampageDestinationSeatId: v.union(v.string(), v.null()),
+    rampagingMethodEntryId: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeCreateMarinerBeastInput({
+          denizenId: args.denizenId,
+          name: args.name,
+          description: args.description,
+          status: args.status,
+          element: args.element,
+          definitionId: args.definitionId,
+          regionId: args.regionId,
+          expectedStormCounts: args.expectedStormCounts,
+          expectedRouteOccupancies: args.expectedRouteOccupancies,
+          expectedRelevantBeasts: args.expectedRelevantBeasts,
+          rampageDestinationSeatId: args.rampageDestinationSeatId,
+          rampagingMethodEntryId: args.rampagingMethodEntryId,
+        } as unknown as CreateMarinerBeastInput);
+        return {
+          commandType: "create_mariner_beast",
+          commandFingerprint: createMarinerBeastFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyCreateMarinerBeast(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const moveMarinerStorm = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    sourceRegionId: v.string(),
+    destinationRegionId: v.string(),
+    confirmedNotAgainstPrevailingWind: v.boolean(),
+    expectedStormCounts: v.array(marinerExpectedStormArg),
+    expectedRouteOccupancies: v.array(marinerExpectedRouteArg),
+    expectedRelevantBeasts: v.array(marinerExpectedBeastArg),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeMoveMarinerStormInput({
+          sourceRegionId: args.sourceRegionId,
+          destinationRegionId: args.destinationRegionId,
+          confirmedNotAgainstPrevailingWind: args.confirmedNotAgainstPrevailingWind,
+          expectedStormCounts: args.expectedStormCounts,
+          expectedRouteOccupancies: args.expectedRouteOccupancies,
+          expectedRelevantBeasts: args.expectedRelevantBeasts,
+        } as unknown as MoveMarinerStormInput);
+        return {
+          commandType: "move_mariner_storm",
+          commandFingerprint: moveMarinerStormFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyMoveMarinerStorm(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const moveMarinerShip = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    sourceIsleId: v.string(),
+    sourceRouteId: v.string(),
+    destinationRouteId: v.string(),
+    destinationToward: v.union(marinerRouteEndpointArg, v.null()),
+    expectedSourceOccupancy: marinerRouteOccupancyArg,
+    expectedDestinationOccupancy: marinerRouteOccupancyArg,
+    expectedStormCounts: v.array(marinerExpectedStormArg),
+    expectedRouteOccupancies: v.array(marinerExpectedRouteArg),
+    expectedRelevantBeasts: v.array(marinerExpectedBeastStateArg),
+    rampageResolutions: v.array(marinerRampageResolutionArg),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeMoveMarinerShipInput({
+          sourceIsleId: args.sourceIsleId,
+          sourceRouteId: args.sourceRouteId,
+          destinationRouteId: args.destinationRouteId,
+          destinationToward: args.destinationToward,
+          expectedSourceOccupancy: args.expectedSourceOccupancy,
+          expectedDestinationOccupancy: args.expectedDestinationOccupancy,
+          expectedStormCounts: args.expectedStormCounts,
+          expectedRouteOccupancies: args.expectedRouteOccupancies,
+          expectedRelevantBeasts: args.expectedRelevantBeasts,
+          rampageResolutions: args.rampageResolutions,
+        } as unknown as MoveMarinerShipInput);
+        return {
+          commandType: "move_mariner_ship",
+          commandFingerprint: moveMarinerShipFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyMoveMarinerShip(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const createMarinerShip = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    sourceIsleId: v.string(),
+    targetRouteId: v.string(),
+    expectedTargetOccupancy: marinerRouteOccupancyArg,
+    expectedStormCounts: v.array(marinerExpectedStormArg),
+    expectedRouteOccupancies: v.array(marinerExpectedRouteArg),
+    expectedRelevantBeasts: v.array(marinerExpectedBeastStateArg),
+    rampageResolutions: v.array(marinerRampageResolutionArg),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeCreateMarinerShipInput({
+          sourceIsleId: args.sourceIsleId,
+          targetRouteId: args.targetRouteId,
+          expectedTargetOccupancy: args.expectedTargetOccupancy,
+          expectedStormCounts: args.expectedStormCounts,
+          expectedRouteOccupancies: args.expectedRouteOccupancies,
+          expectedRelevantBeasts: args.expectedRelevantBeasts,
+          rampageResolutions: args.rampageResolutions,
+        } as unknown as CreateMarinerShipInput);
+        return {
+          commandType: "create_mariner_ship",
+          commandFingerprint: createMarinerShipFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyCreateMarinerShip(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const moveMarinerBeast = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    sourceRegionId: v.string(),
+    destinationRegionId: v.string(),
+    expectedBeast: marinerExpectedBeastStateArg,
+    expectedStormCounts: v.array(marinerExpectedStormArg),
+    expectedRouteOccupancies: v.array(marinerExpectedRouteArg),
+    expectedRelevantBeasts: v.array(marinerExpectedBeastStateArg),
+    rampageResolution: v.union(v.null(), marinerRampageResolutionArg),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeMoveMarinerBeastInput({
+          denizenId: args.denizenId,
+          sourceRegionId: args.sourceRegionId,
+          destinationRegionId: args.destinationRegionId,
+          expectedBeast: args.expectedBeast,
+          expectedStormCounts: args.expectedStormCounts,
+          expectedRouteOccupancies: args.expectedRouteOccupancies,
+          expectedRelevantBeasts: args.expectedRelevantBeasts,
+          rampageResolution: args.rampageResolution,
+        } as unknown as MoveMarinerBeastInput);
+        return {
+          commandType: "move_mariner_beast",
+          commandFingerprint: moveMarinerBeastFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyMoveMarinerBeast(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const nestMarinerBeast = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    boardIsleId: v.string(),
+    expectedBeastCondition: v.string(),
+    expectedBeastLocation: marinerBeastLocationArg,
+    expectedMarket: marinerIsleMarketArg,
+    expectedRavageStormCount: v.number(),
+    expectedNestingBeastDenizenId: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeNestMarinerBeastInput({
+          denizenId: args.denizenId,
+          boardIsleId: args.boardIsleId,
+          expectedBeastCondition: args.expectedBeastCondition,
+          expectedBeastLocation: args.expectedBeastLocation,
+          expectedMarket: args.expectedMarket,
+          expectedRavageStormCount: args.expectedRavageStormCount,
+          expectedNestingBeastDenizenId: args.expectedNestingBeastDenizenId,
+        } as unknown as NestMarinerBeastInput);
+        return {
+          commandType: "nest_mariner_beast",
+          commandFingerprint: nestMarinerBeastFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyNestMarinerBeast(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const recordMarinerRavageResult = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    boardIsleId: v.string(),
+    expectedMarket: marinerIsleMarketArg,
+    expectedRavageStormCount: v.number(),
+    expectedNestingBeast: v.union(
+      v.null(),
+      v.object({
+        denizenId: v.string(),
+        condition: v.string(),
+        location: marinerBeastLocationArg,
+      }),
+    ),
+    expectedPowerfulStatus: v.union(v.null(), marinerPowerfulStatusArg),
+    expectedPowerfulGoal: v.union(v.string(), v.null()),
+    expectedHasRampagingMethod: v.boolean(),
+    rampageDestinationSeatId: v.union(v.string(), v.null()),
+    rampagingMethodEntryId: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeRecordMarinerRavageResultInput({
+          boardIsleId: args.boardIsleId,
+          expectedMarket: args.expectedMarket,
+          expectedRavageStormCount: args.expectedRavageStormCount,
+          expectedNestingBeast: args.expectedNestingBeast,
+          expectedPowerfulStatus: args.expectedPowerfulStatus,
+          expectedPowerfulGoal: args.expectedPowerfulGoal,
+          expectedHasRampagingMethod: args.expectedHasRampagingMethod,
+          rampageDestinationSeatId: args.rampageDestinationSeatId,
+          rampagingMethodEntryId: args.rampagingMethodEntryId,
+        } as unknown as RecordMarinerRavageResultInput);
+        return {
+          commandType: "record_mariner_ravage_result",
+          commandFingerprint: recordMarinerRavageResultFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyRecordMarinerRavageResult(state, input),
+        };
+      },
     );
   },
 });

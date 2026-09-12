@@ -1679,6 +1679,106 @@ const marinerBeastRemovedEventV1Validator = v.object({
   data: v.object({ beast: marinerBeastStateValidator }),
 });
 
+const marinerRampagedBeastAuditValidator = v.object({
+  denizenId: v.string(),
+  destinationSeatId: v.union(...PACT_SEAT_IDS.map((id) => v.literal(id))),
+});
+
+const marinerBeastCreatedEventV1Validator = v.object({
+  type: v.literal("mariner_beast_created"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    denizenName: v.string(),
+    regionId: v.string(),
+    condition: v.string(),
+    element: v.string(),
+    definitionId: v.union(v.string(), v.null()),
+    destroyedRouteIds: v.array(v.string()),
+    rampageDestinationSeatId: v.union(
+      v.union(...PACT_SEAT_IDS.map((id) => v.literal(id))),
+      v.null(),
+    ),
+  }),
+});
+
+const marinerStormMovedEventV1Validator = v.object({
+  type: v.literal("mariner_storm_moved"),
+  version: v.literal(1),
+  data: v.object({
+    sourceRegionId: v.string(),
+    destinationRegionId: v.string(),
+    destroyedRouteIds: v.array(v.string()),
+    typhoonScaleAtDestination: v.boolean(),
+  }),
+});
+
+const marinerShipMovedEventV1Validator = v.object({
+  type: v.literal("mariner_ship_moved"),
+  version: v.literal(1),
+  data: v.object({
+    sourceIsleId: v.string(),
+    sourceRouteId: v.string(),
+    destinationRouteId: v.string(),
+    occupancyKind: v.union(v.literal("ship"), v.literal("raider")),
+    toward: v.union(marinerRouteEndpointValidator, v.null()),
+    immediatelyDestroyed: v.boolean(),
+    rampagedBeasts: v.array(marinerRampagedBeastAuditValidator),
+  }),
+});
+
+const marinerShipCreatedEventV1Validator = v.object({
+  type: v.literal("mariner_ship_created"),
+  version: v.literal(1),
+  data: v.object({
+    sourceIsleId: v.string(),
+    targetRouteId: v.string(),
+    immediatelyDestroyed: v.boolean(),
+    rampagedBeasts: v.array(marinerRampagedBeastAuditValidator),
+  }),
+});
+
+const marinerBeastMovedEventV1Validator = v.object({
+  type: v.literal("mariner_beast_moved"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    sourceRegionId: v.string(),
+    destinationRegionId: v.string(),
+    destroyedRouteIds: v.array(v.string()),
+    rampaged: v.boolean(),
+    rampageDestinationSeatId: v.union(
+      v.union(...PACT_SEAT_IDS.map((id) => v.literal(id))),
+      v.null(),
+    ),
+  }),
+});
+
+const marinerBeastNestedEventV1Validator = v.object({
+  type: v.literal("mariner_beast_nested"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    boardIsleId: v.string(),
+    previousLocation: marinerBeastLocationValidator,
+  }),
+});
+
+const marinerRavageResultRecordedEventV1Validator = v.object({
+  type: v.literal("mariner_ravage_result_recorded"),
+  version: v.literal(1),
+  data: v.object({
+    boardIsleId: v.string(),
+    outcome: v.union(v.literal("market_absorbed"), v.literal("isle_ravaged")),
+    isleBecameRavaged: v.boolean(),
+    destroyedNestingBeastDenizenId: v.union(v.string(), v.null()),
+    rampageDestinationSeatId: v.union(
+      v.union(...PACT_SEAT_IDS.map((id) => v.literal(id))),
+      v.null(),
+    ),
+  }),
+});
+
 const necromancerDepthValidator = v.union(
   v.null(),
   v.object({
@@ -3026,6 +3126,13 @@ export const campaignEventValidator = v.union(
   marinerBeastAddedEventV1Validator,
   marinerBeastUpdatedEventV1Validator,
   marinerBeastRemovedEventV1Validator,
+  marinerBeastCreatedEventV1Validator,
+  marinerStormMovedEventV1Validator,
+  marinerShipMovedEventV1Validator,
+  marinerShipCreatedEventV1Validator,
+  marinerBeastMovedEventV1Validator,
+  marinerBeastNestedEventV1Validator,
+  marinerRavageResultRecordedEventV1Validator,
   necromancerInitializedEventV1Validator,
   necromancerDepthChangedEventV1Validator,
   necromancerLawsChangedEventV1Validator,

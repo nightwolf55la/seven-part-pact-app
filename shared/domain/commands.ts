@@ -74,6 +74,13 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "add_mariner_beast",
   "update_mariner_beast",
   "remove_mariner_beast",
+  "create_mariner_beast",
+  "move_mariner_storm",
+  "move_mariner_ship",
+  "create_mariner_ship",
+  "move_mariner_beast",
+  "nest_mariner_beast",
+  "record_mariner_ravage_result",
   "initialize_necromancer",
   "set_necromancer_depth",
   "set_selected_death_laws",
@@ -237,6 +244,13 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "add_mariner_beast":
     case "update_mariner_beast":
     case "remove_mariner_beast":
+    case "create_mariner_beast":
+    case "move_mariner_storm":
+    case "move_mariner_ship":
+    case "create_mariner_ship":
+    case "move_mariner_beast":
+    case "nest_mariner_beast":
+    case "record_mariner_ravage_result":
     case "initialize_necromancer":
     case "set_necromancer_depth":
     case "set_selected_death_laws":

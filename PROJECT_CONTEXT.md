@@ -49,7 +49,7 @@ Before starting new repository work, verify current `main`, status, and HEAD rat
 
 ## Current Milestone State
 
-As of September 12, 2026, **all seven Wizard Domains have structural CampaignState foundations**, M5.3 shared Lore/Compendium foundations are complete, and M5.4 active-table operability work is in progress. Lore/Compendium, Sorcerer, Hierophant, and Necromancer operability Workstreams are complete; Mariner and Faustian remain in the active tranche.
+As of September 12, 2026, **all seven Wizard Domains have structural CampaignState foundations**, M5.3 shared Lore/Compendium foundations are complete, and M5.4 active-table operability work is in progress. Lore/Compendium, Sorcerer, Hierophant, Necromancer, and Mariner operability Workstreams are complete; Faustian remains in the active tranche.
 
 ### M1 — Realtime Foundation
 
@@ -292,11 +292,20 @@ Deliberate automation deferrals include complete Sermon, Steer Supplicant, Holid
 
 See `docs/m5-4a-hn-temples-gates-operability.md`.
 
+#### M5.4A-M — Mariner Interactive Map & Operability
+
+**COMPLETE — PR #26**
+
+Branch `m5-4a/mariner-operability`; closure HEAD `4cdd52d`. Real Convex Development closure succeeded on disposable deployment `dev/m5-4a-mariner-closure` (`wry-boar-766`); no Production deployment. Closure repaired persisted Mariner operability event validators in `convex/validators.ts` and verified representative `create_mariner_ship` persistence through revision 18 on campaign `cmp_f06495fd-7675-405a-9b76-5b9157e78219`.
+
+No CampaignState schema change or migration occurred. CampaignState V5 remains PRE-ACTIVATION.
+
+Deliberately deferred: repeat-Ravage semantics; off-Horizon Beast movement remains table-resolved (SOURCE requires directional Lore change + Complication).
+
 #### Remaining M5.4 active-table work
 
 The remaining active-player Domain-operability work is:
 
-- Mariner;
 - Faustian.
 
 Warlock and Sage are intentionally deferred while they have no active players. Their existing structural state remains authoritative and may be consumed by active-Domain cross-references.
@@ -351,11 +360,11 @@ Final hardening for trusted long-running campaigns: deployment/environment safet
 
 ### Current Next Action
 
-M5.4A-HN is complete in PR #25. Merge/integrate PR #25 if not already merged, verify the resulting current `main` SHA, then release **M5.4A-M — Mariner Interactive Map & Operability** for its narrow post-HN delta check and implementation from the newly merged main.
+M5.4A-M is complete in PR #26. PR #26 is ready for final review/merge. Release **M5.4A-F — Faustian Operability** as the next implementation Workstream from the merged result.
 
-Mariner is the next implementation Workstream. Faustian remains behind it in design/preparation so its card-lifecycle and representability contracts can be settled before production implementation. Keep one implementation Workstream active at a time; use parallel Workstreams for design/research preparation rather than competing feature branches.
+Keep one implementation Workstream active at a time; use parallel Workstreams for design/research preparation rather than competing feature branches.
 
-Do not mark M5.4 complete until Mariner and Faustian active-table operability are complete and the Master/human explicitly decide how the deferred Warlock/Sage tranche is handled.
+Do not mark M5.4 complete until Faustian active-table operability is complete and the Master/human explicitly decide how the deferred Warlock/Sage tranche is handled.
 
 ## Explicit Pre-V5-Activation Architecture Review Items
 

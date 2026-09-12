@@ -26,7 +26,7 @@ import {
 } from "./play-surface-model";
 import type { PlaySurfaceState, SurfaceId, PaneLabel } from "./play-surface-model";
 import { playShellWidthMode } from "./play-shell-layout";
-import type { LunarPhase } from "../shared/domain";
+import { PACT_SEAT_IDS, type LunarPhase, type PactSeatId, type PactSeatStatus } from "../shared/domain";
 import { orreryResearcherMarkersFromSorcererQuery } from "./orrery-view-model";
 import type { SorcererOrreryHouseMarkerPresentation } from "../shared/domain/sorcerer-presentation";
 
@@ -116,7 +116,7 @@ function paneBody(
 ) {
   if (surface === "world") return renderWorld(worldRef, campaignId);
   if (surface === "hierophant") return renderHierophant(hierRef, worldRef, campaignId, sorcererRef, loreCompendiumUiStateFromQuery(loreCompendiumRef));
-  if (surface === "mariner") return renderMariner(marinerRef, worldRef, ref, campaignId);
+  if (surface === "mariner") return renderMariner(marinerRef, worldRef, ref, campaignId, sorcererRef, loreCompendiumUiStateFromQuery(loreCompendiumRef));
   if (surface === "necromancer") {
     return renderNecromancer(necromancerRef, worldRef, ref, campaignId, loreCompendiumUiStateFromQuery(loreCompendiumRef), sorcererRef);
   }
@@ -179,11 +179,28 @@ function marinerWizardFromPlayRef(
   };
 }
 
+function pactSeatStatusesFromPlayRef(
+  ref: Parameters<typeof renderSurface>[1],
+): Partial<Record<PactSeatId, PactSeatStatus | null>> {
+  const statuses: Partial<Record<PactSeatId, PactSeatStatus | null>> = {};
+  for (const seatId of PACT_SEAT_IDS) {
+    const seat = ref.pactSeats[seatId];
+    if (seat === undefined) continue;
+    const status = seat.status;
+    statuses[seatId] = status === "present" || status === "silent" || status === "absent" || status === null
+      ? status
+      : null;
+  }
+  return statuses;
+}
+
 function renderMariner(
   marinerRef: ReturnType<typeof useQuery<typeof api.m3Queries.getMarinerReference>>,
   worldRef: ReturnType<typeof useQuery<typeof api.m3Queries.getWorldReference>>,
   playRef: Parameters<typeof renderSurface>[1],
   campaignId: string,
+  sorcererRef: ReturnType<typeof useQuery<typeof api.m3Queries.getSorcererReference>>,
+  loreCompendium: ReturnType<typeof loreCompendiumUiStateFromQuery>,
 ) {
   if (marinerRef === undefined || worldRef === undefined) {
     return <div className="py-12 text-center text-sm text-slate-400">Loading Mariner…</div>;
@@ -197,6 +214,9 @@ function renderMariner(
       world={worldRef}
       campaignId={campaignId}
       marinerWizard={marinerWizardFromPlayRef(playRef)}
+      sorcererPresence={sorcererRef?.presentation.externalPresence ?? []}
+      loreCompendium={loreCompendium}
+      pactSeatStatuses={pactSeatStatusesFromPlayRef(playRef)}
     />
   );
 }
