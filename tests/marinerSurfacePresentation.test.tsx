@@ -88,6 +88,7 @@ function initializedMariner() {
     selectedLawOfSeaIds: ["first", "second"],
     boardIsleOverrides: {
       scuttleport: { market: { present: true, rarity: "amber glass" } },
+      ishana: { market: { present: true, rarity: null } },
       druntyr: { ravageStormCount: 3 },
     },
     routeOccupancy: {
@@ -260,7 +261,13 @@ describe("Mariner surface setup", () => {
 describe("Mariner initialized map", () => {
   it("renders map state, World names, Typhoon, Ship/Raider, and distinct ship/Sanctum", () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    expect(container.querySelector('[aria-label="Archipelago of Isha map"]')).not.toBeNull();
+    const map = container.querySelector('[aria-label="Interactive Archipelago of Isha map"]');
+    expect(map).not.toBeNull();
+    expect(map?.getAttribute("role")).toBe("group");
+    expect(container.querySelector('[role="img"][aria-label*="Archipelago of Isha"]')).toBeNull();
+    expect(map?.querySelector('[role="button"][data-map-layer="isle"]')).not.toBeNull();
+    expect(map?.querySelector('[role="button"][data-map-layer="sea-hit"]')).not.toBeNull();
+    expect(map?.querySelector('[role="button"][data-map-layer="route-hit"]')).not.toBeNull();
     expect(container.innerHTML).toContain("Moonlit Atoll");
     expect(container.innerHTML).toContain("World ishana");
     expect(container.innerHTML).toContain("Typhoon");
@@ -375,7 +382,8 @@ describe("Mariner realtime draft synchronization", () => {
     const { container, root } = renderSurface(EMPTY_MARINER_STATE, WIZARD);
     expect(container.innerHTML).toContain("Initialize Mariner");
     rerenderSurface(root, initializedMariner());
-    expect(container.querySelector('[aria-label="Archipelago of Isha map"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Interactive Archipelago of Isha map"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Interactive Archipelago of Isha map"]')?.getAttribute("role")).toBe("group");
     expect(select(container, "Change Mariner ship").value).toBe(SHIP);
     expect(lawCheckbox(container, "First Law of the Sea").checked).toBe(true);
     expect(lawCheckbox(container, "Second Law of the Sea").checked).toBe(true);
@@ -505,6 +513,24 @@ describe("Mariner source-map piece presentation", () => {
     root.unmount();
     container.remove();
   });
+
+  it("shows a Market Rarity cue only when a Rarity is present", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const withRarity = container.querySelector('[data-piece="market"][data-isle-id="scuttleport"]');
+    const withoutRarity = container.querySelector('[data-piece="market"][data-isle-id="ishana"]');
+    expect(withRarity).not.toBeNull();
+    expect(withoutRarity).not.toBeNull();
+    expect(withRarity?.getAttribute("data-rarity")).toBe("true");
+    expect(withRarity?.getAttribute("aria-label")).toBe("Market with a Rarity");
+    expect(withRarity?.querySelector('[data-rarity-cue="true"]')).not.toBeNull();
+    expect(withRarity?.textContent).toContain("Rarity");
+    expect(withoutRarity?.getAttribute("data-rarity")).toBe("false");
+    expect(withoutRarity?.getAttribute("aria-label")).toBe("Market");
+    expect(withoutRarity?.querySelector('[data-rarity-cue="true"]')).toBeNull();
+    expect(withoutRarity?.textContent).toBe("Market");
+    root.unmount();
+    container.remove();
+  });
 });
 
 describe("Mariner Sorcerer presence on the map", () => {
@@ -596,7 +622,10 @@ describe("Mariner map interaction and narrow treatment", () => {
     flushSync(() => {
       isle.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     });
-    expect(isle.getAttribute("aria-selected")).toBe("true");
+    expect(isle.getAttribute("aria-pressed")).toBe("true");
+    expect(isle.getAttribute("aria-selected")).toBeNull();
+    expect(sea.getAttribute("aria-pressed")).toBe("false");
+    expect(route.getAttribute("aria-pressed")).toBe("false");
     expect(container.innerHTML).toContain("Isle inspector");
     root.unmount();
     container.remove();

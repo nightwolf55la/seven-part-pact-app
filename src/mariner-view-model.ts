@@ -57,7 +57,6 @@ export {
   marinerRouteGeometry,
   marinerSeaGeometry,
   raiderDirectionDeg,
-  routePresentationPath,
   type MapEllipse,
   type MapPoint,
   type MarinerExternalLandGeometry,

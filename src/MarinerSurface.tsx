@@ -727,8 +727,8 @@ function MarinerMap({
         viewBox={`0 0 ${MARINER_MAP_VIEWBOX.width} ${MARINER_MAP_VIEWBOX.height}`}
         className="h-auto w-full text-slate-800 dark:text-slate-100"
         style={{ minWidth: MARINER_MAP_MIN_WIDTH_PX }}
-        role="img"
-        aria-label="Archipelago of Isha map"
+        role="group"
+        aria-label="Interactive Archipelago of Isha map"
         data-mariner-board
         data-min-width={MARINER_MAP_MIN_WIDTH_PX}
       >
@@ -759,7 +759,7 @@ function MarinerMap({
               data-region-id={sea.regionId}
               role="button"
               tabIndex={0}
-              aria-selected={selected}
+              aria-pressed={selected}
               aria-label={`${kind} ${name}: ${seaRegionStateLabel(stormCount)}`}
               className={FOCUS_CLASS}
               onClick={() => onSelect({ kind: "region", regionId: sea.regionId })}
@@ -802,7 +802,7 @@ function MarinerMap({
               data-route-id={route.routeId}
               role="button"
               tabIndex={0}
-              aria-selected={selected}
+              aria-pressed={selected}
               aria-label={`Route ${aName} to ${bName}: ${label}`}
               className={FOCUS_CLASS}
               onClick={() => onSelect({ kind: "route", routeId: route.routeId })}
@@ -834,7 +834,7 @@ function MarinerMap({
               data-isle-id={isle.boardIsleId}
               role="button"
               tabIndex={0}
-              aria-selected={selected}
+              aria-pressed={selected}
               aria-label={`Isle ${worldName}${bits.length > 0 ? `: ${bits.join(", ")}` : ""}`}
               className={FOCUS_CLASS}
               onClick={() => onSelect({ kind: "isle", boardIsleId: isle.boardIsleId })}
@@ -1011,6 +1011,7 @@ function MarinerMap({
           {MARINER_ISLE_GEOMETRY.map((isle) => {
             const current = mariner.boardIsles.find((entry) => entry.boardIsleId === isle.boardIsleId);
             const market = current?.market.present === true;
+            const hasRarity = current?.market.present === true && current.market.rarity !== null;
             const ravage = current?.ravageStormCount ?? 0;
             const beasts = beastsOnIsle(mariner.beasts, isle.boardIsleId);
             return (
@@ -1019,7 +1020,8 @@ function MarinerMap({
                   <g
                     data-piece="market"
                     data-isle-id={isle.boardIsleId}
-                    aria-label="Market"
+                    data-rarity={hasRarity ? "true" : "false"}
+                    aria-label={hasRarity ? "Market with a Rarity" : "Market"}
                     transform={`translate(${isle.slots.market.x} ${isle.slots.market.y})`}
                     onClick={(event) => {
                       event.stopPropagation();
@@ -1028,7 +1030,18 @@ function MarinerMap({
                   >
                     <rect x={-8} y={-6} width={16} height={12} fill="#b45309" stroke="#78350f" />
                     <path d="M -10 -6 L 0 -14 L 10 -6" fill="#f59e0b" stroke="#78350f" />
-                    <text x={0} y={16} textAnchor="middle" fontSize={8} fill="#78350f">Market</text>
+                    {hasRarity && (
+                      <polygon
+                        data-rarity-cue="true"
+                        points="10,-16 12,-11 17,-11 13,-8 15,-3 10,-6 5,-3 7,-8 3,-11 8,-11"
+                        fill="#f8fafc"
+                        stroke="#0f172a"
+                        strokeWidth={1}
+                      />
+                    )}
+                    <text x={0} y={16} textAnchor="middle" fontSize={8} fill="#78350f">
+                      {hasRarity ? "Market · Rarity" : "Market"}
+                    </text>
                   </g>
                 )}
                 {ravage > 0 && (

@@ -15,7 +15,6 @@ import {
   MARINER_ROUTE_DEFINITIONS,
   MARINER_SEA_REGION_IDS,
   marinerRouteDefinition,
-  marinerRouteEndpointsEqual,
   type MarinerBoardIsleId,
   type MarinerExternalLandId,
   type MarinerRouteEndpoint,
@@ -315,23 +314,6 @@ export function mapEndpointPoint(endpoint: MarinerRouteEndpoint): MapPoint {
   return MARINER_EXTERNAL_LAND_MAP_POINTS[endpoint.externalLandId];
 }
 
-export function routePresentationPath(routeId: string): {
-  readonly a: MapPoint;
-  readonly b: MapPoint;
-  readonly control: MapPoint | null;
-  readonly d: string;
-} | null {
-  const definition = marinerRouteDefinition(routeId);
-  const geometry = marinerRouteGeometry(routeId);
-  if (definition === undefined || geometry === null) return null;
-  return {
-    a: mapEndpointPoint(definition.endpointA),
-    b: mapEndpointPoint(definition.endpointB),
-    control: geometry.pieceAnchor,
-    d: geometry.pathD,
-  };
-}
-
 export function raiderDirectionDeg(routeId: string, toward: MarinerRouteEndpoint): number {
   const geometry = marinerRouteGeometry(routeId);
   const origin = geometry?.pieceAnchor ?? { x: 500, y: 500 };
@@ -371,16 +353,4 @@ export function geometryCoverageReport(): {
       (id, index, all) => !MARINER_EXTERNAL_LAND_IDS.includes(id) || all.indexOf(id) !== index,
     ),
   };
-}
-
-export function routeGeometryUsesCatalogEndpoints(routeId: string): boolean {
-  const definition = marinerRouteDefinition(routeId);
-  const geometry = marinerRouteGeometry(routeId);
-  if (definition === undefined || geometry === null) return false;
-  return (
-    marinerRouteEndpointsEqual(definition.endpointA, definition.endpointA)
-    && marinerRouteEndpointsEqual(definition.endpointB, definition.endpointB)
-    && !("endpointA" in geometry)
-    && !("endpointB" in geometry)
-  );
 }

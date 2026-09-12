@@ -22,8 +22,6 @@ import {
   marinerRouteGeometry,
   marinerSeaGeometry,
   raiderDirectionDeg,
-  routeGeometryUsesCatalogEndpoints,
-  routePresentationPath,
 } from "../src/mariner-map-geometry";
 
 describe("Mariner source-map geometry coverage", () => {
@@ -59,13 +57,25 @@ describe("Mariner source-map geometry coverage", () => {
 
   it("keeps Route endpoints catalog-driven rather than geometry-derived", () => {
     for (const definition of MARINER_ROUTE_DEFINITIONS) {
-      expect(routeGeometryUsesCatalogEndpoints(definition.routeId)).toBe(true);
-      const path = routePresentationPath(definition.routeId);
-      expect(path).not.toBeNull();
-      expect(path!.a).toEqual(mapEndpointPoint(definition.endpointA));
-      expect(path!.b).toEqual(mapEndpointPoint(definition.endpointB));
-      expect(marinerRouteDefinition(definition.routeId)?.endpointA).toEqual(definition.endpointA);
-      expect(marinerRouteDefinition(definition.routeId)?.endpointB).toEqual(definition.endpointB);
+      const catalog = marinerRouteDefinition(definition.routeId);
+      expect(catalog).toBeDefined();
+      expect(catalog!.endpointA).toEqual(definition.endpointA);
+      expect(catalog!.endpointB).toEqual(definition.endpointB);
+      const geometry = marinerRouteGeometry(definition.routeId);
+      expect(geometry).not.toBeNull();
+      expect(geometry).not.toHaveProperty("endpointA");
+      expect(geometry).not.toHaveProperty("endpointB");
+      expect(geometry!.pathD.length).toBeGreaterThan(0);
+      expect(mapEndpointPoint(catalog!.endpointA)).toEqual(
+        catalog!.endpointA.kind === "board_isle"
+          ? MARINER_BOARD_ISLE_MAP_POINTS[catalog!.endpointA.boardIsleId]
+          : MARINER_EXTERNAL_LAND_MAP_POINTS[catalog!.endpointA.externalLandId],
+      );
+      expect(mapEndpointPoint(catalog!.endpointB)).toEqual(
+        catalog!.endpointB.kind === "board_isle"
+          ? MARINER_BOARD_ISLE_MAP_POINTS[catalog!.endpointB.boardIsleId]
+          : MARINER_EXTERNAL_LAND_MAP_POINTS[catalog!.endpointB.externalLandId],
+      );
     }
   });
 });

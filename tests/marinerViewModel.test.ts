@@ -33,11 +33,11 @@ import {
   mapEndpointPoint,
   marinerBeastLocationEqual,
   marinerDomainDisruptiveArcanists,
+  marinerRouteGeometry,
   marinerSeaResearchers,
   marinerSetupReady,
   researcherOperationalLabel,
   routeOccupancyLabel,
-  routePresentationPath,
   setupLawsValid,
   stormPiecePresentation,
   uniqueSelectedLawIds,
@@ -120,12 +120,22 @@ describe("schematic map presentation metadata", () => {
     expect(MARINER_SEA_REGION_IDS.every((id) => MARINER_SEA_REGION_MAP_POINTS[id] !== undefined)).toBe(true);
   });
 
-  it("resolves every Route to two presentation endpoints", () => {
+  it("resolves every Route to two catalog-driven presentation endpoints", () => {
     for (const route of MARINER_ROUTE_DEFINITIONS) {
-      const path = routePresentationPath(route.routeId);
-      expect(path).not.toBeNull();
-      expect(path!.a).toEqual(mapEndpointPoint(route.endpointA));
-      expect(path!.b).toEqual(mapEndpointPoint(route.endpointB));
+      const geometry = marinerRouteGeometry(route.routeId);
+      expect(geometry).not.toBeNull();
+      expect(geometry).not.toHaveProperty("endpointA");
+      expect(geometry).not.toHaveProperty("endpointB");
+      expect(mapEndpointPoint(route.endpointA)).toEqual(
+        route.endpointA.kind === "board_isle"
+          ? MARINER_BOARD_ISLE_MAP_POINTS[route.endpointA.boardIsleId]
+          : MARINER_EXTERNAL_LAND_MAP_POINTS[route.endpointA.externalLandId],
+      );
+      expect(mapEndpointPoint(route.endpointB)).toEqual(
+        route.endpointB.kind === "board_isle"
+          ? MARINER_BOARD_ISLE_MAP_POINTS[route.endpointB.boardIsleId]
+          : MARINER_EXTERNAL_LAND_MAP_POINTS[route.endpointB.externalLandId],
+      );
     }
   });
 });
