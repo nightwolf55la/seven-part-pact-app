@@ -568,6 +568,26 @@ export function removeMarinerBeastFingerprint(
   })}`;
 }
 
+export function createMarinerBeastFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `create_mariner_beast:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function moveMarinerStormFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `move_mariner_storm:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function moveMarinerShipFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `move_mariner_ship:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function nestMarinerBeastFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `nest_mariner_beast:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function recordMarinerRavageResultFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `record_mariner_ravage_result:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
 export function initializeNecromancerFingerprint(expectedCampaignId: string, input: unknown): string {
   return `initialize_necromancer:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
 }

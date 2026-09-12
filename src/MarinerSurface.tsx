@@ -5,6 +5,7 @@ import {
   MARINER_BOARD_ISLE_IDS,
   pactSeatDisplayName,
   type ElementId,
+  type IsleId,
   type MarinerRouteEndpoint,
   type MarinerBeastCondition,
   type MarinerBeastLocation,
@@ -15,9 +16,13 @@ import {
   type MarinerSeaRegionId,
   type MarinerState,
   type PactSeatId,
+  type PactSeatStatus,
+  type PowerfulDenizenStatus,
   type SorcererExternalPresence,
 } from "../shared/domain";
 import type { WorldReference } from "./WorldSurface";
+import LoreContextPanel from "./LoreContextPanel";
+import { findPresentationSubjectByRef, type LoreCompendiumUiState } from "./lore-view-model";
 import {
   MARINER_ARRANGEMENT_OPTIONS,
   MARINER_BEAST_DEFINITIONS,
@@ -45,8 +50,22 @@ import {
   buildSetMarinerSeaStormCountPayload,
   buildSetMarinerShipPayload,
   buildSetSelectedSeaLawsPayload,
+  buildCreateMarinerBeastPayload,
+  buildMoveMarinerShipPayload,
+  buildMoveMarinerStormPayload,
+  buildNestMarinerBeastPayload,
+  buildRecordMarinerRavageResultPayload,
   buildUpdateMarinerBeastFields,
   buildUpdateMarinerBeastPayload,
+  captureOperabilityBoard,
+  createBeastWouldRampage,
+  expectedForCreateBeast,
+  expectedForMoveShip,
+  expectedForMoveStorm,
+  expectedForNestBeast,
+  expectedForRavageResult,
+  CREATE_BEAST_LABEL,
+  distrustingBeastsInRegion,
   builtinBeastElement,
   builtinBeastName,
   conditionLabel,
@@ -62,9 +81,23 @@ import {
   marinerSeaResearchers,
   marinerSetupReady,
   marketBeastConflict,
+  marinerIsleLoreSelection,
   nestingBeastsOnIsle,
   newCommandId,
+  newDenizenId,
+  newMethodEntryId,
+  NO_LORE_CONTEXT_COPY,
+  occupiedRoutesBorderingIsle,
   otherDomainSeatOptions,
+  RAVAGE_INCOMPLETE_COPY,
+  RAVAGE_LOCATION_FOLLOW_THROUGH,
+  RAVAGE_LORE_FOLLOW_THROUGH,
+  RAVAGE_MARKET_ABSORBED_COPY,
+  RAVAGE_RESULT_LABEL,
+  MOVE_SHIP_LABEL,
+  MOVE_STORM_LABEL,
+  NEST_BEAST_LABEL,
+  WIND_CONFIRMATION_LABEL,
   parseNonNegInt,
   placeName,
   raiderDirectionDeg,
@@ -78,6 +111,7 @@ import {
   uniqueSelectedLawIds,
   worldIsleName,
   worldIsleOptionsForSlot,
+  MARINER_POWERFUL_STATUSES,
   type MarinerIsleBindings,
   type MarinerSetupDraft,
   type MarinerWizardRef,
@@ -144,12 +178,16 @@ export default function MarinerSurface({
   campaignId,
   marinerWizard,
   sorcererPresence = [],
+  loreCompendium = { status: "unavailable" },
+  pactSeatStatuses = {},
 }: {
   mariner: MarinerState;
   world: WorldReference;
   campaignId: string;
   marinerWizard: MarinerWizardRef | null;
   sorcererPresence?: readonly SorcererExternalPresence[];
+  loreCompendium?: LoreCompendiumUiState;
+  pactSeatStatuses?: Partial<Record<PactSeatId, PactSeatStatus | null>>;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -178,6 +216,11 @@ export default function MarinerSurface({
   const addMarinerBeast = useMutation(api.m3Commands.addMarinerBeast);
   const updateMarinerBeast = useMutation(api.m3Commands.updateMarinerBeast);
   const removeMarinerBeast = useMutation(api.m3Commands.removeMarinerBeast);
+  const createMarinerBeast = useMutation(api.m3Commands.createMarinerBeast);
+  const moveMarinerStorm = useMutation(api.m3Commands.moveMarinerStorm);
+  const moveMarinerShip = useMutation(api.m3Commands.moveMarinerShip);
+  const nestMarinerBeast = useMutation(api.m3Commands.nestMarinerBeast);
+  const recordMarinerRavageResult = useMutation(api.m3Commands.recordMarinerRavageResult);
 
   const initialized = isMarinerInitialized(mariner);
   const mobilePlaces = availableMobileShipPlaces(world.places);
@@ -281,6 +324,14 @@ export default function MarinerSurface({
             mariner={mariner}
             world={world}
             pending={pending}
+            campaignId={campaignId}
+            loreCompendium={loreCompendium}
+            pactSeatStatuses={pactSeatStatuses}
+            onCreateBeast={(payload) => run(async () => { await createMarinerBeast(payload); })}
+            onMoveStorm={(payload) => run(async () => { await moveMarinerStorm(payload); })}
+            onMoveShip={(payload) => run(async () => { await moveMarinerShip(payload); })}
+            onNestBeast={(payload) => run(async () => { await nestMarinerBeast(payload); })}
+            onRecordRavage={(payload) => run(async () => { await recordMarinerRavageResult(payload); })}
             onSubmitRoute={(routeId, occupancy) => {
               const current = mariner.routes.find((route) => route.routeId === routeId);
               if (current === undefined) return;
@@ -1097,6 +1148,14 @@ function Inspector({
   mariner,
   world,
   pending,
+  campaignId,
+  loreCompendium,
+  pactSeatStatuses,
+  onCreateBeast,
+  onMoveStorm,
+  onMoveShip,
+  onNestBeast,
+  onRecordRavage,
   onSubmitRoute,
   onSubmitStorm,
   onSubmitMarket,
@@ -1106,6 +1165,14 @@ function Inspector({
   mariner: MarinerState;
   world: WorldReference;
   pending: boolean;
+  campaignId: string;
+  loreCompendium: LoreCompendiumUiState;
+  pactSeatStatuses: Partial<Record<PactSeatId, PactSeatStatus | null>>;
+  onCreateBeast: (payload: ReturnType<typeof buildCreateMarinerBeastPayload>) => Promise<boolean>;
+  onMoveStorm: (payload: ReturnType<typeof buildMoveMarinerStormPayload>) => Promise<boolean>;
+  onMoveShip: (payload: ReturnType<typeof buildMoveMarinerShipPayload>) => Promise<boolean>;
+  onNestBeast: (payload: ReturnType<typeof buildNestMarinerBeastPayload>) => Promise<boolean>;
+  onRecordRavage: (payload: ReturnType<typeof buildRecordMarinerRavageResultPayload>) => Promise<boolean>;
   onSubmitRoute: (routeId: string, occupancy: MarinerRouteOccupancy) => void;
   onSubmitStorm: (regionId: MarinerSeaRegionId, stormCount: number) => void;
   onSubmitMarket: (boardIsleId: MarinerBoardIsleId, market: MarinerIsleMarket) => void;
@@ -1118,7 +1185,19 @@ function Inspector({
     return <RouteInspector routeId={selection.routeId} mariner={mariner} world={world} pending={pending} onSubmit={onSubmitRoute} />;
   }
   if (selection.kind === "region") {
-    return <RegionInspector regionId={selection.regionId} mariner={mariner} world={world} pending={pending} onSubmit={onSubmitStorm} />;
+    return (
+      <RegionInspector
+        regionId={selection.regionId}
+        mariner={mariner}
+        world={world}
+        pending={pending}
+        campaignId={campaignId}
+        onSubmit={onSubmitStorm}
+        onCreateBeast={onCreateBeast}
+        onMoveStorm={onMoveStorm}
+        onNestBeast={onNestBeast}
+      />
+    );
   }
   return (
     <IsleInspector
@@ -1126,8 +1205,13 @@ function Inspector({
       mariner={mariner}
       world={world}
       pending={pending}
+      campaignId={campaignId}
+      loreCompendium={loreCompendium}
+      pactSeatStatuses={pactSeatStatuses}
       onSubmitMarket={onSubmitMarket}
       onSubmitRavage={onSubmitRavage}
+      onMoveShip={onMoveShip}
+      onRecordRavage={onRecordRavage}
     />
   );
 }
@@ -1216,24 +1300,41 @@ function RegionInspector({
   mariner,
   world,
   pending,
+  campaignId,
   onSubmit,
+  onCreateBeast,
+  onMoveStorm,
+  onNestBeast,
 }: {
   regionId: MarinerSeaRegionId;
   mariner: MarinerState;
   world: WorldReference;
   pending: boolean;
+  campaignId: string;
   onSubmit: (regionId: MarinerSeaRegionId, stormCount: number) => void;
+  onCreateBeast: (payload: ReturnType<typeof buildCreateMarinerBeastPayload>) => Promise<boolean>;
+  onMoveStorm: (payload: ReturnType<typeof buildMoveMarinerStormPayload>) => Promise<boolean>;
+  onNestBeast: (payload: ReturnType<typeof buildNestMarinerBeastPayload>) => Promise<boolean>;
 }) {
   const definition = MARINER_SEA_REGION_CATALOG.find((region) => region.regionId === regionId);
   const current = mariner.seaRegions.find((region) => region.regionId === regionId);
   const [storms, setStorms] = useState(String(current?.stormCount ?? 0));
+  const [createOpen, setCreateOpen] = useState(false);
+  const [stormMoveOpen, setStormMoveOpen] = useState(false);
+  const [nestDenizenId, setNestDenizenId] = useState<string | null>(null);
   useEffect(() => {
     setStorms(String(current?.stormCount ?? 0));
   }, [regionId, current?.stormCount]);
+  useEffect(() => {
+    setCreateOpen(false);
+    setStormMoveOpen(false);
+    setNestDenizenId(null);
+  }, [regionId]);
   if (definition === undefined || current === undefined) {
     return <div className="text-sm text-slate-500">Unknown region.</div>;
   }
   const parsed = parseNonNegInt(storms);
+  const nestable = distrustingBeastsInRegion(mariner.beasts, regionId);
   return (
     <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
       <h3 className="text-sm font-semibold">{definition.kind === "horizon" ? "Horizon" : "Sea"} inspector</h3>
@@ -1266,6 +1367,58 @@ function RegionInspector({
       >
         Set Storm count
       </button>
+      {!createOpen && (
+        <button className={btnClass} disabled={pending} onClick={() => setCreateOpen(true)}>
+          {CREATE_BEAST_LABEL}
+        </button>
+      )}
+      {createOpen && (
+        <CreateBeastForm
+          regionId={regionId}
+          mariner={mariner}
+          campaignId={campaignId}
+          pending={pending}
+          onCancel={() => setCreateOpen(false)}
+          onSubmit={onCreateBeast}
+        />
+      )}
+      {!stormMoveOpen && (
+        <button className={btnClass} disabled={pending} onClick={() => setStormMoveOpen(true)}>
+          {MOVE_STORM_LABEL}
+        </button>
+      )}
+      {stormMoveOpen && (
+        <MoveStormForm
+          sourceRegionId={regionId}
+          adjacentRegionIds={definition.adjacentRegionIds}
+          mariner={mariner}
+          campaignId={campaignId}
+          pending={pending}
+          onCancel={() => setStormMoveOpen(false)}
+          onSubmit={onMoveStorm}
+        />
+      )}
+      {nestable.map((beast) => (
+        <div key={beast.denizenId} className="space-y-2">
+          {nestDenizenId !== beast.denizenId && (
+            <button className={btnClass} disabled={pending} onClick={() => setNestDenizenId(beast.denizenId)}>
+              {NEST_BEAST_LABEL}
+            </button>
+          )}
+          {nestDenizenId === beast.denizenId && (
+            <NestBeastForm
+              beast={beast}
+              adjacentIsleIds={definition.adjacentBoardIsleIds}
+              mariner={mariner}
+              world={world}
+              campaignId={campaignId}
+              pending={pending}
+              onCancel={() => setNestDenizenId(null)}
+              onSubmit={onNestBeast}
+            />
+          )}
+        </div>
+      ))}
     </section>
   );
 }
@@ -1275,25 +1428,43 @@ function IsleInspector({
   mariner,
   world,
   pending,
+  campaignId,
+  loreCompendium,
+  pactSeatStatuses,
   onSubmitMarket,
   onSubmitRavage,
+  onMoveShip,
+  onRecordRavage,
 }: {
   boardIsleId: MarinerBoardIsleId;
   mariner: MarinerState;
   world: WorldReference;
   pending: boolean;
+  campaignId: string;
+  loreCompendium: LoreCompendiumUiState;
+  pactSeatStatuses: Partial<Record<PactSeatId, PactSeatStatus | null>>;
   onSubmitMarket: (boardIsleId: MarinerBoardIsleId, market: MarinerIsleMarket) => void;
   onSubmitRavage: (boardIsleId: MarinerBoardIsleId, ravageStormCount: number) => void;
+  onMoveShip: (payload: ReturnType<typeof buildMoveMarinerShipPayload>) => Promise<boolean>;
+  onRecordRavage: (payload: ReturnType<typeof buildRecordMarinerRavageResultPayload>) => Promise<boolean>;
 }) {
   const current = mariner.boardIsles.find((isle) => isle.boardIsleId === boardIsleId);
   const [present, setPresent] = useState(current?.market.present === true);
   const [rarity, setRarity] = useState(current?.market.present === true ? current.market.rarity ?? "" : "");
   const [ravage, setRavage] = useState(String(current?.ravageStormCount ?? 0));
+  const [shipOpen, setShipOpen] = useState(false);
+  const [ravageOpen, setRavageOpen] = useState(false);
+  const [ravageOutcome, setRavageOutcome] = useState<"market_absorbed" | "isle_ravaged" | null>(null);
   useEffect(() => {
     setPresent(current?.market.present === true);
     setRarity(current?.market.present === true ? current.market.rarity ?? "" : "");
     setRavage(String(current?.ravageStormCount ?? 0));
   }, [boardIsleId, current]);
+  useEffect(() => {
+    setShipOpen(false);
+    setRavageOpen(false);
+    setRavageOutcome(null);
+  }, [boardIsleId]);
   if (current === undefined) {
     return <div className="text-sm text-slate-500">Unknown Isle.</div>;
   }
@@ -1349,7 +1520,526 @@ function IsleInspector({
       >
         Set Ravage
       </button>
+      {!shipOpen && (
+        <button className={btnClass} disabled={pending} onClick={() => setShipOpen(true)}>
+          {MOVE_SHIP_LABEL}
+        </button>
+      )}
+      {shipOpen && (
+        <MoveShipForm
+          boardIsleId={boardIsleId}
+          mariner={mariner}
+          world={world}
+          campaignId={campaignId}
+          pending={pending}
+          onCancel={() => setShipOpen(false)}
+          onSubmit={onMoveShip}
+        />
+      )}
+      {!ravageOpen && (
+        <button className={btnClass} disabled={pending} onClick={() => setRavageOpen(true)}>
+          {RAVAGE_RESULT_LABEL}
+        </button>
+      )}
+      {ravageOpen && (
+        <RecordRavageForm
+          boardIsleId={boardIsleId}
+          mariner={mariner}
+          world={world}
+          campaignId={campaignId}
+          pending={pending}
+          onCancel={() => setRavageOpen(false)}
+          onSubmit={onRecordRavage}
+          onRecorded={(outcome) => {
+            setRavageOutcome(outcome);
+            setRavageOpen(false);
+          }}
+        />
+      )}
+      {ravageOutcome === "market_absorbed" && (
+        <p className="text-sm text-slate-700 dark:text-slate-200">{RAVAGE_MARKET_ABSORBED_COPY}</p>
+      )}
+      {ravageOutcome === "isle_ravaged" && (
+        <div className="space-y-1 text-sm text-slate-700 dark:text-slate-200">
+          <p>{RAVAGE_INCOMPLETE_COPY}</p>
+          <p>{RAVAGE_LORE_FOLLOW_THROUGH}</p>
+          <p>{RAVAGE_LOCATION_FOLLOW_THROUGH}</p>
+        </div>
+      )}
+      <IsleLoreSection
+        boardIsleId={boardIsleId}
+        worldIsleId={current.worldIsleId}
+        loreCompendium={loreCompendium}
+        pactSeatStatuses={pactSeatStatuses}
+        campaignId={campaignId}
+      />
     </section>
+  );
+}
+
+function CreateBeastForm({
+  regionId,
+  mariner,
+  campaignId,
+  pending,
+  onCancel,
+  onSubmit,
+}: {
+  regionId: MarinerSeaRegionId;
+  mariner: MarinerState;
+  campaignId: string;
+  pending: boolean;
+  onCancel: () => void;
+  onSubmit: (payload: ReturnType<typeof buildCreateMarinerBeastPayload>) => Promise<boolean>;
+}) {
+  const [snapshot] = useState(() => captureOperabilityBoard(mariner));
+  const [denizenId] = useState(() => newDenizenId());
+  const [methodEntryId] = useState(() => newMethodEntryId());
+  const [wouldRampage] = useState(() => createBeastWouldRampage(snapshot, regionId));
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [statusChoice, setStatusChoice] = useState("");
+  const [otherLabel, setOtherLabel] = useState("");
+  const [element, setElement] = useState("");
+  const [definitionId, setDefinitionId] = useState("");
+  const [rampageSeat, setRampageSeat] = useState("");
+  const status = statusChoice === "other"
+    ? { kind: "other" as const, label: otherLabel }
+    : statusChoice !== ""
+      ? { kind: "standard" as const, value: statusChoice as (typeof MARINER_POWERFUL_STATUSES)[number] }
+      : null;
+  const ready = name.trim() !== ""
+    && status !== null
+    && (status.kind === "standard" || otherLabel.trim() !== "")
+    && element !== ""
+    && (!wouldRampage || rampageSeat !== "");
+  const matching = element === "" ? [] : definitionsMatchingElement(element as ElementId);
+  return (
+    <div className="rounded-lg border border-teal-200 dark:border-teal-900 p-3 space-y-2">
+      <h4 className="text-sm font-medium">{CREATE_BEAST_LABEL}</h4>
+      <label className="text-sm block">
+        Name
+        <input aria-label="Beast name" className={`${fieldClass} mt-1`} value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
+      <label className="text-sm block">
+        Description (optional)
+        <input aria-label="Beast description" className={`${fieldClass} mt-1`} value={description} onChange={(e) => setDescription(e.target.value)} />
+      </label>
+      <label className="text-sm block">
+        Powerful status
+        <select
+          aria-label="Powerful status"
+          className={`${fieldClass} mt-1`}
+          value={statusChoice}
+          onChange={(e) => setStatusChoice(e.target.value)}
+        >
+          <option value="">Select Powerful status…</option>
+          {MARINER_POWERFUL_STATUSES.map((value) => (
+            <option key={value} value={value}>{value}</option>
+          ))}
+          <option value="other">other</option>
+        </select>
+      </label>
+      {statusChoice === "other" && (
+        <label className="text-sm block">
+          Other status label
+          <input aria-label="Powerful status label" className={`${fieldClass} mt-1`} value={otherLabel} onChange={(e) => setOtherLabel(e.target.value)} />
+        </label>
+      )}
+      <label className="text-sm block">
+        Element
+        <select
+          aria-label="Beast element"
+          className={`${fieldClass} mt-1`}
+          value={element}
+          onChange={(e) => {
+            setElement(e.target.value);
+            setDefinitionId("");
+          }}
+        >
+          <option value="">Select element…</option>
+          {MARINER_ELEMENTS.map((value) => (
+            <option key={value} value={value}>{value}</option>
+          ))}
+        </select>
+      </label>
+      <label className="text-sm block">
+        Built-in Beast (optional)
+        <select aria-label="Built-in Beast" className={`${fieldClass} mt-1`} value={definitionId} onChange={(e) => setDefinitionId(e.target.value)}>
+          <option value="">None</option>
+          {matching.map((definition) => (
+            <option key={definition.id} value={definition.id}>{definition.name}</option>
+          ))}
+        </select>
+      </label>
+      {wouldRampage && (
+        <label className="text-sm block">
+          Rampage destination
+          <select aria-label="Rampage destination" className={`${fieldClass} mt-1`} value={rampageSeat} onChange={(e) => setRampageSeat(e.target.value)}>
+            <option value="">Select destination Domain…</option>
+            {otherDomainSeatOptions().map((seatId) => (
+              <option key={seatId} value={seatId}>{pactSeatDisplayName(seatId)}</option>
+            ))}
+          </select>
+        </label>
+      )}
+      <div className="flex gap-2">
+        <button
+          className={btnClass}
+          disabled={pending || !ready}
+          onClick={() => {
+            if (status === null) return;
+            const expected = expectedForCreateBeast(snapshot, regionId);
+            void onSubmit(buildCreateMarinerBeastPayload({
+              commandId: newCommandId(),
+              expectedCampaignId: campaignId,
+              denizenId,
+              name,
+              description: description.trim() === "" ? null : description,
+              status,
+              element: element as ElementId,
+              definitionId: definitionId === "" ? null : definitionId as never,
+              regionId,
+              ...expected,
+              rampageDestinationSeatId: wouldRampage ? rampageSeat as PactSeatId : null,
+              rampagingMethodEntryId: wouldRampage ? methodEntryId : null,
+            })).then((ok) => {
+              if (ok) onCancel();
+            });
+          }}
+        >
+          {CREATE_BEAST_LABEL}
+        </button>
+        <button className={ghostBtn} onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function MoveStormForm({
+  sourceRegionId,
+  adjacentRegionIds,
+  mariner,
+  campaignId,
+  pending,
+  onCancel,
+  onSubmit,
+}: {
+  sourceRegionId: MarinerSeaRegionId;
+  adjacentRegionIds: readonly MarinerSeaRegionId[];
+  mariner: MarinerState;
+  campaignId: string;
+  pending: boolean;
+  onCancel: () => void;
+  onSubmit: (payload: ReturnType<typeof buildMoveMarinerStormPayload>) => Promise<boolean>;
+}) {
+  const [snapshot] = useState(() => captureOperabilityBoard(mariner));
+  const [destinationRegionId, setDestinationRegionId] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  return (
+    <div className="rounded-lg border border-teal-200 dark:border-teal-900 p-3 space-y-2">
+      <h4 className="text-sm font-medium">{MOVE_STORM_LABEL}</h4>
+      <p className="text-xs text-slate-500">Records a table-confirmed legal Storm move. The software does not know the actual prevailing Wind.</p>
+      <label className="text-sm block">
+        Destination
+        <select aria-label="Storm destination" className={`${fieldClass} mt-1`} value={destinationRegionId} onChange={(e) => setDestinationRegionId(e.target.value)}>
+          <option value="">Select adjacent region…</option>
+          {adjacentRegionIds.map((id) => (
+            <option key={id} value={id}>{seaRegionDisplayName(id)}</option>
+          ))}
+        </select>
+      </label>
+      <label className="text-sm flex items-start gap-2">
+        <input
+          type="checkbox"
+          aria-label="Wind confirmation"
+          checked={confirmed}
+          onChange={(e) => setConfirmed(e.target.checked)}
+        />
+        <span>{WIND_CONFIRMATION_LABEL}</span>
+      </label>
+      <div className="flex gap-2">
+        <button
+          className={btnClass}
+          disabled={pending || destinationRegionId === "" || !confirmed}
+          onClick={() => {
+            const dest = destinationRegionId as MarinerSeaRegionId;
+            void onSubmit(buildMoveMarinerStormPayload({
+              commandId: newCommandId(),
+              expectedCampaignId: campaignId,
+              sourceRegionId,
+              destinationRegionId: dest,
+              confirmedNotAgainstPrevailingWind: confirmed,
+              ...expectedForMoveStorm(snapshot, sourceRegionId, dest),
+            })).then((ok) => {
+              if (ok) onCancel();
+            });
+          }}
+        >
+          {MOVE_STORM_LABEL}
+        </button>
+        <button className={ghostBtn} onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function NestBeastForm({
+  beast,
+  adjacentIsleIds,
+  mariner,
+  world,
+  campaignId,
+  pending,
+  onCancel,
+  onSubmit,
+}: {
+  beast: MarinerBeastState;
+  adjacentIsleIds: readonly MarinerBoardIsleId[];
+  mariner: MarinerState;
+  world: WorldReference;
+  campaignId: string;
+  pending: boolean;
+  onCancel: () => void;
+  onSubmit: (payload: ReturnType<typeof buildNestMarinerBeastPayload>) => Promise<boolean>;
+}) {
+  const [snapshot] = useState(() => captureOperabilityBoard(mariner));
+  const [boardIsleId, setBoardIsleId] = useState("");
+  return (
+    <div className="rounded-lg border border-teal-200 dark:border-teal-900 p-3 space-y-2">
+      <h4 className="text-sm font-medium">{NEST_BEAST_LABEL}</h4>
+      <p className="text-xs text-slate-500">{denizenName(world.denizens, beast.denizenId)}</p>
+      <label className="text-sm block">
+        Target Isle
+        <select aria-label="Nest target Isle" className={`${fieldClass} mt-1`} value={boardIsleId} onChange={(e) => setBoardIsleId(e.target.value)}>
+          <option value="">Select adjacent Isle…</option>
+          {adjacentIsleIds.map((id) => (
+            <option key={id} value={id}>{boardIsleWorldName(mariner, world.isles, id)}</option>
+          ))}
+        </select>
+      </label>
+      <div className="flex gap-2">
+        <button
+          className={btnClass}
+          disabled={pending || boardIsleId === ""}
+          onClick={() => {
+            const target = boardIsleId as MarinerBoardIsleId;
+            void onSubmit(buildNestMarinerBeastPayload({
+              commandId: newCommandId(),
+              expectedCampaignId: campaignId,
+              denizenId: beast.denizenId,
+              boardIsleId: target,
+              ...expectedForNestBeast(snapshot, beast.denizenId, target),
+            })).then((ok) => {
+              if (ok) onCancel();
+            });
+          }}
+        >
+          {NEST_BEAST_LABEL}
+        </button>
+        <button className={ghostBtn} onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function MoveShipForm({
+  boardIsleId,
+  mariner,
+  world,
+  campaignId,
+  pending,
+  onCancel,
+  onSubmit,
+}: {
+  boardIsleId: MarinerBoardIsleId;
+  mariner: MarinerState;
+  world: WorldReference;
+  campaignId: string;
+  pending: boolean;
+  onCancel: () => void;
+  onSubmit: (payload: ReturnType<typeof buildMoveMarinerShipPayload>) => Promise<boolean>;
+}) {
+  const [snapshot] = useState(() => captureOperabilityBoard(mariner));
+  const occupied = occupiedRoutesBorderingIsle(snapshot, boardIsleId);
+  const [sourceRouteId, setSourceRouteId] = useState<string>(occupied[0]?.routeId ?? "");
+  const [destinationRouteId, setDestinationRouteId] = useState("");
+  const [towardKey, setTowardKey] = useState("");
+  const sourceOccupancy = snapshot.routes.find((route) => route.routeId === sourceRouteId)?.occupancy;
+  const isRaider = sourceOccupancy?.kind === "raider";
+  const destDefinition = MARINER_ROUTE_CATALOG.find((route) => route.routeId === destinationRouteId);
+  const destEndpoints = destDefinition === undefined ? [] : [destDefinition.endpointA, destDefinition.endpointB];
+  return (
+    <div className="rounded-lg border border-teal-200 dark:border-teal-900 p-3 space-y-2">
+      <h4 className="text-sm font-medium">{MOVE_SHIP_LABEL}</h4>
+      <label className="text-sm block">
+        Source Route
+        <select aria-label="Ship source Route" className={`${fieldClass} mt-1`} value={sourceRouteId} onChange={(e) => setSourceRouteId(e.target.value)}>
+          {occupied.length === 0 && <option value="">No occupied Route borders this Isle</option>}
+          {occupied.map((route) => (
+            <option key={route.routeId} value={route.routeId}>
+              {routeEndpointLabel(route.endpointA, mariner, world.isles)} — {routeEndpointLabel(route.endpointB, mariner, world.isles)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="text-sm block">
+        Destination Route
+        <select aria-label="Ship destination Route" className={`${fieldClass} mt-1`} value={destinationRouteId} onChange={(e) => {
+          setDestinationRouteId(e.target.value);
+          setTowardKey("");
+        }}>
+          <option value="">Select any other Route…</option>
+          {MARINER_ROUTE_CATALOG.filter((route) => route.routeId !== sourceRouteId).map((route) => (
+            <option key={route.routeId} value={route.routeId}>
+              {routeEndpointLabel(route.endpointA, mariner, world.isles)} — {routeEndpointLabel(route.endpointB, mariner, world.isles)}
+            </option>
+          ))}
+        </select>
+      </label>
+      {isRaider && (
+        <label className="text-sm block">
+          Raids toward
+          <select aria-label="Ship Raider toward" className={`${fieldClass} mt-1`} value={towardKey} onChange={(e) => setTowardKey(e.target.value)}>
+            <option value="">{destDefinition === undefined ? "Select destination Route first…" : "Select destination endpoint…"}</option>
+            {destEndpoints.map((endpoint) => (
+              <option key={endpointKey(endpoint)} value={endpointKey(endpoint)}>
+                {routeEndpointLabel(endpoint, mariner, world.isles)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <div className="flex gap-2">
+        <button
+          className={btnClass}
+          disabled={pending || sourceRouteId === "" || destinationRouteId === "" || (isRaider && towardKey === "")}
+          onClick={() => {
+            const expected = expectedForMoveShip(snapshot, sourceRouteId, destinationRouteId);
+            const toward = destEndpoints.find((endpoint) => endpointKey(endpoint) === towardKey) ?? null;
+            void onSubmit(buildMoveMarinerShipPayload({
+              commandId: newCommandId(),
+              expectedCampaignId: campaignId,
+              sourceIsleId: boardIsleId,
+              sourceRouteId,
+              destinationRouteId,
+              destinationToward: isRaider ? toward : null,
+              ...expected,
+            })).then((ok) => {
+              if (ok) onCancel();
+            });
+          }}
+        >
+          {MOVE_SHIP_LABEL}
+        </button>
+        <button className={ghostBtn} onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function RecordRavageForm({
+  boardIsleId,
+  mariner,
+  world,
+  campaignId,
+  pending,
+  onCancel,
+  onSubmit,
+  onRecorded,
+}: {
+  boardIsleId: MarinerBoardIsleId;
+  mariner: MarinerState;
+  world: WorldReference;
+  campaignId: string;
+  pending: boolean;
+  onCancel: () => void;
+  onSubmit: (payload: ReturnType<typeof buildRecordMarinerRavageResultPayload>) => Promise<boolean>;
+  onRecorded: (outcome: "market_absorbed" | "isle_ravaged") => void;
+}) {
+  const [snapshot] = useState(() => captureOperabilityBoard(mariner));
+  const [denizenSnapshot] = useState(() => world.denizens.map((denizen) => ({
+    denizenId: denizen.denizenId,
+    powerfulProfile: denizen.powerfulProfile ?? null,
+  })));
+  const [methodEntryId] = useState(() => newMethodEntryId());
+  const expected = expectedForRavageResult(snapshot, boardIsleId, denizenSnapshot);
+  const [rampageSeat, setRampageSeat] = useState("");
+  const needsRampage = expected.expectedNestingBeast !== null;
+  const outcome: "market_absorbed" | "isle_ravaged" = expected.expectedMarket.present ? "market_absorbed" : "isle_ravaged";
+  return (
+    <div className="rounded-lg border border-teal-200 dark:border-teal-900 p-3 space-y-2">
+      <h4 className="text-sm font-medium">{RAVAGE_RESULT_LABEL}</h4>
+      <p className="text-xs text-slate-500">
+        Records the supported board result after the table decides this Isle would be Ravaged. This does not resolve the source Ravage procedure.
+      </p>
+      {needsRampage && (
+        <label className="text-sm block">
+          Nesting Beast Rampage destination
+          <select aria-label="Ravage Rampage destination" className={`${fieldClass} mt-1`} value={rampageSeat} onChange={(e) => setRampageSeat(e.target.value)}>
+            <option value="">Select destination Domain…</option>
+            {otherDomainSeatOptions().map((seatId) => (
+              <option key={seatId} value={seatId}>{pactSeatDisplayName(seatId)}</option>
+            ))}
+          </select>
+        </label>
+      )}
+      <div className="flex gap-2">
+        <button
+          className={btnClass}
+          disabled={pending || (needsRampage && rampageSeat === "")}
+          onClick={() => {
+            void onSubmit(buildRecordMarinerRavageResultPayload({
+              commandId: newCommandId(),
+              expectedCampaignId: campaignId,
+              boardIsleId,
+              ...expected,
+              rampageDestinationSeatId: needsRampage ? rampageSeat as PactSeatId : null,
+              rampagingMethodEntryId: needsRampage ? methodEntryId : null,
+            })).then((ok) => {
+              if (ok) onRecorded(outcome);
+            });
+          }}
+        >
+          {RAVAGE_RESULT_LABEL}
+        </button>
+        <button className={ghostBtn} onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function IsleLoreSection({
+  boardIsleId,
+  worldIsleId,
+  loreCompendium,
+  pactSeatStatuses,
+  campaignId,
+}: {
+  boardIsleId: MarinerBoardIsleId;
+  worldIsleId: IsleId;
+  loreCompendium: LoreCompendiumUiState;
+  pactSeatStatuses: Partial<Record<PactSeatId, PactSeatStatus | null>>;
+  campaignId: string;
+}) {
+  const selection = marinerIsleLoreSelection(boardIsleId, pactSeatStatuses);
+  if (selection.kind === "no_automatic_context" || selection.kind === "no_status_decision") {
+    return <p className="text-sm text-slate-600 dark:text-slate-300">{NO_LORE_CONTEXT_COPY}</p>;
+  }
+  if (loreCompendium.status !== "ready") {
+    return null;
+  }
+  const subject = findPresentationSubjectByRef(loreCompendium.presentation, { kind: "isle", isleId: worldIsleId });
+  if (subject === undefined) {
+    return null;
+  }
+  return (
+    <LoreContextPanel
+      subject={subject}
+      campaignId={campaignId}
+      compact
+      contextConstraint={{ kind: "source", sourceCollectionId: selection.sourceCollectionId }}
+    />
   );
 }
 

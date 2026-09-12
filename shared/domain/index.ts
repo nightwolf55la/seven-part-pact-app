@@ -428,6 +428,11 @@ export {
   addMarinerBeastFingerprint,
   updateMarinerBeastFingerprint,
   removeMarinerBeastFingerprint,
+  createMarinerBeastFingerprint,
+  moveMarinerStormFingerprint,
+  moveMarinerShipFingerprint,
+  nestMarinerBeastFingerprint,
+  recordMarinerRavageResultFingerprint,
   initializeNecromancerFingerprint,
   setNecromancerDepthFingerprint,
   setSelectedDeathLawsFingerprint,
@@ -1773,6 +1778,38 @@ export {
   applyUpdateMarinerBeast,
   applyRemoveMarinerBeast,
 } from "./mariner-transitions";
+
+export type {
+  CreateMarinerBeastInput,
+  MoveMarinerStormInput,
+  MoveMarinerShipInput,
+  NestMarinerBeastInput,
+  RecordMarinerRavageResultInput,
+  MarinerOperabilityTransitionResult,
+  ExpectedStormCount,
+  ExpectedRouteOccupancy,
+  ExpectedBeastLocation,
+} from "./mariner-operability-transitions";
+export {
+  canonicalizeCreateMarinerBeastInput,
+  canonicalizeMoveMarinerStormInput,
+  canonicalizeMoveMarinerShipInput,
+  canonicalizeNestMarinerBeastInput,
+  canonicalizeRecordMarinerRavageResultInput,
+  applyCreateMarinerBeast,
+  applyMoveMarinerStorm,
+  applyMoveMarinerShip,
+  applyNestMarinerBeast,
+  applyRecordMarinerRavageResult,
+} from "./mariner-operability-transitions";
+
+export {
+  applyImmediateShippingHazards,
+  beastIsEntirelySurrounded,
+  immediateHazardRouteIds,
+  immediateHazardRouteIdsCausedBy,
+  isRouteUnderImmediateHazard,
+} from "./mariner-shipping-hazards";
 
 export type {
   HierophantTransitionResult,

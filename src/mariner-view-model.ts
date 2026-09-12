@@ -9,11 +9,16 @@ import {
   MARINER_ROUTE_DEFINITIONS,
   MARINER_SEA_REGION_DEFINITIONS,
   PACT_SEAT_IDS,
+  applyImmediateShippingHazards,
+  beastIsEntirelySurrounded,
+  immediateHazardRouteIdsCausedBy,
   isValidMarinerArrangementId,
+  selectMarinerIsleLoreContext,
   isValidMarinerBuiltinBeastId,
   isValidMarinerLawOfSeaId,
   marinerArrangementDefinition,
   pactSeatDisplayName,
+  type DenizenId,
   type ElementId,
   type MarinerArrangementId,
   type MarinerBeastCondition,
@@ -29,7 +34,10 @@ import {
   type MarinerSeaRegionId,
   type MarinerState,
   type PactSeatId,
+  type PactSeatStatus,
   type PowerfulDenizenProfile,
+  type PowerfulDenizenStatus,
+  type MarinerIsleLoreContextSelection,
   type SorcererExternalPresence,
   type UpdateMarinerBeastFields,
   denizenHasBuiltinTaxonomy,
@@ -98,6 +106,14 @@ export function isMarinerInitialized(mariner: Pick<MarinerState, keyof MarinerSt
 
 export function newCommandId(uuid: string = crypto.randomUUID()): string {
   return `cmd_${uuid}`;
+}
+
+export function newDenizenId(uuid: string = crypto.randomUUID()): string {
+  return `den_${uuid}`;
+}
+
+export function newMethodEntryId(uuid: string = crypto.randomUUID()): string {
+  return `pdmth_${uuid}`;
 }
 
 export function boardIsleDisplayName(boardIsleId: MarinerBoardIsleId): string {
@@ -717,3 +733,342 @@ export const MARINER_ROUTE_CATALOG = MARINER_ROUTE_DEFINITIONS;
 export const MARINER_SEA_REGION_CATALOG = MARINER_SEA_REGION_DEFINITIONS;
 export const MARINER_BEAST_DEFINITIONS = MARINER_BUILTIN_BEAST_DEFINITIONS;
 export const MARINER_ELEMENTS: readonly ElementId[] = ["air", "fire", "earth", "water"];
+export const MARINER_POWERFUL_STATUSES = ["companion", "reliable", "disruptive", "malignant"] as const;
+
+export const CREATE_BEAST_LABEL = "Create Beast";
+export const MOVE_STORM_LABEL = "Record Guided Storm Move";
+export const MOVE_SHIP_LABEL = "Record Ship Move";
+export const NEST_BEAST_LABEL = "Help Beast Nest";
+export const RAVAGE_RESULT_LABEL = "Record Ravage Result";
+export const WIND_CONFIRMATION_LABEL = "I confirm this move is not against the actual prevailing Wind.";
+export const RAVAGE_INCOMPLETE_COPY =
+  "Board result recorded. The source Ravage procedure is not complete.";
+export const RAVAGE_LORE_FOLLOW_THROUGH =
+  "Update, change, or add this Isle's Lore using the contextual Lore panel.";
+export const RAVAGE_LOCATION_FOLLOW_THROUGH =
+  "Review established locations on this Isle and resolve source-required access or Complication consequences at the table.";
+export const RAVAGE_MARKET_ABSORBED_COPY =
+  "Board result recorded. The Market absorbed the Ravage; the Isle did not become Ravaged.";
+export const NO_LORE_CONTEXT_COPY =
+  "No automatic Lore context is available for this Isle. The table must choose a context; another context is not substituted.";
+
+const PACT_SEAT_HOME_BOARD_ISLE: Record<PactSeatId, MarinerBoardIsleId> = {
+  necromancer: "graven_isle",
+  hierophant: "ishana",
+  warlock: "halcyon_isles",
+  mariner: "far_reach",
+  faustian: "scuttleport",
+  sage: "sage_atoll",
+  sorcerer: "spyrholm",
+};
+
+export function marinerIsleOwnerSeat(boardIsleId: MarinerBoardIsleId): PactSeatId | null {
+  const found = (Object.keys(PACT_SEAT_HOME_BOARD_ISLE) as PactSeatId[]).find(
+    (seatId) => PACT_SEAT_HOME_BOARD_ISLE[seatId] === boardIsleId,
+  );
+  return found ?? null;
+}
+
+export function marinerIsleLoreSelection(
+  boardIsleId: MarinerBoardIsleId,
+  pactSeatStatuses: Partial<Record<PactSeatId, PactSeatStatus | null>>,
+): MarinerIsleLoreContextSelection | { kind: "no_automatic_context" } {
+  const ownerSeatId = marinerIsleOwnerSeat(boardIsleId);
+  if (ownerSeatId === null) {
+    return { kind: "no_automatic_context" };
+  }
+  const status = ownerSeatId in pactSeatStatuses ? pactSeatStatuses[ownerSeatId] ?? null : null;
+  return selectMarinerIsleLoreContext(ownerSeatId, status);
+}
+
+export function distrustingBeastsInRegion(
+  beasts: readonly MarinerBeastState[],
+  regionId: MarinerSeaRegionId,
+): MarinerBeastState[] {
+  return beasts.filter(
+    (beast) =>
+      beast.condition === "distrusting"
+      && beast.location.kind === "sea_region"
+      && beast.location.regionId === regionId,
+  );
+}
+
+export function routesBorderingIsle(
+  boardIsleId: MarinerBoardIsleId,
+): typeof MARINER_ROUTE_DEFINITIONS {
+  return MARINER_ROUTE_DEFINITIONS.filter((route) =>
+    (route.endpointA.kind === "board_isle" && route.endpointA.boardIsleId === boardIsleId)
+    || (route.endpointB.kind === "board_isle" && route.endpointB.boardIsleId === boardIsleId),
+  );
+}
+
+function regionDefinition(regionId: MarinerSeaRegionId) {
+  return MARINER_SEA_REGION_DEFINITIONS.find((definition) => definition.regionId === regionId);
+}
+
+export function relevantSeaRegionsFor(regionId: MarinerSeaRegionId): MarinerSeaRegionId[] {
+  const definition = regionDefinition(regionId);
+  return definition === undefined ? [regionId] : [regionId, ...definition.adjacentRegionIds];
+}
+
+export function relevantRoutesForRegion(regionId: MarinerSeaRegionId): string[] {
+  const focus = regionDefinition(regionId);
+  if (focus === undefined) return [];
+  const ids = new Set<string>(focus.boundingRouteIds);
+  for (const adjacentId of focus.adjacentRegionIds) {
+    const adjacent = regionDefinition(adjacentId);
+    if (adjacent === undefined) continue;
+    for (const routeId of focus.boundingRouteIds) {
+      if (adjacent.boundingRouteIds.includes(routeId)) ids.add(routeId);
+    }
+  }
+  return [...ids];
+}
+
+export function captureStormCounts(
+  mariner: Pick<MarinerState, "seaRegions">,
+  regionIds: readonly MarinerSeaRegionId[],
+) {
+  return regionIds.map((regionId) => ({
+    regionId,
+    stormCount: mariner.seaRegions.find((region) => region.regionId === regionId)?.stormCount ?? 0,
+  }));
+}
+
+export function captureRouteOccupancies(
+  mariner: Pick<MarinerState, "routes">,
+  routeIds: readonly string[],
+) {
+  return routeIds.map((routeId) => ({
+    routeId,
+    occupancy: mariner.routes.find((route) => route.routeId === routeId)?.occupancy ?? { kind: "empty" as const },
+  }));
+}
+
+export function captureRelevantBeasts(
+  mariner: Pick<MarinerState, "beasts">,
+  regionIds: readonly MarinerSeaRegionId[],
+) {
+  const relevant = new Set(regionIds);
+  return mariner.beasts
+    .filter((beast) => beast.location.kind === "sea_region" && relevant.has(beast.location.regionId))
+    .map((beast) => ({ denizenId: beast.denizenId, location: beast.location }));
+}
+
+export function createBeastWouldRampage(
+  mariner: Pick<MarinerState, "seaRegions" | "beasts" | "routes">,
+  regionId: MarinerSeaRegionId,
+): boolean {
+  const previewBeasts = [
+    ...mariner.beasts,
+    {
+      denizenId: "den_00000000-0000-0000-0000-0000000000ff" as DenizenId,
+      element: "water" as const,
+      definitionId: null,
+      condition: "distrusting" as const,
+      location: { kind: "sea_region" as const, regionId },
+    },
+  ];
+  const board = { seaRegions: mariner.seaRegions, beasts: previewBeasts };
+  const hazards = applyImmediateShippingHazards(
+    mariner.routes,
+    immediateHazardRouteIdsCausedBy(board, { focusRegionIds: [regionId] }),
+  );
+  return beastIsEntirelySurrounded(regionId, hazards.routes);
+}
+
+export function occupiedRoutesBorderingIsle(
+  mariner: Pick<MarinerState, "routes">,
+  boardIsleId: MarinerBoardIsleId,
+) {
+  return routesBorderingIsle(boardIsleId).filter((definition) => {
+    const occupancy = mariner.routes.find((route) => route.routeId === definition.routeId)?.occupancy;
+    return occupancy?.kind === "ship" || occupancy?.kind === "raider";
+  });
+}
+
+export type MarinerOperabilityBoardSnapshot = Pick<MarinerState, "seaRegions" | "routes" | "beasts" | "boardIsles">;
+
+export function captureOperabilityBoard(mariner: MarinerOperabilityBoardSnapshot): MarinerOperabilityBoardSnapshot {
+  return {
+    seaRegions: mariner.seaRegions.map((region) => ({ ...region })),
+    routes: mariner.routes.map((route) => ({ ...route, occupancy: route.occupancy })),
+    beasts: mariner.beasts.map((beast) => ({ ...beast, location: beast.location })),
+    boardIsles: mariner.boardIsles.map((isle) => ({ ...isle, market: isle.market })),
+  };
+}
+
+function uniqueRegionIds(regionIds: readonly MarinerSeaRegionId[]): MarinerSeaRegionId[] {
+  return [...new Set(regionIds)];
+}
+
+function regionsBoundingRoute(routeId: string): MarinerSeaRegionId[] {
+  return MARINER_SEA_REGION_DEFINITIONS
+    .filter((definition) => definition.boundingRouteIds.includes(routeId as never))
+    .map((definition) => definition.regionId);
+}
+
+export function expectedForCreateBeast(board: MarinerOperabilityBoardSnapshot, regionId: MarinerSeaRegionId) {
+  const regionIds = relevantSeaRegionsFor(regionId);
+  return {
+    expectedStormCounts: captureStormCounts(board, regionIds),
+    expectedRouteOccupancies: captureRouteOccupancies(board, relevantRoutesForRegion(regionId)),
+    expectedRelevantBeasts: captureRelevantBeasts(board, regionIds),
+  };
+}
+
+export function expectedForMoveStorm(
+  board: MarinerOperabilityBoardSnapshot,
+  sourceRegionId: MarinerSeaRegionId,
+  destinationRegionId: MarinerSeaRegionId,
+) {
+  const regionIds = uniqueRegionIds([sourceRegionId, ...relevantSeaRegionsFor(destinationRegionId)]);
+  return {
+    expectedStormCounts: captureStormCounts(board, regionIds),
+    expectedRouteOccupancies: captureRouteOccupancies(board, relevantRoutesForRegion(destinationRegionId)),
+    expectedRelevantBeasts: captureRelevantBeasts(board, regionIds),
+  };
+}
+
+export function expectedForMoveShip(
+  board: MarinerOperabilityBoardSnapshot,
+  sourceRouteId: string,
+  destinationRouteId: string,
+) {
+  const regionIds = uniqueRegionIds(
+    [...regionsBoundingRoute(sourceRouteId), ...regionsBoundingRoute(destinationRouteId)]
+      .flatMap((regionId) => relevantSeaRegionsFor(regionId)),
+  );
+  return {
+    expectedSourceOccupancy: board.routes.find((route) => route.routeId === sourceRouteId)?.occupancy
+      ?? { kind: "empty" as const },
+    expectedDestinationOccupancy: board.routes.find((route) => route.routeId === destinationRouteId)?.occupancy
+      ?? { kind: "empty" as const },
+    expectedStormCounts: captureStormCounts(board, regionIds),
+    expectedRelevantBeasts: captureRelevantBeasts(board, regionIds),
+  };
+}
+
+export function expectedForNestBeast(
+  board: MarinerOperabilityBoardSnapshot,
+  denizenId: string,
+  boardIsleId: MarinerBoardIsleId,
+) {
+  const beast = board.beasts.find((candidate) => candidate.denizenId === denizenId);
+  const isle = board.boardIsles.find((candidate) => candidate.boardIsleId === boardIsleId);
+  const nesting = nestingBeastsOnIsle(board.beasts, boardIsleId)[0];
+  return {
+    expectedBeastCondition: beast?.condition ?? "distrusting",
+    expectedBeastLocation: beast?.location ?? { kind: "sea_region" as const, regionId: "sunken_fleet" as MarinerSeaRegionId },
+    expectedMarket: isle?.market ?? { present: false as const },
+    expectedRavageStormCount: isle?.ravageStormCount ?? 0,
+    expectedNestingBeastDenizenId: nesting?.denizenId ?? null,
+  };
+}
+
+export function expectedForRavageResult(
+  board: MarinerOperabilityBoardSnapshot,
+  boardIsleId: MarinerBoardIsleId,
+  denizens: readonly { readonly denizenId: string; readonly powerfulProfile?: PowerfulDenizenProfile | null }[],
+) {
+  const isle = board.boardIsles.find((candidate) => candidate.boardIsleId === boardIsleId);
+  const nesting = nestingBeastsOnIsle(board.beasts, boardIsleId)[0] ?? null;
+  const profile = nesting === null
+    ? null
+    : denizens.find((denizen) => denizen.denizenId === nesting.denizenId)?.powerfulProfile ?? null;
+  return {
+    expectedMarket: isle?.market ?? { present: false as const },
+    expectedRavageStormCount: isle?.ravageStormCount ?? 0,
+    expectedNestingBeast: nesting === null
+      ? null
+      : {
+          denizenId: nesting.denizenId,
+          condition: nesting.condition,
+          location: nesting.location,
+        },
+    expectedPowerfulStatus: profile?.status ?? null,
+    expectedPowerfulGoal: profile?.goal ?? null,
+    expectedHasRampagingMethod: profile !== null && profileHasStandardRampagingMethod(profile),
+  };
+}
+
+export function buildCreateMarinerBeastPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly denizenId: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly status: PowerfulDenizenStatus;
+  readonly element: ElementId;
+  readonly definitionId: MarinerBuiltinBeastId | null;
+  readonly regionId: MarinerSeaRegionId;
+  readonly expectedStormCounts: ReturnType<typeof captureStormCounts>;
+  readonly expectedRouteOccupancies: ReturnType<typeof captureRouteOccupancies>;
+  readonly expectedRelevantBeasts: ReturnType<typeof captureRelevantBeasts>;
+  readonly rampageDestinationSeatId: PactSeatId | null;
+  readonly rampagingMethodEntryId: string | null;
+}) {
+  return { ...args };
+}
+
+export function buildMoveMarinerStormPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly sourceRegionId: MarinerSeaRegionId;
+  readonly destinationRegionId: MarinerSeaRegionId;
+  readonly confirmedNotAgainstPrevailingWind: boolean;
+  readonly expectedStormCounts: ReturnType<typeof captureStormCounts>;
+  readonly expectedRouteOccupancies: ReturnType<typeof captureRouteOccupancies>;
+  readonly expectedRelevantBeasts: ReturnType<typeof captureRelevantBeasts>;
+}) {
+  return { ...args };
+}
+
+export function buildMoveMarinerShipPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly sourceIsleId: MarinerBoardIsleId;
+  readonly sourceRouteId: string;
+  readonly destinationRouteId: string;
+  readonly destinationToward: MarinerRouteEndpoint | null;
+  readonly expectedSourceOccupancy: MarinerRouteOccupancy;
+  readonly expectedDestinationOccupancy: MarinerRouteOccupancy;
+  readonly expectedStormCounts: ReturnType<typeof captureStormCounts>;
+  readonly expectedRelevantBeasts: ReturnType<typeof captureRelevantBeasts>;
+}) {
+  return { ...args };
+}
+
+export function buildNestMarinerBeastPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly denizenId: string;
+  readonly boardIsleId: MarinerBoardIsleId;
+  readonly expectedBeastCondition: MarinerBeastCondition;
+  readonly expectedBeastLocation: MarinerBeastLocation;
+  readonly expectedMarket: MarinerIsleMarket;
+  readonly expectedRavageStormCount: number;
+  readonly expectedNestingBeastDenizenId: string | null;
+}) {
+  return { ...args };
+}
+
+export function buildRecordMarinerRavageResultPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly boardIsleId: MarinerBoardIsleId;
+  readonly expectedMarket: MarinerIsleMarket;
+  readonly expectedRavageStormCount: number;
+  readonly expectedNestingBeast: {
+    readonly denizenId: string;
+    readonly condition: MarinerBeastCondition;
+    readonly location: MarinerBeastLocation;
+  } | null;
+  readonly expectedPowerfulStatus: PowerfulDenizenStatus | null;
+  readonly expectedPowerfulGoal: string | null;
+  readonly expectedHasRampagingMethod: boolean;
+  readonly rampageDestinationSeatId: PactSeatId | null;
+  readonly rampagingMethodEntryId: string | null;
+}) {
+  return { ...args };
+}

@@ -237,6 +237,20 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Updated Mariner Beast";
     case "mariner_beast_removed":
       return "Removed Mariner Beast";
+    case "mariner_beast_created":
+      return `Created Mariner Beast "${event.data.denizenName}"`;
+    case "mariner_storm_moved":
+      return "Recorded guided Storm move";
+    case "mariner_ship_moved":
+      return event.data.immediatelyDestroyed
+        ? "Recorded Ship move that was immediately destroyed"
+        : "Recorded Ship move";
+    case "mariner_beast_nested":
+      return "Helped a Beast nest";
+    case "mariner_ravage_result_recorded":
+      return event.data.outcome === "market_absorbed"
+        ? "Recorded Ravage result absorbed by a Market"
+        : "Recorded Ravage board result";
     case "necromancer_initialized":
       return "Initialized Necromancer";
     case "necromancer_depth_changed":
@@ -536,6 +550,11 @@ export function mapEventToActivityEntry(
     case "mariner_beast_added":
     case "mariner_beast_updated":
     case "mariner_beast_removed":
+    case "mariner_beast_created":
+    case "mariner_storm_moved":
+    case "mariner_ship_moved":
+    case "mariner_beast_nested":
+    case "mariner_ravage_result_recorded":
     case "necromancer_initialized":
     case "necromancer_depth_changed":
     case "necromancer_laws_changed":

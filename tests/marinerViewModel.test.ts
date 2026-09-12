@@ -28,6 +28,8 @@ import {
   buildSetMarinerRouteOccupancyPayload,
   buildSetMarinerSeaStormCountPayload,
   buildUpdateMarinerBeastFields,
+  expectedForCreateBeast,
+  marinerIsleLoreSelection,
   isMarinerInitialized,
   isTyphoon,
   mapEndpointPoint,
@@ -383,5 +385,55 @@ describe("Mariner piece and Sorcerer presentation helpers", () => {
     expect(marinerDomainDisruptiveArcanists(presence).map((entry) => entry.name)).toEqual(["Salt Vex"]);
     expect(researcherOperationalLabel(true)).toBe("Working this month");
     expect(researcherOperationalLabel(false)).toBe("Unavailable this month");
+  });
+});
+
+describe("Mariner Isle Lore context selection", () => {
+  it("uses owner context for present or silent owners, delegated context when absent, and never falls back from null", () => {
+    expect(marinerIsleLoreSelection("scuttleport", { faustian: "present" })).toEqual({
+      kind: "selected",
+      role: "owner",
+      sourceCollectionId: "faustian.home.scuttleport",
+    });
+    expect(marinerIsleLoreSelection("scuttleport", { faustian: "silent" })).toEqual({
+      kind: "selected",
+      role: "owner",
+      sourceCollectionId: "faustian.home.scuttleport",
+    });
+    expect(marinerIsleLoreSelection("scuttleport", { faustian: "absent" })).toEqual({
+      kind: "selected",
+      role: "mariner_delegated",
+      sourceCollectionId: "mariner.delegated.scuttleport",
+    });
+    expect(marinerIsleLoreSelection("scuttleport", { faustian: null })).toEqual({
+      kind: "no_status_decision",
+    });
+    expect(marinerIsleLoreSelection("far_reach", { mariner: null })).toEqual({
+      kind: "owner_only",
+      sourceCollectionId: "mariner.home.far_reach",
+    });
+    expect(marinerIsleLoreSelection("thyras", { mariner: "present" })).toEqual({
+      kind: "no_automatic_context",
+    });
+  });
+
+  it("derives Create Beast expected storms from the captured board, not a later live mutation", () => {
+    const board = buildInitializedDefaultMarinerState({
+      shipPlaceId: SHIP as PlaceId,
+      worldIsleIds: worldIsleIds(),
+    });
+    const captured = expectedForCreateBeast(board, "sidereal_sea");
+    const sidereal = captured.expectedStormCounts.find((entry) => entry.regionId === "sidereal_sea");
+    expect(sidereal?.stormCount).toBe(board.seaRegions.find((region) => region.regionId === "sidereal_sea")?.stormCount);
+    const later = {
+      ...board,
+      seaRegions: board.seaRegions.map((region) =>
+        region.regionId === "sidereal_sea" ? { ...region, stormCount: 9 } : region,
+      ),
+    };
+    expect(expectedForCreateBeast(board, "sidereal_sea").expectedStormCounts).not.toEqual(
+      expectedForCreateBeast(later, "sidereal_sea").expectedStormCounts,
+    );
+    expect(sidereal?.stormCount).not.toBe(9);
   });
 });

@@ -83,6 +83,11 @@ const MARINER_COMMAND_TYPES = [
   "add_mariner_beast",
   "update_mariner_beast",
   "remove_mariner_beast",
+  "create_mariner_beast",
+  "move_mariner_storm",
+  "move_mariner_ship",
+  "nest_mariner_beast",
+  "record_mariner_ravage_result",
 ] as const;
 
 function isleId(n: number): IsleId {
