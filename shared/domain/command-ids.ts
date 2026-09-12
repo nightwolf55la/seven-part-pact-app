@@ -588,6 +588,14 @@ export function recordMarinerRavageResultFingerprint(expectedCampaignId: string,
   return `record_mariner_ravage_result:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
 }
 
+export function createMarinerShipFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `create_mariner_ship:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function moveMarinerBeastFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `move_mariner_beast:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
 export function initializeNecromancerFingerprint(expectedCampaignId: string, input: unknown): string {
   return `initialize_necromancer:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
 }

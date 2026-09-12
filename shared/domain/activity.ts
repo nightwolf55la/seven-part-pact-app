@@ -245,6 +245,14 @@ function describeConfigEvent(event: CampaignEvent): string {
       return event.data.immediatelyDestroyed
         ? "Recorded Ship move that was immediately destroyed"
         : "Recorded Ship move";
+    case "mariner_ship_created":
+      return event.data.immediatelyDestroyed
+        ? "Created a Ship that was immediately destroyed"
+        : "Created a Ship";
+    case "mariner_beast_moved":
+      return event.data.rampaged
+        ? "Moved a Distrusting Beast that then Rampaged"
+        : "Moved a Distrusting Beast";
     case "mariner_beast_nested":
       return "Helped a Beast nest";
     case "mariner_ravage_result_recorded":
@@ -553,6 +561,8 @@ export function mapEventToActivityEntry(
     case "mariner_beast_created":
     case "mariner_storm_moved":
     case "mariner_ship_moved":
+    case "mariner_ship_created":
+    case "mariner_beast_moved":
     case "mariner_beast_nested":
     case "mariner_ravage_result_recorded":
     case "necromancer_initialized":

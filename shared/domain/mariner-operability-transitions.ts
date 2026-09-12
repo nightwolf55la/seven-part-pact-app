@@ -49,6 +49,13 @@ import {
   immediateHazardRouteIdsCausedBy,
   isRouteUnderImmediateHazard,
 } from "./mariner-shipping-hazards";
+import type { ExpectedBeastState, MarinerRampageResolution } from "./mariner-rampage";
+import {
+  applyMarinerRampageResolutions,
+  newlyTrappedDistrustingBeastIds,
+  requireExactMarinerRampageResolutions,
+  seaRegionIdsBoundedByRoute,
+} from "./mariner-rampage";
 
 const ELEMENT_ID_SET = new Set<string>(ELEMENT_IDS);
 const BEAST_DEFINITION_BY_ID = new Map(MARINER_BUILTIN_BEAST_DEFINITIONS.map((d) => [d.id, d]));
@@ -73,6 +80,8 @@ export interface ExpectedBeastLocation {
   readonly denizenId: DenizenId;
   readonly location: MarinerBeastLocation;
 }
+
+export type { ExpectedBeastState, MarinerRampageResolution };
 
 export interface CreateMarinerBeastInput {
   readonly denizenId: DenizenId;
@@ -106,7 +115,30 @@ export interface MoveMarinerShipInput {
   readonly expectedSourceOccupancy: MarinerRouteOccupancy;
   readonly expectedDestinationOccupancy: MarinerRouteOccupancy;
   readonly expectedStormCounts: readonly ExpectedStormCount[];
-  readonly expectedRelevantBeasts: readonly ExpectedBeastLocation[];
+  readonly expectedRouteOccupancies: readonly ExpectedRouteOccupancy[];
+  readonly expectedRelevantBeasts: readonly ExpectedBeastState[];
+  readonly rampageResolutions: readonly MarinerRampageResolution[];
+}
+
+export interface CreateMarinerShipInput {
+  readonly sourceIsleId: MarinerBoardIsleId;
+  readonly targetRouteId: MarinerRouteId | string;
+  readonly expectedTargetOccupancy: MarinerRouteOccupancy;
+  readonly expectedStormCounts: readonly ExpectedStormCount[];
+  readonly expectedRouteOccupancies: readonly ExpectedRouteOccupancy[];
+  readonly expectedRelevantBeasts: readonly ExpectedBeastState[];
+  readonly rampageResolutions: readonly MarinerRampageResolution[];
+}
+
+export interface MoveMarinerBeastInput {
+  readonly denizenId: DenizenId;
+  readonly sourceRegionId: MarinerSeaRegionId;
+  readonly destinationRegionId: MarinerSeaRegionId;
+  readonly expectedBeast: ExpectedBeastState;
+  readonly expectedStormCounts: readonly ExpectedStormCount[];
+  readonly expectedRouteOccupancies: readonly ExpectedRouteOccupancy[];
+  readonly expectedRelevantBeasts: readonly ExpectedBeastState[];
+  readonly rampageResolution: MarinerRampageResolution | null;
 }
 
 export interface NestMarinerBeastInput {
@@ -344,6 +376,36 @@ function checkExpectedRoutes(
   }
 }
 
+function checkExpectedBeastStates(
+  state: CampaignStateV5,
+  expected: readonly ExpectedBeastState[],
+  requiredRegionIds: readonly MarinerSeaRegionId[],
+): void {
+  const relevant = new Set(requiredRegionIds);
+  const current = state.mariner.beasts.filter(
+    (beast) => beast.location.kind === "sea_region" && relevant.has(beast.location.regionId),
+  );
+  if (current.length !== expected.length) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      "relevant Beast locations do not match the expected current identities",
+    );
+  }
+  for (const entry of expected) {
+    const found = current.find((beast) => beast.denizenId === entry.denizenId);
+    if (
+      found === undefined
+      || !beastLocationEqual(found.location, entry.location)
+      || found.condition !== entry.condition
+    ) {
+      throw new DomainError(
+        "STALE_COMMAND_PRECONDITION",
+        `Beast ${entry.denizenId} does not match the expected current condition and location`,
+      );
+    }
+  }
+}
+
 function checkExpectedBeasts(
   state: CampaignStateV5,
   expected: readonly ExpectedBeastLocation[],
@@ -467,7 +529,62 @@ export function canonicalizeMoveMarinerShipInput(input: MoveMarinerShipInput): M
     expectedSourceOccupancy: input.expectedSourceOccupancy,
     expectedDestinationOccupancy: input.expectedDestinationOccupancy,
     expectedStormCounts: input.expectedStormCounts.map((entry) => ({ ...entry })),
+    expectedRouteOccupancies: input.expectedRouteOccupancies.map((entry) => ({ ...entry })),
     expectedRelevantBeasts: input.expectedRelevantBeasts.map((entry) => ({ ...entry })),
+    rampageResolutions: input.rampageResolutions.map((entry) => ({ ...entry })),
+  };
+}
+
+export function canonicalizeCreateMarinerShipInput(input: CreateMarinerShipInput): CreateMarinerShipInput {
+  if (!isValidMarinerBoardIsleId(input.sourceIsleId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown board Isle: ${input.sourceIsleId}`);
+  }
+  if (!isValidMarinerRouteId(input.targetRouteId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown target Route: ${input.targetRouteId}`);
+  }
+  return {
+    sourceIsleId: input.sourceIsleId,
+    targetRouteId: input.targetRouteId,
+    expectedTargetOccupancy: input.expectedTargetOccupancy,
+    expectedStormCounts: input.expectedStormCounts.map((entry) => ({ ...entry })),
+    expectedRouteOccupancies: input.expectedRouteOccupancies.map((entry) => ({ ...entry })),
+    expectedRelevantBeasts: input.expectedRelevantBeasts.map((entry) => ({ ...entry })),
+    rampageResolutions: input.rampageResolutions.map((entry) => ({ ...entry })),
+  };
+}
+
+export function canonicalizeMoveMarinerBeastInput(input: MoveMarinerBeastInput): MoveMarinerBeastInput {
+  if (!isValidDenizenId(input.denizenId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${input.denizenId}`);
+  }
+  if (!isValidMarinerSeaRegionId(input.sourceRegionId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown source sea region: ${input.sourceRegionId}`);
+  }
+  if (!isValidMarinerSeaRegionId(input.destinationRegionId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown destination sea region: ${input.destinationRegionId}`);
+  }
+  if (input.rampageResolution !== null && !isValidDenizenId(input.rampageResolution.denizenId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid Rampage resolution denizenId: ${input.rampageResolution.denizenId}`);
+  }
+  if (
+    input.rampageResolution !== null
+    && input.rampageResolution.destinationSeatId !== undefined
+    && !isValidPactSeatId(input.rampageResolution.destinationSeatId)
+  ) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Invalid Rampage destination: ${String(input.rampageResolution.destinationSeatId)}`,
+    );
+  }
+  return {
+    denizenId: input.denizenId,
+    sourceRegionId: input.sourceRegionId,
+    destinationRegionId: input.destinationRegionId,
+    expectedBeast: { ...input.expectedBeast },
+    expectedStormCounts: input.expectedStormCounts.map((entry) => ({ ...entry })),
+    expectedRouteOccupancies: input.expectedRouteOccupancies.map((entry) => ({ ...entry })),
+    expectedRelevantBeasts: input.expectedRelevantBeasts.map((entry) => ({ ...entry })),
+    rampageResolution: input.rampageResolution === null ? null : { ...input.rampageResolution },
   };
 }
 
@@ -523,6 +640,15 @@ export function applyCreateMarinerBeast(
   checkExpectedStorms(state, input.expectedStormCounts, requiredRegions);
   checkExpectedRoutes(state, input.expectedRouteOccupancies, requiredRoutes);
   checkExpectedBeasts(state, input.expectedRelevantBeasts, requiredRegions);
+  const occupyingBeast = current.beasts.find(
+    (beast) => beast.location.kind === "sea_region" && beast.location.regionId === input.regionId,
+  );
+  if (occupyingBeast !== undefined) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Target Sea or Horizon already has a Beast located there: ${occupyingBeast.denizenId}`,
+    );
+  }
 
   const created = applyCreateDenizenV5Candidate(state, {
     denizenId: input.denizenId,
@@ -689,8 +815,15 @@ export function applyMoveMarinerShip(
     )
     .map((definition) => definition.regionId);
   const requiredRegions = [...new Set(destRegions.flatMap((regionId) => relevantSeaRegions(regionId)))];
+  const destCandidateRegions = seaRegionIdsBoundedByRoute(input.destinationRouteId);
+  const requiredRoutes = [...new Set([
+    input.sourceRouteId,
+    input.destinationRouteId,
+    ...destCandidateRegions.flatMap((regionId) => seaRegionDefinition(regionId)?.boundingRouteIds ?? []),
+  ])];
   checkExpectedStorms(state, input.expectedStormCounts, requiredRegions);
-  checkExpectedBeasts(state, input.expectedRelevantBeasts, requiredRegions);
+  checkExpectedRoutes(state, input.expectedRouteOccupancies, requiredRoutes);
+  checkExpectedBeastStates(state, input.expectedRelevantBeasts, requiredRegions);
 
   let transferred: MarinerRouteOccupancy;
   if (sourceRoute.occupancy.kind === "ship") {
@@ -725,7 +858,16 @@ export function applyMoveMarinerShip(
     ));
     immediatelyDestroyed = true;
   }
-  return commit({ ...state, mariner: { ...current, routes } }, [{
+  const postAction: MarinerState = { ...current, routes };
+  const { working, rampagedBeasts } = resolveShipCausedRampages(
+    state,
+    current,
+    postAction,
+    immediatelyDestroyed,
+    destCandidateRegions,
+    input.rampageResolutions,
+  );
+  return commit(working, [{
     type: "mariner_ship_moved",
     version: 1,
     data: {
@@ -735,6 +877,187 @@ export function applyMoveMarinerShip(
       occupancyKind: transferred.kind,
       toward: transferred.kind === "raider" ? transferred.toward : null,
       immediatelyDestroyed,
+      rampagedBeasts,
+    },
+  }]);
+}
+
+function resolveShipCausedRampages(
+  state: CampaignStateV5,
+  preAction: MarinerState,
+  postAction: MarinerState,
+  immediatelyDestroyed: boolean,
+  destCandidateRegions: readonly MarinerSeaRegionId[],
+  resolutions: readonly MarinerRampageResolution[],
+): { working: CampaignStateV5; rampagedBeasts: readonly { denizenId: DenizenId; destinationSeatId: PactSeatId }[] } {
+  const newlyTrapped = immediatelyDestroyed
+    ? []
+    : newlyTrappedDistrustingBeastIds(preAction, postAction, destCandidateRegions);
+  const accepted = requireExactMarinerRampageResolutions(newlyTrapped, resolutions);
+  return {
+    working: applyMarinerRampageResolutions({ ...state, mariner: postAction }, accepted),
+    rampagedBeasts: accepted.map((resolution) => ({
+      denizenId: resolution.denizenId,
+      destinationSeatId: resolution.destinationSeatId,
+    })),
+  };
+}
+
+export function applyCreateMarinerShip(
+  state: CampaignStateV5,
+  rawInput: CreateMarinerShipInput,
+): MarinerOperabilityTransitionResult {
+  const input = canonicalizeCreateMarinerShipInput(rawInput);
+  const current = requireInitialized(state);
+  const targetDef = marinerRouteDefinition(input.targetRouteId);
+  if (targetDef === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Unknown Route");
+  }
+  const sourceIsleEndpoint: MarinerRouteEndpoint = { kind: "board_isle", boardIsleId: input.sourceIsleId };
+  if (!marinerRouteHasEndpoint(targetDef, sourceIsleEndpoint)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Target Route must have the selected Isle as an endpoint");
+  }
+  const targetRoute = current.routes.find((route) => route.routeId === input.targetRouteId);
+  if (targetRoute === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Unknown Route");
+  }
+  if (!occupancyEqual(targetRoute.occupancy, input.expectedTargetOccupancy)) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      `occupancy for ${input.targetRouteId} does not match the expected current value`,
+    );
+  }
+  if (targetRoute.occupancy.kind !== "empty") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Target Route must be empty");
+  }
+
+  const destCandidateRegions = seaRegionIdsBoundedByRoute(input.targetRouteId);
+  const destRegions = destCandidateRegions;
+  const requiredRegions = [...new Set(destRegions.flatMap((regionId) => relevantSeaRegions(regionId)))];
+  const requiredRoutes = [...new Set([
+    input.targetRouteId,
+    ...destCandidateRegions.flatMap((regionId) => seaRegionDefinition(regionId)?.boundingRouteIds ?? []),
+  ])];
+  checkExpectedStorms(state, input.expectedStormCounts, requiredRegions);
+  checkExpectedRoutes(state, input.expectedRouteOccupancies, requiredRoutes);
+  checkExpectedBeastStates(state, input.expectedRelevantBeasts, requiredRegions);
+
+  let routes = current.routes.map((route) => (
+    route.routeId === input.targetRouteId ? { ...route, occupancy: { kind: "ship" as const } } : route
+  ));
+  const placedBoard: MarinerState = { ...current, routes };
+  let immediatelyDestroyed = false;
+  if (isRouteUnderImmediateHazard(input.targetRouteId as MarinerRouteId, placedBoard)) {
+    routes = routes.map((route) => (
+      route.routeId === input.targetRouteId ? { ...route, occupancy: { kind: "empty" as const } } : route
+    ));
+    immediatelyDestroyed = true;
+  }
+  const postAction: MarinerState = { ...current, routes };
+  const { working, rampagedBeasts } = resolveShipCausedRampages(
+    state,
+    current,
+    postAction,
+    immediatelyDestroyed,
+    destCandidateRegions,
+    input.rampageResolutions,
+  );
+  return commit(working, [{
+    type: "mariner_ship_created",
+    version: 1,
+    data: {
+      sourceIsleId: input.sourceIsleId,
+      targetRouteId: input.targetRouteId as MarinerRouteId,
+      immediatelyDestroyed,
+      rampagedBeasts,
+    },
+  }]);
+}
+
+export function applyMoveMarinerBeast(
+  state: CampaignStateV5,
+  rawInput: MoveMarinerBeastInput,
+): MarinerOperabilityTransitionResult {
+  const input = canonicalizeMoveMarinerBeastInput(rawInput);
+  const current = requireInitialized(state);
+  const beast = current.beasts.find((candidate) => candidate.denizenId === input.denizenId);
+  if (beast === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Mariner Beast not found: ${input.denizenId}`);
+  }
+  if (
+    beast.condition !== input.expectedBeast.condition
+    || !beastLocationEqual(beast.location, input.expectedBeast.location)
+    || beast.denizenId !== input.expectedBeast.denizenId
+  ) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      `Beast ${input.denizenId} does not match the expected current condition and location`,
+    );
+  }
+  const requiredRegions = [...new Set([
+    input.sourceRegionId,
+    ...relevantSeaRegions(input.destinationRegionId),
+  ])];
+  const requiredRoutes = relevantBoundingAndSharedRoutes(input.destinationRegionId);
+  checkExpectedStorms(state, input.expectedStormCounts, requiredRegions);
+  checkExpectedRoutes(state, input.expectedRouteOccupancies, requiredRoutes);
+  checkExpectedBeastStates(state, input.expectedRelevantBeasts, requiredRegions);
+  if (beast.condition !== "distrusting") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Move Distrusting Beast requires a Distrusting Beast");
+  }
+  if (beast.location.kind !== "sea_region" || beast.location.regionId !== input.sourceRegionId) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Beast is not currently in the supplied source Sea or Horizon");
+  }
+  if (input.sourceRegionId === input.destinationRegionId) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Beast source and destination must differ");
+  }
+  const sourceDef = seaRegionDefinition(input.sourceRegionId);
+  if (sourceDef === undefined || !sourceDef.adjacentRegionIds.includes(input.destinationRegionId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Destination is not an adjacent sea or Horizon region");
+  }
+
+  const moved: MarinerBeastState = {
+    ...beast,
+    condition: "distrusting",
+    location: { kind: "sea_region", regionId: input.destinationRegionId },
+  };
+  let mariner: MarinerState = replaceBeast(current, moved);
+  const hazards = applyImmediateShippingHazards(
+    mariner.routes,
+    immediateHazardRouteIdsCausedBy(mariner, { focusRegionIds: [input.destinationRegionId] }),
+  );
+  mariner = { ...mariner, routes: [...hazards.routes] };
+  let working: CampaignStateV5 = { ...state, mariner };
+  let rampaged = false;
+  let rampageDestinationSeatId: PactSeatId | null = null;
+  if (beastIsEntirelySurrounded(input.destinationRegionId, mariner.routes)) {
+    if (input.rampageResolution === null || input.rampageResolution.denizenId !== input.denizenId) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        "Surrounded Beast move requires an exact Rampage resolution for the moved Beast",
+      );
+    }
+    const accepted = requireExactMarinerRampageResolutions([input.denizenId], [input.rampageResolution]);
+    working = applyMarinerRampageResolutions(working, accepted);
+    rampaged = true;
+    rampageDestinationSeatId = accepted[0]!.destinationSeatId;
+  } else if (input.rampageResolution !== null) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      "Beast is not surrounded after immediate hazards; Rampage resolution must be absent",
+    );
+  }
+
+  return commit(working, [{
+    type: "mariner_beast_moved",
+    version: 1,
+    data: {
+      denizenId: input.denizenId,
+      sourceRegionId: input.sourceRegionId,
+      destinationRegionId: input.destinationRegionId,
+      destroyedRouteIds: [...hazards.destroyedRouteIds],
+      rampaged,
+      rampageDestinationSeatId,
     },
   }]);
 }

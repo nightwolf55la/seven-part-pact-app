@@ -855,6 +855,20 @@ export function captureRelevantBeasts(
     .map((beast) => ({ denizenId: beast.denizenId, location: beast.location }));
 }
 
+export function captureRelevantBeastStates(
+  mariner: Pick<MarinerState, "beasts">,
+  regionIds: readonly MarinerSeaRegionId[],
+) {
+  const relevant = new Set(regionIds);
+  return mariner.beasts
+    .filter((beast) => beast.location.kind === "sea_region" && relevant.has(beast.location.regionId))
+    .map((beast) => ({
+      denizenId: beast.denizenId,
+      location: beast.location,
+      condition: beast.condition,
+    }));
+}
+
 export function createBeastWouldRampage(
   mariner: Pick<MarinerState, "seaRegions" | "beasts" | "routes">,
   regionId: MarinerSeaRegionId,
@@ -939,13 +953,25 @@ export function expectedForMoveShip(
     [...regionsBoundingRoute(sourceRouteId), ...regionsBoundingRoute(destinationRouteId)]
       .flatMap((regionId) => relevantSeaRegionsFor(regionId)),
   );
+  const destBoundingRoutes = uniqueRegionIds(regionsBoundingRoute(destinationRouteId))
+    .flatMap((regionId) => relevantRoutesForRegion(regionId));
   return {
     expectedSourceOccupancy: board.routes.find((route) => route.routeId === sourceRouteId)?.occupancy
       ?? { kind: "empty" as const },
     expectedDestinationOccupancy: board.routes.find((route) => route.routeId === destinationRouteId)?.occupancy
       ?? { kind: "empty" as const },
     expectedStormCounts: captureStormCounts(board, regionIds),
-    expectedRelevantBeasts: captureRelevantBeasts(board, regionIds),
+    expectedRouteOccupancies: captureRouteOccupancies(
+      board,
+      [...new Set([sourceRouteId, destinationRouteId, ...destBoundingRoutes])],
+    ),
+    expectedRelevantBeasts: captureRelevantBeastStates(board, regionIds),
+    // B2A compile-only: B2B owns real Rampage resolution choices.
+    rampageResolutions: [] as {
+      denizenId: string;
+      destinationSeatId: string;
+      rampagingMethodEntryId: string | null;
+    }[],
   };
 }
 
@@ -1034,7 +1060,13 @@ export function buildMoveMarinerShipPayload(args: {
   readonly expectedSourceOccupancy: MarinerRouteOccupancy;
   readonly expectedDestinationOccupancy: MarinerRouteOccupancy;
   readonly expectedStormCounts: ReturnType<typeof captureStormCounts>;
-  readonly expectedRelevantBeasts: ReturnType<typeof captureRelevantBeasts>;
+  readonly expectedRouteOccupancies: ReturnType<typeof captureRouteOccupancies>;
+  readonly expectedRelevantBeasts: ReturnType<typeof captureRelevantBeastStates>;
+  readonly rampageResolutions: {
+    denizenId: string;
+    destinationSeatId: string;
+    rampagingMethodEntryId: string | null;
+  }[];
 }) {
   return { ...args };
 }
