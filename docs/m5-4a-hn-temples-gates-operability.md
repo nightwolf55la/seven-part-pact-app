@@ -1,6 +1,6 @@
 # M5.4A-HN — Temples & Gates Operability
 
-**Status:** deterministic candidate plus morning UI correction; real integration and visual closure pending. Not Workstream complete; not M5.4 complete.
+**Status:** COMPLETE. Workstream closed after real disposable Development browser/Convex proof. Not all of M5.4 complete.
 **Schema:** CampaignState V5 remains PRE-ACTIVATION. No CampaignState fields, no V6, no migration.
 **Branch:** `m5-4a/temples-gates-operability`
 **BASE_SHA:** `c4e8b9ae78537161878e4e3b16f2261c97dffc2b` (`origin/main`, matches inspected expectation)
@@ -20,7 +20,7 @@ Explicitly deferred regardless of spare time: Hestar Provide; automatic five-Sou
 | A Shared extraction | SKIPPED — Lore panel and Sorcerer projection already exist; no identical helper proven yet |
 | B Hierophant | candidate committed `a5867e990452d1ca350ee890795b3a4a9245b6a3` — Temple board + atomic Receive Supplicant; Sermon/Steer/Holiday/Hestar deferred |
 | C Necromancer | candidate committed `dbc14220f9d9d5c17644669710855227b3caffe8` — Gates board + atomic Transform Soul into Ally; Rebuff deferred |
-| D Diff review + `npm run check` | deterministic candidate — 129 files / 2445 tests green; `tsc -b` + `vite build` green; visual/Convex pending |
+| D Diff review + `npm run check` | COMPLETE — closure gate 129 files / 2455 tests green; `tsc -b` + `vite build` green; real visual/Convex proof recorded below |
 | E Optional Mariner prep | SKIPPED — `Patreon Materials [04.26.04].pptx` is not in the repository |
 
 ## Source distinctions (conditional actions)
@@ -113,7 +113,7 @@ Deterministic gate (local binaries; `npm run check` classifier-blocked so equiva
 - `tsc -b`: exit 0
 - `vite build`: exit 0 (chunk-size warning only)
 
-Visual review: pending. No isolated in-memory H/N board preview exists in-repo (`backup-preview` / `preview-indicator` are unrelated). Browser/Convex proof was not performed.
+Visual review: completed against the disposable Development campaign below. No isolated in-memory H/N board preview exists in-repo (`backup-preview` / `preview-indicator` are unrelated).
 
 ## Morning correction checkpoint
 
@@ -129,10 +129,106 @@ Corrections:
 
 Focused GREEN: `tests/hierophantSurfacePresentation.test.tsx` and `tests/necromancerSurfacePresentation.test.tsx` — 2 files / 26 tests. `npm run build` exit 0. `git diff --check` on the correction files exit 0.
 
-Not done: browser visual inspection; disposable Convex proof; Workstream closure.
+Closed by the integration/visual proof below. Morning correction SHA remains `ce0c77771599a0c3026705d9791e92f7e2cbf4af`.
 
-## Remaining morning checks
+## Integration / visual closure
 
-- Browser visual inspection (desktop and narrow)
-- Fresh disposable Convex proof of compound writes, derived presence, Lore, refresh/realtime
-- Do not mark M5.4 complete
+**Status:** COMPLETE. CampaignState V5 remains PRE-ACTIVATION. All of M5.4 is not complete. Hestar source conflict remains unresolved. No schema, migration, persistence, recovery, audit, or Undo change. No new H/N copies of Sorcerer placement.
+
+### Disposable Development deployment
+
+- Purpose/name: `dev/m5-4a-hn-closure`
+- Cloud slug: `dazzling-squid-340`
+- Type: DEVELOPMENT / `dev` (`CONVEX_DEPLOYMENT=dev:dazzling-squid-340`)
+- URL: `https://dazzling-squid-340.convex.cloud`
+- Not Production, Preview, or an existing campaign environment
+- Functions synced with `npx convex dev --once` only. Never `npx convex deploy`.
+- Empty proof before seed: `verifyMigration` → `{ status: "no_canonical_campaign" }`
+
+### Closure campaign
+
+- Campaign ID: `cmp_8eb0c018-4ed1-403c-a3a4-a5b36de1f443`
+- Starting revision before the two new H/N compound writes: **66**
+- Final revision after Receive, Soul-count correction, accepted Transform, and one Temple Lore add: **70**
+- Seeded only through existing public canonical commands (no raw inserts, temporary seed mutations, schema changes, or persisted H/N Researcher copies)
+
+### Browser visual — Hierophant
+
+Real Vite app at `http://localhost:5175/` against `dazzling-squid-340`, desktop (~1440) and narrow (~390). Board is the primary initialized surface, not CRUD tabs. Four ordinary Temples read as a coherent board around a visually distinct central Hestar card (`Hosted at Hestar`, `No Doctrine — supports all Classes`; no Courtyard/Agiary/Doctrine semantics). Courtyard, Agiary, and unresolved placement remain labeled. Abundance / Conviction / Doctrine / Holiday are legible. Supplicants and Prophets read as named pieces (Ann, Brother Caldus, Prophet Ione) with Class, Woe, and support state. Lina the Seer appears only on Krolis and says `Working this month`. Advanced / Correct Board is subordinate but reachable. Selected Krolis opens `LoreContextPanel` for Temple Krolis. Narrow stack remains usable; long labels wrap rather than overlap. Screenshot OCR can double letters because of `webkitTextStroke` + DPR; the live DOM and a11y tree are correct.
+
+### Browser visual — Necromancer
+
+Existing branching Gates topology is immediately readable: Edge of Life / Far Lands / Abyss depth bands, Near/Far/Furthest Gates, Void Beyond and Final Death terminals. Gates read as framed Roman/name Gates, not generic cards. Souls are beads plus exact counts. Foes, Allies, and (when present) Ghoul-Callers are named distinct pieces. Ivory is Hostile and Terminus is Destroyed by hatch/pattern plus explicit status text. Bronze 6 Souls shows a conspicuous `5+ Souls pending` warning. Crowded Amber occupants remain inspectable. Ashen Watcher sits adjacent to Final Death with explicit `Unavailable this month`, not inside Terminus. Selected Amber opens existing Gate `LoreContextPanel` (`Codex 1. Necromancer [Draft 4] · I. The Amber Gate`). Advanced / Correct Board is a collapsed `<details>` and remains reachable. Narrow layout keeps the SVG board in an overflow-x scroller (`min-w-[640px]`) and stays usable. Quiet arrangement has no Ghoul-Caller; that absence is recorded, not invented.
+
+### Real Receive Supplicant
+
+Ordinary Temple-board flow: select Krolis → Receive Supplicant → Brother Caldus, Artisan, Woe 1, Courtyard → submit.
+
+One accepted operation at revision **67** (`Received Supplicant "Brother Caldus"`):
+
+- exactly one backing individual Denizen `den_56804fbb-d1c5-407f-96b3-37ea5187e6c1`
+- exactly one Hierophant Supplicant using that same identity
+- attached to Temple Krolis courtyard
+- Class artisan / Woe 1 preserved
+- no partial or duplicate person (Ann remains the other Krolis courtyard Supplicant)
+- ordinary canonical persistence / audit
+
+Page refresh kept Brother Caldus visible on Krolis Courtyard.
+
+### Real stale Soul-to-Ally + retry-as-new-intent
+
+Two browser tabs on the same campaign. Amber started with exactly 2 Souls.
+
+- Tab A: select Amber, explicitly start Transform Soul into Ally, enter `Bound Kael`, leave the draft open.
+- Tab B: recording/correction Soul count 2 → 3. Did not start Transform. Revision **68**.
+- Tab A updated through realtime to Souls = 3 (`Rev 68`) without losing the `Bound Kael` draft.
+- Tab A submitted the still-open captured intent (`expectedSoulCount: 2`). Server rejected: `DomainError: Soul count: expected "2" but current is "3"`. No Ally created, no Soul consumed, draft name remained, command/identity intent recoverable, no silent rebase to 3. Authoritative state stayed revision 68 with Amber Souls = 3 and only Ally Loyal Mira.
+- Explicit cancel of that stale intent, then a **new** Transform against the current 3-Soul state, submitted successfully at revision **69** (`Transformed Soul into Ally "Bound Kael"`).
+
+Accepted operation:
+
+- Souls 3 → 2 at Amber
+- exactly one new backing individual Denizen `den_4c604d9f-31b5-41c0-9642-6a50066d3299`
+- exactly one new Ally at that same Amber Gate
+- no partial or duplicate objects
+
+Refresh kept Ally Bound Kael and Souls = 2 on Amber.
+
+This sequence proves Convex serialization, realtime delivery, stable draft intent, stale rejection, successful compound write, and refresh persistence.
+
+### Lore + Sorcerer presence boundaries
+
+- Selected Temple Krolis opens existing `LoreContextPanel` for Temple Krolis. One representative Add Lore through that reused panel: `Closure note: Brother Caldus joined the courtyard during the HN integration proof.` Revision **70**. Refresh kept the entry.
+- Selected Amber still opens the existing Gate subject (`I. The Amber Gate`).
+- Lina the Seer appears only at authoritative Temple Krolis, `Working this month`.
+- Ashen Watcher appears adjacent to Final Death, `Unavailable this month`.
+- No H/N persisted placement copies: Hierophant keys remain temples/supplicants/prophets/cults/laws/holidays/definitions; Necromancer keys remain gates/paths/steps/souls/foes/allies/ghoulCallers/laws/depth/traversals. Researcher occupancy lives only in Sorcerer `researchers` / `externalPresence`.
+
+### Health verifier
+
+After the real writes, `verifyMigration:verifyMigration` on `dazzling-squid-340`:
+
+- `status: "valid"`
+- `campaignId: cmp_8eb0c018-4ed1-403c-a3a4-a5b36de1f443`
+- `campaignRevision: 70`
+- history/checkpoint status valid
+
+Backup/import, checkpoint restore, recovery rehearsal, and Undo/Redo were not re-run.
+
+### Final deterministic gate
+
+Fresh full gate at code HEAD `ce0c77771599a0c3026705d9791e92f7e2cbf4af` (no product-code change during this closure):
+
+- `npm run check` (`vitest run` + `tsc -b` + `vite build`)
+- First wrapper run: 129 files, 1 failed / 2454 passed (2455) — flake in unrelated `tests/worldSurfaceEditing.test.tsx` (`Save` button not found). Isolated re-run of that file: 3/3 passed. No H/N code change.
+- Second wrapper run: **129 files passed, 2455 tests passed, 0 failed/skipped**
+- `tsc -b`: exit 0
+- `vite build`: exit 0 (chunk-size warning only)
+- `git diff --check`: exit 0
+- Tracked tree clean except this documentation commit
+
+Do not reuse the overnight 2445-test count as final evidence.
+
+### Conditional automation deferrals (unchanged)
+
+Sermon, Steer, Holiday celebration, Rebuff, Hestar Provide, automatic five-Souls-to-Foe, compound Create Ghoul-Caller / broad Prophet/Cult creation, atomic Clear Hostility + Lore, and full monthly movement/Visions automation remain deferred. Completeness gates still fail. No Domain automation was expanded. Mariner and Faustian were not started.
