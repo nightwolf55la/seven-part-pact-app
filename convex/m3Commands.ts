@@ -89,6 +89,7 @@ import {
   setTempleHolidayFingerprint,
   setSelectedFlameLawsFingerprint,
   addSupplicantFingerprint,
+  createHierophantSupplicantFingerprint,
   updateSupplicantFingerprint,
   removeSupplicantFingerprint,
   addProphetFingerprint,
@@ -131,6 +132,8 @@ import {
   applySetTempleHoliday,
   applySetSelectedFlameLaws,
   applyAddSupplicant,
+  applyCreateHierophantSupplicant,
+  canonicalizeCreateHierophantSupplicantInput,
   applyUpdateSupplicant,
   applyRemoveSupplicant,
   applyAddProphet,
@@ -175,6 +178,7 @@ import {
   updateNecromancerWizardTraversalFingerprint,
   removeNecromancerWizardTraversalFingerprint,
   addNecromancerAllyFingerprint,
+  transformNecromancerSoulIntoAllyFingerprint,
   updateNecromancerAllyFingerprint,
   removeNecromancerAllyFingerprint,
   addNecromancerGhoulCallerFingerprint,
@@ -208,6 +212,8 @@ import {
   applyUpdateNecromancerWizardTraversal,
   applyRemoveNecromancerWizardTraversal,
   applyAddNecromancerAlly,
+  applyTransformNecromancerSoulIntoAlly,
+  canonicalizeTransformNecromancerSoulIntoAllyInput,
   applyUpdateNecromancerAlly,
   applyRemoveNecromancerAlly,
   applyAddNecromancerGhoulCaller,
@@ -370,6 +376,8 @@ import type {
   WarlockIdeologyId,
   AddLoreEntryInput,
   ReviseLoreEntryInput,
+  CreateHierophantSupplicantInput,
+  TransformNecromancerSoulIntoAllyInput,
 } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
 import type { WizardInitIds } from "../shared/domain/begin-play";
@@ -2072,6 +2080,42 @@ export const addSupplicant = mutation({
   },
 });
 
+export const createHierophantSupplicant = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    name: v.string(),
+    classId: v.string(),
+    woe: v.number(),
+    templeId: v.string(),
+    area: v.union(v.literal("courtyard"), v.literal("agiary"), v.null()),
+    expectedTempleStatus: v.union(v.literal("active"), v.literal("collapsed")),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeCreateHierophantSupplicantInput({
+          denizenId: args.denizenId,
+          name: args.name,
+          classId: args.classId,
+          woe: args.woe,
+          templeId: args.templeId,
+          area: args.area,
+          expectedTempleStatus: args.expectedTempleStatus,
+        } as unknown as CreateHierophantSupplicantInput);
+        return {
+          commandType: "create_hierophant_supplicant",
+          commandFingerprint: createHierophantSupplicantFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyCreateHierophantSupplicant(state, input),
+        };
+      },
+    );
+  },
+});
+
 export const updateSupplicant = mutation({
   args: {
     commandId: v.string(),
@@ -3515,6 +3559,38 @@ export const removeNecromancerWizardTraversal = mutation({
             args.wizardId as WizardId,
             args.expectedTraversal as NecromancerWizardTraversalState,
           ),
+        };
+      },
+    );
+  },
+});
+
+export const transformNecromancerSoulIntoAlly = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    name: v.string(),
+    gateId: v.string(),
+    expectedSoulCount: v.number(),
+    expectedGateStatus: v.union(v.literal("ordinary"), v.literal("hostile"), v.literal("destroyed")),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeTransformNecromancerSoulIntoAllyInput({
+          denizenId: args.denizenId,
+          name: args.name,
+          gateId: args.gateId,
+          expectedSoulCount: args.expectedSoulCount,
+          expectedGateStatus: args.expectedGateStatus,
+        } as unknown as TransformNecromancerSoulIntoAllyInput);
+        return {
+          commandType: "transform_necromancer_soul_into_ally",
+          commandFingerprint: transformNecromancerSoulIntoAllyFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyTransformNecromancerSoulIntoAlly(state, input),
         };
       },
     );

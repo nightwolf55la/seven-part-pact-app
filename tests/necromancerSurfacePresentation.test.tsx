@@ -8,11 +8,13 @@ import {
   readLoreCompendiumReference,
   type NecromancerCampaignGateId,
   type NecromancerCampaignPathSpaceId,
+  type NecromancerState,
 } from "../shared/domain";
 import { makeTestCampaignStateV5 } from "./test-state";
 import NecromancerSurface from "../src/NecromancerSurface";
 import type { WorldReference } from "../src/WorldSurface";
-import { pathSpaceDisplayName } from "../src/necromancer-view-model";
+import { MAX_VISIBLE_SOUL_BEADS, pathSpaceDisplayName } from "../src/necromancer-view-model";
+import type { SorcererExternalPresence } from "../shared/domain";
 
 const CAMPAIGN_ID = "cmp_00000000-0000-0000-0000-000000000001";
 const CAMPAIGN_GATE_ID = "ngt_00000000-0000-0000-0000-000000000010" as NecromancerCampaignGateId;
@@ -54,6 +56,7 @@ vi.mock("../convex/_generated/api.js", () => ({
       updateNecromancerWizardTraversal: "m3Commands.updateNecromancerWizardTraversal",
       removeNecromancerWizardTraversal: "m3Commands.removeNecromancerWizardTraversal",
       addNecromancerAlly: "m3Commands.addNecromancerAlly",
+      transformNecromancerSoulIntoAlly: "m3Commands.transformNecromancerSoulIntoAlly",
       updateNecromancerAlly: "m3Commands.updateNecromancerAlly",
       removeNecromancerAlly: "m3Commands.removeNecromancerAlly",
       addNecromancerGhoulCaller: "m3Commands.addNecromancerGhoulCaller",
@@ -107,21 +110,54 @@ function loreCompendiumReady() {
   return { status: "ready" as const, presentation };
 }
 
-function renderSurface(extra?: { loreCompendium?: ReturnType<typeof loreCompendiumReady> }) {
+function renderSurface(extra?: {
+  loreCompendium?: ReturnType<typeof loreCompendiumReady>;
+  necromancer?: NecromancerState;
+  world?: WorldReference;
+  sorcererPresence?: readonly SorcererExternalPresence[];
+}) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
+  const necromancer = extra?.necromancer ?? initializedWithCampaignStructure();
+  function paint(next = extra) {
+    flushSync(() => {
+      root.render(createElement(NecromancerSurface, {
+        necromancer: next?.necromancer ?? necromancer,
+        world: next?.world ?? extra?.world ?? WORLD,
+        campaignId: CAMPAIGN_ID,
+        necromancerWizard: null,
+        wizards: [],
+        loreCompendium: next?.loreCompendium ?? extra?.loreCompendium ?? loreCompendiumReady(),
+        sorcererPresence: next?.sorcererPresence ?? extra?.sorcererPresence ?? [],
+      }));
+    });
+  }
+  paint();
+  return {
+    container,
+    root,
+    rerender(next?: typeof extra) {
+      paint(next);
+    },
+  };
+}
+
+function setControlledInput(input: HTMLInputElement, value: string): void {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+  setter?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function clickBoardSpace(container: HTMLElement, ariaPrefix: string): void {
+  const space = container.querySelector(`[aria-label^="${ariaPrefix}"]`);
   flushSync(() => {
-    root.render(createElement(NecromancerSurface, {
-      necromancer: initializedWithCampaignStructure(),
-      world: WORLD,
-      campaignId: CAMPAIGN_ID,
-      necromancerWizard: null,
-      wizards: [],
-      loreCompendium: extra?.loreCompendium ?? loreCompendiumReady(),
-    }));
+    (space as Element).dispatchEvent(new MouseEvent("click", { bubbles: true }));
   });
-  return { container, root };
+}
+
+function transformOfferButton(container: HTMLElement): HTMLButtonElement | undefined {
+  return Array.from(container.querySelectorAll("button")).find((el) => el.textContent === "Transform Soul into Ally");
 }
 
 function button(container: HTMLElement, text: string): HTMLButtonElement {
@@ -197,7 +233,7 @@ describe("campaign structure inspect controls", () => {
 describe("Gate inspector contextual Lore", () => {
   it("shows source Lore for a built-in Gate in the existing inspector", () => {
     const { container, root } = renderSurface();
-    const amberGate = container.querySelector('[aria-label="Amber ordinary"]');
+    const amberGate = container.querySelector('[aria-label^="I Amber ordinary"]');
     expect(amberGate).not.toBeNull();
     flushSync(() => {
       (amberGate as Element).dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -263,6 +299,294 @@ describe("Ghoul-Caller durable profile presentation", () => {
     expect(container.querySelector(`[aria-label="Add Ghoul-Caller Aesthetic"]`)).not.toBeNull();
     expect(container.querySelector(`[aria-label="Add Ghoul-Caller Strange Quirk"]`)).not.toBeNull();
     expect(container.querySelector(`[aria-label="Add Ghoul-Caller Age"]`)).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("Gates board operability presentation", () => {
+  it("keeps original Gate topology labels, Hostile/Destroyed text, and a five-plus Soul warning", () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      gateStatuses: { ivory: "hostile", terminus: "destroyed" },
+      souls: [{ location: { kind: "gate", gateId: "amber" }, count: 6 }],
+    });
+    const { container, root } = renderSurface({ necromancer });
+    expect(container.querySelector('[aria-label="Gates of Death board"]')).not.toBeNull();
+    expect(container.textContent).toContain("I Amber");
+    expect(container.textContent).toContain("Edge of Life — Depth 1");
+    expect(container.textContent).toContain("Hostile");
+    expect(container.textContent).toContain("Destroyed");
+    expect(container.textContent).toContain("5+ Souls pending");
+    const ivory = container.querySelector('[aria-label^="IV Ivory hostile"]');
+    expect(ivory).not.toBeNull();
+    flushSync(() => {
+      (ivory as Element).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(container.querySelector(`[aria-label="Selected space"]`)?.textContent).toContain("not a Cleanse Gate");
+    expect(Array.from(container.querySelectorAll("button")).some((el) => el.textContent === "Rebuff")).toBe(false);
+    root.unmount();
+    container.remove();
+  });
+
+  it("bounds Soul bead DOM growth for a large valid counter", () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      souls: [{ location: { kind: "gate", gateId: "amber" }, count: 5000 }],
+    });
+    const { container, root } = renderSurface({ necromancer });
+    const beads = container.querySelector('[data-soul-beads="5000"]');
+    expect(beads).not.toBeNull();
+    expect(beads!.querySelectorAll("circle")).toHaveLength(MAX_VISIBLE_SOUL_BEADS);
+    expect(container.textContent).toContain("5000");
+    root.unmount();
+    container.remove();
+  });
+
+  it("offers Transform Soul into Ally only at an eligible Gate and submits one compound mutation", async () => {
+    mockMutations["m3Commands.transformNecromancerSoulIntoAlly"] = vi.fn(async () => {
+      throw new Error("stale soul count");
+    });
+    mockMutations["m3Commands.setNecromancerSoulCount"] = vi.fn(async () => {});
+    mockMutations["m3Commands.addNecromancerAlly"] = vi.fn(async () => {});
+    const necromancer = buildInitializedDefaultNecromancerState({
+      souls: [{ location: { kind: "gate", gateId: "amber" }, count: 2 }],
+    });
+    const { container, root } = renderSurface({ necromancer });
+    clickBoardSpace(container, "I Amber ordinary");
+    const inspector = container.querySelector(`[aria-label="Selected space"]`);
+    expect(inspector?.textContent).toContain("Transform Soul into Ally");
+    expect(container.querySelector('[aria-label="New Ally name"]')).toBeNull();
+    const offer = transformOfferButton(container);
+    expect(offer).toBeDefined();
+    flushSync(() => { offer!.click(); });
+    const name = container.querySelector('[aria-label="New Ally name"]') as HTMLInputElement;
+    expect(name).not.toBeNull();
+    flushSync(() => { setControlledInput(name, "Bound Mira"); });
+    const form = inspector!.querySelector("form") as HTMLFormElement;
+    flushSync(() => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.transformNecromancerSoulIntoAlly"]).toHaveBeenCalledTimes(1);
+    const firstArgs = mockMutations["m3Commands.transformNecromancerSoulIntoAlly"].mock.calls[0]?.[0];
+    expect(firstArgs.gateId).toBe("amber");
+    expect(firstArgs.expectedSoulCount).toBe(2);
+    expect(firstArgs.expectedGateStatus).toBe("ordinary");
+    expect(mockMutations["m3Commands.setNecromancerSoulCount"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.addNecromancerAlly"]).not.toHaveBeenCalled();
+    expect((container.querySelector('[aria-label="New Ally name"]') as HTMLInputElement).value).toBe("Bound Mira");
+    flushSync(() => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await Promise.resolve();
+    const secondArgs = mockMutations["m3Commands.transformNecromancerSoulIntoAlly"].mock.calls[1]?.[0];
+    expect(secondArgs.commandId).toBe(firstArgs.commandId);
+    expect(secondArgs.denizenId).toBe(firstArgs.denizenId);
+    expect(secondArgs.expectedSoulCount).toBe(2);
+    expect(secondArgs.expectedGateStatus).toBe("ordinary");
+
+    clickBoardSpace(container, "XI Terminus ordinary");
+    expect(container.querySelector(`[aria-label="Selected space"]`)?.textContent).not.toContain("Transform Soul into Ally");
+    root.unmount();
+    container.remove();
+  });
+
+  it("does not open Transform merely by selecting an eligible Gate", () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      souls: [{ location: { kind: "gate", gateId: "amber" }, count: 2 }],
+    });
+    const { container, root } = renderSurface({ necromancer });
+    clickBoardSpace(container, "I Amber ordinary");
+    expect(transformOfferButton(container)).toBeDefined();
+    expect(container.querySelector('[aria-label="New Ally name"]')).toBeNull();
+    expect(container.querySelector(`[aria-label="Selected space"] form`)).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps an entered Transform draft when inspecting another space and returning", () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      souls: [{ location: { kind: "gate", gateId: "amber" }, count: 2 }],
+    });
+    const { container, root } = renderSurface({ necromancer });
+    clickBoardSpace(container, "I Amber ordinary");
+    flushSync(() => { transformOfferButton(container)!.click(); });
+    flushSync(() => {
+      setControlledInput(container.querySelector('[aria-label="New Ally name"]') as HTMLInputElement, "Kept Mira");
+    });
+    clickBoardSpace(container, "XI Terminus ordinary");
+    expect(container.querySelector('[aria-label="New Ally name"]')).toBeNull();
+    clickBoardSpace(container, "I Amber ordinary");
+    expect((container.querySelector('[aria-label="New Ally name"]') as HTMLInputElement).value).toBe("Kept Mira");
+    root.unmount();
+    container.remove();
+  });
+
+  it("does not silently replace an existing Transform draft when starting Transform at another Gate", () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      souls: [
+        { location: { kind: "gate", gateId: "amber" }, count: 2 },
+        { location: { kind: "gate", gateId: "ivory" }, count: 1 },
+      ],
+    });
+    const { container, root } = renderSurface({ necromancer });
+    clickBoardSpace(container, "I Amber ordinary");
+    flushSync(() => { transformOfferButton(container)!.click(); });
+    flushSync(() => {
+      setControlledInput(container.querySelector('[aria-label="New Ally name"]') as HTMLInputElement, "First Mira");
+    });
+    clickBoardSpace(container, "IV Ivory ordinary");
+    expect(container.querySelector('[aria-label="New Ally name"]')).toBeNull();
+    flushSync(() => { transformOfferButton(container)!.click(); });
+    expect(container.textContent).toMatch(/unfinished/i);
+    expect(container.textContent).toContain("Amber");
+    expect(container.querySelector('[aria-label="New Ally name"]')).toBeNull();
+    clickBoardSpace(container, "I Amber ordinary");
+    expect((container.querySelector('[aria-label="New Ally name"]') as HTMLInputElement).value).toBe("First Mira");
+    root.unmount();
+    container.remove();
+  });
+
+  it("clears the Transform draft only from explicit Cancel", () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      souls: [{ location: { kind: "gate", gateId: "amber" }, count: 2 }],
+    });
+    const { container, root } = renderSurface({ necromancer });
+    clickBoardSpace(container, "I Amber ordinary");
+    flushSync(() => { transformOfferButton(container)!.click(); });
+    flushSync(() => {
+      setControlledInput(container.querySelector('[aria-label="New Ally name"]') as HTMLInputElement, "Discarded Mira");
+    });
+    const cancel = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.getAttribute("aria-label") === "Cancel Transform Soul into Ally",
+    );
+    expect(cancel).toBeDefined();
+    flushSync(() => { cancel!.click(); });
+    expect(container.querySelector('[aria-label="New Ally name"]')).toBeNull();
+    flushSync(() => { transformOfferButton(container)!.click(); });
+    expect((container.querySelector('[aria-label="New Ally name"]') as HTMLInputElement).value).toBe("");
+    root.unmount();
+    container.remove();
+  });
+
+  it("submits the captured expectedSoulCount after realtime Soul count changes", async () => {
+    mockMutations["m3Commands.transformNecromancerSoulIntoAlly"] = vi.fn(async () => {});
+    const necromancer = buildInitializedDefaultNecromancerState({
+      souls: [{ location: { kind: "gate", gateId: "amber" }, count: 2 }],
+    });
+    const { container, root, rerender } = renderSurface({ necromancer });
+    clickBoardSpace(container, "I Amber ordinary");
+    flushSync(() => { transformOfferButton(container)!.click(); });
+    flushSync(() => {
+      setControlledInput(container.querySelector('[aria-label="New Ally name"]') as HTMLInputElement, "Stable Mira");
+    });
+    rerender({
+      necromancer: buildInitializedDefaultNecromancerState({
+        souls: [{ location: { kind: "gate", gateId: "amber" }, count: 3 }],
+      }),
+    });
+    expect(container.querySelector(`[aria-label="Selected space"]`)?.textContent).toContain("Souls: 3");
+    expect((container.querySelector('[aria-label="New Ally name"]') as HTMLInputElement).value).toBe("Stable Mira");
+    flushSync(() => {
+      container.querySelector(`[aria-label="Selected space"] form`)!
+        .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    await Promise.resolve();
+    const args = mockMutations["m3Commands.transformNecromancerSoulIntoAlly"].mock.calls[0]?.[0];
+    expect(args.expectedSoulCount).toBe(2);
+    expect(args.expectedGateStatus).toBe("ordinary");
+    root.unmount();
+    container.remove();
+  });
+
+  it("places Final Death Researcher at Final Death, not Terminus, and ignores other-Domain markers", () => {
+    const { container, root } = renderSurface({
+      sorcererPresence: [
+        {
+          kind: "researcher",
+          denizenId: "den_00000000-0000-0000-0000-0000000000aa" as never,
+          name: "Ashen Watcher",
+          operationalThisMonth: true,
+          positionId: "srp_necromancer_final_death",
+          target: { kind: "necromancer_final_death" },
+        },
+        {
+          kind: "researcher",
+          denizenId: "den_00000000-0000-0000-0000-0000000000ab" as never,
+          name: "Lina the Seer",
+          operationalThisMonth: false,
+          positionId: "srp_temple_krolis",
+          target: { kind: "hierophant_temple", templeId: "krolis" },
+        },
+        {
+          kind: "disruptive_arcanist",
+          denizenId: "den_00000000-0000-0000-0000-0000000000ac" as never,
+          name: "Vex",
+          school: { kind: "source", schoolId: "invocation" },
+          seatId: "hierophant",
+        },
+        {
+          kind: "disruptive_arcanist",
+          denizenId: "den_00000000-0000-0000-0000-0000000000ad" as never,
+          name: "Grave Scholar",
+          school: { kind: "source", schoolId: "invocation" },
+          seatId: "necromancer",
+        },
+      ],
+    });
+    expect(container.querySelector('[data-researcher-target="necromancer_final_death"]')?.textContent).toContain("Ashen Watcher");
+    expect(container.querySelector('[data-researcher-target="necromancer_final_death"]')?.textContent).toContain("Working this month");
+    expect(container.textContent).toContain("Grave Scholar");
+    expect(container.textContent).not.toContain("Lina the Seer");
+    expect(container.textContent).not.toContain("Vex");
+    const terminus = container.querySelector('[aria-label^="XI Terminus ordinary"]');
+    expect(terminus?.textContent).not.toContain("Ashen Watcher");
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps named occupants reachable and Advanced corrections available", () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      souls: [{ location: { kind: "gate", gateId: "amber" }, count: 2 }],
+      foes: [{
+        subject: { kind: "denizen", denizenId: "den_foe" as never },
+        location: { kind: "gate", gateId: "amber" },
+      }],
+      allies: [{ denizenId: "den_ally" as never, location: { kind: "gate", gateId: "amber" } }],
+      ghoulCallers: [{
+        denizenId: "den_ghoul" as never,
+        location: { kind: "path", pathSpaceId: "edge_sage" },
+        pettyDeadCount: 0,
+        primaryElement: "fire",
+        aesthetic: "ash",
+        strangeQuirk: "whispers",
+        ageYears: 40,
+      }],
+    });
+    const world: WorldReference = {
+      denizens: [
+        { denizenId: "den_foe", name: "Howling Foe", representation: "individual", description: null },
+        { denizenId: "den_ally", name: "Loyal Ally", representation: "individual", description: null },
+        { denizenId: "den_ghoul", name: "Ash Caller", representation: "individual", description: null },
+      ],
+      isles: [],
+      places: [],
+    };
+    const { container, root } = renderSurface({ necromancer, world });
+    const amber = container.querySelector('[aria-label^="I Amber ordinary"]');
+    flushSync(() => {
+      (amber as Element).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    const inspector = container.querySelector(`[aria-label="Selected space"]`);
+    expect(inspector?.textContent).toContain("Howling Foe");
+    expect(inspector?.textContent).toContain("Loyal Ally");
+    expect(container.textContent).toContain("Ash Caller");
+    expect(inspector?.querySelector('[aria-label="All occupants"]')?.textContent).toContain("Howling Foe");
+    const pieces = Array.from(container.querySelectorAll("details")).find((el) => el.textContent?.includes("Advanced / Correct Board — pieces"));
+    expect(pieces).not.toBeNull();
+    flushSync(() => {
+      pieces!.open = true;
+    });
+    expect(container.textContent).toContain("Rebuff is not automated");
     root.unmount();
     container.remove();
   });

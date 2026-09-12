@@ -19,9 +19,13 @@ import {
   type OrdinaryTempleDoctrineState,
   type PowerfulDenizenStatus,
   type HierophantProphetHost,
+  type SorcererExternalPresence,
   powerfulStatusLabel,
 } from "../shared/domain";
 import type { WorldReference } from "./WorldSurface";
+import LoreContextPanel from "./LoreContextPanel";
+import { findPresentationSubjectByRef, type LoreCompendiumUiState } from "./lore-view-model";
+import HierophantTempleBoard from "./HierophantTempleBoard";
 import {
   availableCultCollectives,
   availableIndividualDenizens,
@@ -50,13 +54,22 @@ import {
   newCampaignDoctrineId,
   newCampaignTempleId,
   newCommandId,
+  newDenizenId,
   newDogmaEntryId,
   newPlaceId,
   placeLabel,
+  researcherOperationalLabel,
   templeDisplayName,
   templeDoctrineSummary,
   templeEditCapabilities,
+  hierophantDomainDisruptiveArcanists,
   unresolvedStartingTemples,
+  TIME_RECORDING_BOUNDARY,
+  SERMON_DEFER_GUIDANCE,
+  STEER_DEFER_GUIDANCE,
+  HOLIDAY_DEFER_GUIDANCE,
+  HESTAR_PROVIDE_DEFER_GUIDANCE,
+  buildCreateHierophantSupplicantPayload,
   type StartingTempleBindings,
 } from "./hierophant-view-model";
 
@@ -118,10 +131,14 @@ export default function HierophantSurface({
   hierophant,
   world,
   campaignId,
+  sorcererPresence = [],
+  loreCompendium = { status: "unavailable" },
 }: {
   hierophant: HierophantState;
   world: WorldReference;
   campaignId: string;
+  sorcererPresence?: readonly SorcererExternalPresence[];
+  loreCompendium?: LoreCompendiumUiState;
 }) {
   const [tab, setTab] = useState<HierophantTab>("overview");
   const [error, setError] = useState<string | null>(null);
@@ -129,6 +146,17 @@ export default function HierophantSurface({
   const [setupLaws, setSetupLaws] = useState<string[]>([]);
   const [setupBindings, setSetupBindings] = useState<StartingTempleBindings>({});
   const [editor, setEditor] = useState<Record<string, unknown> | null>(null);
+  const [selectedTempleId, setSelectedTempleId] = useState<string | null>(null);
+  const [receiveDraft, setReceiveDraft] = useState<{
+    commandId: string;
+    denizenId: string;
+    templeId: string;
+    expectedTempleStatus: HierophantTemple["status"];
+    name: string;
+    classId: string;
+    woe: string;
+    area: "" | "courtyard" | "agiary";
+  } | null>(null);
 
   const initializeHierophant = useMutation(api.m3Commands.initializeHierophant);
   const createPlace = useMutation(api.m3Commands.createPlace);
@@ -137,6 +165,7 @@ export default function HierophantSurface({
   const createTemple = useMutation(api.m3Commands.createTemple);
   const updateTemple = useMutation(api.m3Commands.updateTemple);
   const setTempleHoliday = useMutation(api.m3Commands.setTempleHoliday);
+  const createHierophantSupplicant = useMutation(api.m3Commands.createHierophantSupplicant);
   const addSupplicant = useMutation(api.m3Commands.addSupplicant);
   const updateSupplicant = useMutation(api.m3Commands.updateSupplicant);
   const removeSupplicant = useMutation(api.m3Commands.removeSupplicant);
@@ -171,6 +200,64 @@ export default function HierophantSurface({
     try {
       await action();
       closeEditor();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Mutation failed.";
+      setError(message);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  function openReceive(temple: HierophantTemple): void {
+    if (receiveDraft !== null && receiveDraft.templeId !== temple.templeId) {
+      const existing = hierophant.temples.find((candidate) => candidate.templeId === receiveDraft.templeId);
+      const name = existing === undefined ? receiveDraft.templeId : templeDisplayName(existing, world.places);
+      setError(`An unfinished Receive Supplicant draft exists for ${name}. Return there or cancel it before starting a new one.`);
+      return;
+    }
+    if (receiveDraft !== null) return;
+    setError(null);
+    setReceiveDraft({
+      commandId: newCommandId(),
+      denizenId: newDenizenId(),
+      templeId: temple.templeId,
+      expectedTempleStatus: temple.status,
+      name: "",
+      classId: "peasant",
+      woe: "0",
+      area: "",
+    });
+  }
+
+  function cancelReceive(): void {
+    setReceiveDraft(null);
+    setError(null);
+  }
+
+  async function handleReceiveSupplicant(): Promise<void> {
+    if (receiveDraft === null) return;
+    if (hierophant.temples.find((candidate) => candidate.templeId === receiveDraft.templeId) === undefined) return;
+    const woe = parseNonNegInt(receiveDraft.woe);
+    if (woe === null) {
+      setError("Woe must be a non-negative integer.");
+      return;
+    }
+    const payload = buildCreateHierophantSupplicantPayload({
+      commandId: receiveDraft.commandId,
+      expectedCampaignId: campaignId,
+      denizenId: receiveDraft.denizenId,
+      name: receiveDraft.name,
+      classId: receiveDraft.classId,
+      woe,
+      templeId: receiveDraft.templeId,
+      area: receiveDraft.area === "" ? null : receiveDraft.area,
+      expectedTempleStatus: receiveDraft.expectedTempleStatus,
+    });
+    setPending(true);
+    setError(null);
+    try {
+      await createHierophantSupplicant(payload);
+      setReceiveDraft(null);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Mutation failed.";
       setError(message);
@@ -724,6 +811,164 @@ export default function HierophantSurface({
         </div>
       ) : (
         <>
+          <HierophantTempleBoard
+            hierophant={hierophant}
+            denizens={world.denizens}
+            places={world.places}
+            presence={sorcererPresence}
+            selectedTempleId={selectedTempleId ?? hierophant.temples[0]?.templeId ?? null}
+            onSelectTemple={(templeId) => {
+              setSelectedTempleId(templeId);
+            }}
+          />
+          {(() => {
+            const selected = hierophant.temples.find((temple) => temple.templeId === (selectedTempleId ?? hierophant.temples[0]?.templeId));
+            if (selected === undefined) return null;
+            const loreSubject = loreCompendium.status === "ready"
+              ? findPresentationSubjectByRef(loreCompendium.presentation, { kind: "hierophant_temple", templeId: selected.templeId })
+              : undefined;
+            const caps = templeEditCapabilities(selected);
+            const receiveOpen = receiveDraft !== null && receiveDraft.templeId === selected.templeId;
+            return (
+              <aside aria-label="Selected Temple" className="mt-4 rounded-xl border border-amber-200 dark:border-amber-900 p-4 space-y-3">
+                <h3 className="text-sm font-semibold">{templeDisplayName(selected, world.places)}</h3>
+                <p className="text-xs text-slate-500">{TIME_RECORDING_BOUNDARY}</p>
+                {selected.status === "active" && !receiveOpen && (
+                  <button type="button" className={btnClass} onClick={() => openReceive(selected)}>
+                    Receive Supplicant
+                  </button>
+                )}
+                {receiveOpen && (
+                  <form
+                    className="space-y-2"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void handleReceiveSupplicant();
+                    }}
+                  >
+                    <h4 className="text-sm font-medium">Receive Supplicant</h4>
+                    <label className="block text-xs">
+                      Name
+                      <input
+                        className={fieldClass}
+                        value={receiveDraft.name}
+                        disabled={pending}
+                        onChange={(event) => setReceiveDraft({ ...receiveDraft, name: event.target.value })}
+                      />
+                    </label>
+                    <label className="block text-xs">
+                      Class
+                      <select
+                        className={fieldClass}
+                        value={receiveDraft.classId}
+                        disabled={pending}
+                        onChange={(event) => setReceiveDraft({ ...receiveDraft, classId: event.target.value })}
+                      >
+                        {classOptions().map((option) => (
+                          <option key={option.id} value={option.id}>{option.label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-xs">
+                      Woe
+                      <input
+                        className={fieldClass}
+                        value={receiveDraft.woe}
+                        disabled={pending}
+                        onChange={(event) => setReceiveDraft({ ...receiveDraft, woe: event.target.value })}
+                      />
+                    </label>
+                    {!caps.isHestar && (
+                      <label className="block text-xs">
+                        Area
+                        <select
+                          className={fieldClass}
+                          value={receiveDraft.area}
+                          disabled={pending}
+                          onChange={(event) => setReceiveDraft({ ...receiveDraft, area: event.target.value as "" | "courtyard" | "agiary" })}
+                        >
+                          <option value="">Unresolved</option>
+                          <option value="courtyard">Courtyard</option>
+                          <option value="agiary">Agiary</option>
+                        </select>
+                      </label>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <button type="submit" className={btnClass} disabled={pending}>
+                        Receive Supplicant
+                      </button>
+                      <button
+                        type="button"
+                        className={ghostBtn}
+                        disabled={pending}
+                        aria-label="Cancel Receive Supplicant"
+                        onClick={cancelReceive}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                )}
+                {selected.status !== "active" && !receiveOpen && (
+                  <p className="text-sm">Receive Supplicant is not available at a collapsed Temple. Use Advanced correction if the table records an unusual placement.</p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className={ghostBtn}
+                    disabled={pending}
+                    onClick={() => void run(async () => {
+                      await setTempleHoliday({
+                        commandId: newCommandId(),
+                        expectedCampaignId: campaignId,
+                        templeId: selected.templeId,
+                        marked: !hierophant.holidayTempleIds.includes(selected.templeId),
+                      });
+                    })}
+                  >
+                    {hierophant.holidayTempleIds.includes(selected.templeId) ? "Clear Holiday marker (recording)" : "Mark Holiday (recording)"}
+                  </button>
+                  <button
+                    type="button"
+                    className={ghostBtn}
+                    onClick={() => setEditor({
+                      kind: "temple-resources",
+                      templeId: selected.templeId,
+                      expectedAbundance: selected.abundance,
+                      expectedConviction: selected.conviction,
+                      abundance: String(selected.abundance),
+                      conviction: String(selected.conviction),
+                    })}
+                  >
+                    Record Abundance / Conviction
+                  </button>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300">{HOLIDAY_DEFER_GUIDANCE}</p>
+                <p className="text-xs text-slate-600 dark:text-slate-300">{SERMON_DEFER_GUIDANCE}</p>
+                <p className="text-xs text-slate-600 dark:text-slate-300">{STEER_DEFER_GUIDANCE}</p>
+                {caps.isHestar && <p className="text-xs text-slate-600 dark:text-slate-300">{HESTAR_PROVIDE_DEFER_GUIDANCE}</p>}
+                {loreSubject !== undefined && (
+                  <LoreContextPanel subject={loreSubject} campaignId={campaignId} compact contextConstraint={{ kind: "any" }} />
+                )}
+              </aside>
+            );
+          })()}
+          {hierophantDomainDisruptiveArcanists(sorcererPresence).length > 0 && (
+            <section aria-label="In this Domain" className="mt-4 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-3">
+              <h3 className="text-sm font-semibold">In this Domain</h3>
+              <ul className="text-sm mt-2 space-y-1">
+                {hierophantDomainDisruptiveArcanists(sorcererPresence).map((arcanist) => (
+                  <li key={arcanist.denizenId}>
+                    {arcanist.name} · Disruptive Arcanist · {arcanist.school.kind === "source" ? arcanist.school.schoolId : arcanist.school.schoolId}
+                    <span className="block text-xs text-slate-500">{researcherOperationalLabel(true).replace("Working this month", "Domain presence; seat is not a Temple sublocation")}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          <details className="mt-4 rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+            <summary className="cursor-pointer text-sm font-medium">Advanced / Correct Board</summary>
+            <p className="text-xs text-slate-500 mt-2 mb-3">Exact Doctrine, status, host, existing-person attachment, Cults, campaign definitions, and unusual state.</p>
           <div className="flex flex-wrap items-center gap-2 mb-4">
             {(Object.keys(TAB_LABELS) as HierophantTab[]).map((id) => (
               <button
@@ -1082,6 +1327,8 @@ export default function HierophantSurface({
               })}
             />
           )}
+
+          </details>
 
           {editor !== null && editor.kind !== "laws" && (
             <div className="rounded-lg border border-slate-300 dark:border-slate-600 p-4 mt-4 bg-slate-50 dark:bg-slate-800">

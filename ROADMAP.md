@@ -4,7 +4,7 @@
 
 This roadmap supersedes the earlier provisional M3+ outline.
 
-The project has completed its persistence/core-play foundations, all seven Wizard Domain structural foundations, and the shared M5.3 Lore/Compendium foundation. M5.4 active-table Domain operability is now in progress, with Lore/Compendium UX and Sorcerer operability complete.
+The project has completed its persistence/core-play foundations, all seven Wizard Domain structural foundations, and the shared M5.3 Lore/Compendium foundation. M5.4 active-table Domain operability is now in progress, with Lore/Compendium UX, Sorcerer operability, and the Hierophant + Necromancer Temples/Gates operability Workstream complete. Mariner and Faustian remain in the active tranche.
 
 The roadmap describes dependency order and milestone intent. Exact Workstream boundaries remain subject to Master/human approval as source and repository evidence develops.
 
@@ -192,6 +192,8 @@ See `docs/m5-4a-l-lore-compendium-ux.md`.
 
 **STATUS: COMPLETE**
 
+PR #24 merged.
+
 Delivered:
 
 - first-class Working Tower PlayShell surface;
@@ -215,20 +217,41 @@ No CampaignState schema change or migration occurred. CampaignState V5 remains P
 
 See `docs/m5-4a-s-sorcerer-operability.md`.
 
+### M5.4A-HN — Temples & Gates Operability
+
+**STATUS: COMPLETE**
+
+PR #25.
+
+Delivered:
+
+- Hierophant Temple-board-first initialized surface with distinct Hestar and readable Temple resources/people/state;
+- atomic Receive Supplicant operation creating the backing Denizen + Supplicant placement in one canonical write;
+- Necromancer Gates board retaining the branching spatial topology with readable Soul/Foe/Ally/Ghoul-Caller pieces and explicit Hostile/Destroyed state;
+- atomic Transform Soul into Ally operation consuming one Soul and creating the backing Denizen + Ally in one canonical write;
+- contextual Temple/Gate Lore reuse;
+- pure-derived Sorcerer Researcher rendering on authoritative Temple/Final Death targets;
+- stale-intent-safe action drafts that preserve captured preconditions across realtime updates;
+- Advanced / Correct Board coverage for rare/correction operations.
+
+No CampaignState schema change or migration occurred. CampaignState V5 remains PRE-ACTIVATION.
+
+Deliberately deferred automation includes complete Sermon, Steer Supplicant, Holiday celebration, Rebuff, automatic 5+ Souls -> Foe, compound Ghoul-Caller creation, Clear Hostility + Lore, and broad monthly procedure automation. Hestar conversion remains an unresolved source contradiction rather than application canon.
+
+See `docs/m5-4a-hn-temples-gates-operability.md`.
+
 ### Remaining active-table tranche
 
 Remaining active-player Domain operability:
 
-- Hierophant;
-- Necromancer;
 - Mariner;
 - Faustian.
 
 Warlock and Sage are intentionally deferred while they have no active players.
 
-Later Domain Workstreams own the board-local rendering of Sorcerer Researchers/Disruptive Arcanists present in those Domains; the authoritative placement remains Sorcerer state.
+Hierophant and Necromancer now render authoritative derived Sorcerer Researcher presence locally without duplicating placement state. Mariner/Faustian should continue that pattern.
 
-The editable/vector `Patreon Materials [04.26.04].pptx` is available as a design source. It is expected to be especially useful for the Mariner map/geography and may also help the remaining visual board passes.
+The editable/vector `Patreon Materials [04.26.04].pptx` is available as a design source and is especially valuable for the Mariner map/geography and Faustian card-table presentation.
 
 ### Explicit anti-goals
 
@@ -379,19 +402,13 @@ Likely areas:
 
 ## Current Next Action
 
-Merge M5.4A-S, verify the resulting `main` SHA, then select and charter the next bounded active-Domain operability Workstream.
+M5.4A-HN is complete in PR #25. Merge/integrate PR #25 if not already merged and verify the resulting `main` SHA.
 
-The previous sequencing hypothesis after Sorcerer was Hierophant -> Necromancer -> Mariner -> Faustian, but that order is not binding. The editable/vector Materials make Mariner more attractive to pull forward because source island/route geography may be reusable directly in a structured SVG map.
+Then release **M5.4A-M — Mariner Interactive Map & Operability** as the next implementation Workstream from the newly merged main. Mariner design/geometry preparation is already substantially complete, including the editable-PPTX map-source investigation.
 
-The next-domain decision should weigh:
+Continue Faustian design/preparation in parallel, but keep production implementation sequential: **HN -> Mariner -> Faustian**. Do not run Mariner and Faustian as competing implementation feature branches unless the Master explicitly changes that policy.
 
-- active-player value;
-- implementation complexity;
-- reusable UX lessons;
-- existing semantic-command readiness;
-- visual payoff.
-
-Warlock/Sage remain deferred. Do not mark M5.4 complete until the active tranche is finished and the Master/human explicitly decide how the deferred tranche is handled.
+Warlock/Sage remain deferred. Do not mark M5.4 complete until Mariner and Faustian are complete and the Master/human explicitly decide how the deferred tranche is handled.
 
 ### Execution guidance
 

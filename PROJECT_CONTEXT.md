@@ -49,7 +49,7 @@ Before starting new repository work, verify current `main`, status, and HEAD rat
 
 ## Current Milestone State
 
-As of September 11, 2026, **all seven Wizard Domains have structural CampaignState foundations**, M5.3 shared Lore/Compendium foundations are complete, and M5.4 active-table operability work is in progress.
+As of September 12, 2026, **all seven Wizard Domains have structural CampaignState foundations**, M5.3 shared Lore/Compendium foundations are complete, and M5.4 active-table operability work is in progress. Lore/Compendium, Sorcerer, Hierophant, and Necromancer operability Workstreams are complete; Mariner and Faustian remain in the active tranche.
 
 ### M1 — Realtime Foundation
 
@@ -244,7 +244,7 @@ See `docs/m5-4a-l-lore-compendium-ux.md`.
 
 #### M5.4A-S — Sorcerer Operability & Tower Board
 
-**COMPLETE**
+**COMPLETE — PR #24 merged**
 
 Delivered the first major Domain-operability board:
 
@@ -269,20 +269,41 @@ No CampaignState schema change or migration occurred. CampaignState V5 remains P
 
 See `docs/m5-4a-s-sorcerer-operability.md`.
 
+#### M5.4A-HN — Temples & Gates Operability
+
+**COMPLETE — PR #25**
+
+Delivered the active-table Hierophant and Necromancer board pass:
+
+- Hierophant Temple-board-first initialized surface with four ordinary Temples around distinct central Hestar;
+- visible Courtyard/Agiary/unresolved Supplicant placement, Doctrine, Abundance, Conviction, Holidays, Supplicants, Prophets, Class/Woe/support state;
+- atomic **Receive Supplicant** command creating the individual Denizen and Supplicant placement in one canonical server-authoritative write;
+- Necromancer branching Gates topology preserved with readable Near/Far/Furthest depth, Void Beyond, Final Death, Soul tokens/counts, Foes, Allies, Ghoul-Callers, and explicit Hostile/Destroyed state;
+- conspicuous 5+ Souls pending-resolution presentation without silently automating Foe creation;
+- atomic **Transform Soul into Ally** command consuming one Soul and creating the individual Denizen + Ally at the same Gate in one canonical write;
+- existing Temple/Gate `LoreContextPanel` integration;
+- pure-derived Sorcerer Researcher presentation at the authoritative Temple and adjacent to Final Death, with explicit Working/Unavailable status;
+- action drafts capture stale-write preconditions at action start so realtime changes reject stale intent instead of silently rebasing it;
+- Advanced / Correct Board retains rare/correction recording without raw state editing.
+
+No CampaignState schema change or migration occurred. Persistence, snapshots, audit, Undo/Redo, checkpoints, backup/recovery, and command-idempotency semantics remain unchanged. CampaignState V5 remains PRE-ACTIVATION.
+
+Deliberate automation deferrals include complete Sermon, Steer Supplicant, Holiday celebration, Rebuff, automatic 5+ Souls -> Foe, compound Ghoul-Caller creation, atomic Clear Hostility + Lore, and broad monthly procedure automation. Hestar resource conversion remains an unresolved **SOURCE** contradiction between same-amount and half-amount conversion and is not application canon.
+
+See `docs/m5-4a-hn-temples-gates-operability.md`.
+
 #### Remaining M5.4 active-table work
 
 The remaining active-player Domain-operability work is:
 
-- Hierophant;
-- Necromancer;
 - Mariner;
 - Faustian.
 
 Warlock and Sage are intentionally deferred while they have no active players. Their existing structural state remains authoritative and may be consumed by active-Domain cross-references.
 
-Later Domain Workstreams own how derived Sorcerer Researchers/Disruptive Arcanists are rendered naturally on their boards. Do not duplicate that placement state.
+Hierophant and Necromancer now consume derived Sorcerer Researcher presence without duplicating placement state. Later Domain Workstreams should follow the same rule for Mariner/Faustian and any applicable Disruptive Arcanist presentation.
 
-The editable/vector source `Patreon Materials [04.26.04].pptx` is available for board work. It should be treated as a vector/spatial design source rather than an implementation specification. It is expected to be especially useful for the Mariner map/geography and also useful for Faustian, Necromancer, and Hierophant visual refinement.
+The editable/vector source `Patreon Materials [04.26.04].pptx` is available for board work. It should be treated as a vector/spatial design source rather than an implementation specification. It is especially useful for the Mariner map/geography and Faustian card-table presentation.
 
 ### M5.5 — Full-Pact Integration & Pre-V5-Activation Review
 
@@ -330,9 +351,11 @@ Final hardening for trusted long-running campaigns: deployment/environment safet
 
 ### Current Next Action
 
-Integrate M5.4A-S, then select and charter the next bounded active-Domain operability Workstream.
+M5.4A-HN is complete in PR #25. Merge/integrate PR #25 if not already merged, verify the resulting current `main` SHA, then release **M5.4A-M — Mariner Interactive Map & Operability** for its narrow post-HN delta check and implementation from the newly merged main.
 
-The previous sequencing hypothesis was Hierophant -> Necromancer -> Mariner -> Faustian after Sorcerer, but it is not binding. The editable/vector Materials make moving Mariner earlier more attractive because its map geometry may be reusable directly in a structured SVG implementation. The Master/human should choose the next Domain based on active-player value, implementation difficulty, reusable UX lessons, and visual payoff rather than branch-order inertia.
+Mariner is the next implementation Workstream. Faustian remains behind it in design/preparation so its card-lifecycle and representability contracts can be settled before production implementation. Keep one implementation Workstream active at a time; use parallel Workstreams for design/research preparation rather than competing feature branches.
+
+Do not mark M5.4 complete until Mariner and Faustian active-table operability are complete and the Master/human explicitly decide how the deferred Warlock/Sage tranche is handled.
 
 ## Explicit Pre-V5-Activation Architecture Review Items
 

@@ -134,6 +134,8 @@ export type {
   HierophantInitializedEventV1,
   TempleResourcesAdjustedDataV1,
   TempleResourcesAdjustedEventV1,
+  HierophantSupplicantCreatedDataV1,
+  HierophantSupplicantCreatedEventV1,
   HierophantEvent,
   MarinerEvent,
   MarinerInitializedDataV1,
@@ -159,6 +161,8 @@ export type {
   NecromancerFoeUpdatedEventV1,
   NecromancerFoeRemovedEventV1,
   NecromancerAllyAddedEventV1,
+  NecromancerSoulTransformedIntoAllyDataV1,
+  NecromancerSoulTransformedIntoAllyEventV1,
   NecromancerAllyUpdatedEventV1,
   NecromancerAllyRemovedEventV1,
   NecromancerGhoulCallerAddedEventV1,
@@ -398,6 +402,7 @@ export {
   setTempleHolidayFingerprint,
   setSelectedFlameLawsFingerprint,
   addSupplicantFingerprint,
+  createHierophantSupplicantFingerprint,
   updateSupplicantFingerprint,
   removeSupplicantFingerprint,
   addProphetFingerprint,
@@ -440,6 +445,7 @@ export {
   updateNecromancerWizardTraversalFingerprint,
   removeNecromancerWizardTraversalFingerprint,
   addNecromancerAllyFingerprint,
+  transformNecromancerSoulIntoAllyFingerprint,
   updateNecromancerAllyFingerprint,
   removeNecromancerAllyFingerprint,
   addNecromancerGhoulCallerFingerprint,
@@ -1738,6 +1744,15 @@ export {
 } from "./necromancer-transitions";
 
 export type {
+  TransformNecromancerSoulIntoAllyInput,
+  NecromancerOperabilityTransitionResult,
+} from "./necromancer-operability-transitions";
+export {
+  canonicalizeTransformNecromancerSoulIntoAllyInput,
+  applyTransformNecromancerSoulIntoAlly,
+} from "./necromancer-operability-transitions";
+
+export type {
   MarinerTransitionResult,
   MarinerIsleBinding,
   MarinerRarityDescription,
@@ -1796,6 +1811,15 @@ export {
   applyCreateCampaignDoctrine,
   applyUpdateCampaignDoctrine,
 } from "./hierophant-transitions";
+
+export type {
+  CreateHierophantSupplicantInput,
+  HierophantOperabilityTransitionResult,
+} from "./hierophant-operability-transitions";
+export {
+  canonicalizeCreateHierophantSupplicantInput,
+  applyCreateHierophantSupplicant,
+} from "./hierophant-operability-transitions";
 
 // --- V5 Integration Transitions (candidate, not active) ---
 

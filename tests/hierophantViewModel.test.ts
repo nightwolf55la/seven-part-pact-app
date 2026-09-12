@@ -14,6 +14,8 @@ import {
   cultDogmaConvictionWarning,
   cultLeaderWarning,
   denizenLabel,
+  deriveSupplicantSupport,
+  baseBenefactionReference,
   hierophantSetupReady,
   hostedProphets,
   hostedSupplicants,
@@ -24,6 +26,7 @@ import {
   newCampaignDoctrineId,
   newCampaignTempleId,
   newCommandId,
+  newDenizenId,
   newDogmaEntryId,
   newPlaceId,
   placeLabel,
@@ -239,6 +242,35 @@ describe("Hierophant command payload helpers", () => {
     expect(newCampaignDoctrineId(UUID).startsWith("hdc_")).toBe(true);
     expect(newCampaignBlasphemyId(UUID).startsWith("hbl_")).toBe(true);
     expect(newDogmaEntryId(UUID).startsWith("hdg_")).toBe(true);
+    expect(newDenizenId(UUID).startsWith("den_")).toBe(true);
+  });
+
+  it("derives support and Benefaction reference without inventing custom-Class values", () => {
+    const hestar: HierophantTemple = {
+      templeId: "hestar",
+      kind: "hestar",
+      placeId: "plc_h" as HierophantTemple["placeId"],
+      hostSeatId: "hierophant",
+      status: "active",
+      abundance: 4,
+      conviction: 5,
+    };
+    const krolis: HierophantTemple = {
+      templeId: "krolis",
+      kind: "ordinary",
+      placeId: "plc_krolis" as HierophantTemple["placeId"],
+      hostSeatId: "hierophant",
+      status: "active",
+      abundance: 5,
+      conviction: 4,
+      doctrine: { kind: "doctrine", doctrineId: "worth_proved_through_labor" },
+    };
+    expect(deriveSupplicantSupport(hestar, "pariah", [])).toBe("supported");
+    expect(deriveSupplicantSupport(krolis, "artisan", [])).toBe("supported");
+    expect(deriveSupplicantSupport(krolis, "gentry", [])).toBe("unsupported");
+    expect(deriveSupplicantSupport(krolis, "hcl_custom", [])).toBe("not_determined");
+    expect(baseBenefactionReference("gentry")).toEqual({ kind: "abundance", amount: 4 });
+    expect(baseBenefactionReference("hcl_custom")).toEqual({ kind: "not_determined" });
   });
 
   it("treats empty temples as uninitialized", () => {
