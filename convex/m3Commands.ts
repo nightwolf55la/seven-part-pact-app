@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
-import { timeDestinationV5Validator } from "./validators";
+import { timeDestinationV5Validator, faustianStateValidator } from "./validators";
 import {
   DomainError,
   parseLiveCommandId,
@@ -297,10 +297,52 @@ import {
   blackmailFaustianCommunityFingerprint,
   directFaustianAccompliceFingerprint,
   disruptFaustianPawnFingerprint,
+  arrangeFaustianTableFingerprint,
+  completeFaustianStructuralPlaceholderFingerprint,
+  revealFaustianCommunitySchemesFingerprint,
+  foilFaustianCommunitySchemeFingerprint,
+  placeFaustianSchemesFingerprint,
+  changeFaustianPawnCountFingerprint,
+  establishFaustianConspiracyFingerprint,
+  recordFaustianSchemeOccurredFingerprint,
+  discloseFaustianTwistFingerprint,
+  recordFaustianTwistOccurredFingerprint,
+  recordFaustianMachinationOutcomeFingerprint,
+  completeFaustianMachinationResponseFingerprint,
+  finalizeFaustianMachinationChallengeFingerprint,
+  correctFaustianCardFingerprint,
+  correctFaustianAntagonistFingerprint,
+  correctFaustianDemonFingerprint,
+  correctFaustianDomainSeizureFingerprint,
+  correctFaustianDevilProfileFingerprint,
+  recordFaustianDueMonthObligationFingerprint,
+  fulfillFaustianDueMonthObligationFingerprint,
+  correctFaustianPersistentEffectFingerprint,
   applyInvestigateFaustianCommunity,
   applyBlackmailFaustianCommunity,
   applyDirectFaustianAccomplice,
   applyDisruptFaustianPawn,
+  applyArrangeFaustianTable,
+  applyCompleteFaustianStructuralPlaceholder,
+  applyRevealFaustianCommunitySchemes,
+  applyFoilFaustianCommunityScheme,
+  applyPlaceFaustianSchemes,
+  applyChangeFaustianPawnCount,
+  applyEstablishFaustianConspiracy,
+  applyRecordFaustianSchemeOccurred,
+  applyDiscloseFaustianTwist,
+  applyRecordFaustianTwistOccurred,
+  applyRecordFaustianMachinationOutcome,
+  applyCompleteFaustianMachinationResponse,
+  applyFinalizeFaustianMachinationChallenge,
+  applyCorrectFaustianCard,
+  applyCorrectFaustianAntagonist,
+  applyCorrectFaustianDemon,
+  applyCorrectFaustianDomainSeizure,
+  applyCorrectFaustianDevilProfile,
+  applyRecordFaustianDueMonthObligation,
+  applyFulfillFaustianDueMonthObligation,
+  applyCorrectFaustianPersistentEffect,
   initializeSorcererFingerprint,
   canonicalizeInitializeSorcererInput,
   applyInitializeSorcerer,
@@ -366,7 +408,7 @@ import {
   applyAddLoreEntry,
   applyReviseLoreEntry,
 } from "../shared/domain";
-import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange, CompanionRelationshipId, HierophantFlameLawId, HierophantStartingTempleId, HierophantTempleId, HierophantCampaignClassId, HierophantCampaignDoctrineId, HierophantDogmaEntryId, HierophantSupplicant, HierophantProphet, HierophantCult, HierophantCultDogma, HierophantCampaignClass, HierophantCampaignDoctrine, CreateTempleInput, OrdinaryTempleDoctrineState, InitializeMarinerInput, MarinerBeastState, MarinerIsleMarket, MarinerRouteOccupancy, MarinerBoardIsleId, MarinerLawOfSeaId, MarinerRouteId, MarinerSeaRegionId, MarinerArrangementId, UpdateMarinerBeastFields, InitializeNecromancerInput, NecromancerArrangementId, NecromancerLawOfDeathId, NecromancerBuiltinGateId, NecromancerBuiltinPathSpaceId, NecromancerDepthState, NecromancerSelectedLaw, NecromancerGateId, NecromancerGateStatus, NecromancerOccupiableSpaceRef, NecromancerFoeState, NecromancerFoeSubjectRef, NecromancerWizardFoeState, NecromancerWizardTraversalState, UpdateNecromancerWizardTraversalFields, NecromancerAllyState, NecromancerGhoulCallerState, UpdateNecromancerFoeFields, UpdateNecromancerAllyFields, UpdateNecromancerGhoulCallerFields, NecromancerCampaignGateId, NecromancerGateBand, UpdateNecromancerCampaignGateFields, NecromancerCampaignPathSpaceId, NecromancerPathRegion, NecromancerCampaignPathSpaceState, NecromancerDirectedStep, MortalityState, PowerfulDenizenTaxonomyRef, PowerfulDenizenStatus, PowerfulDenizenMethodDefinition, PowerfulDenizenMethodEntry, PowerfulDenizenTruthEntry, PowerfulDenizenProfile, CampaignPowerfulDenizenTaxonomy, CampaignPowerfulDenizenTaxonomyId, PowerfulDenizenMethodEntryId, PowerfulDenizenTruthId, TreasureId, TreasureCondition, TreasureCustody, PactFragmentOperationalState, FaustianCommunityId, FaustianCardId } from "../shared/domain";
+import type { CurrentCampaignState, CampaignCommandType, PlayerId, WizardId, AllocationId, EngagementId, MonthOrdinal, MovablePlanetId, LunarPhase, TimeDestination, EngagementTarget, OrreryMoveDirection, DenizenId, IsleId, PlaceId, WorldPlacePlacement, UpdatePlaceFields, ExpectedFieldChange, CompanionRelationshipId, HierophantFlameLawId, HierophantStartingTempleId, HierophantTempleId, HierophantCampaignClassId, HierophantCampaignDoctrineId, HierophantDogmaEntryId, HierophantSupplicant, HierophantProphet, HierophantCult, HierophantCultDogma, HierophantCampaignClass, HierophantCampaignDoctrine, CreateTempleInput, OrdinaryTempleDoctrineState, InitializeMarinerInput, MarinerBeastState, MarinerIsleMarket, MarinerRouteOccupancy, MarinerBoardIsleId, MarinerLawOfSeaId, MarinerRouteId, MarinerSeaRegionId, MarinerArrangementId, UpdateMarinerBeastFields, InitializeNecromancerInput, NecromancerArrangementId, NecromancerLawOfDeathId, NecromancerBuiltinGateId, NecromancerBuiltinPathSpaceId, NecromancerDepthState, NecromancerSelectedLaw, NecromancerGateId, NecromancerGateStatus, NecromancerOccupiableSpaceRef, NecromancerFoeState, NecromancerFoeSubjectRef, NecromancerWizardFoeState, NecromancerWizardTraversalState, UpdateNecromancerWizardTraversalFields, NecromancerAllyState, NecromancerGhoulCallerState, UpdateNecromancerFoeFields, UpdateNecromancerAllyFields, UpdateNecromancerGhoulCallerFields, NecromancerCampaignGateId, NecromancerGateBand, UpdateNecromancerCampaignGateFields, NecromancerCampaignPathSpaceId, NecromancerPathRegion, NecromancerCampaignPathSpaceState, NecromancerDirectedStep, MortalityState, PowerfulDenizenTaxonomyRef, PowerfulDenizenStatus, PowerfulDenizenMethodDefinition, PowerfulDenizenMethodEntry, PowerfulDenizenTruthEntry, PowerfulDenizenProfile, CampaignPowerfulDenizenTaxonomy, CampaignPowerfulDenizenTaxonomyId, PowerfulDenizenMethodEntryId, PowerfulDenizenTruthId, TreasureId, TreasureCondition, TreasureCustody, PactFragmentOperationalState, FaustianCommunityId, FaustianCardId, FaustianState, WizardElementScores, FaustianAntagonistChipCount, FaustianAntagonistGoal, FaustianArrangementId } from "../shared/domain";
 import type {
   HouseIndex,
   InitializeSorcererInput,
@@ -406,6 +448,23 @@ import type {
   MoveMarinerBeastInput,
   NestMarinerBeastInput,
   RecordMarinerRavageResultInput,
+  ArrangeFaustianTableInput,
+  ArrangeFaustianCalamityAntagonistInput,
+  EstablishFaustianConspiracyInput,
+  RecordFaustianSchemeOccurredInput,
+  DiscloseFaustianTwistInput,
+  RecordFaustianTwistOccurredInput,
+  RecordFaustianMachinationOutcomeInput,
+  CompleteFaustianMachinationResponseInput,
+  FinalizeFaustianMachinationChallengeInput,
+  CorrectFaustianCardInput,
+  CorrectFaustianAntagonistInput,
+  CorrectFaustianDemonInput,
+  CorrectFaustianDomainSeizureInput,
+  CorrectFaustianDevilProfileInput,
+  RecordFaustianDueMonthObligationInput,
+  FulfillFaustianDueMonthObligationInput,
+  CorrectFaustianPersistentEffectInput,
 } from "../shared/domain";
 import { applyBeginPlay } from "../shared/domain/begin-play";
 import type { WizardInitIds } from "../shared/domain/begin-play";
@@ -5143,6 +5202,7 @@ export const blackmailFaustianCommunity = mutation({
     commandId: v.string(),
     expectedCampaignId: v.string(),
     communityId: v.string(),
+    expectedFaustian: faustianStateValidator,
   },
   handler: async (ctx, args) => {
     return executeConvexOrdinaryLogicalCommand(
@@ -5153,10 +5213,12 @@ export const blackmailFaustianCommunity = mutation({
         commandFingerprint: blackmailFaustianCommunityFingerprint(
           args.expectedCampaignId,
           args.communityId,
+          args.expectedFaustian,
         ),
         apply: (state) => applyBlackmailFaustianCommunity(
           state,
           args.communityId as FaustianCommunityId,
+          args.expectedFaustian as unknown as FaustianState,
         ),
       }),
     );
@@ -5214,6 +5276,793 @@ export const disruptFaustianPawn = mutation({
           args.communityId as FaustianCommunityId,
           args.accompliceCardId as FaustianCardId,
         ),
+      }),
+    );
+  },
+});
+
+const faustianArrangementIdArg = v.union(
+  v.literal("quiet"),
+  v.literal("dynamic"),
+  v.literal("explosive"),
+);
+const faustianAgeIdArg = v.union(
+  v.literal("awakening"),
+  v.literal("dominion"),
+  v.literal("calamity"),
+);
+const faustianElementsArg = v.union(
+  v.null(),
+  v.object({
+    air: v.number(),
+    fire: v.number(),
+    earth: v.number(),
+    water: v.number(),
+  }),
+);
+const faustianCalamityAntagonistArg = v.union(
+  v.null(),
+  v.object({
+    denizenId: v.string(),
+    seatId: v.string(),
+    chipCount: v.union(v.literal(1), v.literal(2), v.literal(3)),
+  }),
+);
+
+export const arrangeFaustianTable = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    arrangementId: faustianArrangementIdArg,
+    favoriteCommunityId: v.string(),
+    pawnCommunityId: v.union(v.string(), v.null()),
+    reservedTwistCardId: v.union(v.string(), v.null()),
+    expectedFaustian: faustianStateValidator,
+    expectedAgeId: faustianAgeIdArg,
+    expectedAgeYears: v.union(v.number(), v.null()),
+    expectedElements: faustianElementsArg,
+    calamityAntagonist: faustianCalamityAntagonistArg,
+  },
+  handler: async (ctx, args) => {
+    const input: ArrangeFaustianTableInput = {
+      arrangementId: args.arrangementId as FaustianArrangementId,
+      favoriteCommunityId: args.favoriteCommunityId as FaustianCommunityId,
+      pawnCommunityId: args.pawnCommunityId as FaustianCommunityId | null,
+      reservedTwistCardId: args.reservedTwistCardId as FaustianCardId | null,
+      expectedFaustian: args.expectedFaustian as unknown as FaustianState,
+      expectedAgeId: args.expectedAgeId as AgeDefinitionId,
+      expectedAgeYears: args.expectedAgeYears,
+      expectedElements: args.expectedElements as WizardElementScores | null,
+      calamityAntagonist: args.calamityAntagonist as ArrangeFaustianCalamityAntagonistInput | null,
+    };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "arrange_faustian_table",
+        commandFingerprint: arrangeFaustianTableFingerprint(args.expectedCampaignId, input),
+        apply: (state) => applyArrangeFaustianTable(state, input),
+      }),
+    );
+  },
+});
+
+export const completeFaustianStructuralPlaceholder = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    expectedFaustian: faustianStateValidator,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "complete_faustian_structural_placeholder",
+        commandFingerprint: completeFaustianStructuralPlaceholderFingerprint(
+          args.expectedCampaignId,
+          args.expectedFaustian,
+        ),
+        apply: (state) => applyCompleteFaustianStructuralPlaceholder(
+          state,
+          args.expectedFaustian as unknown as FaustianState,
+        ),
+      }),
+    );
+  },
+});
+
+export const revealFaustianCommunitySchemes = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    communityId: v.string(),
+    expectedFaustian: faustianStateValidator,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "reveal_faustian_community_schemes",
+        commandFingerprint: revealFaustianCommunitySchemesFingerprint(
+          args.expectedCampaignId,
+          args.communityId,
+          args.expectedFaustian,
+        ),
+        apply: (state) => applyRevealFaustianCommunitySchemes(
+          state,
+          args.communityId as FaustianCommunityId,
+          args.expectedFaustian as unknown as FaustianState,
+        ),
+      }),
+    );
+  },
+});
+
+export const foilFaustianCommunityScheme = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    communityId: v.string(),
+    schemeCardId: v.string(),
+    expectedFaustian: faustianStateValidator,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "foil_faustian_community_scheme",
+        commandFingerprint: foilFaustianCommunitySchemeFingerprint(
+          args.expectedCampaignId,
+          args.communityId,
+          args.schemeCardId,
+          args.expectedFaustian,
+        ),
+        apply: (state) => applyFoilFaustianCommunityScheme(
+          state,
+          args.communityId as FaustianCommunityId,
+          args.schemeCardId as FaustianCardId,
+          args.expectedFaustian as unknown as FaustianState,
+        ),
+      }),
+    );
+  },
+});
+
+export const placeFaustianSchemes = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    communityId: v.string(),
+    requestedQuantity: v.number(),
+    expectedFaustian: faustianStateValidator,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "place_faustian_schemes",
+        commandFingerprint: placeFaustianSchemesFingerprint(
+          args.expectedCampaignId,
+          args.communityId,
+          args.requestedQuantity,
+          args.expectedFaustian,
+        ),
+        apply: (state) => applyPlaceFaustianSchemes(
+          state,
+          args.communityId as FaustianCommunityId,
+          args.requestedQuantity,
+          args.expectedFaustian as unknown as FaustianState,
+        ),
+      }),
+    );
+  },
+});
+
+export const addFaustianPawn = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    communityId: v.string(),
+    expectedPawnCount: v.number(),
+    expectedFaustian: faustianStateValidator,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "add_faustian_pawn",
+        commandFingerprint: changeFaustianPawnCountFingerprint(
+          args.expectedCampaignId,
+          args.communityId,
+          args.expectedPawnCount,
+          1,
+          args.expectedFaustian,
+        ),
+        apply: (state) => applyChangeFaustianPawnCount(
+          state,
+          args.communityId as FaustianCommunityId,
+          args.expectedPawnCount,
+          1,
+          args.expectedFaustian as unknown as FaustianState,
+        ),
+      }),
+    );
+  },
+});
+
+export const removeFaustianPawn = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    communityId: v.string(),
+    expectedPawnCount: v.number(),
+    expectedFaustian: faustianStateValidator,
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "remove_faustian_pawn",
+        commandFingerprint: changeFaustianPawnCountFingerprint(
+          args.expectedCampaignId,
+          args.communityId,
+          args.expectedPawnCount,
+          -1,
+          args.expectedFaustian,
+        ),
+        apply: (state) => applyChangeFaustianPawnCount(
+          state,
+          args.communityId as FaustianCommunityId,
+          args.expectedPawnCount,
+          -1,
+          args.expectedFaustian as unknown as FaustianState,
+        ),
+      }),
+    );
+  },
+});
+
+export const establishFaustianConspiracy = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    communityId: v.string(),
+    expectedFaustian: faustianStateValidator,
+    subjectKind: v.union(v.literal("existing"), v.literal("create")),
+    denizenId: v.string(),
+    createName: v.union(v.string(), v.null()),
+    seatId: v.string(),
+    chipCount: v.union(v.literal(1), v.literal(2), v.literal(3)),
+    goal: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const input: EstablishFaustianConspiracyInput = {
+      communityId: args.communityId as FaustianCommunityId,
+      expectedFaustian: args.expectedFaustian as unknown as FaustianState,
+      subject: args.subjectKind === "existing"
+        ? { kind: "existing", denizenId: args.denizenId as DenizenId }
+        : { kind: "create", denizenId: args.denizenId as DenizenId, name: args.createName ?? "" },
+      seatId: args.seatId as PactSeatId,
+      chipCount: args.chipCount as FaustianAntagonistChipCount,
+      goal: args.goal as FaustianAntagonistGoal,
+    };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "establish_faustian_conspiracy",
+        commandFingerprint: establishFaustianConspiracyFingerprint(args.expectedCampaignId, input),
+        apply: (state) => applyEstablishFaustianConspiracy(state, input),
+      }),
+    );
+  },
+});
+
+const faustianPossessionRepresentationArg = v.union(
+  v.object({ kind: v.literal("none") }),
+  v.object({ kind: v.literal("denizen"), denizenId: v.string() }),
+  v.object({ kind: v.literal("treasure"), treasureId: v.string() }),
+);
+const faustianSchemeDestinationArg = v.union(
+  v.object({ kind: v.literal("ordinary_machinations") }),
+  v.object({
+    kind: v.literal("possession"),
+    wizardId: v.string(),
+    represented: faustianPossessionRepresentationArg,
+  }),
+  v.object({
+    kind: v.literal("domain_placement"),
+    seatId: v.string(),
+    represented: faustianPossessionRepresentationArg,
+  }),
+);
+const faustianTwistDispositionArg = v.object({
+  cardId: v.string(),
+  destination: v.union(
+    v.literal("remain_face_up_in_machinations"),
+    v.literal("recycle_into_faustian_deck"),
+    v.literal("move_to_defeated_schemes"),
+  ),
+});
+const faustianMachinationResultArg = v.union(
+  v.object({ kind: v.literal("one_pair") }),
+  v.object({
+    kind: v.literal("two_pair"),
+    groups: v.array(v.object({
+      cardIds: v.array(v.string()),
+      responsibleWizardId: v.string(),
+    })),
+  }),
+  v.object({
+    kind: v.literal("three_of_a_kind"),
+    groups: v.array(v.object({
+      cardId: v.string(),
+      responsibleWizardId: v.string(),
+    })),
+  }),
+  v.object({
+    kind: v.literal("flush"),
+    suit: v.string(),
+    twistDispositions: v.array(faustianTwistDispositionArg),
+  }),
+  v.object({
+    kind: v.literal("full_house"),
+    rank: v.string(),
+    twistDispositions: v.array(faustianTwistDispositionArg),
+  }),
+  v.object({
+    kind: v.literal("table_resolved"),
+    twistDispositions: v.array(faustianTwistDispositionArg),
+  }),
+);
+
+export const recordFaustianSchemeOccurred = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    communityId: v.string(),
+    schemeCardId: v.string(),
+    destination: faustianSchemeDestinationArg,
+    directAccompliceCardIds: v.array(v.string()),
+    expectedLocalAccompliceCardIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const input: RecordFaustianSchemeOccurredInput = {
+      communityId: args.communityId as FaustianCommunityId,
+      schemeCardId: args.schemeCardId as FaustianCardId,
+      destination: args.destination as RecordFaustianSchemeOccurredInput["destination"],
+      directAccompliceCardIds: args.directAccompliceCardIds as FaustianCardId[],
+      expectedLocalAccompliceCardIds: args.expectedLocalAccompliceCardIds as FaustianCardId[],
+    };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "record_faustian_scheme_occurred",
+        commandFingerprint: recordFaustianSchemeOccurredFingerprint(args.expectedCampaignId, input),
+        apply: (state) => applyRecordFaustianSchemeOccurred(state, input),
+      }),
+    );
+  },
+});
+
+export const discloseFaustianTwist = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    twistCardId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const input: DiscloseFaustianTwistInput = { twistCardId: args.twistCardId as FaustianCardId };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "disclose_faustian_twist",
+        commandFingerprint: discloseFaustianTwistFingerprint(args.expectedCampaignId, input),
+        apply: (state) => applyDiscloseFaustianTwist(state, input),
+      }),
+    );
+  },
+});
+
+export const recordFaustianTwistOccurred = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    twistCardId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const input: RecordFaustianTwistOccurredInput = { twistCardId: args.twistCardId as FaustianCardId };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "record_faustian_twist_occurred",
+        commandFingerprint: recordFaustianTwistOccurredFingerprint(args.expectedCampaignId, input),
+        apply: (state) => applyRecordFaustianTwistOccurred(state, input),
+      }),
+    );
+  },
+});
+
+export const recordFaustianMachinationOutcome = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    scoringHandCardIds: v.array(v.string()),
+    result: faustianMachinationResultArg,
+    expectedCleanupCardIds: v.array(v.string()),
+    outcomeDependentTwistCardIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const input: RecordFaustianMachinationOutcomeInput = {
+      scoringHandCardIds: args.scoringHandCardIds as FaustianCardId[],
+      result: args.result as RecordFaustianMachinationOutcomeInput["result"],
+      expectedCleanupCardIds: args.expectedCleanupCardIds as FaustianCardId[],
+      outcomeDependentTwistCardIds: args.outcomeDependentTwistCardIds as FaustianCardId[],
+    };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "record_faustian_machination_outcome",
+        commandFingerprint: recordFaustianMachinationOutcomeFingerprint(args.expectedCampaignId, input),
+        apply: (state) => applyRecordFaustianMachinationOutcome(state, input),
+      }),
+    );
+  },
+});
+
+export const completeFaustianMachinationResponse = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    challengeId: v.string(),
+    groupId: v.string(),
+    completedByWizardId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const input: CompleteFaustianMachinationResponseInput = {
+      challengeId: args.challengeId as CompleteFaustianMachinationResponseInput["challengeId"],
+      groupId: args.groupId as CompleteFaustianMachinationResponseInput["groupId"],
+      completedByWizardId: args.completedByWizardId as WizardId,
+    };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "complete_faustian_machination_response",
+        commandFingerprint: completeFaustianMachinationResponseFingerprint(args.expectedCampaignId, input),
+        apply: (state) => applyCompleteFaustianMachinationResponse(state, input),
+      }),
+    );
+  },
+});
+
+export const finalizeFaustianMachinationChallenge = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    challengeId: v.string(),
+    pendingHoldingDisposition: v.union(
+      v.literal("shuffle_into_faustian_deck"),
+      v.literal("shuffle_into_devil_deck"),
+      v.literal("move_to_defeated_schemes"),
+    ),
+    twistDispositions: v.array(faustianTwistDispositionArg),
+  },
+  handler: async (ctx, args) => {
+    const input: FinalizeFaustianMachinationChallengeInput = {
+      challengeId: args.challengeId as FinalizeFaustianMachinationChallengeInput["challengeId"],
+      pendingHoldingDisposition: args.pendingHoldingDisposition,
+      twistDispositions: args.twistDispositions as FinalizeFaustianMachinationChallengeInput["twistDispositions"],
+    };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "finalize_faustian_machination_challenge",
+        commandFingerprint: finalizeFaustianMachinationChallengeFingerprint(args.expectedCampaignId, input),
+        apply: (state) => applyFinalizeFaustianMachinationChallenge(state, input),
+      }),
+    );
+  },
+});
+
+const faustianPhysicalDestinationArg = v.union(
+  v.object({ kind: v.literal("faustian_deck") }),
+  v.object({ kind: v.literal("devil_deck") }),
+  v.object({ kind: v.literal("community_scheme"), communityId: v.string(), facing: v.union(v.literal("face_up"), v.literal("face_down")) }),
+  v.object({ kind: v.literal("community_accomplice"), communityId: v.string() }),
+  v.object({ kind: v.literal("machinations"), facing: v.union(v.literal("face_up"), v.literal("face_down")) }),
+  v.object({ kind: v.literal("defeated_schemes") }),
+  v.object({ kind: v.literal("set_aside_hand") }),
+  v.object({ kind: v.literal("entrusted"), wizardId: v.string() }),
+  v.object({ kind: v.literal("possession"), wizardId: v.string(), represented: faustianPossessionRepresentationArg }),
+  v.object({ kind: v.literal("domain_placement"), seatId: v.string(), represented: faustianPossessionRepresentationArg }),
+  v.object({ kind: v.literal("beneath_antagonist"), denizenId: v.string() }),
+);
+
+const faustianDemonBindingArg = v.union(
+  v.object({ kind: v.literal("bound") }),
+  v.object({ kind: v.literal("unbound"), malignance: v.string() }),
+);
+
+const faustianDemonOccupancyArg = v.union(
+  v.null(),
+  v.object({ kind: v.literal("isha") }),
+  v.object({ kind: v.literal("pact_domain"), seatId: v.string() }),
+);
+
+const faustianPersistentEffectArg = v.union(
+  v.object({ kind: v.literal("flush"), suit: v.string() }),
+  v.object({ kind: v.literal("full_house"), rank: v.string() }),
+);
+
+const faustianCorrectCardInputArg = v.union(
+  v.object({
+    kind: v.literal("facing"),
+    cardId: v.string(),
+    facing: v.union(v.literal("face_up"), v.literal("face_down")),
+  }),
+  v.object({
+    kind: v.literal("placement"),
+    cardId: v.string(),
+    destination: faustianPhysicalDestinationArg,
+  }),
+  v.object({
+    kind: v.literal("deck_order"),
+    deck: v.union(v.literal("faustian"), v.literal("devil")),
+    cardIds: v.array(v.string()),
+  }),
+);
+
+const faustianCorrectAntagonistInputArg = v.union(
+  v.object({
+    kind: v.literal("attach"),
+    denizenId: v.string(),
+    seatId: v.string(),
+    chipCount: v.union(v.literal(1), v.literal(2), v.literal(3)),
+  }),
+  v.object({
+    kind: v.literal("update"),
+    denizenId: v.string(),
+    seatId: v.string(),
+    chipCount: v.union(v.literal(1), v.literal(2), v.literal(3)),
+  }),
+  v.object({
+    kind: v.literal("remove"),
+    denizenId: v.string(),
+    beneathDestinations: v.array(v.object({
+      cardId: v.string(),
+      destination: faustianPhysicalDestinationArg,
+    })),
+  }),
+);
+
+const faustianCorrectDemonFields = {
+  denizenId: v.string(),
+  binding: faustianDemonBindingArg,
+  form: v.string(),
+  hellOfOrigin: v.string(),
+  magicalSymbol: v.string(),
+  occupancy: faustianDemonOccupancyArg,
+  monthsInCurrentDomain: v.number(),
+  condition: v.string(),
+};
+
+const faustianCorrectDemonInputArg = v.union(
+  v.object({ kind: v.literal("record"), ...faustianCorrectDemonFields }),
+  v.object({ kind: v.literal("update"), ...faustianCorrectDemonFields }),
+  v.object({ kind: v.literal("remove"), denizenId: v.string() }),
+);
+
+const faustianCorrectDevilProfileInputArg = v.union(
+  v.object({ kind: v.literal("laws"), selectedDevilLawIds: v.array(v.string()) }),
+  v.object({
+    kind: v.literal("forms"),
+    selectedDevilForms: v.object({
+      casual: v.array(v.string()),
+      special: v.array(v.string()),
+      duress: v.array(v.string()),
+    }),
+  }),
+  v.object({ kind: v.literal("origin_claim"), claimId: v.string(), status: v.union(v.literal("open"), v.literal("disproven")) }),
+  v.object({
+    kind: v.literal("custom_origin_claim"),
+    customOriginClaim: v.union(
+      v.null(),
+      v.object({
+        claim: v.string(),
+        secretName: v.union(v.string(), v.null()),
+        status: v.union(v.literal("open"), v.literal("disproven")),
+      }),
+    ),
+  }),
+);
+
+export const correctFaustianCard = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    input: faustianCorrectCardInputArg,
+  },
+  handler: async (ctx, args) => {
+    const input = args.input as CorrectFaustianCardInput;
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "correct_faustian_card",
+        commandFingerprint: correctFaustianCardFingerprint(args.expectedCampaignId, input),
+        apply: (state) => applyCorrectFaustianCard(state, input),
+      }),
+    );
+  },
+});
+
+export const correctFaustianAntagonist = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    input: faustianCorrectAntagonistInputArg,
+  },
+  handler: async (ctx, args) => {
+    const input = args.input as CorrectFaustianAntagonistInput;
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "correct_faustian_antagonist",
+        commandFingerprint: correctFaustianAntagonistFingerprint(args.expectedCampaignId, input),
+        apply: (state) => applyCorrectFaustianAntagonist(state, input),
+      }),
+    );
+  },
+});
+
+export const correctFaustianDemon = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    input: faustianCorrectDemonInputArg,
+  },
+  handler: async (ctx, args) => {
+    const input = args.input as CorrectFaustianDemonInput;
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "correct_faustian_demon",
+        commandFingerprint: correctFaustianDemonFingerprint(args.expectedCampaignId, input),
+        apply: (state) => applyCorrectFaustianDemon(state, input),
+      }),
+    );
+  },
+});
+
+export const correctFaustianDomainSeizure = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    kind: v.union(v.literal("set"), v.literal("clear")),
+    seatId: v.string(),
+    conduitDenizenId: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    const input: CorrectFaustianDomainSeizureInput = args.kind === "clear"
+      ? { kind: "clear", seatId: args.seatId as PactSeatId }
+      : { kind: "set", seatId: args.seatId as PactSeatId, conduitDenizenId: args.conduitDenizenId as DenizenId };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "correct_faustian_domain_seizure",
+        commandFingerprint: correctFaustianDomainSeizureFingerprint(args.expectedCampaignId, input),
+        apply: (state) => applyCorrectFaustianDomainSeizure(state, input),
+      }),
+    );
+  },
+});
+
+export const correctFaustianDevilProfile = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    input: faustianCorrectDevilProfileInputArg,
+  },
+  handler: async (ctx, args) => {
+    const input = args.input as CorrectFaustianDevilProfileInput;
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "correct_faustian_devil_profile",
+        commandFingerprint: correctFaustianDevilProfileFingerprint(args.expectedCampaignId, input),
+        apply: (state) => applyCorrectFaustianDevilProfile(state, input),
+      }),
+    );
+  },
+});
+
+export const recordFaustianDueMonthObligation = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    wizardId: v.string(),
+    dueMonthOrdinal: v.number(),
+    weeks: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const input: RecordFaustianDueMonthObligationInput = {
+      wizardId: args.wizardId as WizardId,
+      dueMonthOrdinal: args.dueMonthOrdinal as RecordFaustianDueMonthObligationInput["dueMonthOrdinal"],
+      weeks: args.weeks,
+    };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "record_faustian_due_month_obligation",
+        commandFingerprint: recordFaustianDueMonthObligationFingerprint(args.expectedCampaignId, input),
+        apply: (state) => applyRecordFaustianDueMonthObligation(state, input),
+      }),
+    );
+  },
+});
+
+export const fulfillFaustianDueMonthObligation = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    wizardId: v.string(),
+    dueMonthOrdinal: v.number(),
+    weeks: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const input: FulfillFaustianDueMonthObligationInput = {
+      wizardId: args.wizardId as WizardId,
+      dueMonthOrdinal: args.dueMonthOrdinal as FulfillFaustianDueMonthObligationInput["dueMonthOrdinal"],
+      weeks: args.weeks,
+    };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "fulfill_faustian_due_month_obligation",
+        commandFingerprint: fulfillFaustianDueMonthObligationFingerprint(args.expectedCampaignId, input),
+        apply: (state) => applyFulfillFaustianDueMonthObligation(state, input),
+      }),
+    );
+  },
+});
+
+export const correctFaustianPersistentEffect = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    kind: v.union(v.literal("add"), v.literal("remove")),
+    effect: faustianPersistentEffectArg,
+  },
+  handler: async (ctx, args) => {
+    const input: CorrectFaustianPersistentEffectInput = {
+      kind: args.kind,
+      effect: args.effect as CorrectFaustianPersistentEffectInput["effect"],
+    };
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => ({
+        commandType: "correct_faustian_persistent_effect",
+        commandFingerprint: correctFaustianPersistentEffectFingerprint(args.expectedCampaignId, input),
+        apply: (state) => applyCorrectFaustianPersistentEffect(state, input),
       }),
     );
   },

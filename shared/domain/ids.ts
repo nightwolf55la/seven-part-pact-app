@@ -17,6 +17,8 @@ export type PowerfulDenizenMethodEntryId = Brand<string, "PowerfulDenizenMethodE
 export type PowerfulDenizenTruthId = Brand<string, "PowerfulDenizenTruthId">;
 export type LoreCollectionId = Brand<string, "LoreCollectionId">;
 export type LoreEntryId = Brand<string, "LoreEntryId">;
+export type FaustianPendingMachinationChallengeId = Brand<string, "FaustianPendingMachinationChallengeId">;
+export type FaustianPendingMachinationGroupId = Brand<string, "FaustianPendingMachinationGroupId">;
 
 
 const CAMPAIGN_ID_REGEX = /^cmp_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -36,6 +38,8 @@ const POWERFUL_DENIZEN_METHOD_ENTRY_ID_REGEX = /^pdmth_[0-9a-f]{8}-[0-9a-f]{4}-[
 const POWERFUL_DENIZEN_TRUTH_ID_REGEX = /^pdtru_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const LORE_COLLECTION_ID_REGEX = /^lcol_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const LORE_ENTRY_ID_REGEX = /^lore_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const FAUSTIAN_PENDING_MACHINATION_CHALLENGE_ID_REGEX = /^fpmc_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const FAUSTIAN_PENDING_MACHINATION_GROUP_ID_REGEX = /^fpmg_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 function generateBrandedId(prefix: string): string {
   return `${prefix}_${crypto.randomUUID()}`;
@@ -240,6 +244,40 @@ export function isValidLoreEntryId(value: string): value is LoreEntryId {
 export function parseLoreEntryId(value: string): LoreEntryId {
   if (!isValidLoreEntryId(value)) {
     throw new Error(`Invalid LoreEntryId format: "${value}". Expected lore_<UUID>.`);
+  }
+  return value;
+}
+
+export function generateFaustianPendingMachinationChallengeId(): FaustianPendingMachinationChallengeId {
+  return generateBrandedId("fpmc") as FaustianPendingMachinationChallengeId;
+}
+
+export function isValidFaustianPendingMachinationChallengeId(
+  value: string,
+): value is FaustianPendingMachinationChallengeId {
+  return FAUSTIAN_PENDING_MACHINATION_CHALLENGE_ID_REGEX.test(value);
+}
+
+export function parseFaustianPendingMachinationChallengeId(value: string): FaustianPendingMachinationChallengeId {
+  if (!isValidFaustianPendingMachinationChallengeId(value)) {
+    throw new Error(`Invalid FaustianPendingMachinationChallengeId format: "${value}". Expected fpmc_<UUID>.`);
+  }
+  return value;
+}
+
+export function generateFaustianPendingMachinationGroupId(): FaustianPendingMachinationGroupId {
+  return generateBrandedId("fpmg") as FaustianPendingMachinationGroupId;
+}
+
+export function isValidFaustianPendingMachinationGroupId(
+  value: string,
+): value is FaustianPendingMachinationGroupId {
+  return FAUSTIAN_PENDING_MACHINATION_GROUP_ID_REGEX.test(value);
+}
+
+export function parseFaustianPendingMachinationGroupId(value: string): FaustianPendingMachinationGroupId {
+  if (!isValidFaustianPendingMachinationGroupId(value)) {
+    throw new Error(`Invalid FaustianPendingMachinationGroupId format: "${value}". Expected fpmg_<UUID>.`);
   }
   return value;
 }

@@ -325,6 +325,52 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Directed Faustian Accomplice";
     case "faustian_pawn_disrupted":
       return "Disrupted Faustian Pawn";
+    case "faustian_table_arranged":
+      return "Arranged Faustian Table";
+    case "faustian_structural_placeholder_completed":
+      return "Completed Faustian structural placeholder";
+    case "faustian_community_schemes_revealed":
+      return "Revealed Faustian Community Schemes";
+    case "faustian_community_scheme_foiled":
+      return "Foiled a Faustian Scheme";
+    case "faustian_schemes_placed":
+      return "Placed Faustian Schemes";
+    case "faustian_pawn_count_changed":
+      return event.data.nextCount > event.data.previousCount
+        ? "Added a Faustian Pawn"
+        : "Removed a Faustian Pawn";
+    case "faustian_conspiracy_established":
+      return "Established a Faustian Conspiracy";
+    case "faustian_antagonist_established":
+      return "Established a Faustian Antagonist";
+    case "faustian_scheme_occurred":
+      return "Recorded a Faustian Scheme occurrence";
+    case "faustian_twist_disclosed":
+      return "Disclosed a Faustian Twist";
+    case "faustian_twist_occurred":
+      return "Recorded a Faustian Twist occurrence";
+    case "faustian_machination_outcome_recorded":
+      return "Recorded a Faustian Machination outcome";
+    case "faustian_machination_response_completed":
+      return "Recorded a Faustian Machination response";
+    case "faustian_machination_challenge_finalized":
+      return "Finalized a Faustian Machination challenge";
+    case "faustian_card_corrected":
+      return "Corrected Faustian card table state";
+    case "faustian_antagonist_corrected":
+      return "Corrected a Faustian Antagonist";
+    case "faustian_demon_corrected":
+      return "Corrected a Faustian Demon";
+    case "faustian_domain_seizure_corrected":
+      return "Corrected a Faustian Domain seizure";
+    case "faustian_devil_profile_corrected":
+      return "Corrected the Faustian Devil profile";
+    case "faustian_due_month_obligation_recorded":
+      return "Recorded a Faustian due-month Wizard-week obligation";
+    case "faustian_due_month_obligation_fulfilled":
+      return "Fulfilled a Faustian due-month Wizard-week obligation";
+    case "faustian_persistent_effect_corrected":
+      return "Corrected a Faustian persistent Machination consequence";
     case "sorcerer_initialized":
       return "Initialized Sorcerer";
     case "sorcerer_personnel_recruited":
@@ -598,6 +644,28 @@ export function mapEventToActivityEntry(
     case "faustian_community_blackmailed":
     case "faustian_accomplice_directed":
     case "faustian_pawn_disrupted":
+    case "faustian_table_arranged":
+    case "faustian_structural_placeholder_completed":
+    case "faustian_community_schemes_revealed":
+    case "faustian_community_scheme_foiled":
+    case "faustian_schemes_placed":
+    case "faustian_pawn_count_changed":
+    case "faustian_conspiracy_established":
+    case "faustian_antagonist_established":
+    case "faustian_scheme_occurred":
+    case "faustian_twist_disclosed":
+    case "faustian_twist_occurred":
+    case "faustian_machination_outcome_recorded":
+    case "faustian_machination_response_completed":
+    case "faustian_machination_challenge_finalized":
+    case "faustian_card_corrected":
+    case "faustian_antagonist_corrected":
+    case "faustian_demon_corrected":
+    case "faustian_domain_seizure_corrected":
+    case "faustian_devil_profile_corrected":
+    case "faustian_due_month_obligation_recorded":
+    case "faustian_due_month_obligation_fulfilled":
+    case "faustian_persistent_effect_corrected":
     case "sorcerer_initialized":
     case "sorcerer_personnel_recruited":
     case "sorcerer_researcher_refocused":

@@ -4,7 +4,7 @@
 
 This roadmap supersedes the earlier provisional M3+ outline.
 
-The project has completed its persistence/core-play foundations, all seven Wizard Domain structural foundations, and the shared M5.3 Lore/Compendium foundation. M5.4 active-table Domain operability is now in progress, with Lore/Compendium UX, Sorcerer operability, Hierophant + Necromancer Temples/Gates operability, and Mariner Interactive Map & Operability complete. Faustian remains in the active tranche.
+The project has completed its persistence/core-play foundations, all seven Wizard Domain structural foundations, and the shared M5.3 Lore/Compendium foundation. M5.4 active-table Domain operability is now in progress, with Lore/Compendium UX, Sorcerer operability, Hierophant + Necromancer Temples/Gates operability, and Mariner Interactive Map & Operability complete. Faustian Bodies A–D are a deterministic candidate; real Convex closure is blocked pending login/project configuration. Faustian is not marked complete. Warlock and Sage remain deferred. CampaignState V5 remains PRE-ACTIVATION.
 
 The roadmap describes dependency order and milestone intent. Exact Workstream boundaries remain subject to Master/human approval as source and repository evidence develops.
 
@@ -250,15 +250,25 @@ No CampaignState schema or migration change. CampaignState V5 remains PRE-ACTIVA
 
 Deliberately deferred: repeat-Ravage semantics; off-Horizon Beast movement (table-resolved per SOURCE).
 
+### M5.4A-F — Faustian Card Table & Operability
+
+**COMPLETE / READY FOR PR.**
+
+Branch `m5-4a/faustian-card-table`. Base `ba32e19cafea37e148eb9bb3f0dc8db56625941f`. Deterministic code HEAD after the Workstream empty-direct-set fix: `fd011937d3413b728467f65067f48acb10772dc7`.
+
+Delivered the Faustian card table, A/B review corrections, approved in-place PRE-ACTIVATION V5 pending-challenge and due-month obligation foundation, Body C lifecycle, and Body D typed Advanced / Correct Table coverage. Post-overnight audit corrected Two Pair / Three of a Kind table assignment and immediate Twist disposition / Full House rank derivation. Multiple local Accomplices now require a nonempty explicit direct set. Deterministic gate: 140 files / 2660 tests. Real Convex Development closure succeeded on disposable `dev/m5-4a-f-closure` (`patient-pheasant-353`); campaign `cmp_cc1e3585-c833-4078-a5a4-ea8a53e4f326` revision 0 → 51 with pending-challenge, due-month, replay, Undo/Redo, checkpoint, backup/import, health, and browser-refresh proofs. CampaignState V5 remains PRE-ACTIVATION. Do not mark all of M5.4 complete.
+
+See `docs/m5-4a-f-faustian-card-table.md`.
+
 ### Remaining active-table tranche
 
 Remaining active-player Domain operability:
 
-- Faustian.
+- Warlock and Sage Domain operability, still deferred while they have no active players.
 
 Warlock and Sage are intentionally deferred while they have no active players.
 
-Hierophant and Necromancer now render authoritative derived Sorcerer Researcher presence locally without duplicating placement state. Mariner/Faustian should continue that pattern.
+Hierophant, Necromancer, Mariner, and Faustian Body A consume derived Sorcerer Researcher presence without duplicating placement state.
 
 The editable/vector `Patreon Materials [04.26.04].pptx` is available as a design source and is especially valuable for the Mariner map/geography and Faustian card-table presentation.
 
@@ -411,11 +421,9 @@ Likely areas:
 
 ## Current Next Action
 
-M5.4A-M is complete in PR #26. PR #26 is ready for final review/merge.
+Mariner is complete (PR #26 merged). Faustian Bodies A–D are a deterministic candidate on `m5-4a/faustian-card-table`; real Convex closure is blocked. Do not mark Faustian or M5.4 complete.
 
-Release **M5.4A-F — Faustian Operability** as the next implementation Workstream from the merged result. Continue Faustian design/preparation in parallel, but keep production implementation sequential: **Mariner -> Faustian**.
-
-Warlock/Sage remain deferred. Do not mark M5.4 complete until Faustian is complete and the Master/human explicitly decide how the deferred tranche is handled.
+Warlock/Sage remain deferred. CampaignState V5 remains PRE-ACTIVATION.
 
 ### Execution guidance
 

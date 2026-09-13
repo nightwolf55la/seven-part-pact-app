@@ -134,6 +134,28 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "blackmail_faustian_community",
   "direct_faustian_accomplice",
   "disrupt_faustian_pawn",
+  "arrange_faustian_table",
+  "complete_faustian_structural_placeholder",
+  "reveal_faustian_community_schemes",
+  "foil_faustian_community_scheme",
+  "place_faustian_schemes",
+  "add_faustian_pawn",
+  "remove_faustian_pawn",
+  "establish_faustian_conspiracy",
+  "record_faustian_scheme_occurred",
+  "disclose_faustian_twist",
+  "record_faustian_twist_occurred",
+  "record_faustian_machination_outcome",
+  "complete_faustian_machination_response",
+  "finalize_faustian_machination_challenge",
+  "correct_faustian_card",
+  "correct_faustian_antagonist",
+  "correct_faustian_demon",
+  "correct_faustian_domain_seizure",
+  "correct_faustian_devil_profile",
+  "record_faustian_due_month_obligation",
+  "fulfill_faustian_due_month_obligation",
+  "correct_faustian_persistent_effect",
   "initialize_sorcerer",
   "recruit_sorcerer_personnel",
   "refocus_sorcerer_researcher",
@@ -304,6 +326,28 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "blackmail_faustian_community":
     case "direct_faustian_accomplice":
     case "disrupt_faustian_pawn":
+    case "arrange_faustian_table":
+    case "complete_faustian_structural_placeholder":
+    case "reveal_faustian_community_schemes":
+    case "foil_faustian_community_scheme":
+    case "place_faustian_schemes":
+    case "add_faustian_pawn":
+    case "remove_faustian_pawn":
+    case "establish_faustian_conspiracy":
+    case "record_faustian_scheme_occurred":
+    case "disclose_faustian_twist":
+    case "record_faustian_twist_occurred":
+    case "record_faustian_machination_outcome":
+    case "complete_faustian_machination_response":
+    case "finalize_faustian_machination_challenge":
+    case "correct_faustian_card":
+    case "correct_faustian_antagonist":
+    case "correct_faustian_demon":
+    case "correct_faustian_domain_seizure":
+    case "correct_faustian_devil_profile":
+    case "record_faustian_due_month_obligation":
+    case "fulfill_faustian_due_month_obligation":
+    case "correct_faustian_persistent_effect":
     case "initialize_sorcerer":
     case "recruit_sorcerer_personnel":
     case "refocus_sorcerer_researcher":

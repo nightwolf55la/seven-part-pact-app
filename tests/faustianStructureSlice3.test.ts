@@ -754,6 +754,7 @@ describe("M5.2E Faustian durable structural state", () => {
   it("EMPTY and normal initialization include empty Flush history and Machination effects", () => {
     expect(EMPTY_FAUSTIAN_STATE.resolvedFlushSuits).toEqual([]);
     expect(EMPTY_FAUSTIAN_STATE.persistentMachinationEffects).toEqual([]);
+    expect(EMPTY_FAUSTIAN_STATE.pendingMachinationChallenges).toEqual([]);
     expect(initializedFaustian().resolvedFlushSuits).toEqual([]);
     expect(initializedFaustian().persistentMachinationEffects).toEqual([]);
     expect(() => validateFaustianStructure(EMPTY_FAUSTIAN_STATE)).not.toThrow();

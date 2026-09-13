@@ -1,6 +1,6 @@
 export type { Brand } from "./brand";
 
-export type { CampaignId, CommandId, CheckpointId, PlayerId, WizardId, AllocationId, EngagementId, DenizenId, IsleId, PlaceId, CompanionRelationshipId, TreasureId, CampaignPowerfulDenizenTaxonomyId, PowerfulDenizenMethodEntryId, PowerfulDenizenTruthId, LoreCollectionId, LoreEntryId } from "./ids";
+export type { CampaignId, CommandId, CheckpointId, PlayerId, WizardId, AllocationId, EngagementId, DenizenId, IsleId, PlaceId, CompanionRelationshipId, TreasureId, CampaignPowerfulDenizenTaxonomyId, PowerfulDenizenMethodEntryId, PowerfulDenizenTruthId, LoreCollectionId, LoreEntryId, FaustianPendingMachinationChallengeId, FaustianPendingMachinationGroupId } from "./ids";
 export {
   isValidCampaignId,
   parseCampaignId,
@@ -40,6 +40,12 @@ export {
   generateLoreEntryId,
   isValidLoreEntryId,
   parseLoreEntryId,
+  generateFaustianPendingMachinationChallengeId,
+  isValidFaustianPendingMachinationChallengeId,
+  parseFaustianPendingMachinationChallengeId,
+  generateFaustianPendingMachinationGroupId,
+  isValidFaustianPendingMachinationGroupId,
+  parseFaustianPendingMachinationGroupId,
 } from "./ids";
 
 export type {
@@ -488,6 +494,27 @@ export {
   blackmailFaustianCommunityFingerprint,
   directFaustianAccompliceFingerprint,
   disruptFaustianPawnFingerprint,
+  arrangeFaustianTableFingerprint,
+  completeFaustianStructuralPlaceholderFingerprint,
+  revealFaustianCommunitySchemesFingerprint,
+  foilFaustianCommunitySchemeFingerprint,
+  placeFaustianSchemesFingerprint,
+  changeFaustianPawnCountFingerprint,
+  establishFaustianConspiracyFingerprint,
+  recordFaustianSchemeOccurredFingerprint,
+  discloseFaustianTwistFingerprint,
+  recordFaustianTwistOccurredFingerprint,
+  recordFaustianMachinationOutcomeFingerprint,
+  completeFaustianMachinationResponseFingerprint,
+  finalizeFaustianMachinationChallengeFingerprint,
+  correctFaustianCardFingerprint,
+  correctFaustianAntagonistFingerprint,
+  correctFaustianDemonFingerprint,
+  correctFaustianDomainSeizureFingerprint,
+  correctFaustianDevilProfileFingerprint,
+  recordFaustianDueMonthObligationFingerprint,
+  fulfillFaustianDueMonthObligationFingerprint,
+  correctFaustianPersistentEffectFingerprint,
   initializeSorcererFingerprint,
   recruitSorcererPersonnelFingerprint,
   refocusSorcererResearcherFingerprint,
@@ -1244,6 +1271,32 @@ export type {
   FaustianAntagonistChipCount,
   FaustianMalignance,
 } from "./faustian-catalogs";
+export type {
+  FaustianSourceWordingStatus,
+  FaustianSchemeReference,
+  FaustianTwistReference,
+  FaustianAccompliceReference,
+  FaustianCardSourceReference,
+} from "./faustian-card-reference";
+export {
+  FAUSTIAN_SOURCE_WORDING_STATUSES,
+  FAUSTIAN_SOURCE_WORDING_OMISSION,
+  FAUSTIAN_CARD_SOURCE_REFERENCES,
+  FAUSTIAN_RANK_LABELS,
+  FAUSTIAN_SUIT_LABELS,
+  FAUSTIAN_ZODIAC_LABELS,
+  FAUSTIAN_TABLEAU_COLUMN_COUNT,
+  FAUSTIAN_TABLEAU_ROW_COUNT,
+  FAUSTIAN_RANK_SEQUENCE,
+  FAUSTIAN_SUIT_SEQUENCE,
+  faustianCardSourceReference,
+  faustianCardSourceReferenceOrNull,
+  faustianFaceUpIdentityLabel,
+  faustianCommunityHeader,
+  faustianTableauRowIndex,
+  faustianTableauColumnIndex,
+} from "./faustian-card-reference";
+
 export {
   FAUSTIAN_SUITS,
   FAUSTIAN_RANKS,
@@ -1303,6 +1356,10 @@ export type {
   FaustianCustomOriginClaim,
   FaustianSelectedDevilForms,
   FaustianDevilObligation,
+  FaustianPendingMachinationKind,
+  FaustianPendingMachinationGroupStatus,
+  FaustianPendingMachinationGroup,
+  FaustianPendingMachinationChallenge,
   FaustianPersistentFullHouseRank,
   FaustianPersistentMachinationEffect,
   FaustianState,
@@ -1312,13 +1369,20 @@ export {
   EMPTY_FAUSTIAN_STATE,
   EMPTY_SELECTED_DEVIL_FORMS,
   FAUSTIAN_DEMON_CONDITIONS,
+  FAUSTIAN_PENDING_MACHINATION_KINDS,
+  FAUSTIAN_PENDING_MACHINATION_GROUP_STATUSES,
   FAUSTIAN_PERSISTENT_FULL_HOUSE_RANKS,
   buildInitializedDefaultFaustianState,
   faustianDeckMissingSuits,
   devilWeeksOwedForMissingSuits,
   isFaustianDeckEmpty,
   isValidFaustianDemonCondition,
+  isValidFaustianPendingMachinationKind,
+  isValidFaustianPendingMachinationGroupStatus,
   isValidFaustianPersistentFullHouseRank,
+  followingFaustianChallengeDueMonth,
+  accumulateFaustianDueMonthObligation,
+  fulfillFaustianDueMonthObligation,
 } from "./faustian-state";
 
 export { validateFaustianStructure, validateFaustianReferenceIntegrity } from "./faustian-validation";
@@ -1694,7 +1758,86 @@ export {
   applyBlackmailFaustianCommunity,
   applyDirectFaustianAccomplice,
   applyDisruptFaustianPawn,
+  applyLocalAccompliceProtection,
+  faustianAccompliceDefeatsScheme,
 } from "./faustian-transitions";
+
+export type {
+  FaustianArrangementId,
+  ArrangeFaustianTableInput,
+  ArrangeFaustianCalamityAntagonistInput,
+  EstablishFaustianConspiracyInput,
+} from "./faustian-operability-transitions";
+export {
+  FAUSTIAN_ARRANGEMENT_IDS,
+  completedTwentyYearScores,
+  allowedFaustianArrangementsForAge,
+  isExactUnarrangedFaustianBaseline,
+  isExactStructuralHelperFaustian,
+  faustianStatesEqual,
+  isFaustianFoilTargetStillValid,
+  faustianCalamityAntagonistSnapshotIneligibility,
+  faustianCalamityAntagonistIneligibility,
+  isEligibleFaustianCalamityAntagonistDenizen,
+  applyArrangeFaustianTable,
+  applyCompleteFaustianStructuralPlaceholder,
+  applyRevealFaustianCommunitySchemes,
+  applyFoilFaustianCommunityScheme,
+  applyPlaceFaustianSchemes,
+  applyChangeFaustianPawnCount,
+  applyEstablishFaustianConspiracy,
+} from "./faustian-operability-transitions";
+
+export type {
+  FaustianSchemeOccurrenceDestination,
+  RecordFaustianSchemeOccurredInput,
+  FaustianSchemeOccurrencePreview,
+  DiscloseFaustianTwistInput,
+  RecordFaustianTwistOccurredInput,
+  FaustianTwistDisposition,
+  FaustianTwistDispositionDestination,
+  FaustianPendingHoldingDisposition,
+  FaustianMachinationOutcomeResult,
+  RecordFaustianMachinationOutcomeInput,
+  CompleteFaustianMachinationResponseInput,
+  FinalizeFaustianMachinationChallengeInput,
+} from "./faustian-lifecycle-transitions";
+export {
+  reservedFaustianActiveTwistCardIds,
+  isFaustianTwistReserved,
+  eligibleFaustianMachinationCleanupCardIds,
+  faustianChallengeScheduleLabel,
+  isFaustianSchemeOccurrenceTargetValid,
+  previewFaustianSchemeOccurrence,
+  applyRecordFaustianSchemeOccurred,
+  applyDiscloseFaustianTwist,
+  applyRecordFaustianTwistOccurred,
+  applyRecordFaustianMachinationOutcome,
+  applyCompleteFaustianMachinationResponse,
+  applyFinalizeFaustianMachinationChallenge,
+} from "./faustian-lifecycle-transitions";
+
+export type {
+  FaustianPhysicalDestination,
+  CorrectFaustianCardInput,
+  CorrectFaustianAntagonistInput,
+  CorrectFaustianDemonInput,
+  CorrectFaustianDomainSeizureInput,
+  CorrectFaustianDevilProfileInput,
+  RecordFaustianDueMonthObligationInput,
+  FulfillFaustianDueMonthObligationInput,
+  CorrectFaustianPersistentEffectInput,
+} from "./faustian-advanced-transitions";
+export {
+  applyCorrectFaustianCard,
+  applyCorrectFaustianAntagonist,
+  applyCorrectFaustianDemon,
+  applyCorrectFaustianDomainSeizure,
+  applyCorrectFaustianDevilProfile,
+  applyRecordFaustianDueMonthObligation,
+  applyFulfillFaustianDueMonthObligation,
+  applyCorrectFaustianPersistentEffect,
+} from "./faustian-advanced-transitions";
 
 export type {
   NecromancerTransitionResult,

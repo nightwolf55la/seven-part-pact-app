@@ -285,6 +285,9 @@ describe("blackmail_faustian_community", () => {
     expect(fingerprint).not.toMatch(/spades_|clubs_|diamonds_|hearts_/);
     expect(fingerprint).toBe(blackmailFaustianCommunityFingerprint(CAMPAIGN_A, ARIES));
     expect(fingerprint).not.toBe(blackmailFaustianCommunityFingerprint(CAMPAIGN_A, LEO));
+    const v2 = blackmailFaustianCommunityFingerprint(CAMPAIGN_A, ARIES, initializedFaustian());
+    expect(v2).toContain("blackmail_faustian_community:v2:");
+    expect(v2).not.toBe(fingerprint);
   });
 
   it("draws the authoritative top Faustian Deck card into the Community as an Accomplice", () => {
@@ -299,10 +302,12 @@ describe("blackmail_faustian_community", () => {
 
     expect(result.events).toEqual([{
       type: "faustian_community_blackmailed",
-      version: 1,
+      version: 2,
       data: {
         communityId: ARIES,
         drawnCardId: topCard,
+        revealedSchemeCardIds: [],
+        preventedSchemeCardIds: [],
       },
     }]);
     expect(aries?.accompliceCardIds).toEqual([topCard]);
@@ -363,8 +368,9 @@ describe("Faustian ordinary command path", () => {
   it("commits blackmail using the server-drawn card in the audit event, not client intent", async () => {
     const state = baseV5(initializedFaustian());
     const topCard = state.faustian.faustianDeck[0];
-    const fingerprint = blackmailFaustianCommunityFingerprint(CAMPAIGN_A, ARIES);
-    expect(fingerprint).not.toContain(topCard);
+    const fingerprint = blackmailFaustianCommunityFingerprint(CAMPAIGN_A, ARIES, state.faustian);
+    expect(fingerprint).toContain("blackmail_faustian_community:v2:");
+    expect(fingerprint).toContain(ARIES);
 
     const { io, commits } = recordingIo({ campaign: campaignOf(CAMPAIGN_A, state, 8) });
     const receipt = await executeOrdinaryLogicalCommand(
@@ -373,15 +379,20 @@ describe("Faustian ordinary command path", () => {
       () => ({
         commandType: "blackmail_faustian_community",
         commandFingerprint: fingerprint,
-        apply: (current) => applyBlackmailFaustianCommunity(current, ARIES),
+        apply: (current) => applyBlackmailFaustianCommunity(current, ARIES, state.faustian),
       }),
     );
     expect(receipt).toEqual({ revision: 9 });
     expect(commits[0]?.commandFingerprint).toBe(fingerprint);
     expect(commits[0]?.events[0]).toEqual({
       type: "faustian_community_blackmailed",
-      version: 1,
-      data: { communityId: ARIES, drawnCardId: topCard },
+      version: 2,
+      data: {
+        communityId: ARIES,
+        drawnCardId: topCard,
+        revealedSchemeCardIds: [],
+        preventedSchemeCardIds: [],
+      },
     });
     expect(commits[0]?.nextState.faustian.communities.find((community) => community.communityId === ARIES)?.accompliceCardIds)
       .toEqual([topCard]);

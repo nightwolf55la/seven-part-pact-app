@@ -1246,7 +1246,12 @@ const faustianDemonBindingValidator = v.union(
   v.object({ kind: v.literal("unbound"), malignance: v.string() }),
 );
 const faustianDevilObligationValidator = v.union(
-  v.object({ kind: v.literal("wizard_owes_week_next_month"), wizardId: v.string() }),
+  v.object({
+    kind: v.literal("wizard_owes_week_due_month"),
+    wizardId: v.string(),
+    dueMonthOrdinal: v.number(),
+    weeks: v.number(),
+  }),
   v.object({
     kind: v.literal("wizard_owes_week_monthly_while_denizen_alive"),
     wizardId: v.string(),
@@ -1496,7 +1501,7 @@ const warlockStateValidator = v.object({
   partnerships: v.array(warlockPartnershipValidator),
 });
 
-const faustianStateValidator = v.object({
+export const faustianStateValidator = v.object({
   faustianDeck: v.array(v.string()),
   devilDeck: v.array(v.string()),
   communities: v.array(faustianCommunityValidator),
@@ -1549,6 +1554,22 @@ const faustianStateValidator = v.object({
   domainSeizures: v.array(v.object({
     seatId: v.string(),
     conduitDenizenId: v.string(),
+  })),
+  pendingMachinationChallenges: v.array(v.object({
+    challengeId: v.string(),
+    kind: v.union(v.literal("one_pair"), v.literal("two_pair"), v.literal("three_of_a_kind")),
+    sourceMonthOrdinal: v.number(),
+    dueMonthOrdinal: v.number(),
+    scoringHandCardIds: v.array(v.string()),
+    groups: v.array(v.object({
+      groupId: v.string(),
+      responsibleWizardId: v.union(v.string(), v.null()),
+      originalCardIds: v.array(v.string()),
+      status: v.union(v.literal("pending"), v.literal("completed")),
+      completedByWizardId: v.union(v.string(), v.null()),
+      completedMonthOrdinal: v.union(v.number(), v.null()),
+    })),
+    outcomeDependentTwistCardIds: v.array(v.string()),
   })),
   selectedDevilLawIds: v.array(v.string()),
   selectedDevilForms: v.object({
@@ -3024,6 +3045,17 @@ const faustianCommunityBlackmailedEventV1Validator = v.object({
   }),
 });
 
+const faustianCommunityBlackmailedEventV2Validator = v.object({
+  type: v.literal("faustian_community_blackmailed"),
+  version: v.literal(2),
+  data: v.object({
+    communityId: v.string(),
+    drawnCardId: v.string(),
+    revealedSchemeCardIds: v.array(v.string()),
+    preventedSchemeCardIds: v.array(v.string()),
+  }),
+});
+
 const faustianAccompliceDirectedEventV1Validator = v.object({
   type: v.literal("faustian_accomplice_directed"),
   version: v.literal(1),
@@ -3042,6 +3074,275 @@ const faustianPawnDisruptedEventV1Validator = v.object({
   data: v.object({
     communityId: v.string(),
     accompliceCardId: v.string(),
+  }),
+});
+
+const faustianTableArrangedEventV1Validator = v.object({
+  type: v.literal("faustian_table_arranged"),
+  version: v.literal(1),
+  data: v.object({
+    arrangementId: v.union(v.literal("quiet"), v.literal("dynamic"), v.literal("explosive")),
+    favoriteCommunityId: v.string(),
+    pawnCommunityId: v.union(v.string(), v.null()),
+    devilDeckCardIds: v.array(v.string()),
+    twistCardId: v.string(),
+    accompliceCardId: v.string(),
+    reservedTwistCardId: v.union(v.string(), v.null()),
+  }),
+});
+
+const faustianStructuralPlaceholderCompletedEventV1Validator = v.object({
+  type: v.literal("faustian_structural_placeholder_completed"),
+  version: v.literal(1),
+  data: v.object({
+    previousTwistCardId: v.string(),
+  }),
+});
+
+const faustianCommunitySchemesRevealedEventV1Validator = v.object({
+  type: v.literal("faustian_community_schemes_revealed"),
+  version: v.literal(1),
+  data: v.object({
+    communityId: v.string(),
+    revealedSchemeCardIds: v.array(v.string()),
+    eligibleSchemeCardIds: v.array(v.string()),
+  }),
+});
+
+const faustianCommunitySchemeFoiledEventV1Validator = v.object({
+  type: v.literal("faustian_community_scheme_foiled"),
+  version: v.literal(1),
+  data: v.object({
+    communityId: v.string(),
+    schemeCardId: v.string(),
+  }),
+});
+
+const faustianSchemesPlacedEventV1Validator = v.object({
+  type: v.literal("faustian_schemes_placed"),
+  version: v.literal(1),
+  data: v.object({
+    communityId: v.string(),
+    requestedQuantity: v.number(),
+    placedCardIds: v.array(v.string()),
+    revealedSchemeCardIds: v.array(v.string()),
+    preventedSchemeCardIds: v.array(v.string()),
+    insufficient: v.boolean(),
+  }),
+});
+
+const faustianPawnCountChangedEventV1Validator = v.object({
+  type: v.literal("faustian_pawn_count_changed"),
+  version: v.literal(1),
+  data: v.object({
+    communityId: v.string(),
+    previousCount: v.number(),
+    nextCount: v.number(),
+  }),
+});
+
+const faustianConspiracyEstablishedEventV1Validator = v.object({
+  type: v.literal("faustian_conspiracy_established"),
+  version: v.literal(1),
+  data: v.object({
+    communityId: v.string(),
+    denizenId: v.string(),
+    createdDenizen: v.boolean(),
+    seatId: v.string(),
+    chipCount: v.union(v.literal(1), v.literal(2), v.literal(3)),
+  }),
+});
+
+const faustianAntagonistEstablishedEventV1Validator = v.object({
+  type: v.literal("faustian_antagonist_established"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    seatId: v.string(),
+    chipCount: v.union(v.literal(1), v.literal(2), v.literal(3)),
+  }),
+});
+
+const faustianOccurrenceDestinationValidator = v.union(
+  v.object({ kind: v.literal("ordinary_machinations") }),
+  v.object({
+    kind: v.literal("possession"),
+    wizardId: v.string(),
+    represented: faustianPossessionRepresentationValidator,
+  }),
+  v.object({
+    kind: v.literal("domain_placement"),
+    seatId: v.string(),
+    represented: faustianPossessionRepresentationValidator,
+  }),
+);
+
+const faustianSchemeOccurredEventV1Validator = v.object({
+  type: v.literal("faustian_scheme_occurred"),
+  version: v.literal(1),
+  data: v.object({
+    communityId: v.string(),
+    schemeCardId: v.string(),
+    destination: faustianOccurrenceDestinationValidator,
+    directAccompliceCardIds: v.array(v.string()),
+    cascadedAccompliceCardIds: v.array(v.string()),
+    fallenAccompliceCardIds: v.array(v.string()),
+    pawnCommunityIds: v.array(v.string()),
+  }),
+});
+
+const faustianTwistDisclosedEventV1Validator = v.object({
+  type: v.literal("faustian_twist_disclosed"),
+  version: v.literal(1),
+  data: v.object({
+    disclosedTwistCardId: v.string(),
+    replacementTwistCardId: v.string(),
+  }),
+});
+
+const faustianTwistOccurredEventV1Validator = v.object({
+  type: v.literal("faustian_twist_occurred"),
+  version: v.literal(1),
+  data: v.object({
+    twistCardId: v.string(),
+    movedDevilDeckCardIds: v.array(v.string()),
+  }),
+});
+
+const faustianMachinationOutcomeRecordedEventV1Validator = v.object({
+  type: v.literal("faustian_machination_outcome_recorded"),
+  version: v.literal(1),
+  data: v.object({
+    resultKind: v.union(
+      v.literal("one_pair"),
+      v.literal("two_pair"),
+      v.literal("three_of_a_kind"),
+      v.literal("flush"),
+      v.literal("full_house"),
+      v.literal("table_resolved"),
+    ),
+    scoringHandCardIds: v.array(v.string()),
+    challengeId: v.union(v.string(), v.null()),
+    recycledCardIds: v.array(v.string()),
+    outcomeDependentTwistCardIds: v.array(v.string()),
+    persistentEffect: v.union(
+      v.null(),
+      v.object({ kind: v.literal("flush"), suit: v.string() }),
+      v.object({ kind: v.literal("full_house"), rank: v.string() }),
+    ),
+  }),
+});
+
+const faustianMachinationResponseCompletedEventV1Validator = v.object({
+  type: v.literal("faustian_machination_response_completed"),
+  version: v.literal(1),
+  data: v.object({
+    challengeId: v.string(),
+    groupId: v.string(),
+    completedByWizardId: v.string(),
+    completedMonthOrdinal: v.number(),
+    recycledCardIds: v.array(v.string()),
+  }),
+});
+
+const faustianMachinationChallengeFinalizedEventV1Validator = v.object({
+  type: v.literal("faustian_machination_challenge_finalized"),
+  version: v.literal(1),
+  data: v.object({
+    challengeId: v.string(),
+    pendingHoldingDisposition: v.union(
+      v.literal("shuffle_into_faustian_deck"),
+      v.literal("shuffle_into_devil_deck"),
+      v.literal("move_to_defeated_schemes"),
+    ),
+    routedCardIds: v.array(v.string()),
+    twistDispositions: v.array(v.object({
+      cardId: v.string(),
+      destination: v.union(
+        v.literal("remain_face_up_in_machinations"),
+        v.literal("recycle_into_faustian_deck"),
+        v.literal("move_to_defeated_schemes"),
+      ),
+    })),
+  }),
+});
+
+const faustianCardCorrectedEventV1Validator = v.object({
+  type: v.literal("faustian_card_corrected"),
+  version: v.literal(1),
+  data: v.object({
+    correctionKind: v.union(v.literal("facing"), v.literal("placement"), v.literal("deck_order")),
+    cardId: v.union(v.string(), v.null()),
+    deck: v.union(v.literal("faustian"), v.literal("devil"), v.null()),
+  }),
+});
+
+const faustianAntagonistCorrectedEventV1Validator = v.object({
+  type: v.literal("faustian_antagonist_corrected"),
+  version: v.literal(1),
+  data: v.object({
+    correctionKind: v.union(v.literal("attach"), v.literal("update"), v.literal("remove")),
+    denizenId: v.string(),
+  }),
+});
+
+const faustianDemonCorrectedEventV1Validator = v.object({
+  type: v.literal("faustian_demon_corrected"),
+  version: v.literal(1),
+  data: v.object({
+    correctionKind: v.union(v.literal("record"), v.literal("update"), v.literal("remove")),
+    denizenId: v.string(),
+  }),
+});
+
+const faustianDomainSeizureCorrectedEventV1Validator = v.object({
+  type: v.literal("faustian_domain_seizure_corrected"),
+  version: v.literal(1),
+  data: v.object({
+    correctionKind: v.union(v.literal("set"), v.literal("clear")),
+    seatId: v.string(),
+  }),
+});
+
+const faustianDevilProfileCorrectedEventV1Validator = v.object({
+  type: v.literal("faustian_devil_profile_corrected"),
+  version: v.literal(1),
+  data: v.object({
+    correctionKind: v.union(
+      v.literal("laws"),
+      v.literal("forms"),
+      v.literal("origin_claim"),
+      v.literal("custom_origin_claim"),
+    ),
+  }),
+});
+
+const faustianDueMonthObligationRecordedEventV1Validator = v.object({
+  type: v.literal("faustian_due_month_obligation_recorded"),
+  version: v.literal(1),
+  data: v.object({
+    wizardId: v.string(),
+    dueMonthOrdinal: v.number(),
+    weeks: v.number(),
+  }),
+});
+
+const faustianDueMonthObligationFulfilledEventV1Validator = v.object({
+  type: v.literal("faustian_due_month_obligation_fulfilled"),
+  version: v.literal(1),
+  data: v.object({
+    wizardId: v.string(),
+    dueMonthOrdinal: v.number(),
+    weeks: v.number(),
+  }),
+});
+
+const faustianPersistentEffectCorrectedEventV1Validator = v.object({
+  type: v.literal("faustian_persistent_effect_corrected"),
+  version: v.literal(1),
+  data: v.object({
+    correctionKind: v.union(v.literal("add"), v.literal("remove")),
+    effectKind: v.union(v.literal("flush"), v.literal("full_house")),
   }),
 });
 
@@ -3184,8 +3485,31 @@ export const campaignEventValidator = v.union(
   pactFragmentOperationalStateChangedEventV1Validator,
   faustianCommunityInvestigatedEventV1Validator,
   faustianCommunityBlackmailedEventV1Validator,
+  faustianCommunityBlackmailedEventV2Validator,
   faustianAccompliceDirectedEventV1Validator,
   faustianPawnDisruptedEventV1Validator,
+  faustianTableArrangedEventV1Validator,
+  faustianStructuralPlaceholderCompletedEventV1Validator,
+  faustianCommunitySchemesRevealedEventV1Validator,
+  faustianCommunitySchemeFoiledEventV1Validator,
+  faustianSchemesPlacedEventV1Validator,
+  faustianPawnCountChangedEventV1Validator,
+  faustianConspiracyEstablishedEventV1Validator,
+  faustianAntagonistEstablishedEventV1Validator,
+  faustianSchemeOccurredEventV1Validator,
+  faustianTwistDisclosedEventV1Validator,
+  faustianTwistOccurredEventV1Validator,
+  faustianMachinationOutcomeRecordedEventV1Validator,
+  faustianMachinationResponseCompletedEventV1Validator,
+  faustianMachinationChallengeFinalizedEventV1Validator,
+  faustianCardCorrectedEventV1Validator,
+  faustianAntagonistCorrectedEventV1Validator,
+  faustianDemonCorrectedEventV1Validator,
+  faustianDomainSeizureCorrectedEventV1Validator,
+  faustianDevilProfileCorrectedEventV1Validator,
+  faustianDueMonthObligationRecordedEventV1Validator,
+  faustianDueMonthObligationFulfilledEventV1Validator,
+  faustianPersistentEffectCorrectedEventV1Validator,
   sorcererInitializedEventV1Validator,
   sorcererPersonnelRecruitedEventV1Validator,
   sorcererResearcherRefocusedEventV1Validator,
