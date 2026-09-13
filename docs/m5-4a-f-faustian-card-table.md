@@ -1,6 +1,6 @@
 # M5.4A-F — Faustian Card Table & Operability
 
-**Status:** POST-OVERNIGHT AUDIT CANDIDATE awaiting Workstream actual-diff review. Not Faustian-complete. Not M5.4-complete. Not V5-activated.
+**Status:** DETERMINISTIC CANDIDATE after Workstream empty-direct-set fix. Real Convex Development closure is BLOCKED in this isolated worktree (anonymous Convex CLI; login/project selection required). Not Faustian-complete. Not M5.4-complete. Not V5-activated.
 **Schema:** CampaignState V5 remains PRE-ACTIVATION. Approved in-place current-V5 evolution for pending Machination challenges and due-month Wizard-week obligations. No migration. No silent compatibility. No optional old current-V5 shape.
 **Branch:** `m5-4a/faustian-card-table`
 **BASE_SHA:** `ba32e19cafea37e148eb9bb3f0dc8db56625941f` (`origin/main`, Mariner merge prefix `ba32e19`)
@@ -28,9 +28,9 @@ Do **not**:
 | B Setup + ordinary intervention/protection | implemented; A/B actual-diff corrections applied |
 | C Scheme-occurrence / Machination lifecycle | implemented as approved PRE-ACTIVATION V5 evolution |
 | D Advanced / Correct Table operability | implemented as typed game-specific recorders |
-| Combined `npm run check` | run after final code HEAD; see overnight report |
-| Convex Development integration | STILL PENDING — no isolated disposable Development deployment; review deployment was not used |
-| Workstream actual-diff review | PENDING |
+| Combined `npm run check` | 140 files / 2660 tests; `tsc -b` + Vite pass after `fd01193` |
+| Convex Development integration | BLOCKED — `npx convex deployment create dev/m5-4a-f-closure --type dev --select` failed: anonymous mode; `npx convex login` + project config required. Review deployment `dev:wry-boar-766` was not used. |
+| Workstream actual-diff review | empty multi-local direct set fixed; remaining real-integration gates not run |
 | V5 activation | NOT DONE |
 
 ## A/B actual-diff corrections
@@ -169,12 +169,30 @@ Active Twists are overlays on Machination cards. Every canonical playing card ha
 
 ## Post-overnight audit
 
-Actual-diff review of HEAD `827639d` confirmed the approved A/B contracts, mandatory current-V5 challenge/obligation fields, persistence consumers, Body C lifecycle invariants, Body D typed-only scope, and concealment labels. One bounded UI/lifecycle confirm-path defect was corrected: Two Pair / Three of a Kind group assignment and immediate Twist disposition / Full House rank derivation. Real Convex integration was not started.
+Actual-diff review of HEAD `827639d` confirmed the approved A/B contracts, mandatory current-V5 challenge/obligation fields, persistence consumers, Body C lifecycle invariants, Body D typed-only scope, and concealment labels. One bounded UI/lifecycle confirm-path defect was corrected: Two Pair / Three of a Kind group assignment and immediate Twist disposition / Full House rank derivation.
+
+## Workstream empty-direct-set fix
+
+`resolveDirectAccomplices()` now rejects `directAccompliceCardIds: []` when more than one local Accomplice exists. Zero locals still produce no direct fall. Exactly one local still auto-falls. Nonlocal selected cards still reject. Confirm is disabled until a nonempty local subset is chosen. Preview with zero selected says confirmation is blocked; it does not treat a zero-fall outcome as confirmable.
+
+Code HEAD after this fix: `fd011937d3413b728467f65067f48acb10772dc7`.
+
+## Real Convex closure attempt
+
+This isolated worktree has no `.env.local` and no Convex project association. Established provisioning:
+
+`npx convex deployment create dev/m5-4a-f-closure --type dev --select --expiration "in 7 days"`
+
+failed immediately with: `Cannot create a deployment in anonymous mode. Run npx convex login and configure a project first.`
+
+`npx convex login` was not run (browser/device authentication). Review deployment `dev:wry-boar-766` was not used. Production was not used. `npx convex deploy` was not run.
+
+Therefore live pending-challenge serialization, due-month obligation, random replay, Undo/Redo, checkpoint, backup/import, campaign-health, and browser/refresh proofs were not started.
 
 ## Explicit remaining work after this candidate
 
-- Workstream actual-diff review of the post-overnight audit candidate.
-- Real Convex schema/function synchronization on an isolated disposable Development deployment. Do not use `dev:wry-boar-766` until the human authorizes it.
+- Human Convex login + project configuration in this worktree, then a fresh disposable Development deployment `dev/m5-4a-f-closure` (not `dev:wry-boar-766`) and the remaining live closure gates.
+- Static Faustian Codex transcription once the local source is available. Authoritative Codex material exists; only application transcription is deferred.
 - Static Faustian Codex transcription once the local source is available.
 - Other durable Devil-obligation kinds beyond due-month weeks.
 - Interpretive / table-resolved narrative consequences.
