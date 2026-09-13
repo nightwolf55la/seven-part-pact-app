@@ -83,6 +83,7 @@ import {
   setWizardCompanionFingerprint,
   updateCompanionDescriptionFingerprint,
   initializeHierophantFingerprint,
+  initializeHierophantSourceSetupFingerprint,
   adjustTempleResourcesFingerprint,
   createTempleFingerprint,
   updateTempleFingerprint,
@@ -106,6 +107,7 @@ import {
   createCampaignDoctrineFingerprint,
   updateCampaignDoctrineFingerprint,
   initializeMarinerFingerprint,
+  initializeMarinerSourceSetupFingerprint,
   setMarinerShipFingerprint,
   setSelectedSeaLawsFingerprint,
   setMarinerRouteOccupancyFingerprint,
@@ -133,6 +135,7 @@ import {
   applySetWizardCompanionV5Candidate,
   applyUpdateCompanionDescriptionV5Candidate,
   applyInitializeHierophant,
+  applyInitializeHierophantSourceSetup,
   applyAdjustTempleResources,
   applyCreateTemple,
   applyUpdateTemple,
@@ -157,6 +160,9 @@ import {
   applyCreateCampaignDoctrine,
   applyUpdateCampaignDoctrine,
   applyInitializeMariner,
+  applyInitializeMarinerSourceSetup,
+  canonicalizeInitializeMarinerSourceSetupInput,
+  canonicalizeInitializeHierophantSourceSetupInput,
   canonicalizeInitializeMarinerInput,
   normalizeMarinerIsleMarket,
   applySetMarinerShip,
@@ -183,6 +189,7 @@ import {
   applyNestMarinerBeast,
   applyRecordMarinerRavageResult,
   initializeNecromancerFingerprint,
+  initializeNecromancerSourceSetupFingerprint,
   setNecromancerDepthFingerprint,
   setSelectedDeathLawsFingerprint,
   setNecromancerGateStatusFingerprint,
@@ -217,6 +224,8 @@ import {
   canonicalizeNecromancerGhoulCaller,
   canonicalizeUpdateNecromancerGhoulCallerFields,
   applyInitializeNecromancer,
+  applyInitializeNecromancerSourceSetup,
+  canonicalizeInitializeNecromancerSourceSetupInput,
   applySetNecromancerDepth,
   applySetNecromancerSelectedLaws,
   applySetNecromancerGateStatus,
@@ -1926,6 +1935,51 @@ export const initializeHierophant = mutation({
   },
 });
 
+export const initializeHierophantSourceSetup = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    selectedFlameLawIds: v.array(v.string()),
+    proposedTemplePlaceIds: v.array(v.object({
+      templeId: v.string(),
+      placeId: v.string(),
+    })),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        for (const lawId of args.selectedFlameLawIds) {
+          if (!isValidHierophantFlameLawId(lawId)) {
+            throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown Flame Law id: ${lawId}`);
+          }
+        }
+        for (const binding of args.proposedTemplePlaceIds) {
+          if (!isValidHierophantStartingTempleId(binding.templeId)) {
+            throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown starting Temple id: ${binding.templeId}`);
+          }
+          if (!isValidPlaceId(binding.placeId)) {
+            throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid Temple placeId: ${binding.placeId}`);
+          }
+        }
+        const input = canonicalizeInitializeHierophantSourceSetupInput({
+          selectedFlameLawIds: args.selectedFlameLawIds as HierophantFlameLawId[],
+          proposedTemplePlaceIds: args.proposedTemplePlaceIds.map((binding) => ({
+            templeId: binding.templeId as HierophantStartingTempleId,
+            placeId: binding.placeId as PlaceId,
+          })),
+        });
+        return {
+          commandType: "initialize_hierophant_source_setup",
+          commandFingerprint: initializeHierophantSourceSetupFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyInitializeHierophantSourceSetup(state, input),
+        };
+      },
+    );
+  },
+});
+
 export const adjustTempleResources = mutation({
   args: {
     commandId: v.string(),
@@ -2698,6 +2752,52 @@ export const initializeMariner = mutation({
   },
 });
 
+export const initializeMarinerSourceSetup = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    arrangementId: v.string(),
+    proposedShipPlaceId: v.string(),
+    selectedLawOfSeaIds: v.array(v.string()),
+    proposedIsleIds: v.array(v.object({
+      boardIsleId: v.string(),
+      worldIsleId: v.string(),
+    })),
+    arrangementBeasts: v.array(marinerBeastArg),
+    rarityDescriptions: v.array(v.object({
+      boardIsleId: v.string(),
+      description: v.string(),
+    })),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeInitializeMarinerSourceSetupInput({
+          arrangementId: args.arrangementId as MarinerArrangementId,
+          proposedShipPlaceId: args.proposedShipPlaceId as PlaceId,
+          selectedLawOfSeaIds: args.selectedLawOfSeaIds as MarinerLawOfSeaId[],
+          proposedIsleIds: args.proposedIsleIds.map((binding) => ({
+            boardIsleId: binding.boardIsleId as MarinerBoardIsleId,
+            worldIsleId: binding.worldIsleId as IsleId,
+          })),
+          arrangementBeasts: args.arrangementBeasts as MarinerBeastState[],
+          rarityDescriptions: args.rarityDescriptions.map((entry) => ({
+            boardIsleId: entry.boardIsleId as MarinerBoardIsleId,
+            description: entry.description,
+          })),
+        });
+        return {
+          commandType: "initialize_mariner_source_setup",
+          commandFingerprint: initializeMarinerSourceSetupFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyInitializeMarinerSourceSetup(state, input),
+        };
+      },
+    );
+  },
+});
+
 export const setMarinerShip = mutation({
   args: {
     commandId: v.string(),
@@ -3461,6 +3561,80 @@ export const initializeNecromancer = mutation({
           commandType: "initialize_necromancer",
           commandFingerprint: initializeNecromancerFingerprint(args.expectedCampaignId, input),
           apply: (state) => applyInitializeNecromancer(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const initializeNecromancerSourceSetup = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    arrangementId: v.string(),
+    selectedLawIds: v.array(v.string()),
+    arrangementFoes: v.array(v.object({
+      denizenId: v.string(),
+      name: v.string(),
+      gateId: v.string(),
+    })),
+    arrangementAlly: v.object({
+      denizenId: v.string(),
+      name: v.string(),
+      gateId: v.string(),
+    }),
+    arrangementGhoulCaller: v.union(
+      v.null(),
+      v.object({
+        denizenId: v.string(),
+        name: v.string(),
+        pathSpaceId: v.string(),
+        primaryElement: v.union(
+          v.literal("air"),
+          v.literal("fire"),
+          v.literal("earth"),
+          v.literal("water"),
+        ),
+        aesthetic: v.string(),
+        strangeQuirk: v.string(),
+        ageYears: v.number(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeInitializeNecromancerSourceSetupInput({
+          arrangementId: args.arrangementId as NecromancerArrangementId,
+          selectedLawIds: args.selectedLawIds as NecromancerLawOfDeathId[],
+          arrangementFoes: args.arrangementFoes.map((foe) => ({
+            denizenId: foe.denizenId as DenizenId,
+            name: foe.name,
+            gateId: foe.gateId as NecromancerBuiltinGateId,
+          })),
+          arrangementAlly: {
+            denizenId: args.arrangementAlly.denizenId as DenizenId,
+            name: args.arrangementAlly.name,
+            gateId: args.arrangementAlly.gateId as NecromancerBuiltinGateId,
+          },
+          arrangementGhoulCaller: args.arrangementGhoulCaller === null
+            ? null
+            : {
+                denizenId: args.arrangementGhoulCaller.denizenId as DenizenId,
+                name: args.arrangementGhoulCaller.name,
+                pathSpaceId: args.arrangementGhoulCaller.pathSpaceId as NecromancerBuiltinPathSpaceId,
+                primaryElement: args.arrangementGhoulCaller.primaryElement,
+                aesthetic: args.arrangementGhoulCaller.aesthetic,
+                strangeQuirk: args.arrangementGhoulCaller.strangeQuirk,
+                ageYears: args.arrangementGhoulCaller.ageYears,
+              },
+        });
+        return {
+          commandType: "initialize_necromancer_source_setup",
+          commandFingerprint: initializeNecromancerSourceSetupFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyInitializeNecromancerSourceSetup(state, input),
         };
       },
     );

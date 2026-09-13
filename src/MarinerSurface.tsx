@@ -43,6 +43,7 @@ import {
   boardIsleWorldName,
   buildAddMarinerBeastPayload,
   buildInitializeMarinerPayload,
+  buildInitializeMarinerSourceSetupPayload,
   buildRemoveMarinerBeastPayload,
   buildSetMarinerIsleMarketPayload,
   buildSetMarinerIsleRavagePayload,
@@ -86,6 +87,7 @@ import {
   marinerRouteGeometry,
   marinerSeaResearchers,
   marinerSetupReady,
+  marinerSourceSetupReady,
   marketBeastConflict,
   marinerIsleLoreSelection,
   nestingBeastsOnIsle,
@@ -216,6 +218,7 @@ export default function MarinerSurface({
   }, [authoritativeLawKey]);
 
   const initializeMariner = useMutation(api.m3Commands.initializeMariner);
+  const initializeMarinerSourceSetup = useMutation(api.m3Commands.initializeMarinerSourceSetup);
   const setMarinerShip = useMutation(api.m3Commands.setMarinerShip);
   const setSelectedSeaLaws = useMutation(api.m3Commands.setSelectedSeaLaws);
   const setMarinerRouteOccupancy = useMutation(api.m3Commands.setMarinerRouteOccupancy);
@@ -261,6 +264,18 @@ export default function MarinerSurface({
   }
 
   async function handleInitialize(): Promise<void> {
+    const payload = buildInitializeMarinerSourceSetupPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      draft: setup,
+    });
+    if (payload === null) return;
+    await run(async () => {
+      await initializeMarinerSourceSetup(payload);
+    });
+  }
+
+  async function handleAdvancedInitialize(): Promise<void> {
     const payload = buildInitializeMarinerPayload({
       commandId: newCommandId(),
       expectedCampaignId: campaignId,
@@ -286,6 +301,7 @@ export default function MarinerSurface({
         error={error}
         onToggleLaw={toggleSetupLaw}
         onInitialize={() => void handleInitialize()}
+        onAdvancedInitialize={() => void handleAdvancedInitialize()}
       />
     );
   }
@@ -479,6 +495,7 @@ function SetupPanel({
   error,
   onToggleLaw,
   onInitialize,
+  onAdvancedInitialize,
 }: {
   setup: MarinerSetupDraft;
   setSetup: (updater: (current: MarinerSetupDraft) => MarinerSetupDraft) => void;
@@ -489,8 +506,10 @@ function SetupPanel({
   error: string | null;
   onToggleLaw: (id: string) => void;
   onInitialize: () => void;
+  onAdvancedInitialize: () => void;
 }) {
-  const ready = marinerSetupReady(setup, world.places, wizard);
+  const ready = marinerSourceSetupReady(setup);
+  const advancedReady = marinerSetupReady(setup, world.places, wizard);
   const needsBeast = arrangementNeedsStartingBeast(setup.arrangementId);
   const needsRarity = arrangementNeedsRarity(setup.arrangementId);
   const mismatch = shipSanctumMismatch(setup.shipPlaceId, wizard);
@@ -501,7 +520,7 @@ function SetupPanel({
       <div>
         <h2 className="text-lg font-semibold text-teal-900 dark:text-teal-100">Initialize Mariner</h2>
         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-          Bind the default sea map to existing World identities. The command constructs arrangement state; this form only gathers required choices.
+          Choose the starting arrangement and two Laws of the Sea. The Isles of Isha and the Mariner&apos;s starting Ship — his Sanctum — are established automatically.
         </p>
       </div>
       {error !== null && (
@@ -545,57 +564,6 @@ function SetupPanel({
           ))}
         </div>
         <p className="text-xs mt-2 text-slate-500">Selected: {lawCount} / 2 required</p>
-      </section>
-      <section>
-        <h3 className="text-sm font-semibold mb-2">15 World Isle bindings</h3>
-        <p className="text-xs text-slate-500 mb-2">Each board slot binds an existing World Isle. Neutral board name remains Sage Atoll even if the World Isle is named differently. Do not create Isles here.</p>
-        <div className="grid sm:grid-cols-2 gap-3">
-          {MARINER_BOARD_SLOTS.map((slot) => (
-            <label key={slot.boardIsleId} className="text-sm">
-              <span className="block font-medium mb-1">{slot.displayName}</span>
-              <select
-                aria-label={`Bind ${slot.displayName}`}
-                className={fieldClass}
-                value={setup.isleBindings[slot.boardIsleId] ?? ""}
-                onChange={(e) => setSetup((current) => ({
-                  ...current,
-                  isleBindings: { ...current.isleBindings, [slot.boardIsleId]: e.target.value } as MarinerIsleBindings,
-                }))}
-              >
-                <option value="">Select World Isle…</option>
-                {worldIsleOptionsForSlot(world.isles, setup.isleBindings, slot.boardIsleId).map((isle) => (
-                  <option key={isle.isleId} value={isle.isleId}>{isle.name}</option>
-                ))}
-              </select>
-            </label>
-          ))}
-        </div>
-      </section>
-      <section>
-        <h3 className="text-sm font-semibold mb-2">Ship Place</h3>
-        <p className="text-xs text-slate-500 mb-2">Choose an existing mobile World Place. Create another in World if none fits.</p>
-        {wizard !== null && (
-          <p className="text-sm mb-2">
-            Mariner Wizard {wizard.name} Sanctum: {placeName(world.places, wizard.sanctumPlaceId)}.
-            {mismatch
-              ? " Initialization requires the chosen ship Place to equal that existing Sanctum. This form will not change the Wizard."
-              : " Chosen ship matches the Sanctum."}
-          </p>
-        )}
-        {wizard === null && (
-          <p className="text-sm text-slate-500 mb-2">Mariner Pact seat is vacant; a Sanctum match is not required.</p>
-        )}
-        <select
-          aria-label="Ship Place"
-          className={fieldClass}
-          value={setup.shipPlaceId}
-          onChange={(e) => setSetup((current) => ({ ...current, shipPlaceId: e.target.value }))}
-        >
-          <option value="">Select mobile Place…</option>
-          {mobilePlaces.map((place) => (
-            <option key={place.placeId} value={place.placeId}>{place.name}</option>
-          ))}
-        </select>
       </section>
       {needsBeast && (
         <section>
@@ -690,6 +658,64 @@ function SetupPanel({
       <button className={btnClass} disabled={pending || !ready} onClick={onInitialize}>
         Initialize Mariner
       </button>
+      <details className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+        <summary className="text-sm font-semibold cursor-pointer">Advanced / Correct Board — bind existing World identities</summary>
+        <p className="text-xs text-slate-500 mt-2 mb-3">
+          Ordinary setup realizes the Isles of Isha and the starting Ship automatically. Use this only to bind already-created World identities or to record an existing Sanctum.
+        </p>
+        <section className="space-y-3">
+          <h3 className="text-sm font-semibold">15 World Isle bindings</h3>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {MARINER_BOARD_SLOTS.map((slot) => (
+              <label key={slot.boardIsleId} className="text-sm">
+                <span className="block font-medium mb-1">{slot.displayName}</span>
+                <select
+                  aria-label={`Bind ${slot.displayName}`}
+                  className={fieldClass}
+                  value={setup.isleBindings[slot.boardIsleId] ?? ""}
+                  onChange={(e) => setSetup((current) => ({
+                    ...current,
+                    isleBindings: { ...current.isleBindings, [slot.boardIsleId]: e.target.value } as MarinerIsleBindings,
+                  }))}
+                >
+                  <option value="">Select World Isle…</option>
+                  {worldIsleOptionsForSlot(world.isles, setup.isleBindings, slot.boardIsleId).map((isle) => (
+                    <option key={isle.isleId} value={isle.isleId}>{isle.name}</option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+        </section>
+        <section className="mt-4">
+          <h3 className="text-sm font-semibold mb-2">Ship Place</h3>
+          {wizard !== null && (
+            <p className="text-sm mb-2">
+              Mariner Wizard {wizard.name} Sanctum: {placeName(world.places, wizard.sanctumPlaceId)}.
+              {mismatch
+                ? " This correction path requires the chosen ship Place to equal that existing Sanctum."
+                : " Chosen ship matches the Sanctum."}
+            </p>
+          )}
+          {wizard === null && (
+            <p className="text-sm text-slate-500 mb-2">Mariner Pact seat is vacant; a Sanctum match is not required.</p>
+          )}
+          <select
+            aria-label="Ship Place"
+            className={fieldClass}
+            value={setup.shipPlaceId}
+            onChange={(e) => setSetup((current) => ({ ...current, shipPlaceId: e.target.value }))}
+          >
+            <option value="">Select mobile Place…</option>
+            {mobilePlaces.map((place) => (
+              <option key={place.placeId} value={place.placeId}>{place.name}</option>
+            ))}
+          </select>
+        </section>
+        <button className={`${btnClass} mt-4`} disabled={pending || !advancedReady} onClick={onAdvancedInitialize}>
+          Initialize using existing World identities
+        </button>
+      </details>
     </div>
   );
 }

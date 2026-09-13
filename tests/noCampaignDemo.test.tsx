@@ -24,7 +24,7 @@ describe("NoCampaign demo tools", () => {
     container.remove();
   });
 
-  it("shows Start Demo Campaign only when demo tools are enabled", () => {
+  it("shows Start Review Campaign only when demo tools are enabled", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -32,7 +32,7 @@ describe("NoCampaign demo tools", () => {
     flushSync(() => {
       root.render(createElement(NoCampaign, { demoToolsEnabled: false }));
     });
-    expect(container.textContent).not.toContain("Start Demo Campaign");
+    expect(container.textContent).not.toContain("Start Review Campaign");
 
     flushSync(() => {
       root.render(
@@ -42,7 +42,8 @@ describe("NoCampaign demo tools", () => {
         }),
       );
     });
-    expect(container.textContent).toContain("Start Demo Campaign");
+    expect(container.textContent).toContain("Start Review Campaign");
+    expect(container.textContent).toContain("new disposable review campaign");
 
     root.unmount();
     container.remove();
@@ -65,7 +66,7 @@ describe("NoCampaign demo tools", () => {
     });
 
     const demoButton = container.querySelectorAll("button")[1];
-    expect(demoButton?.textContent).toContain("Creating Demo Campaign");
+    expect(demoButton?.textContent).toContain("Creating Review Campaign");
     expect(demoButton?.disabled).toBe(true);
     demoButton?.click();
     expect(onStartDemo).not.toHaveBeenCalled();

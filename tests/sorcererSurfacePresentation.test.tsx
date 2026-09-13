@@ -28,6 +28,7 @@ vi.mock("convex/react", () => ({
 vi.mock("../convex/_generated/api.js", () => ({
   api: {
     m3Commands: {
+      initializeSorcerer: "m3Commands.initializeSorcerer",
       recruitSorcererPersonnel: "m3Commands.recruitSorcererPersonnel",
       refocusSorcererResearcher: "m3Commands.refocusSorcererResearcher",
       tutorSorcererStudent: "m3Commands.tutorSorcererStudent",
@@ -741,6 +742,66 @@ describe("Sorcerer surface presentation", () => {
     reviseForm = formWithSubmitButton(container, "Revise School");
     expect(reviseForm.querySelector("select")?.value).not.toBe("ssch_00000000-0000-0000-0000-0000000000ab");
     expect((controlInForm(reviseForm, "School name") as HTMLInputElement).value).toBe("Cartography");
+    root.unmount();
+    container.remove();
+  });
+
+  it("lists explicit setup choices instead of a one-click inferred establishment", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    flushSync(() => {
+      root.render(createElement(SorcererSurface, {
+        presentation: { ...PRESENTATION, initialized: false },
+        establishment: {
+          initialized: false,
+          missingPrerequisites: [],
+          requiredSetupChoices: [
+            "Choose the two active Laws of Magic.",
+            "Place a Researcher at any House in the Zodiac.",
+            "Assign three Students, a Professor, and an Alchemist (Salt) to the Tower.",
+          ],
+        },
+        campaignId: CAMPAIGN_ID,
+        loreCompendium: LORE,
+      }));
+    });
+    expect(container.textContent).toContain("Choose the two active Laws of Magic.");
+    expect(container.textContent).toContain("Place a Researcher at any House in the Zodiac.");
+    expect(container.textContent).toContain("Assign three Students, a Professor, and an Alchemist (Salt) to the Tower.");
+    expect(container.textContent).toContain("cannot be inferred");
+    expect(container.textContent).not.toContain("has not been established for this campaign yet");
+    expect(container.textContent).not.toContain("Establish the Working Tower");
+    expect(container.querySelector("button")).toBeNull();
+    expect(mockMutations["m3Commands.initializeSorcerer"]).toBeUndefined();
+    root.unmount();
+    container.remove();
+  });
+
+  it("lists exact missing prerequisites instead of a dead-end notice", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    flushSync(() => {
+      root.render(createElement(SorcererSurface, {
+        presentation: { ...PRESENTATION, initialized: false },
+        establishment: {
+          initialized: false,
+          missingPrerequisites: [
+            "Spyrholm has not been realized as a campaign World Isle.",
+            "The Sorcerer's Tower (Sanctum) has not been established.",
+          ],
+          requiredSetupChoices: [],
+        },
+        campaignId: CAMPAIGN_ID,
+        loreCompendium: LORE,
+      }));
+    });
+    expect(container.textContent).toContain("Spyrholm has not been realized as a campaign World Isle.");
+    expect(container.textContent).toContain("The Sorcerer's Tower (Sanctum) has not been established.");
+    expect(container.textContent).not.toContain("has not been established for this campaign yet");
+    expect(container.textContent).not.toContain("Establish the Working Tower");
+    expect(container.textContent).not.toMatch(/wiz_|isl_|plc_|den_/);
     root.unmount();
     container.remove();
   });

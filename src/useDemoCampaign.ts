@@ -27,7 +27,12 @@ export function useDemoCampaign(enabled: boolean) {
   const createPlace = useMutation(api.m3Commands.createPlace);
   const createDenizen = useMutation(api.m3Commands.createDenizen);
   const createPowerfulDenizenProfile = useMutation(api.m3Commands.createPowerfulDenizenProfile);
-  const initializeHierophant = useMutation(api.m3Commands.initializeHierophant);
+  const initializeHierophantSourceSetup = useMutation(api.m3Commands.initializeHierophantSourceSetup);
+  const initializeMarinerSourceSetup = useMutation(api.m3Commands.initializeMarinerSourceSetup);
+  const initializeNecromancerSourceSetup = useMutation(api.m3Commands.initializeNecromancerSourceSetup);
+  const setWizardSanctum = useMutation(api.m3Commands.setWizardSanctum);
+  const initializeSorcerer = useMutation(api.m3Commands.initializeSorcerer);
+  const arrangeFaustianTable = useMutation(api.m3Commands.arrangeFaustianTable);
   const addSupplicant = useMutation(api.m3Commands.addSupplicant);
   const addProphet = useMutation(api.m3Commands.addProphet);
   const establishCult = useMutation(api.m3Commands.establishCult);
@@ -39,7 +44,7 @@ export function useDemoCampaign(enabled: boolean) {
     runningRef.current = true;
     setStatus("running");
     setError(null);
-    setProgress("Starting demo campaign…");
+    setProgress("Starting a new review campaign…");
 
     const mutations: DemoCampaignMutations = {
       startNewCampaign: () => startNewCampaign({}),
@@ -54,7 +59,12 @@ export function useDemoCampaign(enabled: boolean) {
       createPlace: (args) => createPlace(args),
       createDenizen: (args) => createDenizen(args),
       createPowerfulDenizenProfile: (args) => createPowerfulDenizenProfile(args),
-      initializeHierophant: (args) => initializeHierophant(args),
+      initializeHierophantSourceSetup: (args) => initializeHierophantSourceSetup(args),
+      initializeMarinerSourceSetup: (args) => initializeMarinerSourceSetup(args),
+      initializeNecromancerSourceSetup: (args) => initializeNecromancerSourceSetup(args),
+      setWizardSanctum: (args) => setWizardSanctum(args),
+      initializeSorcerer: (args) => initializeSorcerer(args),
+      arrangeFaustianTable: (args) => arrangeFaustianTable(args as never),
       addSupplicant: (args) => addSupplicant(args),
       addProphet: (args) => addProphet(args),
       establishCult: (args) => establishCult(args),
@@ -93,7 +103,12 @@ export function useDemoCampaign(enabled: boolean) {
     createPlace,
     createDenizen,
     createPowerfulDenizenProfile,
-    initializeHierophant,
+    initializeHierophantSourceSetup,
+    initializeMarinerSourceSetup,
+    initializeNecromancerSourceSetup,
+    setWizardSanctum,
+    initializeSorcerer,
+    arrangeFaustianTable,
     addSupplicant,
     addProphet,
     establishCult,

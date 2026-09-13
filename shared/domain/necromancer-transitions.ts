@@ -2,6 +2,7 @@ import type { CampaignStateV5 } from "./campaign-state";
 import type { DenizenId, PowerfulDenizenTruthId, WizardId } from "./ids";
 import { isValidDenizenId, isValidPowerfulDenizenTruthId, isValidWizardId } from "./ids";
 import { DomainError } from "./errors";
+import { stalePreconditionMessage } from "./stale-precondition-format";
 import type { ExpectedFieldChange } from "./world-subject-transitions";
 import type { ElementId } from "./shared-world";
 import { ELEMENT_IDS } from "./shared-world";
@@ -203,7 +204,7 @@ function checkPrecondition<T>(
   if (!equal(current, change.expected)) {
     throw new DomainError(
       "STALE_COMMAND_PRECONDITION",
-      `${fieldLabel}: expected "${String(change.expected)}" but current is "${String(current)}"`,
+      stalePreconditionMessage(fieldLabel, change.expected, current),
     );
   }
 }
@@ -468,9 +469,16 @@ function assertOccupiableResolves(necromancer: NecromancerState, location: Necro
   }
 }
 
-function requireDenizenFoeProfile(state: CampaignStateV5, denizenId: DenizenId, label: string) {
+function requireDenizenFoeProfile(
+  state: CampaignStateV5,
+  denizenId: DenizenId,
+  label: string,
+  location: NecromancerFoeLocation,
+) {
   const denizen = requireDenizen(state, denizenId, label);
-  requirePowerfulRoleProfile(denizen, label, "foe_of_death");
+  if (location.kind === "escaped") {
+    requirePowerfulRoleProfile(denizen, label, "foe_of_death");
+  }
   return denizen;
 }
 
@@ -831,7 +839,12 @@ export function applyInitializeNecromancer(
   uniqueOrThrow(pieceDenizenIds, "arrangement starting Denizen");
 
   const foes: NecromancerFoeState[] = input.arrangementFoes.map((binding, index) => {
-    requireDenizenFoeProfile(state, binding.denizenId, `arrangementFoes[${index}]`);
+    requireDenizenFoeProfile(
+      state,
+      binding.denizenId,
+      `arrangementFoes[${index}]`,
+      { kind: "gate", gateId: binding.gateId },
+    );
     return {
       subject: { kind: "denizen", denizenId: binding.denizenId },
       location: { kind: "gate", gateId: binding.gateId },
@@ -1128,7 +1141,7 @@ export function applyAddNecromancerFoe(
   validateFoeLocation(current, foe.location, "Foe location");
   let added: NecromancerFoeState;
     if (isNecromancerDenizenFoe(foe)) {
-    requireDenizenFoeProfile(state, foe.subject.denizenId, "Foe");
+    requireDenizenFoeProfile(state, foe.subject.denizenId, "Foe", foe.location);
     added = { subject: { kind: "denizen", denizenId: foe.subject.denizenId }, location: foe.location };
   } else {
     requireWizard(state, foe.subject.wizardId, "Foe");
@@ -1172,6 +1185,16 @@ export function applyUpdateNecromancerFoe(
     throw new DomainError(
       "INVALID_CAMPAIGN_STATE",
       "Wizard Foe escape must use escape_necromancer_wizard_foe",
+    );
+  }
+  if (
+    isNecromancerDenizenFoe(existing) &&
+    existing.location.kind !== "escaped" &&
+    fields.location.value.kind === "escaped"
+  ) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      "Denizen Foe emergence cannot be recorded by generic location correction",
     );
   }
   const updated: NecromancerFoeState = isNecromancerWizardFoe(existing)

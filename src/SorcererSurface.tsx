@@ -5,6 +5,7 @@ import type { DenizenId } from "../shared/domain";
 import type {
   SorcererBoardReference,
   SorcererBoardResearchPosition,
+  SorcererEstablishmentReadiness,
   SorcererKnowledgePoolId,
   SorcererResearcherRefocusDestination,
   SorcererTowerMagicConsumableDirection,
@@ -45,11 +46,13 @@ const fieldClass =
 
 export default function SorcererSurface({
   presentation,
+  establishment,
   campaignId,
   layout = "full",
   loreCompendium,
 }: {
   readonly presentation: SorcererBoardReference;
+  readonly establishment?: SorcererEstablishmentReadiness;
   readonly campaignId: string;
   readonly layout?: "full" | "narrow";
   readonly loreCompendium: LoreCompendiumUiState;
@@ -87,10 +90,33 @@ export default function SorcererSurface({
   }
 
   if (!presentation.initialized) {
+    const readiness = establishment ?? {
+      initialized: false,
+      missingPrerequisites: ["The Working Tower has not been established."],
+      requiredSetupChoices: [],
+    };
     return (
-      <section className="rounded-xl border border-[#BF9000]/40 bg-[#FFF2CC] p-6 text-[#3d2a00]">
+      <section className="rounded-xl border border-[#BF9000]/40 bg-[#FFF2CC] p-6 text-[#3d2a00] space-y-3">
         <h2 className="text-lg font-semibold">Working Tower</h2>
-        <p className="text-sm mt-2">The Sorcerer has not been established for this campaign yet.</p>
+        {readiness.missingPrerequisites.length > 0 ? (
+          <>
+            <p className="text-sm">The Working Tower is not established yet. Missing prerequisites:</p>
+            <ul className="list-disc pl-5 text-sm space-y-1">
+              {readiness.missingPrerequisites.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <>
+            <p className="text-sm">The Working Tower is not established yet. These setup choices must be supplied. They cannot be inferred.</p>
+            <ul className="list-disc pl-5 text-sm space-y-1">
+              {readiness.requiredSetupChoices.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </>
+        )}
       </section>
     );
   }

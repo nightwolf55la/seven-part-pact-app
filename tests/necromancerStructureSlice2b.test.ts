@@ -397,14 +397,14 @@ function collectRealNecromancerEvents(): NecromancerEvent[] {
   events.push(...addedFoe.events);
 
   const updatedFoe = applyUpdateNecromancerFoe(state, { kind: "denizen", denizenId: DEN_COLLECTIVE }, {
-    location: { expected: { kind: "gate", gateId: "bronze" }, value: { kind: "escaped", seatId: "sage", abominationKind: "occult" } },
+    location: { expected: { kind: "gate", gateId: "bronze" }, value: { kind: "gate", gateId: "ivory" } },
   });
   state = updatedFoe.nextState;
   events.push(...updatedFoe.events);
 
   const removedFoe = applyRemoveNecromancerFoe(state, { kind: "denizen", denizenId: DEN_COLLECTIVE }, {
     subject: { kind: "denizen", denizenId: DEN_COLLECTIVE },
-    location: { kind: "escaped", seatId: "sage", abominationKind: "occult" },
+    location: { kind: "gate", gateId: "ivory" },
   });
   state = removedFoe.nextState;
   events.push(...removedFoe.events);

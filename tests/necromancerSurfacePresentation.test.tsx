@@ -40,6 +40,7 @@ vi.mock("../convex/_generated/api.js", () => ({
   api: {
     m3Commands: {
       initializeNecromancer: "m3Commands.initializeNecromancer",
+      initializeNecromancerSourceSetup: "m3Commands.initializeNecromancerSourceSetup",
       setNecromancerDepth: "m3Commands.setNecromancerDepth",
       setSelectedDeathLaws: "m3Commands.setSelectedDeathLaws",
       setNecromancerGateStatus: "m3Commands.setNecromancerGateStatus",

@@ -1,5 +1,5 @@
 import { query } from "./_generated/server";
-import { validateCampaignState, evaluateSetupReadiness, displayNameFromOrdinal, wizardIdOfParticipant, readLoreCompendiumReference, readSorcererBoardReference } from "../shared/domain";
+import { validateCampaignState, evaluateSetupReadiness, displayNameFromOrdinal, wizardIdOfParticipant, readLoreCompendiumReference, readSorcererBoardReference, readSorcererEstablishmentReadiness } from "../shared/domain";
 import type { MovablePlanetId } from "../shared/domain";
 import type { LunarPhase } from "../shared/domain";
 
@@ -718,6 +718,7 @@ export const getSorcererReference = query({
       campaignId: doc.campaignId as string,
       campaignRevision: doc.campaignRevision as number,
       presentation: readSorcererBoardReference(current),
+      establishment: readSorcererEstablishmentReadiness(current),
     };
   },
 });

@@ -346,6 +346,13 @@ export function initializeHierophantFingerprint(
   return `initialize_hierophant:v1:${payload}`;
 }
 
+export function initializeHierophantSourceSetupFingerprint(
+  expectedCampaignId: string,
+  input: unknown,
+): string {
+  return `initialize_hierophant_source_setup:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
 export function adjustTempleResourcesFingerprint(
   expectedCampaignId: string,
   templeId: string,
@@ -462,6 +469,10 @@ export function updateCampaignDoctrineFingerprint(
 
 export function initializeMarinerFingerprint(expectedCampaignId: string, input: unknown): string {
   return `initialize_mariner:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function initializeMarinerSourceSetupFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `initialize_mariner_source_setup:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
 }
 
 export function setMarinerShipFingerprint(
@@ -598,6 +609,10 @@ export function moveMarinerBeastFingerprint(expectedCampaignId: string, input: u
 
 export function initializeNecromancerFingerprint(expectedCampaignId: string, input: unknown): string {
   return `initialize_necromancer:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function initializeNecromancerSourceSetupFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `initialize_necromancer_source_setup:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
 }
 
 export function setNecromancerDepthFingerprint(

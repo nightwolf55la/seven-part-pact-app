@@ -367,23 +367,26 @@ export default function CampaignSetup() {
                   )
                 }
               />
-              <PactFragmentControls
-                seatId={seatId}
-                fragment={pactFragmentOperationalState[seatId]}
-                wizards={wizards.map((wizard) => ({ wizardId: wizard.wizardId, name: wizard.name }))}
-                pending={pending}
-                onSave={(next) =>
-                  act(() =>
-                    updatePactFragmentOperationalState({
-                      commandId: generateCommandId(),
-                      expectedCampaignId: campaignId,
-                      seatId,
-                      expected: pactFragmentOperationalState[seatId],
-                      next,
-                    }),
-                  )
-                }
-              />
+              <details className="mt-2 rounded-lg border border-slate-200 dark:border-slate-700 p-2">
+                <summary className="text-xs font-semibold cursor-pointer text-slate-500">Advanced / Correct — Pact-Fragment custody and condition</summary>
+                <PactFragmentControls
+                  seatId={seatId}
+                  fragment={pactFragmentOperationalState[seatId]}
+                  wizards={wizards.map((wizard) => ({ wizardId: wizard.wizardId, name: wizard.name }))}
+                  pending={pending}
+                  onSave={(next) =>
+                    act(() =>
+                      updatePactFragmentOperationalState({
+                        commandId: generateCommandId(),
+                        expectedCampaignId: campaignId,
+                        seatId,
+                        expected: pactFragmentOperationalState[seatId],
+                        next,
+                      }),
+                    )
+                  }
+                />
+              </details>
               </div>
             );
           })}

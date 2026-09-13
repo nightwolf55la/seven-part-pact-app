@@ -6,6 +6,7 @@
  */
 
 import type { CampaignStateV5 } from "./campaign-state";
+import { isNecromancerDenizenFoe } from "./necromancer-state";
 import type { DenizenId, IsleId, PlaceId, PowerfulDenizenTruthId, WizardId } from "./ids";
 import type { HouseIndex } from "./orrery";
 import { HOUSE_NAMES } from "./orrery";
@@ -577,4 +578,113 @@ export function readSorcererBoardReference(state: CampaignStateV5): SorcererBoar
 
 export function pactSeatLabelForSorcererPresence(seatId: PactSeatId): string {
   return pactSeatDisplayName(seatId);
+}
+
+/**
+ * APPLICATION DESIGN: an uninitialized Sorcerer must not receive a dead-end
+ * or a one-click path that silently decides University, personnel, Laws,
+ * Houses, Ideologies, Seas, or Researcher destinations. Report structural
+ * gaps and the genuine setup choices that still must be supplied.
+ */
+export interface SorcererEstablishmentReadiness {
+  readonly initialized: boolean;
+  readonly missingPrerequisites: readonly string[];
+  readonly requiredSetupChoices: readonly string[];
+}
+
+function awakeningSetupChoices(): readonly string[] {
+  return [
+    "Choose which Place on Spyrholm is Spyrholm University.",
+    "Choose the two active Laws of Magic.",
+    "In the Age of Awakening, the Facilitator secretly chooses the third forgotten Law of Magic.",
+    "Choose which Orrery Houses host starting Research Positions.",
+    "Choose which Warlock Ideologies and Mariner Seas host the remaining starting Research Positions.",
+    "Place a Researcher at any House in the Zodiac.",
+    "Place two Researchers in any other combination of Wizards' Domains.",
+    "Assign three Students, a Professor, and an Alchemist (Salt) to the Tower.",
+  ];
+}
+
+function ordinarySetupChoices(): readonly string[] {
+  return [
+    "Choose which Place on Spyrholm is Spyrholm University.",
+    "Choose the two active Laws of Magic.",
+    "Choose which Orrery Houses host starting Research Positions.",
+    "Choose which Warlock Ideologies and Mariner Seas host the remaining starting Research Positions.",
+    "Place a Researcher at any House in the Zodiac.",
+    "Place two Researchers in any other combination of Wizards' Domains.",
+    "Assign three Students, a Professor, and an Alchemist (Salt) to the Tower.",
+  ];
+}
+
+export function readSorcererEstablishmentReadiness(state: CampaignStateV5): SorcererEstablishmentReadiness {
+  if (state.sorcerer.initialized) {
+    return { initialized: true, missingPrerequisites: [], requiredSetupChoices: [] };
+  }
+
+  const missing: string[] = [];
+  const ageId = state.configuration.ageId;
+  if (ageId === null) {
+    missing.push("A campaign Age has not been selected.");
+  }
+
+  const sorcererWizardId = state.pactSeats.sorcerer.wizardId;
+  const sorcererWizard = sorcererWizardId === null
+    ? undefined
+    : state.wizards.find((wizard) => wizard.wizardId === sorcererWizardId);
+  if (sorcererWizard === undefined) {
+    missing.push("No Sorcerer Wizard is seated.");
+  }
+
+  const spyrholmFromBoard = state.mariner.boardIsles.find((isle) => isle.boardIsleId === "spyrholm")?.worldIsleId;
+  const spyrholmIsleId = sorcererWizard?.homeIsleId ?? spyrholmFromBoard ?? null;
+  if (spyrholmIsleId === null) {
+    missing.push("Spyrholm has not been realized as a campaign World Isle.");
+  }
+
+  const towerPlaceId = sorcererWizard?.sanctumPlaceId ?? null;
+  if (towerPlaceId === null) {
+    missing.push("The Sorcerer's Tower (Sanctum) has not been established.");
+  }
+
+  const universityCandidates = spyrholmIsleId === null
+    ? []
+    : state.world.places.filter((place) =>
+      place.placeId !== towerPlaceId &&
+      place.placement.kind === "on_isle" &&
+      place.placement.isleId === spyrholmIsleId,
+    );
+  if (universityCandidates.length === 0) {
+    missing.push("A distinct University Place on Spyrholm is required.");
+  }
+
+  if (state.magicConsumables.tomes.length !== 0 || state.magicConsumables.reagents.length !== 0) {
+    missing.push("Sorcerer establishment requires empty Tower magic stores.");
+  }
+
+  const usedDenizenIds = new Set<string>([
+    ...state.necromancer.foes.filter(isNecromancerDenizenFoe).map((foe) => foe.subject.denizenId),
+    ...state.necromancer.allies.map((ally) => ally.denizenId),
+    ...state.necromancer.ghoulCallers.map((ghoul) => ghoul.denizenId),
+    ...state.hierophant.supplicants.map((supplicant) => supplicant.denizenId),
+    ...state.hierophant.prophets.map((prophet) => prophet.denizenId),
+    ...state.hierophant.cults.map((cult) => cult.cultDenizenId),
+    ...state.mariner.beasts.map((beast) => beast.denizenId),
+  ]);
+  const unusedIndividualCount = state.world.denizens.filter((denizen) => (
+    denizen.representation === "individual" && !usedDenizenIds.has(denizen.denizenId)
+  )).length;
+  if (unusedIndividualCount < 8) {
+    missing.push("Quiet establishment needs eight individual Denizens for Researchers, Students, the Professor, and the Alchemist.");
+  }
+
+  if (missing.length > 0) {
+    return { initialized: false, missingPrerequisites: missing, requiredSetupChoices: [] };
+  }
+
+  return {
+    initialized: false,
+    missingPrerequisites: [],
+    requiredSetupChoices: ageId === "awakening" ? awakeningSetupChoices() : ordinarySetupChoices(),
+  };
 }

@@ -670,31 +670,26 @@ describe("Necromancer Phase 2A transitions", () => {
       expect(addedFoe.necromancer.gates.find((gate) => gate.gateId === "bronze")?.status).toBe(
         beforeFoe.gateStatuses.find((gate) => gate.gateId === "bronze")?.status,
       );
-      const escapedAttempt = applyUpdateNecromancerFoe(addedFoe, { kind: "denizen", denizenId: DEN_COLLECTIVE }, {
+      expect(() => applyUpdateNecromancerFoe(addedFoe, { kind: "denizen", denizenId: DEN_COLLECTIVE }, {
         location: {
           expected: { kind: "gate", gateId: "bronze" },
           value: { kind: "escaped", seatId: "sage", abominationKind: "occult" },
         },
-      }).nextState;
-      expect(escapedAttempt.necromancer.foes.find((foe) => foe.subject.kind === "denizen" && foe.subject.denizenId === DEN_COLLECTIVE)?.location).toEqual({
-        kind: "escaped",
-        seatId: "sage",
-        abominationKind: "occult",
-      });
-      expect(escapedAttempt.necromancer.foes.find((foe) => foe.subject.kind === "denizen" && foe.subject.denizenId === DEN_1)?.location).toEqual({
+      })).toThrow(/emergence cannot be recorded by generic location correction/i);
+      expect(addedFoe.necromancer.foes.find((foe) => foe.subject.kind === "denizen" && foe.subject.denizenId === DEN_1)?.location).toEqual({
         kind: "gate",
         gateId: "deep",
       });
 
-      const beforeGhoul = snapshotPieces(escapedAttempt);
-      const petty = applyUpdateNecromancerGhoulCaller(escapedAttempt, DEN_6, {
+      const beforeGhoul = snapshotPieces(addedFoe);
+      const petty = applyUpdateNecromancerGhoulCaller(addedFoe, DEN_6, {
         pettyDeadCount: { expected: 0, value: 4 },
       }).nextState;
-      expect(petty.necromancer.souls).toEqual(escapedAttempt.necromancer.souls);
+      expect(petty.necromancer.souls).toEqual(addedFoe.necromancer.souls);
       expect(petty.necromancer.foes).toEqual(beforeGhoul.foes);
-      expect(petty.necromancer.ghoulCallers[0]?.location).toEqual(escapedAttempt.necromancer.ghoulCallers[0]?.location);
+      expect(petty.necromancer.ghoulCallers[0]?.location).toEqual(addedFoe.necromancer.ghoulCallers[0]?.location);
       expect(petty.necromancer.foes).toEqual(beforeGhoul.foes);
-      expect(petty.necromancer.allies).toEqual(escapedAttempt.necromancer.allies);
+      expect(petty.necromancer.allies).toEqual(addedFoe.necromancer.allies);
       expect(petty.calendar).toEqual(beforeFive.calendar);
       expect(petty.lifecycle).toEqual(beforeFive.lifecycle);
       expect(petty.wizardmootHistory).toEqual([]);

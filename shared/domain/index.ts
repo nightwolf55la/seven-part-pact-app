@@ -402,6 +402,7 @@ export {
   setWizardCompanionFingerprint,
   updateCompanionDescriptionFingerprint,
   initializeHierophantFingerprint,
+  initializeHierophantSourceSetupFingerprint,
   adjustTempleResourcesFingerprint,
   createTempleFingerprint,
   updateTempleFingerprint,
@@ -425,6 +426,7 @@ export {
   createCampaignDoctrineFingerprint,
   updateCampaignDoctrineFingerprint,
   initializeMarinerFingerprint,
+  initializeMarinerSourceSetupFingerprint,
   setMarinerShipFingerprint,
   setSelectedSeaLawsFingerprint,
   setMarinerRouteOccupancyFingerprint,
@@ -442,6 +444,7 @@ export {
   nestMarinerBeastFingerprint,
   recordMarinerRavageResultFingerprint,
   initializeNecromancerFingerprint,
+  initializeNecromancerSourceSetupFingerprint,
   setNecromancerDepthFingerprint,
   setSelectedDeathLawsFingerprint,
   setNecromancerGateStatusFingerprint,
@@ -1896,11 +1899,21 @@ export {
 export type {
   TransformNecromancerSoulIntoAllyInput,
   NecromancerOperabilityTransitionResult,
+  NecromancerSourceSetupNamedFoe,
+  NecromancerSourceSetupNamedAlly,
+  NecromancerSourceSetupNamedGhoulCaller,
+  InitializeNecromancerSourceSetupInput,
 } from "./necromancer-operability-transitions";
 export {
   canonicalizeTransformNecromancerSoulIntoAllyInput,
   applyTransformNecromancerSoulIntoAlly,
+  canonicalizeInitializeNecromancerSourceSetupInput,
+  applyInitializeNecromancerSourceSetup,
 } from "./necromancer-operability-transitions";
+export {
+  formatStalePreconditionValue,
+  stalePreconditionMessage,
+} from "./stale-precondition-format";
 
 export type {
   MarinerTransitionResult,
@@ -1909,6 +1922,26 @@ export type {
   InitializeMarinerInput,
   UpdateMarinerBeastFields,
 } from "./mariner-transitions";
+export type {
+  ProposedBoardIsleId,
+  ProposedTemplePlaceId,
+  InitializeMarinerSourceSetupInput,
+  InitializeHierophantSourceSetupInput,
+  CanonicalBoardIsleRealization,
+  CanonicalTempleRealization,
+} from "./canonical-setting-realization";
+export {
+  PACT_SEAT_HOME_BOARD_ISLE,
+  authoritativeWorldIsleForBoardSlot,
+  authoritativePlaceForTemple,
+  realizeCanonicalBoardIsles,
+  realizeCanonicalTemplePlaces,
+  canonicalizeInitializeMarinerSourceSetupInput,
+  canonicalizeInitializeHierophantSourceSetupInput,
+  applyInitializeMarinerSourceSetup,
+  applyInitializeHierophantSourceSetup,
+} from "./canonical-setting-realization";
+
 export {
   canonicalizeInitializeMarinerInput,
   normalizeMarinerIsleMarket,
@@ -2133,12 +2166,14 @@ export type {
   SorcererExternalPresence,
   SorcererOrreryHouseMarkerPresentation,
   SorcererBoardReference,
+  SorcererEstablishmentReadiness,
 } from "./sorcerer-presentation";
 export {
   sorcererResearchPositionTargetLabel,
   projectSorcererExternalPresence,
   sorcererOrreryHouseMarkerFromExternalPresence,
   readSorcererBoardReference,
+  readSorcererEstablishmentReadiness,
   pactSeatLabelForSorcererPresence,
 } from "./sorcerer-presentation";
 

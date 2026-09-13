@@ -675,14 +675,37 @@ describe("D2B cross-domain shared commands", () => {
     })).not.toThrow();
   });
 
-  it("still requires foe_of_death on an active Denizen Foe", () => {
+  it("requires foe_of_death only after a Denizen Foe has escaped", () => {
     const state = initNecromancer();
     const profile = state.world.denizens.find((d) => d.denizenId === DEN_1)!.powerfulProfile!;
-    expectCode(() => applySetPowerfulDenizenTaxonomies(state, DEN_1, {
+    expect(() => applySetPowerfulDenizenTaxonomies(state, DEN_1, {
       expected: profile.taxonomies,
       value: [{ kind: "builtin", taxonomyId: "beast" }],
+    })).not.toThrow();
+    expect(() => applyRemovePowerfulDenizenProfile(state, DEN_1, profile)).not.toThrow();
+
+    const escapedHost = applyCreateDenizenV5Candidate(state, {
+      denizenId: DEN_7,
+      name: "Emerged",
+      representation: "individual",
+      description: null,
+    }).nextState;
+    const profiled = applyCreatePowerfulDenizenProfile(escapedHost, {
+      denizenId: DEN_7,
+      taxonomies: FOE_PROFILE.taxonomies,
+      status: FOE_PROFILE.status,
+      goal: null,
+    }).nextState;
+    const escaped = applyAddNecromancerFoe(profiled, {
+      subject: { kind: "denizen", denizenId: DEN_7 },
+      location: { kind: "escaped", seatId: "sage", abominationKind: "occult" },
+    }).nextState;
+    const escapedProfile = escaped.world.denizens.find((d) => d.denizenId === DEN_7)!.powerfulProfile!;
+    expectCode(() => applySetPowerfulDenizenTaxonomies(escaped, DEN_7, {
+      expected: escapedProfile.taxonomies,
+      value: [{ kind: "builtin", taxonomyId: "beast" }],
     }), "INVALID_CAMPAIGN_STATE");
-    expectCode(() => applyRemovePowerfulDenizenProfile(state, DEN_1, profile), "INVALID_CAMPAIGN_STATE");
+    expectCode(() => applyRemovePowerfulDenizenProfile(escaped, DEN_7, escapedProfile), "INVALID_CAMPAIGN_STATE");
   });
 });
 

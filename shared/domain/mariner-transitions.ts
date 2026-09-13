@@ -2,6 +2,7 @@ import type { CampaignStateV5 } from "./campaign-state";
 import type { DenizenId, IsleId, PlaceId } from "./ids";
 import { isValidDenizenId, isValidIsleId, isValidPlaceId } from "./ids";
 import { DomainError } from "./errors";
+import { stalePreconditionMessage } from "./stale-precondition-format";
 import type { ExpectedFieldChange } from "./world-subject-transitions";
 import type { MarinerEvent } from "./events";
 import {
@@ -113,7 +114,7 @@ function checkPrecondition<T>(
   if (!equal(current, change.expected)) {
     throw new DomainError(
       "STALE_COMMAND_PRECONDITION",
-      `${fieldLabel}: expected "${String(change.expected)}" but current is "${String(current)}"`,
+      stalePreconditionMessage(fieldLabel, change.expected, current),
     );
   }
 }

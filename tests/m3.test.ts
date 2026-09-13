@@ -263,9 +263,13 @@ describe("M3 Command/Event Semantics", () => {
       "plr_00000000-0000-0000-0000-000000000001" as PlayerId,
       "necromancer" as PactSeatId,
     );
-    expect(result.events.length).toBe(2);
     expect(result.events[0].type).toBe("wizard_created");
     expect(result.events[1].type).toBe("pact_seat_wizard_changed");
+    expect(result.events[2]?.type).toBe("pact_fragment_operational_state_changed");
+    expect(result.nextState.pactFragmentOperationalState.necromancer).toEqual({
+      condition: "intact",
+      custody: { kind: "wizard", wizardId: "wiz_00000000-0000-0000-0000-000000000001" },
+    });
   });
 
   it("seat unassignment clears present/silent status and emits pact_seat_wizard_changed + pact_seat_status_changed", () => {

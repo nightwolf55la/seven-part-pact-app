@@ -24,6 +24,7 @@ import {
   arrangementSetupSlots,
   buildBindCurrentNecromancerAtDepthZeroPayload,
   buildInitializeNecromancerPayload,
+  buildInitializeNecromancerSourceSetupPayload,
   buildAddNecromancerGhoulCallerPayload,
   buildUpdateNecromancerGhoulCallerPayload,
   buildRemoveNecromancerGhoulCallerPayload,
@@ -50,6 +51,7 @@ import {
   hasFixedBoardPresentationPoint,
   isNecromancerInitialized,
   necromancerSetupReady,
+  necromancerSourceSetupReady,
   newCommandId,
   occupiableRefKey,
   ordinaryLawReadView,
@@ -91,8 +93,11 @@ function quietDraft(overrides: Partial<NecromancerSetupDraft> = {}): Necromancer
     ...withSetupArrangement(emptyNecromancerSetupDraft(), "quiet"),
     selectedLawIds: ["first", "second"],
     deepFoeDenizenId: "den_deep",
+    deepFoeName: "Deep Foe",
     terminusFoeDenizenId: "den_terminus",
+    terminusFoeName: "Terminus Foe",
     allyDenizenId: "den_ally",
+    allyName: "Bound Ally",
     allyGateId: "amber",
     ...overrides,
   };
@@ -103,9 +108,12 @@ function dynamicDraft(overrides: Partial<NecromancerSetupDraft> = {}): Necromanc
     ...withSetupArrangement(emptyNecromancerSetupDraft(), "dynamic"),
     selectedLawIds: ["third", "fourth"],
     deepFoeDenizenId: "den_deep",
+    deepFoeName: "Deep Foe",
     terminusFoeDenizenId: "den_terminus",
-    farFoes: [{ denizenId: "den_far_1", gateId: "howling" }],
+    terminusFoeName: "Terminus Foe",
+    farFoes: [{ denizenId: "den_far_1", name: "Far Foe One", gateId: "howling" }],
     allyDenizenId: "den_ally",
+    allyName: "Bound Ally",
     allyGateId: "ivory",
     ...overrides,
   };
@@ -116,14 +124,18 @@ function explosiveDraft(overrides: Partial<NecromancerSetupDraft> = {}): Necroma
     ...withSetupArrangement(emptyNecromancerSetupDraft(), "explosive"),
     selectedLawIds: ["fifth", "sixth"],
     deepFoeDenizenId: "den_deep",
+    deepFoeName: "Deep Foe",
     terminusFoeDenizenId: "den_terminus",
+    terminusFoeName: "Terminus Foe",
     farFoes: [
-      { denizenId: "den_far_1", gateId: "marching" },
-      { denizenId: "den_far_2", gateId: "weeping" },
+      { denizenId: "den_far_1", name: "Far Foe One", gateId: "marching" },
+      { denizenId: "den_far_2", name: "Far Foe Two", gateId: "weeping" },
     ],
     allyDenizenId: "den_ally",
+    allyName: "Bound Ally",
     allyGateId: "lead",
     ghoulCallerDenizenId: "den_ghoul",
+    ghoulCallerName: "Ghoul Caller",
     ghoulCallerPathSpaceId: "edge_sage",
     ghoulCallerPrimaryElement: "fire",
     ghoulCallerAesthetic: "ash-stained funeral silks",
@@ -233,8 +245,8 @@ describe("setup readiness", () => {
       necromancerSetupReady(
         explosiveDraft({
           farFoes: [
-            { denizenId: "den_far_1", gateId: "marching" },
-            { denizenId: "den_far_1", gateId: "weeping" },
+            { denizenId: "den_far_1", name: "Far Foe One", gateId: "marching" },
+            { denizenId: "den_far_1", name: "Far Foe Two", gateId: "weeping" },
           ],
         }),
         denizens,
@@ -290,6 +302,48 @@ describe("setup readiness", () => {
     });
     expect(payload?.arrangementGhoulCaller?.aesthetic).toBe("ash-stained funeral silks");
     expect(payload?.arrangementGhoulCaller?.strangeQuirk).toBe("counts backwards from thirteen");
+  });
+});
+
+describe("source-shaped setup readiness", () => {
+  it("is ready from names and placement choices without existing World Denizens", () => {
+    expect(necromancerSourceSetupReady(quietDraft({
+      deepFoeDenizenId: "",
+      terminusFoeDenizenId: "",
+      allyDenizenId: "",
+    }))).toBe(true);
+    expect(necromancerSourceSetupReady(quietDraft({ deepFoeName: "" }))).toBe(false);
+    expect(necromancerSourceSetupReady(explosiveDraft({
+      ghoulCallerDenizenId: "",
+      ghoulCallerName: "Named Ghoul-Caller",
+    }))).toBe(true);
+    expect(necromancerSourceSetupReady(explosiveDraft({ ghoulCallerName: "" }))).toBe(false);
+  });
+
+  it("builds a named source-setup payload with generated Denizen IDs", () => {
+    let n = 0;
+    const payload = buildInitializeNecromancerSourceSetupPayload({
+      commandId: "cmd_source",
+      expectedCampaignId: "camp_1",
+      draft: explosiveDraft({
+        ghoulCallerAesthetic: "  ash-stained funeral silks  ",
+        ghoulCallerStrangeQuirk: "  counts backwards from thirteen  ",
+      }),
+      nextUuid: () => {
+        n += 1;
+        return `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
+      },
+    });
+    expect(payload?.arrangementFoes.map((foe) => foe.name)).toEqual([
+      "Deep Foe",
+      "Terminus Foe",
+      "Far Foe One",
+      "Far Foe Two",
+    ]);
+    expect(payload?.arrangementAlly.name).toBe("Bound Ally");
+    expect(payload?.arrangementGhoulCaller?.name).toBe("Ghoul Caller");
+    expect(payload?.arrangementGhoulCaller?.aesthetic).toBe("ash-stained funeral silks");
+    expect(payload?.arrangementFoes.every((foe) => foe.denizenId.startsWith("den_"))).toBe(true);
   });
 });
 

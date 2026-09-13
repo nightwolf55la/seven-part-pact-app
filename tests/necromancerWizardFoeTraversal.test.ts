@@ -365,7 +365,7 @@ describe("D2A mixed-subject Foes", () => {
 });
 
 describe("D2A Denizen Foe Powerful profile", () => {
-  it("requires a Powerful profile with foe_of_death and does not store a duplicate Truth list", () => {
+  it("allows ordinary in-Death Foes without Powerful/foe_of_death and does not store a duplicate Truth list", () => {
     const withoutProfile = {
       ...baseV5(),
       world: {
@@ -375,7 +375,8 @@ describe("D2A Denizen Foe Powerful profile", () => {
         ),
       },
     };
-    expectCode(() => applyInitializeNecromancer(withoutProfile, quietInput()), "INVALID_CAMPAIGN_STATE");
+    const ordinary = applyInitializeNecromancer(withoutProfile, quietInput()).nextState;
+    expect(ordinary.world.denizens.find((denizen) => denizen.denizenId === DEN_1)?.powerfulProfile).toBeNull();
 
     const wrongTaxonomy = {
       ...baseV5(),
@@ -394,7 +395,10 @@ describe("D2A Denizen Foe Powerful profile", () => {
         ),
       },
     };
-    expectCode(() => applyInitializeNecromancer(wrongTaxonomy, quietInput()), "INVALID_CAMPAIGN_STATE");
+    const retained = applyInitializeNecromancer(wrongTaxonomy, quietInput()).nextState;
+    expect(retained.world.denizens.find((denizen) => denizen.denizenId === DEN_1)?.powerfulProfile?.taxonomies).toEqual([
+      { kind: "builtin", taxonomyId: "ghoul_caller" },
+    ]);
 
     const state = initialized();
     const denizenFoe = state.necromancer.foes.find((foe) => foe.subject.kind === "denizen" && foe.subject.denizenId === DEN_1);
@@ -413,11 +417,15 @@ describe("D2A Denizen Foe Powerful profile", () => {
     expect(stillDenizenFoe && "truths" in stillDenizenFoe).toBe(false);
 
     const denizen = profiled.world.denizens.find((candidate) => candidate.denizenId === DEN_1);
-    expectCode(() => applyRemovePowerfulDenizenProfile(profiled, DEN_1, denizen!.powerfulProfile!), "INVALID_CAMPAIGN_STATE");
-    expectCode(() => applySetPowerfulDenizenTaxonomies(profiled, DEN_1, {
+    const stripped = applyRemovePowerfulDenizenProfile(profiled, DEN_1, denizen!.powerfulProfile!).nextState;
+    expect(stripped.world.denizens.find((candidate) => candidate.denizenId === DEN_1)?.powerfulProfile).toBeNull();
+    const retaxed = applySetPowerfulDenizenTaxonomies(profiled, DEN_1, {
       expected: denizen!.powerfulProfile!.taxonomies,
       value: [{ kind: "builtin", taxonomyId: "beast" }],
-    }), "INVALID_CAMPAIGN_STATE");
+    }).nextState;
+    expect(retaxed.world.denizens.find((candidate) => candidate.denizenId === DEN_1)?.powerfulProfile?.taxonomies).toEqual([
+      { kind: "builtin", taxonomyId: "beast" },
+    ]);
   });
 });
 
