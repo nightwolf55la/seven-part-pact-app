@@ -260,10 +260,17 @@ Delivered the Faustian card table, A/B review corrections, approved in-place PRE
 
 See `docs/m5-4a-f-faustian-card-table.md`.
 
+### M5.4 Table-Readiness UI/UX — Batch 1
+
+**IMPLEMENTATION CANDIDATE — NEEDS HUMAN RETEST.** Do not mark VERIFIED or complete.
+
+Branch `m5-4/table-readiness-ux-batch-1`. See `docs/m5-4-table-readiness-ux.md`.
+
 ### Remaining active-table tranche
 
 Remaining active-player Domain operability:
 
+- later Table-Readiness UI/UX batches after human retest of Batch 1;
 - Warlock and Sage Domain operability, still deferred while they have no active players.
 
 Warlock and Sage are intentionally deferred while they have no active players.
@@ -421,7 +428,7 @@ Likely areas:
 
 ## Current Next Action
 
-Mariner is complete (PR #26 merged). Faustian Bodies A–D are a deterministic candidate on `m5-4a/faustian-card-table`; real Convex closure is blocked. Do not mark Faustian or M5.4 complete.
+Faustian M5.4A-F is merged (PR #27). M5.4 Table-Readiness UI/UX Batch 1 is an implementation candidate on `m5-4/table-readiness-ux-batch-1` and needs **human retest**. Do not mark Batch 1 or M5.4 complete.
 
 Warlock/Sage remain deferred. CampaignState V5 remains PRE-ACTIVATION.
 

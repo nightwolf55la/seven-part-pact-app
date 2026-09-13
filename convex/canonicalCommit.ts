@@ -131,7 +131,10 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   remove_player: { required: ["player_removed"] },
   set_campaign_age: { required: ["campaign_age_changed"] },
   set_facilitator: { required: ["facilitator_assignment_changed"] },
-  create_wizard: { required: ["wizard_created", "pact_seat_wizard_changed"] },
+  create_wizard: {
+    required: ["wizard_created", "pact_seat_wizard_changed"],
+    optional: ["pact_fragment_operational_state_changed"],
+  },
   rename_wizard: { required: ["wizard_name_changed"] },
   set_wizard_portrayal: { required: ["wizard_portrayal_changed"] },
   set_pact_seat_wizard: { required: ["pact_seat_wizard_changed"], optional: ["pact_seat_status_changed"] },

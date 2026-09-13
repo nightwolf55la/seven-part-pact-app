@@ -134,10 +134,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** SHARED
 - **Source/rules relevance:** Application/demo-data concern rather than a written-rule contradiction. A review/demo campaign should represent a believable normal-play state if it is intended to support product inspection.
 - **Suggested direction:** Seed a complete, coherent campaign with players, all seven Pact seats/Wizards as appropriate, source-defined World entities, and initialized currently supported Domains so a reviewer can actually use the product.
-- **Current status:** OPEN
+- **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Closely related to UX-003, UX-019, and UX-023.
 - **Approved batch:** Batch 1
-- **Resolution / implementation note:** Body 1 added source-shaped realization used by later review-campaign seeding. Representative fixture replacement is Body 3 work.
+- **Resolution / implementation note:** Body 3 replaced the Hierophant-only toy fixture. `Start Review Campaign` creates a **new** disposable campaign via `startNewCampaign` (shown only when no campaign exists) and then uses existing semantic commands: seven Players/Wizards/Present seats, Awakening month/Orrery, source-shaped Hierophant/Mariner/Necromancer setup, Quiet Sorcerer, Quiet Faustian table arrange, representative Hierophant pieces, then `beginPlay`. Warlock/Sage are Wizards only. No parallel demo-only state model.
 
 ### UX-002
 
@@ -150,10 +150,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** SHARED
 - **Source/rules relevance:** SOURCE: Pact-Fragments are mechanically meaningful and can be possessed/damaged/lost during play, so structured state is defensible. The written setup material does not present initial custody/condition as an ordinary user decision. APPLICATION DESIGN: current state logic already supports the intuitive default of an intact Fragment held by its owning Wizard; the UI should not make this look like routine setup bookkeeping.
 - **Suggested direction:** Default initial custody to the owning Pact Wizard and condition to intact; move rare custody/condition correction into secondary/advanced controls. Keep structured state.
-- **Current status:** OPEN
+- **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Related to UX-020 and UX-021. No generic Notes requirement was demonstrated.
 - **Approved batch:** Batch 1
-- **Resolution / implementation note:** Presentation/defaulting is Body 3 work. Structured state remains.
+- **Resolution / implementation note:** `create_wizard` now defaults an intact Fragment held by the owning Wizard when current custody is none. `set_pact_seat_wizard` still does not rewrite custody on reassignment. Campaign setup and Table/Wizards keep structured custody/condition behind `Advanced / Correct — Pact-Fragment custody and condition`. No Notes.
 
 ### UX-003
 
@@ -230,7 +230,7 @@ Supports: UX-001, UX-019.
 - **Current status:** OPEN
 - **Dependencies / duplicates:** Umbrella pattern for UX-012, UX-013, UX-015, and parts of UX-008.
 - **Approved batch:** Batch 1
-- **Resolution / implementation note:** Body 1 addressed the geography/Temple/Ship World-detour. Body 2 adds `initialize_necromancer_source_setup` so ordinary Gates arrangement creates/names starting Foes and Ally in-Domain. Remainder: Dynamic/Explosive starting Beast still asks for a pre-built World Denizen; general Powerful-Denizen creation remains UX-015 deferred.
+- **Resolution / implementation note:** Body 1 addressed geography/Temple/Ship World-detour. Body 2 added `initialize_necromancer_source_setup`. Body 3 review fixture uses those in-Domain paths. Remainder: Dynamic/Explosive starting Beast still asks for a pre-built World Denizen; general Powerful-Denizen creation remains UX-015 deferred.
 
 ### UX-008
 
@@ -413,10 +413,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** SORCERER
 - **Source/rules relevance:** Application distinction between Wizard existence and Domain initialization.
 - **Suggested direction:** Fix demo initialization and ensure an uninitialized but eligible Sorcerer Domain presents an explicit in-context establishment path or clear prerequisite explanation.
-- **Current status:** OPEN
+- **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Strongly related to UX-001 and UX-003.
 - **Approved batch:** Batch 1
-- **Resolution / implementation note:** Body 3 work.
+- **Resolution / implementation note:** `readSorcererEstablishmentReadiness` either exposes the existing Quiet `initialize_sorcerer` path or lists exact human-readable missing prerequisites (no raw IDs). The review campaign arrives already initialized. No new Sorcerer setup rules.
 
 ### UX-020
 
@@ -474,10 +474,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** WORLD
 - **Source/rules relevance:** SOURCE: there is one set of fixed setting Isles/geography. APPLICATION DESIGN: source-catalog/Lore identity and persisted World identity must be presented as one coherent setting concept without conflating the different technical layers.
 - **Suggested direction:** Use the approved canonical-setting realization strategy. Do not build a global source-ID registry and do not name-match.
-- **Current status:** OPEN
+- **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Strongly related to UX-003 and Mariner initialization.
 - **Approved batch:** Batch 1
-- **Resolution / implementation note:** Body 1 realization binds catalog board Isles to persisted World UUIDs through existing Mariner bindings, which is the identity layer Lore already uses. Ordinary setup no longer creates a parallel manual Isle set. Body 3 will inspect Compendium presentation against that binding.
+- **Resolution / implementation note:** After source-shaped Mariner realization, Compendium groups catalog Isle Lore under the bound World UUID. `considerCampaignOnly` skips already-represented refs, so Far Reach is one subject rather than a disconnected catalog duplicate plus a manually recreated World Isle. Technical Lore vs World identities remain separate layers.
 
 ---
 
@@ -492,5 +492,5 @@ Recorded as work proceeds.
 | Body | SHA | Subject |
 |---|---|---|
 | 1 | `b1bb14a82982d23f5814c779db3f11868bf788fd` | M5.4 UX B1: add source-shaped setup realization |
-| 2 | pending | Gates setup source-shaped |
+| 2 | `fb8a841394656e82a342bb3d2a5751b40d45574a` | M5.4 UX B1: make Gates setup source-shaped |
 | 3 | pending | representative review readiness |

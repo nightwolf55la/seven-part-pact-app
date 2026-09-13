@@ -37,6 +37,7 @@ vi.mock("../convex/_generated/api.js", () => ({
 
 import TableWizards from "../src/TableWizards";
 import type { PlayerRef, WizardRef, SeatRef } from "../src/table-wizards-view-model";
+import { EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE } from "../shared/domain";
 
 class CaptureBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
@@ -55,6 +56,7 @@ function renderTable(props: {
   pactSeats: Record<string, SeatRef>;
   players: PlayerRef[];
   wizards: WizardRef[];
+  pactFragmentOperationalState?: typeof EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE;
 }): string {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -140,6 +142,22 @@ describe("TableWizards presentation", () => {
     const html = renderTable({ pactSeats: SEATS_WITH_WIZARD, players: PLAYERS, wizards });
     expect(html).toContain("-1");
     expect(html).toContain("-3");
+  });
+
+  it("keeps Pact-Fragment custody and condition behind Advanced / Correct", () => {
+    const wizards: WizardRef[] = [
+      { wizardId: "wiz_1", name: "Zoltan", portrayedByPlayerId: "plr_1", character: BLANK_CHARACTER, homeIsleId: null, sanctumPlaceId: null },
+    ];
+    const html = renderTable({
+      pactSeats: SEATS_WITH_WIZARD,
+      players: PLAYERS,
+      wizards,
+      pactFragmentOperationalState: {
+        ...EMPTY_PACT_FRAGMENT_OPERATIONAL_STATE,
+        necromancer: { condition: "intact", custody: { kind: "wizard", wizardId: "wiz_1" as never } },
+      },
+    });
+    expect(html).toContain("Advanced / Correct — Pact-Fragment custody and condition");
   });
 
   it("renders 'Elements —' when elements are null", () => {

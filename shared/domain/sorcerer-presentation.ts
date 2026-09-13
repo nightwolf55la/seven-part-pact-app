@@ -6,6 +6,7 @@
  */
 
 import type { CampaignStateV5 } from "./campaign-state";
+import { isNecromancerDenizenFoe } from "./necromancer-state";
 import type { DenizenId, IsleId, PlaceId, PowerfulDenizenTruthId, WizardId } from "./ids";
 import type { HouseIndex } from "./orrery";
 import { HOUSE_NAMES } from "./orrery";
@@ -577,4 +578,116 @@ export function readSorcererBoardReference(state: CampaignStateV5): SorcererBoar
 
 export function pactSeatLabelForSorcererPresence(seatId: PactSeatId): string {
   return pactSeatDisplayName(seatId);
+}
+
+export interface SorcererQuietEstablishRefs {
+  readonly spyrholmIsleId: IsleId;
+  readonly towerPlaceId: PlaceId;
+  readonly universityPlaceId: PlaceId;
+  readonly researcherIds: readonly [DenizenId, DenizenId, DenizenId];
+  readonly studentIds: readonly [DenizenId, DenizenId, DenizenId];
+  readonly professorDenizenId: DenizenId;
+  readonly alchemistDenizenId: DenizenId;
+}
+
+/**
+ * APPLICATION DESIGN: an uninitialized Sorcerer must present either the
+ * existing initialize_sorcerer path or the exact missing prerequisite.
+ * This does not invent new setup rules.
+ */
+export interface SorcererEstablishmentReadiness {
+  readonly initialized: boolean;
+  readonly missingPrerequisites: readonly string[];
+  readonly quietEstablish: SorcererQuietEstablishRefs | null;
+}
+
+export function readSorcererEstablishmentReadiness(state: CampaignStateV5): SorcererEstablishmentReadiness {
+  if (state.sorcerer.initialized) {
+    return { initialized: true, missingPrerequisites: [], quietEstablish: null };
+  }
+
+  const missing: string[] = [];
+  const ageId = state.configuration.ageId;
+  if (ageId === null) {
+    missing.push("A campaign Age has not been selected.");
+  }
+
+  const sorcererWizardId = state.pactSeats.sorcerer.wizardId;
+  const sorcererWizard = sorcererWizardId === null
+    ? undefined
+    : state.wizards.find((wizard) => wizard.wizardId === sorcererWizardId);
+  if (sorcererWizard === undefined) {
+    missing.push("No Sorcerer Wizard is seated.");
+  }
+
+  const spyrholmFromBoard = state.mariner.boardIsles.find((isle) => isle.boardIsleId === "spyrholm")?.worldIsleId;
+  const spyrholmIsleId = sorcererWizard?.homeIsleId ?? spyrholmFromBoard ?? null;
+  if (spyrholmIsleId === null) {
+    missing.push("Spyrholm has not been realized as a campaign World Isle.");
+  }
+
+  const towerPlaceId = sorcererWizard?.sanctumPlaceId ?? null;
+  if (towerPlaceId === null) {
+    missing.push("The Sorcerer's Tower (Sanctum) has not been established.");
+  }
+
+  const university = spyrholmIsleId === null
+    ? undefined
+    : state.world.places.find((place) =>
+      place.placeId !== towerPlaceId &&
+      place.placement.kind === "on_isle" &&
+      place.placement.isleId === spyrholmIsleId,
+    );
+  if (university === undefined) {
+    missing.push("A distinct University Place on Spyrholm is required.");
+  }
+
+  if (state.magicConsumables.tomes.length !== 0 || state.magicConsumables.reagents.length !== 0) {
+    missing.push("Sorcerer establishment requires empty Tower magic stores.");
+  }
+
+  const usedDenizenIds = new Set<string>([
+    ...state.necromancer.foes.filter(isNecromancerDenizenFoe).map((foe) => foe.subject.denizenId),
+    ...state.necromancer.allies.map((ally) => ally.denizenId),
+    ...state.necromancer.ghoulCallers.map((ghoul) => ghoul.denizenId),
+    ...state.hierophant.supplicants.map((supplicant) => supplicant.denizenId),
+    ...state.hierophant.prophets.map((prophet) => prophet.denizenId),
+    ...state.hierophant.cults.map((cult) => cult.cultDenizenId),
+    ...state.mariner.beasts.map((beast) => beast.denizenId),
+  ]);
+  const unusedIndividuals = state.world.denizens
+    .filter((denizen) => denizen.representation === "individual" && !usedDenizenIds.has(denizen.denizenId))
+    .map((denizen) => denizen.denizenId)
+    .sort();
+  if (unusedIndividuals.length < 8) {
+    missing.push("Quiet establishment needs eight individual Denizens for Researchers, Students, the Professor, and the Alchemist.");
+  }
+
+  if (ageId !== null && ageId !== "awakening") {
+    missing.push("Ordinary in-context establishment uses the existing Quiet Working Tower path, which is available in the Age of Awakening.");
+  }
+
+  if (
+    missing.length > 0 ||
+    sorcererWizard === undefined ||
+    spyrholmIsleId === null ||
+    towerPlaceId === null ||
+    university === undefined
+  ) {
+    return { initialized: false, missingPrerequisites: missing, quietEstablish: null };
+  }
+
+  return {
+    initialized: false,
+    missingPrerequisites: [],
+    quietEstablish: {
+      spyrholmIsleId,
+      towerPlaceId,
+      universityPlaceId: university.placeId,
+      researcherIds: [unusedIndividuals[0]!, unusedIndividuals[1]!, unusedIndividuals[2]!],
+      studentIds: [unusedIndividuals[3]!, unusedIndividuals[4]!, unusedIndividuals[5]!],
+      professorDenizenId: unusedIndividuals[6]!,
+      alchemistDenizenId: unusedIndividuals[7]!,
+    },
+  };
 }

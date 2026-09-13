@@ -21,6 +21,7 @@ import type {
   SetupMonthChangedEventV1,
   SetupOrreryPositionChangedEventV1,
   WizardCharacterUpdatedEventV2,
+  PactFragmentOperationalStateChangedEventV1,
 } from "./events";
 import { PACT_SEAT_IDS, isValidPactSeatId } from "./pact-seats";
 import { isValidAgeDefinitionId } from "./ages";
@@ -268,10 +269,20 @@ export function applyCreateWizard(
     sanctumPlaceId: null,
     mortalityState: "not_deceased",
   };
+  const currentFragment = state.pactFragmentOperationalState[seatId];
+  const shouldDefaultFragment =
+    currentFragment.condition === "intact" && currentFragment.custody.kind === "none";
+  const nextFragment = {
+    condition: "intact" as const,
+    custody: { kind: "wizard" as const, wizardId },
+  };
   const nextState: CurrentCampaignState = {
     ...state,
     wizards: [...state.wizards, newWizard],
     pactSeats: replaceSeat(state, seatId, { wizardId }),
+    pactFragmentOperationalState: shouldDefaultFragment
+      ? { ...state.pactFragmentOperationalState, [seatId]: nextFragment }
+      : state.pactFragmentOperationalState,
   };
 
   const createdEvent: WizardCreatedEventV1 = {
@@ -286,7 +297,17 @@ export function applyCreateWizard(
     data: { seatId, previousWizardId: null, newWizardId: wizardId },
   };
 
-  return { nextState, events: [createdEvent, seatAssignedEvent] };
+  const events: CampaignEvent[] = [createdEvent, seatAssignedEvent];
+  if (shouldDefaultFragment) {
+    const fragmentEvent: PactFragmentOperationalStateChangedEventV1 = {
+      type: "pact_fragment_operational_state_changed",
+      version: 1,
+      data: { seatId, previous: currentFragment, updated: nextFragment },
+    };
+    events.push(fragmentEvent);
+  }
+
+  return { nextState, events };
 }
 
 // --- Rename Wizard ---

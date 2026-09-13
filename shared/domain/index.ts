@@ -2166,12 +2166,15 @@ export type {
   SorcererExternalPresence,
   SorcererOrreryHouseMarkerPresentation,
   SorcererBoardReference,
+  SorcererEstablishmentReadiness,
+  SorcererQuietEstablishRefs,
 } from "./sorcerer-presentation";
 export {
   sorcererResearchPositionTargetLabel,
   projectSorcererExternalPresence,
   sorcererOrreryHouseMarkerFromExternalPresence,
   readSorcererBoardReference,
+  readSorcererEstablishmentReadiness,
   pactSeatLabelForSorcererPresence,
 } from "./sorcerer-presentation";
 

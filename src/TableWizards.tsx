@@ -156,29 +156,32 @@ export default function TableWizards({
                 <p className="text-slate-400 dark:text-slate-500">Elements —</p>
               )}
               {pactFragmentOperationalState !== undefined && (
-                <PactFragmentControls
-                  seatId={row.seatId}
-                  fragment={pactFragmentOperationalState[row.seatId]}
-                  wizards={wizards.map((wizard) => ({ wizardId: wizard.wizardId, name: wizard.name }))}
-                  pending={pending}
-                  onSave={async (next) => {
-                    setFragmentError(null);
-                    setPending(true);
-                    try {
-                      await updatePactFragmentOperationalState({
-                        commandId: generateCommandId(),
-                        expectedCampaignId: campaignId,
-                        seatId: row.seatId,
-                        expected: pactFragmentOperationalState[row.seatId],
-                        next,
-                      });
-                    } catch (e: any) {
-                      setFragmentError(e?.message ?? "Failed to update Pact-Fragment");
-                    } finally {
-                      setPending(false);
-                    }
-                  }}
-                />
+                <details className="mt-2 rounded-lg border border-slate-200 dark:border-slate-700 p-2">
+                  <summary className="text-xs font-semibold cursor-pointer text-slate-500">Advanced / Correct — Pact-Fragment custody and condition</summary>
+                  <PactFragmentControls
+                    seatId={row.seatId}
+                    fragment={pactFragmentOperationalState[row.seatId]}
+                    wizards={wizards.map((wizard) => ({ wizardId: wizard.wizardId, name: wizard.name }))}
+                    pending={pending}
+                    onSave={async (next) => {
+                      setFragmentError(null);
+                      setPending(true);
+                      try {
+                        await updatePactFragmentOperationalState({
+                          commandId: generateCommandId(),
+                          expectedCampaignId: campaignId,
+                          seatId: row.seatId,
+                          expected: pactFragmentOperationalState[row.seatId],
+                          next,
+                        });
+                      } catch (e: any) {
+                        setFragmentError(e?.message ?? "Failed to update Pact-Fragment");
+                      } finally {
+                        setPending(false);
+                      }
+                    }}
+                  />
+                </details>
               )}
             </div>
           </div>

@@ -259,6 +259,7 @@ function renderSorcerer(
   return (
     <SorcererSurface
       presentation={sorcererRef.presentation}
+      establishment={sorcererRef.establishment}
       campaignId={campaignId}
       layout={layout}
       loreCompendium={loreCompendium}

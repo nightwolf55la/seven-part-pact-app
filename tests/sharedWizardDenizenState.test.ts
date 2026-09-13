@@ -680,7 +680,10 @@ describe("M5.2D D1A shared wizard and denizen state", () => {
 
     const created = applyCreateWizard(initialCampaignState(), WIZ_A, "Thalion", null, "necromancer").nextState;
     expect(created.pactSeats.necromancer.wizardId).toBe(WIZ_A);
-    expect(created.pactFragmentOperationalState.necromancer.custody).toEqual({ kind: "none" });
+    expect(created.pactFragmentOperationalState.necromancer).toEqual({
+      condition: "intact",
+      custody: { kind: "wizard", wizardId: WIZ_A },
+    });
 
     const unassigned = applySetPactSeatWizard(created, "necromancer", null).nextState;
     expect(unassigned.pactSeats.necromancer.wizardId).toBeNull();

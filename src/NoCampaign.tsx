@@ -46,7 +46,7 @@ export default function NoCampaign({
           Seven-Part Pact
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          There is no active campaign. Create one to begin setup.
+          There is no active campaign. Start a blank campaign, or create a new disposable review campaign with representative play state.
         </p>
         <button
           disabled={pending || demoPending}
@@ -61,7 +61,7 @@ export default function NoCampaign({
             onClick={handleStartDemo}
             className="w-full bg-amber-700 dark:bg-amber-800 border border-amber-700 dark:border-amber-800 rounded-xl px-4 py-3 text-sm font-medium text-white hover:bg-amber-600 dark:hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           >
-            {demoPending ? "Creating Demo Campaign…" : "Start Demo Campaign"}
+            {demoPending ? "Creating Review Campaign…" : "Start Review Campaign"}
           </button>
         )}
         {error !== null && (

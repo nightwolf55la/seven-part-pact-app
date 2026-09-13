@@ -128,6 +128,12 @@ describe("CampaignSetup presentation", () => {
     expect(pactSeatsIdx).toBeGreaterThan(facilitatorIdx);
   });
 
+  it("keeps Pact-Fragment custody and condition behind Advanced / Correct", () => {
+    const html = renderOnce(populatedSetup);
+    expect(html).toContain("Advanced / Correct — Pact-Fragment custody and condition");
+    expect(html).not.toMatch(/<summary[^>]*>\s*Pact-Fragment/);
+  });
+
   it("facilitator empty option says 'Select facilitator...' not 'None'", () => {
     const html = renderOnce(populatedSetup);
     expect(html).toContain("Select facilitator...");

@@ -5,6 +5,7 @@ import type { DenizenId } from "../shared/domain";
 import type {
   SorcererBoardReference,
   SorcererBoardResearchPosition,
+  SorcererEstablishmentReadiness,
   SorcererKnowledgePoolId,
   SorcererResearcherRefocusDestination,
   SorcererTowerMagicConsumableDirection,
@@ -18,6 +19,7 @@ import SorcererResearchOutposts, {
 } from "./SorcererResearchOutposts";
 import SorcererTowerBoard from "./SorcererTowerBoard";
 import {
+  buildInitializeSorcererQuietPayload,
   buildAdjustKnowledgePayload,
   buildMoveConsumablePayload,
   buildRecruitStudentPayload,
@@ -45,15 +47,18 @@ const fieldClass =
 
 export default function SorcererSurface({
   presentation,
+  establishment,
   campaignId,
   layout = "full",
   loreCompendium,
 }: {
   readonly presentation: SorcererBoardReference;
+  readonly establishment?: SorcererEstablishmentReadiness;
   readonly campaignId: string;
   readonly layout?: "full" | "narrow";
   readonly loreCompendium: LoreCompendiumUiState;
 }) {
+  const initializeSorcerer = useMutation(api.m3Commands.initializeSorcerer);
   const recruitPersonnel = useMutation(api.m3Commands.recruitSorcererPersonnel);
   const refocusResearcher = useMutation(api.m3Commands.refocusSorcererResearcher);
   const tutorStudent = useMutation(api.m3Commands.tutorSorcererStudent);
@@ -87,10 +92,41 @@ export default function SorcererSurface({
   }
 
   if (!presentation.initialized) {
+    const readiness = establishment ?? {
+      initialized: false,
+      missingPrerequisites: ["The Working Tower has not been established."],
+      quietEstablish: null,
+    };
     return (
-      <section className="rounded-xl border border-[#BF9000]/40 bg-[#FFF2CC] p-6 text-[#3d2a00]">
+      <section className="rounded-xl border border-[#BF9000]/40 bg-[#FFF2CC] p-6 text-[#3d2a00] space-y-3">
         <h2 className="text-lg font-semibold">Working Tower</h2>
-        <p className="text-sm mt-2">The Sorcerer has not been established for this campaign yet.</p>
+        {readiness.quietEstablish !== null ? (
+          <>
+            <p className="text-sm">The Sorcerer Wizard is eligible. Establish the Working Tower using the existing Quiet arrangement.</p>
+            {actionError !== null && <p role="alert" className="text-sm text-red-800">{actionError}</p>}
+            <button
+              type="button"
+              className={btnClass}
+              disabled={pending}
+              onClick={() => handleAction(() => initializeSorcerer(buildInitializeSorcererQuietPayload({
+                commandId: newCommandId(),
+                expectedCampaignId: campaignId,
+                quietEstablish: readiness.quietEstablish!,
+              })))}
+            >
+              Establish the Working Tower
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="text-sm">The Working Tower is not established yet. Missing prerequisites:</p>
+            <ul className="list-disc pl-5 text-sm space-y-1">
+              {readiness.missingPrerequisites.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </>
+        )}
       </section>
     );
   }
