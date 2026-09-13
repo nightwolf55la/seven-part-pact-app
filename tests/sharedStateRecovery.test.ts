@@ -109,7 +109,7 @@ function representativeState(): CampaignStateV5 {
     state,
     "necromancer",
     state.pactFragmentOperationalState.necromancer,
-    { condition: "intact", custody: { kind: "wizard", wizardId: WIZ_A } },
+    { condition: "damaged", custody: { kind: "wizard", wizardId: WIZ_A } },
   ).nextState;
 }
 
@@ -155,7 +155,7 @@ describe("M5.2D D1B snapshot / undo / redo / checkpoint / backup / verifier", ()
     expect(record.state.world.treasures[0].treasureId).toBe(TRS_1);
     expect(record.state.world.treasures[0].condition).toBe("intact");
     expect(record.state.pactFragmentOperationalState.necromancer).toEqual({
-      condition: "intact",
+      condition: "damaged",
       custody: { kind: "wizard", wizardId: WIZ_A },
     });
   });
@@ -212,7 +212,7 @@ describe("M5.2D D1B snapshot / undo / redo / checkpoint / backup / verifier", ()
     expect(state.world.treasures[0].treasureId).toBe(TRS_1);
     expect(state.world.treasures[0].condition).toBe("intact");
     expect(state.pactFragmentOperationalState.necromancer).toEqual({
-      condition: "intact",
+      condition: "damaged",
       custody: { kind: "wizard", wizardId: WIZ_A },
     });
   });

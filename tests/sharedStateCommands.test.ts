@@ -417,16 +417,14 @@ describe("M5.2D D1B treasures", () => {
 describe("M5.2D D1B pact fragment", () => {
   it("represents intact/damaged wizard, devil, unlocated, and destroyed+none", () => {
     const seated = applyCreateWizard(baseState({ wizards: [] }), WIZ_A, "Thalion", null, "necromancer").nextState;
+    expect(seated.pactFragmentOperationalState.necromancer).toEqual({
+      condition: "intact",
+      custody: { kind: "wizard", wizardId: WIZ_A },
+    });
     let state = applyUpdatePactFragmentOperationalState(
       seated,
       "necromancer",
       seated.pactFragmentOperationalState.necromancer,
-      { condition: "intact", custody: { kind: "wizard", wizardId: WIZ_A } },
-    ).nextState;
-    state = applyUpdatePactFragmentOperationalState(
-      state,
-      "necromancer",
-      state.pactFragmentOperationalState.necromancer,
       { condition: "damaged", custody: { kind: "wizard", wizardId: WIZ_A } },
     ).nextState;
     expect(state.pactFragmentOperationalState.necromancer.condition).toBe("damaged");
@@ -461,13 +459,11 @@ describe("M5.2D D1B pact fragment", () => {
   });
 
   it("keeps fragment independent from seat reassignment and rejects stale edits", () => {
-    let state = applyCreateWizard(baseState({ wizards: [] }), WIZ_A, "Thalion", null, "necromancer").nextState;
-    state = applyUpdatePactFragmentOperationalState(
-      state,
-      "necromancer",
-      state.pactFragmentOperationalState.necromancer,
-      { condition: "intact", custody: { kind: "wizard", wizardId: WIZ_A } },
-    ).nextState;
+    const state = applyCreateWizard(baseState({ wizards: [] }), WIZ_A, "Thalion", null, "necromancer").nextState;
+    expect(state.pactFragmentOperationalState.necromancer).toEqual({
+      condition: "intact",
+      custody: { kind: "wizard", wizardId: WIZ_A },
+    });
     const fragment = state.pactFragmentOperationalState;
     const unassigned = applySetPactSeatWizard(state, "necromancer", null).nextState;
     expect(unassigned.pactFragmentOperationalState).toEqual(fragment);

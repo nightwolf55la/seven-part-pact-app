@@ -481,9 +481,19 @@ Supports: UX-001, UX-019.
 
 ---
 
-## Retest path
+## Human retest path
 
-See the Batch 1 human retest path in the implementation checkpoint. Do not claim human verification from implementation or browser inspection alone.
+1. Open the demo/review campaign created by **Start Review Campaign** on a disposable Development deployment (creates a new campaign; do not repair it first). Confirm realistic Players/Wizards and currently supported Domains are already initialized enough to use.
+2. Open Hierophant. Confirm canonical Temples/Hestar already exist and ordinary setup does not ask the human to create/bind their locations.
+3. Open Mariner. Confirm canonical map Isles and starting Ship/Sanctum are already established. The human should not create World Isles or a "mobile Place" first.
+4. Perform one ordinary Mariner creation action from the Mariner surface if that existing action is part of the addressed shared pattern. Confirm no unrelated World setup detour is required.
+5. Open/initialize Necromancer in an appropriate clean/disposable campaign. Create/name required starting Foes/Ally through the Gates flow. Confirm no Powerful-profile/taxonomy prerequisite or raw DomainError leaks into normal setup.
+6. Depth is **not** in Batch 1. Do not treat spinner/raw-owner polish as fixed.
+7. Open Sorcerer. Confirm the review campaign is established. Confirm an eligible uninitialized Sorcerer has a useful next action or exact prerequisite.
+8. Open Compendium → Isles. Confirm canonical setting Isles present coherently and correspond to the conceptual Isles used by Mariner without manual duplicate setup.
+9. Quick full-screen desktop check of Batch 1 setup flows. Do not claim later board-width/map-redesign issues verified.
+
+Do not claim human verification from implementation or browser inspection alone.
 
 ## Implementation checkpoint log
 
@@ -493,4 +503,20 @@ Recorded as work proceeds.
 |---|---|---|
 | 1 | `b1bb14a82982d23f5814c779db3f11868bf788fd` | M5.4 UX B1: add source-shaped setup realization |
 | 2 | `fb8a841394656e82a342bb3d2a5751b40d45574a` | M5.4 UX B1: make Gates setup source-shaped |
-| 3 | pending | representative review readiness |
+| 3 | `8776ac8b85becfb9e63bba9ea7ffc90a8f1c06c7` | M5.4 UX B1: add representative review readiness |
+
+## Browser / desktop inspection (implementation worker)
+
+Attempted a 1600×1000 desktop inspection of `http://localhost:5183/` in the isolated browser. The Vite app loaded but React did not mount in that browser (empty `#root`). No mutations were sent.
+
+**Did not** start a review campaign against the local `.env.local` Development slug `wry-boar-766`, which prior Faustian docs identify as the human's review deployment.
+
+**Did not** run `npx convex deploy`. **No Production.**
+
+Remaining unique integration proof: sync Batch 1 Convex functions to a **disposable** Development deployment and create a new review campaign there, then walk the human retest path. Do not use `dev:wry-boar-766` for that proof unless the human explicitly authorizes it.
+
+## New UX findings from this run
+
+none
+
+Do not mark any issue VERIFIED.
