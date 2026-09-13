@@ -9,7 +9,8 @@ export type SurfaceId =
   | "mariner"
   | "necromancer"
   | "compendium"
-  | "sorcerer";
+  | "sorcerer"
+  | "faustian";
 
 export interface SurfaceLayout {
   readonly primary: SurfaceId;

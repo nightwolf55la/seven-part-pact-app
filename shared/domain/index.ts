@@ -1244,6 +1244,32 @@ export type {
   FaustianAntagonistChipCount,
   FaustianMalignance,
 } from "./faustian-catalogs";
+export type {
+  FaustianSourceWordingStatus,
+  FaustianSchemeReference,
+  FaustianTwistReference,
+  FaustianAccompliceReference,
+  FaustianCardSourceReference,
+} from "./faustian-card-reference";
+export {
+  FAUSTIAN_SOURCE_WORDING_STATUSES,
+  FAUSTIAN_SOURCE_WORDING_OMISSION,
+  FAUSTIAN_CARD_SOURCE_REFERENCES,
+  FAUSTIAN_RANK_LABELS,
+  FAUSTIAN_SUIT_LABELS,
+  FAUSTIAN_ZODIAC_LABELS,
+  FAUSTIAN_TABLEAU_COLUMN_COUNT,
+  FAUSTIAN_TABLEAU_ROW_COUNT,
+  FAUSTIAN_RANK_SEQUENCE,
+  FAUSTIAN_SUIT_SEQUENCE,
+  faustianCardSourceReference,
+  faustianCardSourceReferenceOrNull,
+  faustianFaceUpIdentityLabel,
+  faustianCommunityHeader,
+  faustianTableauRowIndex,
+  faustianTableauColumnIndex,
+} from "./faustian-card-reference";
+
 export {
   FAUSTIAN_SUITS,
   FAUSTIAN_RANKS,

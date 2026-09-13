@@ -11,6 +11,8 @@ import MarinerSurface from "./MarinerSurface";
 import type { MarinerWizardRef } from "./MarinerSurface";
 import NecromancerSurface from "./NecromancerSurface";
 import type { NecromancerWizardRef } from "./NecromancerSurface";
+import FaustianSurface from "./FaustianSurface";
+import type { FaustianWizardRef } from "./FaustianSurface";
 import LoreSurface from "./LoreSurface";
 import SorcererSurface from "./SorcererSurface";
 import { loreCompendiumUiStateFromQuery } from "./lore-view-model";
@@ -47,6 +49,7 @@ const SURFACE_LABELS: Record<SurfaceId, string> = {
   hierophant: "Hierophant",
   mariner: "Mariner",
   necromancer: "Necromancer",
+  faustian: "Faustian",
   compendium: "Compendium",
   sorcerer: "Sorcerer",
 };
@@ -86,6 +89,7 @@ function renderSurface(
     case "hierophant":
     case "mariner":
     case "necromancer":
+    case "faustian":
     case "compendium":
     case "sorcerer":
       return null;
@@ -109,6 +113,7 @@ function paneBody(
   hierRef: ReturnType<typeof useQuery<typeof api.m3Queries.getHierophantReference>>,
   marinerRef: ReturnType<typeof useQuery<typeof api.m3Queries.getMarinerReference>>,
   necromancerRef: ReturnType<typeof useQuery<typeof api.m3Queries.getNecromancerReference>>,
+  faustianRef: ReturnType<typeof useQuery<typeof api.m3Queries.getFaustianReference>>,
   loreCompendiumRef: ReturnType<typeof useQuery<typeof api.m3Queries.getLoreCompendiumReference>>,
   sorcererRef: ReturnType<typeof useQuery<typeof api.m3Queries.getSorcererReference>>,
   campaignId: string,
@@ -119,6 +124,9 @@ function paneBody(
   if (surface === "mariner") return renderMariner(marinerRef, worldRef, ref, campaignId, sorcererRef, loreCompendiumUiStateFromQuery(loreCompendiumRef));
   if (surface === "necromancer") {
     return renderNecromancer(necromancerRef, worldRef, ref, campaignId, loreCompendiumUiStateFromQuery(loreCompendiumRef), sorcererRef);
+  }
+  if (surface === "faustian") {
+    return renderFaustian(faustianRef, worldRef, ref, campaignId, loreCompendiumUiStateFromQuery(loreCompendiumRef), sorcererRef, layout);
   }
   if (surface === "sorcerer") {
     return renderSorcerer(sorcererRef, campaignId, layout, loreCompendiumUiStateFromQuery(loreCompendiumRef));
@@ -289,6 +297,52 @@ function renderNecromancer(
   );
 }
 
+function faustianWizardFromPlayRef(
+  ref: Parameters<typeof renderSurface>[1],
+): FaustianWizardRef | null {
+  const wizardId = ref.pactSeats.faustian?.wizardId ?? null;
+  if (wizardId === null) return null;
+  const wizard = ref.wizards.find((w) => w.wizardId === wizardId);
+  if (wizard === undefined) return null;
+  return {
+    wizardId: wizard.wizardId,
+    name: wizard.name,
+    ageYears: wizard.character.ageYears,
+    elements: wizard.character.elements,
+    homeIsleId: wizard.homeIsleId,
+    sanctumPlaceId: wizard.sanctumPlaceId,
+  };
+}
+
+function renderFaustian(
+  faustianRef: ReturnType<typeof useQuery<typeof api.m3Queries.getFaustianReference>>,
+  worldRef: ReturnType<typeof useQuery<typeof api.m3Queries.getWorldReference>>,
+  playRef: Parameters<typeof renderSurface>[1],
+  campaignId: string,
+  loreCompendium: ReturnType<typeof loreCompendiumUiStateFromQuery>,
+  sorcererRef: ReturnType<typeof useQuery<typeof api.m3Queries.getSorcererReference>>,
+  layout: "full" | "narrow",
+) {
+  if (faustianRef === undefined || worldRef === undefined) {
+    return <div className="py-12 text-center text-sm text-slate-400">Loading Faustian…</div>;
+  }
+  if (faustianRef === null || worldRef === null) {
+    return <div className="py-12 text-center text-sm text-slate-400">Faustian unavailable.</div>;
+  }
+  return (
+    <FaustianSurface
+      faustian={faustianRef.faustian}
+      world={worldRef}
+      campaignId={campaignId}
+      faustianWizard={faustianWizardFromPlayRef(playRef)}
+      wizards={playRef.wizards.map((wizard) => ({ wizardId: wizard.wizardId, name: wizard.name }))}
+      loreCompendium={loreCompendium}
+      sorcererPresence={sorcererRef?.presentation.externalPresence ?? []}
+      layout={layout}
+    />
+  );
+}
+
 export default function PlayShell({
   campaignId,
   campaignRevision,
@@ -310,6 +364,7 @@ export default function PlayShell({
   const hierRef = useQuery(api.m3Queries.getHierophantReference, {});
   const marinerRef = useQuery(api.m3Queries.getMarinerReference, {});
   const necromancerRef = useQuery(api.m3Queries.getNecromancerReference, {});
+  const faustianRef = useQuery(api.m3Queries.getFaustianReference, {});
   const loreCompendiumRef = useQuery(api.m3Queries.getLoreCompendiumReference, {});
   const sorcererRef = useQuery(api.m3Queries.getSorcererReference, {});
 
@@ -411,7 +466,7 @@ export default function PlayShell({
         ) : showSecondary && surfaceState.secondary ? (
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 min-w-0">
-              {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, loreCompendiumRef, sorcererRef, campaignId, "full")}
+              {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, faustianRef, loreCompendiumRef, sorcererRef, campaignId, "full")}
             </div>
             <div className="hidden md:block md:w-80 lg:w-96 flex-shrink-0">
               <div className="flex items-center gap-1 mb-2">
@@ -443,12 +498,12 @@ export default function PlayShell({
                   Fwd
                 </button>
               </div>
-              {paneBody(surfaceState.secondary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, loreCompendiumRef, sorcererRef, campaignId, "narrow")}
+              {paneBody(surfaceState.secondary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, faustianRef, loreCompendiumRef, sorcererRef, campaignId, "narrow")}
             </div>
           </div>
         ) : (
           <div className="w-full">
-            {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, loreCompendiumRef, sorcererRef, campaignId, "full")}
+            {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, faustianRef, loreCompendiumRef, sorcererRef, campaignId, "full")}
           </div>
         )}
       </div>

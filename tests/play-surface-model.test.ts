@@ -210,6 +210,32 @@ describe("sorcerer surface navigation", () => {
   });
 });
 
+describe("faustian surface navigation", () => {
+  it("accepts Faustian as a navigable surface without changing phase defaults", () => {
+    const planning = phaseDefaultLayout("planning");
+    expect(planning.primary).toBe("current_phase");
+    expect(planning.secondary).toBe("orrery");
+    const story = phaseDefaultLayout("story");
+    expect(story.primary).toBe("current_phase");
+    expect(story.secondary).toBe("table_wizards");
+    const quiet = phaseDefaultLayout("quiet");
+    expect(quiet.primary).toBe("current_phase");
+    expect(quiet.secondary).toBe("orrery");
+    let s = initPlaySurface("planning");
+    s = navigateSurface(s, "primary", "faustian");
+    expect(s.primary.current).toBe("faustian");
+    s = navigateSurface(s, "secondary", "faustian");
+    expect(s.secondary!.current).toBe("faustian");
+    s = goBack(s, "primary");
+    expect(s.primary.current).toBe("current_phase");
+    expect(s.secondary!.current).toBe("faustian");
+    s = goForward(s, "primary");
+    expect(s.primary.current).toBe("faustian");
+    s = promoteSecondary(s);
+    expect(s.primary.current).toBe("faustian");
+  });
+});
+
 describe("no campaign state in model", () => {
   it("PlaySurfaceState contains only surface IDs and history", () => {
     const s = initPlaySurface("story");
