@@ -656,45 +656,6 @@ export function isStaleSorcererCommandError(error: unknown): boolean {
   );
 }
 
-export function buildInitializeSorcererQuietPayload(args: {
-  readonly commandId: string;
-  readonly expectedCampaignId: string;
-  readonly quietEstablish: {
-    readonly spyrholmIsleId: string;
-    readonly towerPlaceId: string;
-    readonly universityPlaceId: string;
-    readonly researcherIds: readonly [string, string, string];
-    readonly studentIds: readonly [string, string, string];
-    readonly professorDenizenId: string;
-    readonly alchemistDenizenId: string;
-  };
-}) {
-  return {
-    commandId: args.commandId,
-    expectedCampaignId: args.expectedCampaignId,
-    arrangementId: "quiet" as const,
-    spyrholmIsleId: args.quietEstablish.spyrholmIsleId,
-    towerPlaceId: args.quietEstablish.towerPlaceId,
-    universityPlaceId: args.quietEstablish.universityPlaceId,
-    activeLawIds: ["first", "second"],
-    unrevealedLawId: "third",
-    orreryHouses: [0, 4, 8],
-    ideologyIds: ["aristocracy", "mercantilism"],
-    seaRegionIds: ["bay_of_ishana", "wizard_strait"],
-    researchers: [
-      { denizenId: args.quietEstablish.researcherIds[0], positionId: "srp_orrery_1" },
-      { denizenId: args.quietEstablish.researcherIds[1], positionId: "srp_temple_krolis" },
-      { denizenId: args.quietEstablish.researcherIds[2], positionId: "srp_court_1" },
-    ],
-    studentDenizenIds: [...args.quietEstablish.studentIds],
-    professorDenizenId: args.quietEstablish.professorDenizenId,
-    alchemistDenizenId: args.quietEstablish.alchemistDenizenId,
-    librarian: null,
-    towerArcanists: [],
-    calamityDisruptiveArcanist: null,
-  };
-}
-
 export function sorcererMutationErrorMessage(error: unknown): string {
   if (isStaleSorcererCommandError(error)) {
     return "The board changed. Review the refreshed state before trying again.";

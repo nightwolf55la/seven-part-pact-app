@@ -75,7 +75,7 @@ Ordinary Temples and Hestar are fixed setting concepts. Setup creates or reuses 
 
 ### Sorcerer initialization (UX-019)
 
-An eligible uninitialized Sorcerer must present the existing establishment operation or the exact missing prerequisite. Do not invent new Sorcerer setup rules. The representative review campaign should arrive initialized.
+An eligible uninitialized Sorcerer must not receive a useless dead-end. Use existing canonical initialization. The surface must either provide an explicit in-context establishment path or state the exact genuine prerequisites and setup decisions still required. Do not invent source setup semantics, and do not infer University, personnel, Laws, Houses, Ideologies, Seas, or Researcher destinations merely to make initialization one-click. The representative review campaign arrives initialized through its explicit fixture choices.
 
 ### Pact-Fragment defaults (UX-002)
 
@@ -416,7 +416,7 @@ Supports: UX-001, UX-019.
 - **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Strongly related to UX-001 and UX-003.
 - **Approved batch:** Batch 1
-- **Resolution / implementation note:** `readSorcererEstablishmentReadiness` either exposes the existing Quiet `initialize_sorcerer` path or lists exact human-readable missing prerequisites (no raw IDs). The review campaign arrives already initialized. No new Sorcerer setup rules.
+- **Resolution / implementation note:** `readSorcererEstablishmentReadiness` lists exact human-readable structural prerequisites and, when those exist, the explicit player/Facilitator setup choices still required (University, Laws, forgotten Law, Houses/Ideologies/Seas, Researcher destinations, and Tower personnel). It does not infer those choices or expose a one-click Quiet payload. The review campaign arrives already initialized through its explicit fixture. No new persisted field and no change to `initialize_sorcerer` semantics.
 
 ### UX-020
 

@@ -2167,7 +2167,6 @@ export type {
   SorcererOrreryHouseMarkerPresentation,
   SorcererBoardReference,
   SorcererEstablishmentReadiness,
-  SorcererQuietEstablishRefs,
 } from "./sorcerer-presentation";
 export {
   sorcererResearchPositionTargetLabel,

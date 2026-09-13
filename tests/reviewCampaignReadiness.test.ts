@@ -316,7 +316,7 @@ describe("representative review campaign semantics", () => {
     expect(readSorcererEstablishmentReadiness(state)).toEqual({
       initialized: true,
       missingPrerequisites: [],
-      quietEstablish: null,
+      requiredSetupChoices: [],
     });
     for (const seatId of PACT_SEAT_IDS) {
       expect(state.pactFragmentOperationalState[seatId]).toEqual({

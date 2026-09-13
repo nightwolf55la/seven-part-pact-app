@@ -580,30 +580,46 @@ export function pactSeatLabelForSorcererPresence(seatId: PactSeatId): string {
   return pactSeatDisplayName(seatId);
 }
 
-export interface SorcererQuietEstablishRefs {
-  readonly spyrholmIsleId: IsleId;
-  readonly towerPlaceId: PlaceId;
-  readonly universityPlaceId: PlaceId;
-  readonly researcherIds: readonly [DenizenId, DenizenId, DenizenId];
-  readonly studentIds: readonly [DenizenId, DenizenId, DenizenId];
-  readonly professorDenizenId: DenizenId;
-  readonly alchemistDenizenId: DenizenId;
-}
-
 /**
- * APPLICATION DESIGN: an uninitialized Sorcerer must present either the
- * existing initialize_sorcerer path or the exact missing prerequisite.
- * This does not invent new setup rules.
+ * APPLICATION DESIGN: an uninitialized Sorcerer must not receive a dead-end
+ * or a one-click path that silently decides University, personnel, Laws,
+ * Houses, Ideologies, Seas, or Researcher destinations. Report structural
+ * gaps and the genuine setup choices that still must be supplied.
  */
 export interface SorcererEstablishmentReadiness {
   readonly initialized: boolean;
   readonly missingPrerequisites: readonly string[];
-  readonly quietEstablish: SorcererQuietEstablishRefs | null;
+  readonly requiredSetupChoices: readonly string[];
+}
+
+function awakeningSetupChoices(): readonly string[] {
+  return [
+    "Choose which Place on Spyrholm is Spyrholm University.",
+    "Choose the two active Laws of Magic.",
+    "In the Age of Awakening, the Facilitator secretly chooses the third forgotten Law of Magic.",
+    "Choose which Orrery Houses host starting Research Positions.",
+    "Choose which Warlock Ideologies and Mariner Seas host the remaining starting Research Positions.",
+    "Place a Researcher at any House in the Zodiac.",
+    "Place two Researchers in any other combination of Wizards' Domains.",
+    "Assign three Students, a Professor, and an Alchemist (Salt) to the Tower.",
+  ];
+}
+
+function ordinarySetupChoices(): readonly string[] {
+  return [
+    "Choose which Place on Spyrholm is Spyrholm University.",
+    "Choose the two active Laws of Magic.",
+    "Choose which Orrery Houses host starting Research Positions.",
+    "Choose which Warlock Ideologies and Mariner Seas host the remaining starting Research Positions.",
+    "Place a Researcher at any House in the Zodiac.",
+    "Place two Researchers in any other combination of Wizards' Domains.",
+    "Assign three Students, a Professor, and an Alchemist (Salt) to the Tower.",
+  ];
 }
 
 export function readSorcererEstablishmentReadiness(state: CampaignStateV5): SorcererEstablishmentReadiness {
   if (state.sorcerer.initialized) {
-    return { initialized: true, missingPrerequisites: [], quietEstablish: null };
+    return { initialized: true, missingPrerequisites: [], requiredSetupChoices: [] };
   }
 
   const missing: string[] = [];
@@ -631,14 +647,14 @@ export function readSorcererEstablishmentReadiness(state: CampaignStateV5): Sorc
     missing.push("The Sorcerer's Tower (Sanctum) has not been established.");
   }
 
-  const university = spyrholmIsleId === null
-    ? undefined
-    : state.world.places.find((place) =>
+  const universityCandidates = spyrholmIsleId === null
+    ? []
+    : state.world.places.filter((place) =>
       place.placeId !== towerPlaceId &&
       place.placement.kind === "on_isle" &&
       place.placement.isleId === spyrholmIsleId,
     );
-  if (university === undefined) {
+  if (universityCandidates.length === 0) {
     missing.push("A distinct University Place on Spyrholm is required.");
   }
 
@@ -655,39 +671,20 @@ export function readSorcererEstablishmentReadiness(state: CampaignStateV5): Sorc
     ...state.hierophant.cults.map((cult) => cult.cultDenizenId),
     ...state.mariner.beasts.map((beast) => beast.denizenId),
   ]);
-  const unusedIndividuals = state.world.denizens
-    .filter((denizen) => denizen.representation === "individual" && !usedDenizenIds.has(denizen.denizenId))
-    .map((denizen) => denizen.denizenId)
-    .sort();
-  if (unusedIndividuals.length < 8) {
+  const unusedIndividualCount = state.world.denizens.filter((denizen) => (
+    denizen.representation === "individual" && !usedDenizenIds.has(denizen.denizenId)
+  )).length;
+  if (unusedIndividualCount < 8) {
     missing.push("Quiet establishment needs eight individual Denizens for Researchers, Students, the Professor, and the Alchemist.");
   }
 
-  if (ageId !== null && ageId !== "awakening") {
-    missing.push("Ordinary in-context establishment uses the existing Quiet Working Tower path, which is available in the Age of Awakening.");
-  }
-
-  if (
-    missing.length > 0 ||
-    sorcererWizard === undefined ||
-    spyrholmIsleId === null ||
-    towerPlaceId === null ||
-    university === undefined
-  ) {
-    return { initialized: false, missingPrerequisites: missing, quietEstablish: null };
+  if (missing.length > 0) {
+    return { initialized: false, missingPrerequisites: missing, requiredSetupChoices: [] };
   }
 
   return {
     initialized: false,
     missingPrerequisites: [],
-    quietEstablish: {
-      spyrholmIsleId,
-      towerPlaceId,
-      universityPlaceId: university.placeId,
-      researcherIds: [unusedIndividuals[0]!, unusedIndividuals[1]!, unusedIndividuals[2]!],
-      studentIds: [unusedIndividuals[3]!, unusedIndividuals[4]!, unusedIndividuals[5]!],
-      professorDenizenId: unusedIndividuals[6]!,
-      alchemistDenizenId: unusedIndividuals[7]!,
-    },
+    requiredSetupChoices: ageId === "awakening" ? awakeningSetupChoices() : ordinarySetupChoices(),
   };
 }

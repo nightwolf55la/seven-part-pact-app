@@ -19,7 +19,6 @@ import SorcererResearchOutposts, {
 } from "./SorcererResearchOutposts";
 import SorcererTowerBoard from "./SorcererTowerBoard";
 import {
-  buildInitializeSorcererQuietPayload,
   buildAdjustKnowledgePayload,
   buildMoveConsumablePayload,
   buildRecruitStudentPayload,
@@ -58,7 +57,6 @@ export default function SorcererSurface({
   readonly layout?: "full" | "narrow";
   readonly loreCompendium: LoreCompendiumUiState;
 }) {
-  const initializeSorcerer = useMutation(api.m3Commands.initializeSorcerer);
   const recruitPersonnel = useMutation(api.m3Commands.recruitSorcererPersonnel);
   const refocusResearcher = useMutation(api.m3Commands.refocusSorcererResearcher);
   const tutorStudent = useMutation(api.m3Commands.tutorSorcererStudent);
@@ -95,33 +93,25 @@ export default function SorcererSurface({
     const readiness = establishment ?? {
       initialized: false,
       missingPrerequisites: ["The Working Tower has not been established."],
-      quietEstablish: null,
+      requiredSetupChoices: [],
     };
     return (
       <section className="rounded-xl border border-[#BF9000]/40 bg-[#FFF2CC] p-6 text-[#3d2a00] space-y-3">
         <h2 className="text-lg font-semibold">Working Tower</h2>
-        {readiness.quietEstablish !== null ? (
-          <>
-            <p className="text-sm">The Sorcerer Wizard is eligible. Establish the Working Tower using the existing Quiet arrangement.</p>
-            {actionError !== null && <p role="alert" className="text-sm text-red-800">{actionError}</p>}
-            <button
-              type="button"
-              className={btnClass}
-              disabled={pending}
-              onClick={() => handleAction(() => initializeSorcerer(buildInitializeSorcererQuietPayload({
-                commandId: newCommandId(),
-                expectedCampaignId: campaignId,
-                quietEstablish: readiness.quietEstablish!,
-              })))}
-            >
-              Establish the Working Tower
-            </button>
-          </>
-        ) : (
+        {readiness.missingPrerequisites.length > 0 ? (
           <>
             <p className="text-sm">The Working Tower is not established yet. Missing prerequisites:</p>
             <ul className="list-disc pl-5 text-sm space-y-1">
               {readiness.missingPrerequisites.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <>
+            <p className="text-sm">The Working Tower is not established yet. These setup choices must be supplied. They cannot be inferred.</p>
+            <ul className="list-disc pl-5 text-sm space-y-1">
+              {readiness.requiredSetupChoices.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>

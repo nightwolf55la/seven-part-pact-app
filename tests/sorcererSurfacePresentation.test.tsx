@@ -746,7 +746,7 @@ describe("Sorcerer surface presentation", () => {
     container.remove();
   });
 
-  it("offers in-context Quiet establishment when prerequisites are present", () => {
+  it("lists explicit setup choices instead of a one-click inferred establishment", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -756,22 +756,24 @@ describe("Sorcerer surface presentation", () => {
         establishment: {
           initialized: false,
           missingPrerequisites: [],
-          quietEstablish: {
-            spyrholmIsleId: "isl_00000000-0000-0000-0000-0000000000aa" as never,
-            towerPlaceId: "plc_00000000-0000-0000-0000-0000000000aa" as never,
-            universityPlaceId: "plc_00000000-0000-0000-0000-0000000000ab" as never,
-            researcherIds: [denizenId(1), denizenId(2), denizenId(3)],
-            studentIds: [denizenId(4), denizenId(5), denizenId(6)],
-            professorDenizenId: denizenId(7),
-            alchemistDenizenId: denizenId(8),
-          },
+          requiredSetupChoices: [
+            "Choose the two active Laws of Magic.",
+            "Place a Researcher at any House in the Zodiac.",
+            "Assign three Students, a Professor, and an Alchemist (Salt) to the Tower.",
+          ],
         },
         campaignId: CAMPAIGN_ID,
         loreCompendium: LORE,
       }));
     });
-    expect(container.textContent).toContain("Establish the Working Tower");
+    expect(container.textContent).toContain("Choose the two active Laws of Magic.");
+    expect(container.textContent).toContain("Place a Researcher at any House in the Zodiac.");
+    expect(container.textContent).toContain("Assign three Students, a Professor, and an Alchemist (Salt) to the Tower.");
+    expect(container.textContent).toContain("cannot be inferred");
     expect(container.textContent).not.toContain("has not been established for this campaign yet");
+    expect(container.textContent).not.toContain("Establish the Working Tower");
+    expect(container.querySelector("button")).toBeNull();
+    expect(mockMutations["m3Commands.initializeSorcerer"]).toBeUndefined();
     root.unmount();
     container.remove();
   });
@@ -789,7 +791,7 @@ describe("Sorcerer surface presentation", () => {
             "Spyrholm has not been realized as a campaign World Isle.",
             "The Sorcerer's Tower (Sanctum) has not been established.",
           ],
-          quietEstablish: null,
+          requiredSetupChoices: [],
         },
         campaignId: CAMPAIGN_ID,
         loreCompendium: LORE,
@@ -799,6 +801,7 @@ describe("Sorcerer surface presentation", () => {
     expect(container.textContent).toContain("The Sorcerer's Tower (Sanctum) has not been established.");
     expect(container.textContent).not.toContain("has not been established for this campaign yet");
     expect(container.textContent).not.toContain("Establish the Working Tower");
+    expect(container.textContent).not.toMatch(/wiz_|isl_|plc_|den_/);
     root.unmount();
     container.remove();
   });

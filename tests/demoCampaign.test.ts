@@ -19,9 +19,13 @@ function uuidFactory(): () => string {
   return () => `11111111-1111-1111-1111-${String(i++).padStart(12, "0")}`;
 }
 
-function createMutationSpy(): DemoCampaignMutations & { calls: string[] } {
+function createMutationSpy(): DemoCampaignMutations & {
+  calls: string[];
+  initializeSorcererArgs: Parameters<DemoCampaignMutations["initializeSorcerer"]>[0] | null;
+} {
   let revision = 0;
   const calls: string[] = [];
+  let initializeSorcererArgs: Parameters<DemoCampaignMutations["initializeSorcerer"]>[0] | null = null;
   const bump = async (label: string) => {
     calls.push(label);
     revision += 1;
@@ -29,6 +33,9 @@ function createMutationSpy(): DemoCampaignMutations & { calls: string[] } {
   };
   return {
     calls,
+    get initializeSorcererArgs() {
+      return initializeSorcererArgs;
+    },
     startNewCampaign: async () => {
       calls.push("startNewCampaign");
       return { campaignId: "cmp_demo", campaignRevision: 0 };
@@ -48,7 +55,10 @@ function createMutationSpy(): DemoCampaignMutations & { calls: string[] } {
     initializeMarinerSourceSetup: () => bump("initializeMarinerSourceSetup"),
     initializeNecromancerSourceSetup: () => bump("initializeNecromancerSourceSetup"),
     setWizardSanctum: () => bump("setWizardSanctum"),
-    initializeSorcerer: () => bump("initializeSorcerer"),
+    initializeSorcerer: async (args) => {
+      initializeSorcererArgs = args;
+      return bump("initializeSorcerer");
+    },
     arrangeFaustianTable: () => bump("arrangeFaustianTable"),
     addSupplicant: () => bump("addSupplicant"),
     addProphet: () => bump("addProphet"),
@@ -93,6 +103,22 @@ describe("runDemoCampaignSetup", () => {
     expect(mutations.calls).toContain("initializeMarinerSourceSetup");
     expect(mutations.calls).toContain("initializeNecromancerSourceSetup");
     expect(mutations.calls).toContain("initializeSorcerer");
+    expect(mutations.initializeSorcererArgs).toMatchObject({
+      arrangementId: "quiet",
+      activeLawIds: ["first", "second"],
+      unrevealedLawId: "third",
+      orreryHouses: [0, 4, 8],
+      ideologyIds: ["aristocracy", "mercantilism"],
+      seaRegionIds: ["bay_of_ishana", "wizard_strait"],
+      researchers: [
+        { positionId: "srp_orrery_1" },
+        { positionId: "srp_temple_krolis" },
+        { positionId: "srp_court_1" },
+      ],
+    });
+    expect(mutations.initializeSorcererArgs?.studentDenizenIds).toHaveLength(3);
+    expect(mutations.initializeSorcererArgs?.professorDenizenId).toBeTruthy();
+    expect(mutations.initializeSorcererArgs?.alchemistDenizenId).toBeTruthy();
     expect(mutations.calls).toContain("arrangeFaustianTable");
     expect(mutations.calls).not.toContain("initializeHierophant");
     expect(mutations.calls.filter((c) => c === "createPlace")).toHaveLength(2);
