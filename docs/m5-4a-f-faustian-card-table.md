@@ -1,6 +1,6 @@
 # M5.4A-F — Faustian Card Table & Operability
 
-**Status:** DETERMINISTIC CANDIDATE awaiting Workstream actual-diff review. Not Faustian-complete. Not M5.4-complete. Not V5-activated.
+**Status:** POST-OVERNIGHT AUDIT CANDIDATE awaiting Workstream actual-diff review. Not Faustian-complete. Not M5.4-complete. Not V5-activated.
 **Schema:** CampaignState V5 remains PRE-ACTIVATION. Approved in-place current-V5 evolution for pending Machination challenges and due-month Wizard-week obligations. No migration. No silent compatibility. No optional old current-V5 shape.
 **Branch:** `m5-4a/faustian-card-table`
 **BASE_SHA:** `ba32e19cafea37e148eb9bb3f0dc8db56625941f` (`origin/main`, Mariner merge prefix `ba32e19`)
@@ -54,8 +54,8 @@ Kinds: `one_pair` | `two_pair` | `three_of_a_kind`.
 - Challenge and group IDs are server-generated (`fpmc_…`, `fpmg_…`).
 - Challenge references are **metadata only**. They are never physical card locations.
 - **One Pair:** one group; `responsibleWizardId` initially null; pending non-Twist cards use `setAsideHand`.
-- **Two Pair:** two groups; distinct responsible Wizards; each pair uses `entrustedCards`.
-- **Three of a Kind:** three groups; three distinct Wizards; matching cards use `entrustedCards`.
+- **Two Pair:** two groups; distinct responsible Wizards; each pair uses `entrustedCards`. The table assigns each pair to a Wizard; scoring-selection order is not used.
+- **Three of a Kind:** three groups; three distinct Wizards; matching cards use `entrustedCards`. The table assigns each matching card to a Wizard.
 - Kickers belong to `scoringHandCardIds` but are not pending holdings.
 - Completed `originalCardIds` are historical metadata only. They do not reserve cards. Later movement and later challenge participation are valid.
 - Multiple pending challenges may coexist. No pending physical-holding overlap. No active Twist reserved by two unresolved challenges.
@@ -93,7 +93,7 @@ Scheme occurrence: captured Community + face-up Scheme; 0/1/many local Accomplic
 
 Twist disclose: unreserved active Twist; server-random replacement from Faustian's Deck; empty deck rejects with no mutation; replay does not reroll. Twist occurrence: reveal; move current Devil's Deck into Machinations face-up; no automatic Machination result.
 
-Machination outcomes are table-directed. Delayed challenges create holdings/reservations and recycle only the server-computed eligible cleanup set captured at draft start. Month advancement never resolves a challenge, fails a response, moves retained cards, spends Time, or triggers Devil triumph. A completed-groups challenge still exists until explicit finalize.
+Machination outcomes are table-directed. Delayed challenges create holdings/reservations and recycle only the server-computed eligible cleanup set captured at draft start. Immediate Flush / Full House / table-resolved results send Twist dispositions for the union of explicitly selected outcome-dependent Twists and any scoring-hand active Twist. Full House rank is derived from the three-of-a-kind, not selection order. Month advancement never resolves a challenge, fails a response, moves retained cards, spends Time, or triggers Devil triumph. A completed-groups challenge still exists until explicit finalize.
 
 ## Body D — Advanced / Correct Table
 
@@ -167,9 +167,13 @@ This is not adversarial secrecy against raw CampaignState, audit payloads, backu
 
 Active Twists are overlays on Machination cards. Every canonical playing card has exactly one physical location.
 
+## Post-overnight audit
+
+Actual-diff review of HEAD `827639d` confirmed the approved A/B contracts, mandatory current-V5 challenge/obligation fields, persistence consumers, Body C lifecycle invariants, Body D typed-only scope, and concealment labels. One bounded UI/lifecycle confirm-path defect was corrected: Two Pair / Three of a Kind group assignment and immediate Twist disposition / Full House rank derivation. Real Convex integration was not started.
+
 ## Explicit remaining work after this candidate
 
-- Workstream actual-diff review of the overnight branch.
+- Workstream actual-diff review of the post-overnight audit candidate.
 - Real Convex schema/function synchronization on an isolated disposable Development deployment. Do not use `dev:wry-boar-766` until the human authorizes it.
 - Static Faustian Codex transcription once the local source is available.
 - Other durable Devil-obligation kinds beyond due-month weeks.

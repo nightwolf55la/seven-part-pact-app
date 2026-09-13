@@ -49,7 +49,7 @@ Before starting new repository work, verify current `main`, status, and HEAD rat
 
 ## Current Milestone State
 
-As of September 13, 2026, **all seven Wizard Domains have structural CampaignState foundations**, M5.3 shared Lore/Compendium foundations are complete, and M5.4 active-table operability work is in progress. Lore/Compendium, Sorcerer, Hierophant, Necromancer, and Mariner operability Workstreams are complete. Faustian Bodies A–D are a deterministic implementation candidate on `m5-4a/faustian-card-table` awaiting Workstream actual-diff review; Faustian is not marked complete. Warlock and Sage remain deferred. CampaignState V5 remains PRE-ACTIVATION.
+As of September 13, 2026, **all seven Wizard Domains have structural CampaignState foundations**, M5.3 shared Lore/Compendium foundations are complete, and M5.4 active-table operability work is in progress. Lore/Compendium, Sorcerer, Hierophant, Necromancer, and Mariner operability Workstreams are complete. Faustian Bodies A–D are a post-overnight audit candidate on `m5-4a/faustian-card-table` awaiting Workstream actual-diff review; Faustian is not marked complete. Warlock and Sage remain deferred. CampaignState V5 remains PRE-ACTIVATION.
 
 ### M1 — Realtime Foundation
 
@@ -304,11 +304,11 @@ Deliberately deferred: repeat-Ravage semantics; off-Horizon Beast movement remai
 
 #### M5.4A-F — Faustian Card Table & Operability
 
-**DETERMINISTIC CANDIDATE — AWAITING WORKSTREAM ACTUAL-DIFF REVIEW. NOT COMPLETE.**
+**POST-OVERNIGHT AUDIT CANDIDATE — AWAITING WORKSTREAM ACTUAL-DIFF REVIEW. NOT COMPLETE.**
 
 Branch `m5-4a/faustian-card-table`. Verified base `ba32e19cafea37e148eb9bb3f0dc8db56625941f` (merged Mariner `ba32e19`). Isolated implementation worktree; review checkout and `wry-boar-766` were not modified.
 
-Delivered the Faustian card table, A/B review corrections, approved in-place PRE-ACTIVATION V5 pending-challenge and due-month obligation foundation, Body C Scheme-occurrence / Twist / Machination lifecycle, and Body D typed Advanced / Correct Table coverage. Shared Time is not spent. Month advancement does not resolve challenges. Static Faustian Codex transcription is deferred because the local Codex was unavailable. Real Convex integration is still pending. CampaignState V5 remains PRE-ACTIVATION.
+Delivered the Faustian card table, A/B review corrections, approved in-place PRE-ACTIVATION V5 pending-challenge and due-month obligation foundation, Body C Scheme-occurrence / Twist / Machination lifecycle, and Body D typed Advanced / Correct Table coverage. Post-overnight actual-diff audit corrected Two Pair / Three of a Kind table assignment and immediate Twist disposition / Full House rank derivation. Shared Time is not spent. Month advancement does not resolve challenges. Static Faustian Codex transcription is deferred because the local Codex was unavailable. Real Convex integration is still pending. CampaignState V5 remains PRE-ACTIVATION.
 
 Do not mark Faustian or M5.4 complete. Do not treat this candidate as V5 activation.
 
@@ -372,7 +372,7 @@ Final hardening for trusted long-running campaigns: deployment/environment safet
 
 ### Current Next Action
 
-Mariner is complete (PR #26 merged). Faustian Bodies A–D are a deterministic candidate on `m5-4a/faustian-card-table` awaiting Workstream actual-diff review. Do not mark Faustian or M5.4 complete.
+Mariner is complete (PR #26 merged). Faustian Bodies A–D are a post-overnight audit candidate on `m5-4a/faustian-card-table` awaiting Workstream actual-diff review. Do not mark Faustian or M5.4 complete.
 
 Warlock/Sage remain deferred. CampaignState V5 remains PRE-ACTIVATION.
 
