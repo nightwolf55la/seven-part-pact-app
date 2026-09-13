@@ -10,7 +10,7 @@ import {
   MARINER_BOARD_ISLE_MAP_POINTS,
   MARINER_EXTERNAL_LAND_MAP_POINTS,
   MARINER_ISLE_GEOMETRY,
-  MARINER_MAP_MIN_WIDTH_PX,
+  MARINER_MAP_PALETTE,
   MARINER_MAP_VIEWBOX,
   MARINER_ROUTE_GEOMETRY,
   MARINER_ROUTE_HIT_STROKE_WIDTH,
@@ -110,8 +110,10 @@ describe("Mariner deterministic anchors", () => {
 });
 
 describe("Mariner map presentation frame", () => {
-  it("uses a 1000x1000 viewBox and an intentional minimum board width", () => {
+  it("uses a 1000x1000 viewBox with a source-shaped field and sea palette", () => {
     expect(MARINER_MAP_VIEWBOX).toEqual({ width: 1000, height: 1000 });
-    expect(MARINER_MAP_MIN_WIDTH_PX).toBeGreaterThanOrEqual(640);
+    expect(MARINER_MAP_PALETTE.field).toMatch(/^#/);
+    expect(MARINER_MAP_PALETTE.sea).toMatch(/^#/);
+    expect(MARINER_MAP_PALETTE.seaRim).toMatch(/^#/);
   });
 });

@@ -22,7 +22,6 @@ import {
 import type { SorcererExternalPresence } from "../shared/domain";
 import MarinerSurface from "../src/MarinerSurface";
 import type { WorldReference } from "../src/WorldSurface";
-import { MARINER_MAP_MIN_WIDTH_PX } from "../src/mariner-map-geometry";
 import type { LoreCompendiumUiState } from "../src/lore-view-model";
 import {
   CREATE_BEAST_LABEL,
@@ -685,14 +684,83 @@ describe("Mariner map interaction and narrow treatment", () => {
     container.remove();
   });
 
-  it("keeps an intentional minimum map width inside a horizontal scroll container", () => {
+  it("fits the map in the desktop board without a horizontal-scroll container or fixed min width", () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     const scroller = container.querySelector("[data-mariner-board-scroll]");
-    const board = container.querySelector("[data-mariner-board]");
-    expect(scroller?.className).toContain("overflow-x-auto");
-    expect(board?.getAttribute("data-min-width")).toBe(String(MARINER_MAP_MIN_WIDTH_PX));
-    expect((board as SVGSVGElement | null)?.viewBox.baseVal.width).toBe(1000);
-    expect((board as SVGSVGElement | null)?.viewBox.baseVal.height).toBe(1000);
+    const stage = container.querySelector("[data-mariner-board-stage]");
+    const board = container.querySelector("[data-mariner-board]") as SVGSVGElement | null;
+    expect(scroller).toBeNull();
+    expect(stage).not.toBeNull();
+    expect(stage?.className).not.toContain("overflow-x-auto");
+    expect(board?.getAttribute("data-min-width")).toBeNull();
+    expect(board?.style.minWidth).toBe("");
+    expect(board?.viewBox.baseVal.width).toBe(1000);
+    expect(board?.viewBox.baseVal.height).toBe(1000);
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("Mariner desktop board hierarchy and overlay inspector", () => {
+  it("does not reserve a permanent inspector column beside the map", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    expect(container.querySelector("[data-board-overlay-inspector]")).toBeNull();
+    expect(container.innerHTML).not.toContain("xl:grid-cols-5");
+    expect(container.querySelector("[data-mariner-board-stage]")).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("opens a dismissible overlay inspector and closes it from the close button", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickIsle(container, "World scuttleport");
+    const overlay = container.querySelector("[data-board-overlay-inspector]");
+    expect(overlay).not.toBeNull();
+    expect(container.innerHTML).toContain("Isle inspector");
+    const close = container.querySelector('[aria-label="Close inspector"]') as HTMLButtonElement | null;
+    expect(close).not.toBeNull();
+    flushSync(() => { close!.click(); });
+    expect(container.querySelector("[data-board-overlay-inspector]")).toBeNull();
+    expect(container.innerHTML).not.toContain("Isle inspector");
+    root.unmount();
+    container.remove();
+  });
+
+  it("closes the overlay inspector with Escape", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickIsle(container, "World scuttleport");
+    expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
+    flushSync(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(container.querySelector("[data-board-overlay-inspector]")).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps Ship/Sanctum compact and game-facing in the normal header", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const summary = container.querySelector("[data-mariner-ship-sanctum]");
+    expect(summary?.textContent).toContain("The Wave");
+    expect(summary?.textContent).toContain("Second Hull");
+    expect(summary?.textContent).toContain("Ship and Sanctum differ");
+    expect(summary?.textContent).toContain("World ishana");
+    expect(summary?.textContent).not.toContain("Mariner personal Ship Place");
+    expect(summary?.textContent).not.toContain("Create another mobile Place");
+    expect(summary?.textContent).not.toContain("mobile Place");
+    expect(container.querySelector('[aria-label="Change Mariner ship"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("renders source-shaped sea/field structure and a selection halo instead of replacing an Isle", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    expect(container.querySelector("[data-mariner-map-field]")).not.toBeNull();
+    expect(container.querySelector("[data-mariner-map-sea]")).not.toBeNull();
+    const isle = container.querySelector('[data-map-layer="isle"][data-isle-id="ishana"]') as SVGElement;
+    flushSync(() => { isle.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(container.querySelector("[data-selection-halo][data-isle-id=\"ishana\"]")).not.toBeNull();
+    expect(isle.querySelectorAll("ellipse").length).toBeGreaterThan(1);
     root.unmount();
     container.remove();
   });

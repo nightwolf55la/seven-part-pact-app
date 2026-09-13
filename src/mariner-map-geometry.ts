@@ -75,9 +75,42 @@ export interface MarinerExternalLandGeometry {
 }
 
 export const MARINER_MAP_VIEWBOX = { width: 1000, height: 1000 } as const;
-export const MARINER_MAP_MIN_WIDTH_PX = 720;
 export const MARINER_ROUTE_HIT_STROKE_WIDTH = 18;
 export const MARINER_MAP_FRAME = { cx: 500, cy: 500, r: 420 } as const;
+
+export const MARINER_MAP_PALETTE = {
+  field: "#c5d6b4",
+  sea: "#f7faf8",
+  seaRim: "#4d7aa8",
+  route: "#3d6ea0",
+  routeOccupied: "#0f766e",
+  routeRaider: "#9a3412",
+  label: "#1e3a4c",
+  seaLabel: "#3a5f7a",
+  horizonLabel: "#5a6f62",
+} as const;
+
+export const MARINER_ISLE_FILLS: Record<MarinerBoardIsleId, string> = {
+  ishana: "#d4a05a",
+  scuttleport: "#c46a4a",
+  orrery: "#8b8f93",
+  far_reach: "#6f9a5a",
+  halcyon_isles: "#7eb8a0",
+  sage_atoll: "#6d8aa8",
+  graven_isle: "#6b5b53",
+  tahv: "#b07a46",
+  izor: "#d4893a",
+  yeraine: "#7aa35a",
+  koire: "#c4b25a",
+  thyras: "#c9a227",
+  spyrholm: "#7a6aa8",
+  druntyr: "#b45a3c",
+  caravesse: "#5a9aa8",
+};
+
+export function marinerIsleFill(boardIsleId: MarinerBoardIsleId): string {
+  return MARINER_ISLE_FILLS[boardIsleId];
+}
 
 function ellipsePath(cx: number, cy: number, rx: number, ry: number): string {
   return `M ${cx - rx} ${cy} A ${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A ${rx} ${ry} 0 1 0 ${cx - rx} ${cy} Z`;

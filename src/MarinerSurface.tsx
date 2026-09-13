@@ -127,15 +127,17 @@ import {
   type MarinerSetupDraft,
   type MarinerWizardRef,
 } from "./mariner-view-model";
+import BoardOverlayInspector from "./BoardOverlayInspector";
 import {
   MARINER_DOMAIN_PRESENCE_ANCHOR,
   MARINER_EXTERNAL_LAND_GEOMETRY,
   MARINER_ISLE_GEOMETRY,
   MARINER_MAP_FRAME,
-  MARINER_MAP_MIN_WIDTH_PX,
+  MARINER_MAP_PALETTE,
   MARINER_MAP_VIEWBOX,
   MARINER_ROUTE_HIT_STROKE_WIDTH,
   MARINER_SEA_GEOMETRY,
+  marinerIsleFill,
 } from "./mariner-map-geometry";
 
 export type { MarinerWizardRef };
@@ -307,7 +309,7 @@ export default function MarinerSurface({
   }
 
   return (
-    <div className="rounded-xl border border-teal-200 dark:border-teal-900 bg-white dark:bg-slate-900 p-4 space-y-4">
+    <div className="rounded-xl border border-teal-200 dark:border-teal-900 bg-white dark:bg-slate-900 p-3 space-y-3">
       <h2 className="text-lg font-semibold text-teal-900 dark:text-teal-100">Mariner</h2>
       {error !== null && (
         <div role="alert" className="text-sm text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">
@@ -335,8 +337,11 @@ export default function MarinerSurface({
           });
         }}
       />
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-        <div className="xl:col-span-3 min-w-0 overflow-x-auto">
+      <div
+        data-mariner-board-stage
+        className="relative min-w-0 overflow-hidden rounded-lg"
+        style={{ background: MARINER_MAP_PALETTE.field }}
+      >
           <MarinerMap
             mariner={mariner}
             world={world}
@@ -344,8 +349,11 @@ export default function MarinerSurface({
             onSelect={setSelection}
             sorcererPresence={sorcererPresence}
           />
-        </div>
-        <div className="xl:col-span-2 min-w-0">
+        <BoardOverlayInspector
+          open={selection !== null}
+          title="Selection details"
+          onClose={() => setSelection(null)}
+        >
           <Inspector
             selection={selection}
             mariner={mariner}
@@ -418,7 +426,7 @@ export default function MarinerSurface({
               });
             }}
           />
-        </div>
+        </BoardOverlayInspector>
       </div>
       <LawsPanel
         mariner={mariner}
@@ -740,43 +748,45 @@ function ShipSanctumSummary({
   onSave: () => void;
 }) {
   const shipName = placeName(world.places, mariner.shipPlaceId);
-  const sanctumName = wizard === null ? "No Mariner Wizard" : placeName(world.places, wizard.sanctumPlaceId);
+  const sanctumName = wizard === null ? "Vacant Pact seat" : placeName(world.places, wizard.sanctumPlaceId);
   const homeIsleName = wizard?.homeIsleId ? worldIsleName(world.isles, wizard.homeIsleId) : null;
   const same = wizard !== null && mariner.shipPlaceId !== null && wizard.sanctumPlaceId === mariner.shipPlaceId;
+  const parts = [
+    wizard?.name ?? null,
+    shipName,
+    same ? "Sanctum" : `Sanctum: ${sanctumName}`,
+    homeIsleName !== null ? `Home: ${homeIsleName}` : null,
+  ].filter((part): part is string => part !== null && part !== "");
 
   return (
-    <section className="rounded-lg border border-teal-100 dark:border-teal-900 p-3 space-y-2">
-      <h3 className="text-sm font-semibold">Ship and Sanctum</h3>
-      <p className="text-sm">Mariner personal Ship Place: <strong>{shipName}</strong></p>
-      <p className="text-sm">Mariner Wizard: <strong>{wizard?.name ?? "Vacant Pact seat"}</strong></p>
-      <p className="text-sm">Wizard Sanctum Place: <strong>{sanctumName}</strong></p>
-      {homeIsleName !== null && <p className="text-sm">Wizard home Isle: <strong>{homeIsleName}</strong></p>}
-      {wizard !== null && (
-        <p className="text-sm text-slate-600 dark:text-slate-400">
-          {same
-            ? "Ship and Sanctum are the same Place."
-            : "Ship and Sanctum differ. This is allowed after initialization and is not treated as corruption."}
-        </p>
+    <section data-mariner-ship-sanctum className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm">
+      <p className="font-medium text-slate-800 dark:text-slate-100">{parts.join(" · ")}</p>
+      {!same && wizard !== null && (
+        <p className="text-xs font-semibold text-amber-800 dark:text-amber-200">Ship and Sanctum differ</p>
       )}
-      <p className="text-xs text-slate-500">Changing the Mariner ship does not change the Wizard Sanctum. Create another mobile Place in World if you need a destination that is not listed.</p>
-      <div className="flex flex-wrap gap-2 items-end">
-        <label className="text-sm flex-1 min-w-48">
-          Move ship to
-          <select
-            aria-label="Change Mariner ship"
-            className={`${fieldClass} mt-1`}
-            value={shipDraft}
-            onChange={(e) => setShipDraft(e.target.value)}
-          >
-            {mobilePlaces.map((place) => (
-              <option key={place.placeId} value={place.placeId}>{place.name}</option>
-            ))}
-          </select>
-        </label>
-        <button className={btnClass} disabled={pending || shipDraft === "" || shipDraft === mariner.shipPlaceId} onClick={onSave}>
-          Set ship
-        </button>
-      </div>
+      <details className="basis-full text-xs">
+        <summary className="cursor-pointer text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
+          Advanced / Correct — Ship
+        </summary>
+        <div className="mt-2 flex flex-wrap gap-2 items-end">
+          <label className="text-sm flex-1 min-w-48">
+            Move ship to
+            <select
+              aria-label="Change Mariner ship"
+              className={`${fieldClass} mt-1`}
+              value={shipDraft}
+              onChange={(e) => setShipDraft(e.target.value)}
+            >
+              {mobilePlaces.map((place) => (
+                <option key={place.placeId} value={place.placeId}>{place.name}</option>
+              ))}
+            </select>
+          </label>
+          <button className={btnClass} disabled={pending || shipDraft === "" || shipDraft === mariner.shipPlaceId} onClick={onSave}>
+            Set ship
+          </button>
+        </div>
+      </details>
     </section>
   );
 }
@@ -812,15 +822,13 @@ function MarinerMap({
   const disruptive = marinerDomainDisruptiveArcanists(sorcererPresence);
 
   return (
-    <div data-mariner-board-scroll className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-sky-50 dark:bg-slate-950">
+    <div className="overflow-hidden">
       <svg
         viewBox={`0 0 ${MARINER_MAP_VIEWBOX.width} ${MARINER_MAP_VIEWBOX.height}`}
-        className="h-auto w-full text-slate-800 dark:text-slate-100"
-        style={{ minWidth: MARINER_MAP_MIN_WIDTH_PX }}
+        className="mx-auto block h-auto w-full max-w-[min(100%,calc(100vh-13.5rem))] text-slate-800 dark:text-slate-100"
         role="group"
         aria-label="Interactive Archipelago of Isha map"
         data-mariner-board
-        data-min-width={MARINER_MAP_MIN_WIDTH_PX}
       >
         <defs>
           <pattern id="mariner-ravage-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -833,8 +841,27 @@ function MarinerMap({
           </pattern>
         </defs>
         <g data-map-layer="frame" pointerEvents="none">
-          <circle cx={MARINER_MAP_FRAME.cx} cy={MARINER_MAP_FRAME.cy} r={MARINER_MAP_FRAME.r + 8} fill="#dbeafe" />
-          <circle cx={MARINER_MAP_FRAME.cx} cy={MARINER_MAP_FRAME.cy} r={MARINER_MAP_FRAME.r} fill="#bfdbfe" stroke="#1e3a5f" strokeWidth={3} />
+          <rect
+            data-mariner-map-field
+            width={MARINER_MAP_VIEWBOX.width}
+            height={MARINER_MAP_VIEWBOX.height}
+            fill={MARINER_MAP_PALETTE.field}
+          />
+          <circle
+            cx={MARINER_MAP_FRAME.cx}
+            cy={MARINER_MAP_FRAME.cy}
+            r={MARINER_MAP_FRAME.r + 7}
+            fill={MARINER_MAP_PALETTE.seaRim}
+          />
+          <circle
+            data-mariner-map-sea
+            cx={MARINER_MAP_FRAME.cx}
+            cy={MARINER_MAP_FRAME.cy}
+            r={MARINER_MAP_FRAME.r}
+            fill={MARINER_MAP_PALETTE.sea}
+            stroke={MARINER_MAP_PALETTE.seaRim}
+            strokeWidth={2.5}
+          />
         </g>
         {MARINER_SEA_GEOMETRY.map((sea) => {
           const definition = MARINER_SEA_REGION_CATALOG.find((region) => region.regionId === sea.regionId);
@@ -855,7 +882,25 @@ function MarinerMap({
               onClick={() => onSelect({ kind: "region", regionId: sea.regionId })}
               onKeyDown={(event) => activate(event, () => onSelect({ kind: "region", regionId: sea.regionId }))}
             >
-              <path d={sea.hitPath} fill={selected ? "#99f6e4" : definition?.kind === "horizon" ? "#e2e8f0" : "#7dd3fc"} fillOpacity={selected ? 0.55 : 0.22} stroke={selected ? "#0f766e" : "transparent"} strokeWidth={selected ? 3 : 0} strokeDasharray={selected ? "5 3" : undefined} />
+              <path
+                d={sea.hitPath}
+                fill={selected ? MARINER_MAP_PALETTE.seaRim : "transparent"}
+                fillOpacity={selected ? 0.12 : 0}
+                stroke={selected ? MARINER_MAP_PALETTE.seaRim : "transparent"}
+                strokeWidth={selected ? 2.5 : 0}
+              />
+              {selected && (
+                <path
+                  data-selection-halo
+                  data-region-id={sea.regionId}
+                  d={sea.hitPath}
+                  fill="none"
+                  stroke="#0f766e"
+                  strokeWidth={6}
+                  opacity={0.35}
+                  pointerEvents="none"
+                />
+              )}
             </g>
           );
         })}
@@ -870,9 +915,10 @@ function MarinerMap({
                 key={`visible-${route.routeId}`}
                 d={geometry.pathD}
                 fill="none"
-                stroke={occupancy.kind === "empty" ? "#64748b" : occupancy.kind === "ship" ? "#0f766e" : "#9a3412"}
-                strokeWidth={selected ? 5 : occupancy.kind === "empty" ? 2 : 3.5}
-                strokeDasharray={occupancy.kind === "empty" ? "6 5" : undefined}
+                stroke={occupancy.kind === "empty" ? MARINER_MAP_PALETTE.route : occupancy.kind === "ship" ? MARINER_MAP_PALETTE.routeOccupied : MARINER_MAP_PALETTE.routeRaider}
+                strokeWidth={selected ? 5 : occupancy.kind === "empty" ? 1.75 : 3.25}
+                strokeDasharray={occupancy.kind === "empty" ? "7 5" : undefined}
+                strokeLinecap="round"
               />
             );
           })}
@@ -931,6 +977,21 @@ function MarinerMap({
               onKeyDown={(event) => activate(event, () => onSelect({ kind: "isle", boardIsleId: isle.boardIsleId }))}
             >
               <ellipse cx={isle.hit.cx} cy={isle.hit.cy} rx={isle.hit.rx} ry={isle.hit.ry} fill="transparent" />
+              {selected && (
+                <ellipse
+                  data-selection-halo
+                  data-isle-id={isle.boardIsleId}
+                  cx={isle.hit.cx}
+                  cy={isle.hit.cy}
+                  rx={isle.hit.rx + 10}
+                  ry={isle.hit.ry + 10}
+                  fill="none"
+                  stroke="#0f766e"
+                  strokeWidth={5}
+                  opacity={0.45}
+                  pointerEvents="none"
+                />
+              )}
               {isle.shapes.map((shape, index) => (
                 <ellipse
                   key={`${isle.boardIsleId}-shape-${index}`}
@@ -939,10 +1000,9 @@ function MarinerMap({
                   rx={shape.rx}
                   ry={shape.ry}
                   transform={shape.rotate ? `rotate(${shape.rotate} ${shape.cx} ${shape.cy})` : undefined}
-                  fill={ravage > 0 ? "url(#mariner-ravage-hatch)" : selected ? "#5eead4" : "#f8fafc"}
-                  stroke={selected ? "#0f766e" : "#115e59"}
-                  strokeWidth={selected ? 3 : 1.5}
-                  strokeDasharray={selected ? "4 2" : undefined}
+                  fill={ravage > 0 ? "url(#mariner-ravage-hatch)" : marinerIsleFill(isle.boardIsleId)}
+                  stroke="#3f4d3a"
+                  strokeWidth={1.15}
                   pointerEvents="none"
                 />
               ))}
@@ -952,22 +1012,47 @@ function MarinerMap({
         <g data-map-layer="labels" pointerEvents="none">
           {MARINER_EXTERNAL_LAND_GEOMETRY.map((land) => (
             <g key={land.externalLandId} data-external-land={land.externalLandId}>
-              <path d={land.pathD} fill="#fef3c7" stroke="#b45309" />
-              <text x={land.label.x} y={land.label.y + 4} textAnchor="middle" fontSize={11} fill="#78350f">
-                {externalLandDisplayName(land.externalLandId)}
+              <text
+                x={land.label.x}
+                y={land.label.y + 4}
+                textAnchor="middle"
+                fontSize={12}
+                fontWeight={700}
+                letterSpacing="0.04em"
+                fill={MARINER_MAP_PALETTE.label}
+              >
+                {externalLandDisplayName(land.externalLandId).toUpperCase()}
               </text>
             </g>
           ))}
           {MARINER_SEA_GEOMETRY.map((sea) => {
             const definition = MARINER_SEA_REGION_CATALOG.find((region) => region.regionId === sea.regionId);
+            const horizon = definition?.kind === "horizon";
             return (
-              <text key={`label-${sea.regionId}`} x={sea.label.x} y={sea.label.y + 3} textAnchor="middle" fontSize={9} fill="#0f172a">
+              <text
+                key={`label-${sea.regionId}`}
+                x={sea.label.x}
+                y={sea.label.y + 3}
+                textAnchor="middle"
+                fontSize={horizon ? 12 : 10.5}
+                fontWeight={horizon ? 700 : 600}
+                fontStyle="italic"
+                fill={horizon ? MARINER_MAP_PALETTE.horizonLabel : MARINER_MAP_PALETTE.seaLabel}
+              >
                 {definition?.displayName ?? sea.regionId}
               </text>
             );
           })}
           {MARINER_ISLE_GEOMETRY.map((isle) => (
-            <text key={`label-${isle.boardIsleId}`} x={isle.label.x} y={isle.label.y + 3} textAnchor="middle" fontSize={11} fontWeight={600} fill="#0f172a">
+            <text
+              key={`label-${isle.boardIsleId}`}
+              x={isle.label.x}
+              y={isle.label.y + 3}
+              textAnchor="middle"
+              fontSize={11}
+              fontWeight={700}
+              fill={MARINER_MAP_PALETTE.label}
+            >
               {boardIsleWorldName(mariner, world.isles, isle.boardIsleId)}
             </text>
           ))}

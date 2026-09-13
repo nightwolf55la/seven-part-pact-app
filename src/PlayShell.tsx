@@ -27,7 +27,7 @@ import {
   toggleSecondary,
 } from "./play-surface-model";
 import type { PlaySurfaceState, SurfaceId, PaneLabel } from "./play-surface-model";
-import { playShellWidthMode } from "./play-shell-layout";
+import { playShellWidthClass, playShellWidthMode } from "./play-shell-layout";
 import { PACT_SEAT_IDS, type LunarPhase, type PactSeatId, type PactSeatStatus } from "../shared/domain";
 import { orreryResearcherMarkersFromSorcererQuery } from "./orrery-view-model";
 import type { SorcererOrreryHouseMarkerPresentation } from "../shared/domain/sorcerer-presentation";
@@ -385,8 +385,8 @@ export default function PlayShell({
   const shellWidth = playShellWidthMode(showTools, showSecondary);
 
   return (
-    <main className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center px-4 py-8">
-      <div className={`w-full flex flex-col gap-4 ${shellWidth === "wide" ? "max-w-[1440px]" : "max-w-5xl"}`}>
+    <main className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center px-4 py-4">
+      <div className={`w-full flex flex-col gap-4 ${playShellWidthClass(shellWidth)}`}>
         {/* Chrome */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
