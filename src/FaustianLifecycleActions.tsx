@@ -21,7 +21,12 @@ import {
   previewFaustianSchemeOccurrence,
 } from "../shared/domain";
 import type { FaustianTablePresentation, NamedWizardRef } from "./faustian-view-model";
-import { SHARED_TIME_BOUNDARY_COPY, cloneFaustianState } from "./faustian-view-model";
+import {
+  SHARED_TIME_BOUNDARY_COPY,
+  buildFaustianMachinationOutcomeResult,
+  cloneFaustianState,
+  isFaustianMachinationOutcomeDraftReady,
+} from "./faustian-view-model";
 
 const btn =
   "text-xs font-medium rounded-lg px-2.5 py-1 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer disabled:opacity-40";
@@ -444,12 +449,20 @@ export default function FaustianLifecycleActions({
                 <input
                   type="checkbox"
                   checked={draft.selectedScoring.includes(card.cardId)}
-                  onChange={(event) => setDraft({
-                    ...draft,
-                    selectedScoring: event.target.checked
+                  onChange={(event) => {
+                    const selectedScoring = event.target.checked
                       ? [...draft.selectedScoring, card.cardId]
-                      : draft.selectedScoring.filter((id) => id !== card.cardId),
-                  })}
+                      : draft.selectedScoring.filter((id) => id !== card.cardId);
+                    setDraft({
+                      ...draft,
+                      selectedScoring,
+                      twoPairA: draft.twoPairA.filter((id) => selectedScoring.includes(id)),
+                      twoPairB: draft.twoPairB.filter((id) => selectedScoring.includes(id)),
+                      threeA: selectedScoring.includes(draft.threeA as FaustianCardId) ? draft.threeA : "",
+                      threeB: selectedScoring.includes(draft.threeB as FaustianCardId) ? draft.threeB : "",
+                      threeC: selectedScoring.includes(draft.threeC as FaustianCardId) ? draft.threeC : "",
+                    });
+                  }}
                 />
                 {" "}{faustianFaceUpIdentityLabel(card.cardId)}
               </label>
@@ -486,6 +499,55 @@ export default function FaustianLifecycleActions({
               )}
             </div>
           )}
+          {draft.resultKind === "two_pair" && (
+            <div className="space-y-2">
+              <p>Assign each selected pair to a different Wizard. Scoring-selection order is not used.</p>
+              {(["twoPairA", "twoPairB"] as const).map((field) => (
+                <fieldset key={field}>
+                  <legend>{field === "twoPairA" ? "Pair for Wizard A" : "Pair for Wizard B"}</legend>
+                  {draft.selectedScoring.map((cardId) => (
+                    <label key={`${field}-${cardId}`} className="block">
+                      <input
+                        type="checkbox"
+                        checked={draft[field].includes(cardId)}
+                        onChange={(event) => {
+                          const otherField = field === "twoPairA" ? "twoPairB" : "twoPairA";
+                          const next = event.target.checked
+                            ? [...draft[field].filter((id) => id !== cardId), cardId].slice(-2)
+                            : draft[field].filter((id) => id !== cardId);
+                          setDraft({
+                            ...draft,
+                            [field]: next,
+                            [otherField]: draft[otherField].filter((id) => id !== cardId),
+                          });
+                        }}
+                      />
+                      {" "}{faustianFaceUpIdentityLabel(cardId)}
+                    </label>
+                  ))}
+                </fieldset>
+              ))}
+            </div>
+          )}
+          {draft.resultKind === "three_of_a_kind" && (
+            <div className="space-y-1">
+              <p>Assign each matching card to a different Wizard.</p>
+              {([
+                ["threeA", "Wizard A card"],
+                ["threeB", "Wizard B card"],
+                ["threeC", "Wizard C card"],
+              ] as const).map(([field, label]) => (
+                <label key={field} className="block">{label}
+                  <select className="ml-2 border rounded px-1" value={draft[field]} onChange={(event) => setDraft({ ...draft, [field]: event.target.value })}>
+                    <option value="">Select card</option>
+                    {draft.selectedScoring.map((cardId) => (
+                      <option key={cardId} value={cardId}>{faustianFaceUpIdentityLabel(cardId)}</option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </div>
+          )}
           <fieldset>
             <legend>Outcome-dependent active Twists</legend>
             {draft.expectedFaustian.activeTwistCardIds.map((cardId, index) => (
@@ -514,47 +576,18 @@ export default function FaustianLifecycleActions({
             </label>
           )}
           <div className="flex gap-2">
-            <button type="button" className={btn} disabled={pending} onClick={() => void run(async () => {
-              const scoring = draft.selectedScoring;
-              const result = draft.resultKind === "one_pair"
-                ? { kind: "one_pair" as const }
-                : draft.resultKind === "two_pair"
-                  ? {
-                    kind: "two_pair" as const,
-                    groups: [
-                      { cardIds: scoring.slice(0, 2), responsibleWizardId: draft.wizardA },
-                      { cardIds: scoring.slice(2, 4), responsibleWizardId: draft.wizardB },
-                    ],
-                  }
-                  : draft.resultKind === "three_of_a_kind"
-                    ? {
-                      kind: "three_of_a_kind" as const,
-                      groups: [
-                        { cardId: scoring[0] ?? "", responsibleWizardId: draft.wizardA },
-                        { cardId: scoring[1] ?? "", responsibleWizardId: draft.wizardB },
-                        { cardId: scoring[2] ?? "", responsibleWizardId: draft.wizardC },
-                      ],
-                    }
-                    : draft.resultKind === "flush"
-                      ? {
-                        kind: "flush" as const,
-                        suit: (scoring[0]?.slice(0, scoring[0].indexOf("_")) ?? "hearts"),
-                        twistDispositions: draft.outcomeTwists.map((cardId) => ({ cardId, destination: draft.twistDestination })),
-                      }
-                      : draft.resultKind === "full_house"
-                        ? {
-                          kind: "full_house" as const,
-                          rank: scoring[0]?.slice(scoring[0].indexOf("_") + 1) ?? "9",
-                          twistDispositions: draft.outcomeTwists.map((cardId) => ({ cardId, destination: draft.twistDestination })),
-                        }
-                        : {
-                          kind: "table_resolved" as const,
-                          twistDispositions: draft.outcomeTwists.map((cardId) => ({ cardId, destination: draft.twistDestination })),
-                        };
+            <button type="button" className={btn} disabled={pending || !isFaustianMachinationOutcomeDraftReady({
+              ...draft,
+              activeTwistCardIds: draft.expectedFaustian.activeTwistCardIds,
+            })} onClick={() => void run(async () => {
+              const result = buildFaustianMachinationOutcomeResult({
+                ...draft,
+                activeTwistCardIds: draft.expectedFaustian.activeTwistCardIds,
+              });
               await recordOutcome({
                 commandId: commandId(),
                 expectedCampaignId: campaignId,
-                scoringHandCardIds: [...scoring],
+                scoringHandCardIds: [...draft.selectedScoring],
                 result: result as never,
                 expectedCleanupCardIds: [...draft.expectedCleanupCardIds],
                 outcomeDependentTwistCardIds: [...draft.outcomeTwists],

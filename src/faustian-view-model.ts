@@ -10,11 +10,15 @@ import type {
   FaustianCardFacing,
   FaustianCardId,
   FaustianCommunityId,
+  FaustianMachinationOutcomeResult,
+  FaustianPersistentFullHouseRank,
   FaustianState,
   FaustianSuit,
+  FaustianTwistDispositionDestination,
   LoreSubjectRef,
   PactSeatId,
   SorcererExternalPresence,
+  WizardId,
 } from "../shared/domain";
 import {
   FAUSTIAN_COMMUNITY_DEFINITIONS,
@@ -544,6 +548,112 @@ export { isExactUnarrangedFaustianBaseline, isExactStructuralHelperFaustian };
 
 export function cloneFaustianState(faustian: FaustianState): FaustianState {
   return structuredClone(faustian);
+}
+
+export type FaustianMachinationOutcomeDraftInput = {
+  readonly selectedScoring: readonly FaustianCardId[];
+  readonly resultKind: FaustianMachinationOutcomeResult["kind"];
+  readonly outcomeTwists: readonly FaustianCardId[];
+  readonly twoPairA: readonly FaustianCardId[];
+  readonly twoPairB: readonly FaustianCardId[];
+  readonly wizardA: string;
+  readonly wizardB: string;
+  readonly wizardC: string;
+  readonly threeA: FaustianCardId | "";
+  readonly threeB: FaustianCardId | "";
+  readonly threeC: FaustianCardId | "";
+  readonly twistDestination: FaustianTwistDispositionDestination;
+  readonly activeTwistCardIds: readonly FaustianCardId[];
+};
+
+function cardRankFromId(cardId: FaustianCardId): string {
+  return cardId.slice(cardId.indexOf("_") + 1);
+}
+
+function cardSuitFromId(cardId: FaustianCardId): string {
+  return cardId.slice(0, cardId.indexOf("_"));
+}
+
+function matchingPair(cardIds: readonly FaustianCardId[]): boolean {
+  return cardIds.length === 2 && cardRankFromId(cardIds[0]!) === cardRankFromId(cardIds[1]!);
+}
+
+function immediateTwistDispositions(
+  draft: FaustianMachinationOutcomeDraftInput,
+): { readonly cardId: FaustianCardId; readonly destination: FaustianTwistDispositionDestination }[] {
+  const reserved = new Set<FaustianCardId>();
+  const dispositions: { readonly cardId: FaustianCardId; readonly destination: FaustianTwistDispositionDestination }[] = [];
+  for (const cardId of [...draft.outcomeTwists, ...draft.selectedScoring]) {
+    if (reserved.has(cardId)) continue;
+    if (!draft.outcomeTwists.includes(cardId) && !draft.activeTwistCardIds.includes(cardId)) continue;
+    reserved.add(cardId);
+    dispositions.push({ cardId, destination: draft.twistDestination });
+  }
+  return dispositions;
+}
+
+export function isFaustianMachinationOutcomeDraftReady(draft: FaustianMachinationOutcomeDraftInput): boolean {
+  if (draft.selectedScoring.length === 0) return false;
+  if (draft.resultKind === "two_pair") {
+    const overlap = draft.twoPairA.some((cardId) => draft.twoPairB.includes(cardId));
+    return matchingPair(draft.twoPairA)
+      && matchingPair(draft.twoPairB)
+      && !overlap
+      && draft.wizardA !== ""
+      && draft.wizardB !== ""
+      && draft.wizardA !== draft.wizardB;
+  }
+  if (draft.resultKind === "three_of_a_kind") {
+    const cards = [draft.threeA, draft.threeB, draft.threeC];
+    const wizards = [draft.wizardA, draft.wizardB, draft.wizardC];
+    return cards.every((cardId) => cardId !== "")
+      && new Set(cards).size === 3
+      && wizards.every((wizardId) => wizardId !== "")
+      && new Set(wizards).size === 3;
+  }
+  return true;
+}
+
+export function buildFaustianMachinationOutcomeResult(
+  draft: FaustianMachinationOutcomeDraftInput,
+): FaustianMachinationOutcomeResult {
+  if (draft.resultKind === "one_pair") return { kind: "one_pair" };
+  if (draft.resultKind === "two_pair") {
+    return {
+      kind: "two_pair",
+      groups: [
+        { cardIds: [...draft.twoPairA], responsibleWizardId: draft.wizardA as WizardId },
+        { cardIds: [...draft.twoPairB], responsibleWizardId: draft.wizardB as WizardId },
+      ],
+    };
+  }
+  if (draft.resultKind === "three_of_a_kind") {
+    return {
+      kind: "three_of_a_kind",
+      groups: [
+        { cardId: draft.threeA as FaustianCardId, responsibleWizardId: draft.wizardA as WizardId },
+        { cardId: draft.threeB as FaustianCardId, responsibleWizardId: draft.wizardB as WizardId },
+        { cardId: draft.threeC as FaustianCardId, responsibleWizardId: draft.wizardC as WizardId },
+      ],
+    };
+  }
+  const twistDispositions = immediateTwistDispositions(draft);
+  if (draft.resultKind === "flush") {
+    const suit = (cardSuitFromId(draft.selectedScoring[0] ?? "hearts_2") || "hearts") as FaustianSuit;
+    return { kind: "flush", suit, twistDispositions };
+  }
+  if (draft.resultKind === "full_house") {
+    const counts = new Map<string, FaustianCardId[]>();
+    for (const cardId of draft.selectedScoring) {
+      const rank = cardRankFromId(cardId);
+      const existing = counts.get(rank) ?? [];
+      counts.set(rank, [...existing, cardId]);
+    }
+    const triple = [...counts.entries()].find(([, cards]) => cards.length === 3)?.[0]
+      ?? cardRankFromId(draft.selectedScoring[0] ?? "hearts_9");
+    return { kind: "full_house", rank: triple as FaustianPersistentFullHouseRank, twistDispositions };
+  }
+  return { kind: "table_resolved", twistDispositions };
 }
 
 export function synthesizeFaustianAfterSchemeReveal(

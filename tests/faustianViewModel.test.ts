@@ -24,8 +24,10 @@ import {
   FAUSTIAN_FAN_CAP,
   FACEDOWN_SCHEME_LABEL,
   FACEDOWN_TWIST_LABEL,
+  buildFaustianMachinationOutcomeResult,
   buildFaustianTablePresentation,
   faustianLoreSubjects,
+  isFaustianMachinationOutcomeDraftReady,
   presentationContainsSecretIdentity,
   privateTwistInspection,
   researcherOperationalLabel,
@@ -46,7 +48,20 @@ const POSSESSION = faustianCardId("spades", "jack");
 const DOMAIN = faustianCardId("spades", "queen");
 const DEFEATED = faustianCardId("spades", "king");
 const WIZ_A = "wiz_00000000-0000-0000-0000-00000000000a";
+const WIZ_B = "wiz_00000000-0000-0000-0000-00000000000b";
+const WIZ_C = "wiz_00000000-0000-0000-0000-00000000000c";
 const DEN_A = "den_00000000-0000-0000-0000-000000000001";
+const H9 = faustianCardId("hearts", "9");
+const D9 = faustianCardId("diamonds", "9");
+const S10 = faustianCardId("spades", "10");
+const C10 = faustianCardId("clubs", "10");
+const H2 = faustianCardId("hearts", "2");
+const S2 = faustianCardId("spades", "2");
+const HA = faustianCardId("hearts", "ace");
+const H8 = faustianCardId("hearts", "8");
+const H7 = faustianCardId("hearts", "7");
+const H6 = faustianCardId("hearts", "6");
+const H3 = faustianCardId("hearts", "3");
 
 function take(faustian: FaustianState, cardIds: readonly FaustianCardId[]): FaustianState {
   const removing = new Set(cardIds);
@@ -351,5 +366,82 @@ describe("denizen fallback", () => {
       denizens: unused,
     });
     expect(presentation.communities).toHaveLength(12);
+  });
+});
+
+describe("machination outcome draft payload", () => {
+  const base = {
+    selectedScoring: [H9, S10, D9, C10] as const,
+    outcomeTwists: [] as const,
+    twoPairA: [H9, D9] as const,
+    twoPairB: [S10, C10] as const,
+    wizardA: WIZ_A,
+    wizardB: WIZ_B,
+    wizardC: WIZ_C,
+    threeA: H9 as FaustianCardId | "",
+    threeB: D9 as FaustianCardId | "",
+    threeC: H3 as FaustianCardId | "",
+    twistDestination: "remain_face_up_in_machinations" as const,
+    activeTwistCardIds: [] as const,
+  };
+
+  it("assigns Two Pair groups from explicit table picks, not scoring-selection order", () => {
+    const result = buildFaustianMachinationOutcomeResult({
+      ...base,
+      resultKind: "two_pair",
+    });
+    expect(result).toEqual({
+      kind: "two_pair",
+      groups: [
+        { cardIds: [H9, D9], responsibleWizardId: WIZ_A },
+        { cardIds: [S10, C10], responsibleWizardId: WIZ_B },
+      ],
+    });
+    expect(isFaustianMachinationOutcomeDraftReady({ ...base, resultKind: "two_pair" })).toBe(true);
+    expect(isFaustianMachinationOutcomeDraftReady({
+      ...base,
+      resultKind: "two_pair",
+      twoPairA: [H9, S10],
+    })).toBe(false);
+  });
+
+  it("assigns Three of a Kind cards from explicit Wizard picks", () => {
+    const result = buildFaustianMachinationOutcomeResult({
+      ...base,
+      selectedScoring: [H9, D9, H3],
+      resultKind: "three_of_a_kind",
+    });
+    expect(result).toEqual({
+      kind: "three_of_a_kind",
+      groups: [
+        { cardId: H9, responsibleWizardId: WIZ_A },
+        { cardId: D9, responsibleWizardId: WIZ_B },
+        { cardId: H3, responsibleWizardId: WIZ_C },
+      ],
+    });
+  });
+
+  it("derives Full House rank from the three-of-a-kind, not selection order", () => {
+    const result = buildFaustianMachinationOutcomeResult({
+      ...base,
+      selectedScoring: [H2, H9, D9, faustianCardId("clubs", "9"), S2],
+      resultKind: "full_house",
+    });
+    expect(result).toMatchObject({ kind: "full_house", rank: "9" });
+  });
+
+  it("includes scoring-hand active Twists in immediate Twist dispositions", () => {
+    const result = buildFaustianMachinationOutcomeResult({
+      ...base,
+      selectedScoring: [HA, H9, H8, H7, H6],
+      resultKind: "flush",
+      outcomeTwists: [],
+      activeTwistCardIds: [HA],
+    });
+    expect(result).toEqual({
+      kind: "flush",
+      suit: "hearts",
+      twistDispositions: [{ cardId: HA, destination: "remain_face_up_in_machinations" }],
+    });
   });
 });
