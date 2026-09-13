@@ -117,24 +117,24 @@ export const NECROMANCER_FURTHEST_BUILTIN_GATE_IDS = NECROMANCER_BUILTIN_GATE_DE
   .filter((gate) => gate.band === "furthest")
   .map((gate) => gate.gateId);
 
-export const NECROMANCER_BOARD_VIEWBOX = { width: 1000, height: 980 } as const;
+export const NECROMANCER_BOARD_VIEWBOX = { width: 1000, height: 1000 } as const;
 
 /**
  * APPLICATION PRESENTATION based on the Draft-4 Materials board.
  * These coordinates are not game topology and are not persisted.
  */
 export const NECROMANCER_BUILTIN_GATE_MAP_POINTS: Record<NecromancerBuiltinGateId, MapPoint> = {
-  amber: { x: 140, y: 200 },
-  bronze: { x: 310, y: 200 },
-  lead: { x: 480, y: 200 },
-  ivory: { x: 650, y: 200 },
-  antimony: { x: 820, y: 200 },
-  marching: { x: 200, y: 480 },
-  churning: { x: 400, y: 480 },
-  weeping: { x: 600, y: 480 },
-  howling: { x: 800, y: 480 },
-  deep: { x: 300, y: 780 },
-  terminus: { x: 700, y: 780 },
+  amber: { x: 120, y: 210 },
+  bronze: { x: 300, y: 210 },
+  lead: { x: 480, y: 210 },
+  ivory: { x: 660, y: 210 },
+  antimony: { x: 840, y: 210 },
+  marching: { x: 210, y: 470 },
+  churning: { x: 400, y: 470 },
+  weeping: { x: 590, y: 470 },
+  howling: { x: 780, y: 470 },
+  deep: { x: 500, y: 720 },
+  terminus: { x: 500, y: 870 },
 };
 
 /**
@@ -142,21 +142,21 @@ export const NECROMANCER_BUILTIN_GATE_MAP_POINTS: Record<NecromancerBuiltinGateI
  * These coordinates are not game topology and are not persisted.
  */
 export const NECROMANCER_BUILTIN_PATH_MAP_POINTS: Record<NecromancerBuiltinPathSpaceId, MapPoint> = {
-  edge_sage: { x: 80, y: 70 },
-  edge_hierophant: { x: 230, y: 70 },
-  edge_warlock: { x: 380, y: 70 },
-  edge_mariner: { x: 530, y: 70 },
-  edge_faustian: { x: 680, y: 70 },
-  edge_sorcerer: { x: 830, y: 70 },
-  far_amber: { x: 140, y: 340 },
-  far_bronze: { x: 310, y: 340 },
-  far_lead: { x: 480, y: 340 },
-  far_ivory: { x: 650, y: 340 },
-  far_antimony: { x: 820, y: 340 },
-  abyss_marching: { x: 200, y: 620 },
-  abyss_churning: { x: 400, y: 620 },
-  abyss_weeping_upper: { x: 600, y: 600 },
-  abyss_weeping_lower: { x: 680, y: 700 },
+  edge_sage: { x: 90, y: 64 },
+  edge_hierophant: { x: 250, y: 64 },
+  edge_warlock: { x: 410, y: 64 },
+  edge_mariner: { x: 570, y: 64 },
+  edge_faustian: { x: 730, y: 64 },
+  edge_sorcerer: { x: 890, y: 64 },
+  far_amber: { x: 160, y: 340 },
+  far_bronze: { x: 330, y: 340 },
+  far_lead: { x: 500, y: 340 },
+  far_ivory: { x: 670, y: 340 },
+  far_antimony: { x: 840, y: 340 },
+  abyss_marching: { x: 280, y: 600 },
+  abyss_churning: { x: 500, y: 600 },
+  abyss_weeping_upper: { x: 680, y: 590 },
+  abyss_weeping_lower: { x: 620, y: 660 },
 };
 
 /**
@@ -164,8 +164,8 @@ export const NECROMANCER_BUILTIN_PATH_MAP_POINTS: Record<NecromancerBuiltinPathS
  * Static terminal destinations are catalog facts, not occupiable spaces.
  */
 export const NECROMANCER_TERMINAL_MAP_POINTS: Record<NecromancerTerminalExitId, MapPoint> = {
-  void_beyond: { x: 920, y: 560 },
-  final_death: { x: 880, y: 880 },
+  void_beyond: { x: 930, y: 530 },
+  final_death: { x: 500, y: 955 },
 };
 
 export const NECROMANCER_BOARD_BAND_LABELS: readonly {
@@ -173,9 +173,10 @@ export const NECROMANCER_BOARD_BAND_LABELS: readonly {
   readonly x: number;
   readonly y: number;
 }[] = [
-  { text: "Edge of Life — Depth 1", x: 20, y: 36 },
-  { text: "Far Lands — Depth 2", x: 20, y: 310 },
-  { text: "Abyss — Depth 3", x: 20, y: 590 },
+  { text: "Edge of Life", x: 20, y: 28 },
+  { text: "Near", x: 20, y: 168 },
+  { text: "Far", x: 20, y: 428 },
+  { text: "Furthest", x: 20, y: 688 },
 ];
 
 export interface NecromancerStaticTerminalPresentation {

@@ -1,6 +1,7 @@
 import type { KeyboardEvent } from "react";
 import type { NecromancerState, SorcererExternalPresence } from "../shared/domain";
 import type { WorldReference } from "./WorldSurface";
+import { NecromancerGateShape } from "./NecromancerGateShape";
 import {
   NECROMANCER_BOARD_BAND_LABELS,
   NECROMANCER_BOARD_VIEWBOX,
@@ -66,12 +67,13 @@ export default function NecromancerGatesBoard({
 
   return (
     <div className="space-y-3">
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2 overflow-x-auto">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-stone-50 dark:bg-slate-950 p-2 overflow-hidden">
         <svg
           role="img"
           aria-label="Gates of Death board"
+          data-necromancer-board
           viewBox={`0 0 ${NECROMANCER_BOARD_VIEWBOX.width} ${NECROMANCER_BOARD_VIEWBOX.height}`}
-          className="w-full min-w-[640px] h-auto text-slate-800 dark:text-slate-100"
+          className="mx-auto block h-auto w-full max-w-[min(100%,calc(100vh-18rem))] text-slate-800 dark:text-slate-100"
         >
           <defs>
             <marker id="nec-step-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -90,18 +92,18 @@ export default function NecromancerGatesBoard({
             </pattern>
           </defs>
           {NECROMANCER_BOARD_BAND_LABELS.map((label) => (
-            <text key={label.text} x={label.x} y={label.y} fontSize={16} fill="currentColor">{label.text}</text>
+            <text key={label.text} x={label.x} y={label.y} fontSize={15} fontWeight={700} fill="#4c1d95">{label.text}</text>
           ))}
           {necromancer.steps.map((step, index) => {
             const path = builtinInternalStepPresentation(step);
             if (path === null) return null;
+            const cx = (path.a.x + path.b.x) / 2;
+            const cy = (path.a.y + path.b.y) / 2 + Math.min(28, Math.abs(path.b.y - path.a.y) * 0.18);
             return (
-              <line
+              <path
                 key={`step-${index}`}
-                x1={path.a.x}
-                y1={path.a.y}
-                x2={path.b.x}
-                y2={path.b.y}
+                d={`M ${path.a.x} ${path.a.y} Q ${cx} ${cy} ${path.b.x} ${path.b.y}`}
+                fill="none"
                 stroke="#64748b"
                 strokeWidth={2}
                 markerEnd="url(#nec-step-arrow)"
@@ -181,13 +183,13 @@ export default function NecromancerGatesBoard({
                 <circle
                   cx={point.x}
                   cy={point.y}
-                  r={28}
-                  fill={selected ? "#ddd6fe" : "#e2e8f0"}
+                  r={14}
+                  fill={selected ? "#ddd6fe" : "#f8fafc"}
                   stroke="#4c1d95"
                   strokeWidth={selected ? 3 : 1.5}
                 />
-                <text x={point.x} y={point.y - 6} textAnchor="middle" fontSize={9} fill="#0f172a">
-                  {label.replace(" Edge of Life", "").replace(" Far Lands", " Far").replace(" Abyss", "")}
+                <text x={point.x} y={point.y - 20} textAnchor="middle" fontSize={10} fontWeight={600} fill="#0f172a">
+                  {label.replace(" Edge of Life", "").replace(" Far Lands", "").replace(" Abyss", "").replace(" (Upper)", "").replace(" (Lower)", "")}
                 </text>
                 <SpaceTokens
                   originX={point.x}
@@ -230,33 +232,33 @@ export default function NecromancerGatesBoard({
                 onClick={() => onSelect({ kind: "gate", gateId })}
                 onKeyDown={(event) => activate(event, () => onSelect({ kind: "gate", gateId }))}
               >
-                <rect
-                  x={point.x - 48}
-                  y={point.y - 30}
-                  width={96}
-                  height={58}
-                  rx={4}
-                  fill="none"
+                {selected && (
+                  <ellipse
+                    data-selection-halo
+                    cx={point.x}
+                    cy={point.y}
+                    rx={56}
+                    ry={48}
+                    fill="none"
+                    stroke="#6d28d9"
+                    strokeWidth={5}
+                    opacity={0.4}
+                    pointerEvents="none"
+                  />
+                )}
+                <NecromancerGateShape
+                  x={point.x}
+                  y={point.y}
+                  fill={fill}
                   stroke={stroke}
                   strokeWidth={selected ? 3 : 2}
                   strokeDasharray={status === "destroyed" ? "5 4" : undefined}
                 />
-                <rect
-                  x={point.x - 42}
-                  y={point.y - 24}
-                  width={84}
-                  height={48}
-                  rx={2}
-                  fill={fill}
-                  stroke={stroke}
-                  strokeWidth={1}
-                  strokeDasharray={status === "destroyed" ? "3 3" : undefined}
-                />
-                <text x={point.x} y={point.y - 8} textAnchor="middle" fontSize={11} fill={textFill}>
+                <text x={point.x} y={point.y - 8} textAnchor="middle" fontSize={12} fontWeight={700} fill={textFill}>
                   {gateBoardTitle(gate)}
                 </text>
-                <text x={point.x} y={point.y + 6} textAnchor="middle" fontSize={8} fill={textFill}>
-                  {status === "ordinary" ? "ordinary" : status === "hostile" ? "Hostile" : "Destroyed"}
+                <text x={point.x} y={point.y + 8} textAnchor="middle" fontSize={8} fill={textFill}>
+                  {status === "ordinary" ? "" : status === "hostile" ? "Hostile" : "Destroyed"}
                 </text>
                 <SpaceTokens
                   originX={point.x}
