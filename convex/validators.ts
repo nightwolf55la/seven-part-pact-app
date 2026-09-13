@@ -3267,6 +3267,85 @@ const faustianMachinationChallengeFinalizedEventV1Validator = v.object({
   }),
 });
 
+const faustianCardCorrectedEventV1Validator = v.object({
+  type: v.literal("faustian_card_corrected"),
+  version: v.literal(1),
+  data: v.object({
+    correctionKind: v.union(v.literal("facing"), v.literal("placement"), v.literal("deck_order")),
+    cardId: v.union(v.string(), v.null()),
+    deck: v.union(v.literal("faustian"), v.literal("devil"), v.null()),
+  }),
+});
+
+const faustianAntagonistCorrectedEventV1Validator = v.object({
+  type: v.literal("faustian_antagonist_corrected"),
+  version: v.literal(1),
+  data: v.object({
+    correctionKind: v.union(v.literal("attach"), v.literal("update"), v.literal("remove")),
+    denizenId: v.string(),
+  }),
+});
+
+const faustianDemonCorrectedEventV1Validator = v.object({
+  type: v.literal("faustian_demon_corrected"),
+  version: v.literal(1),
+  data: v.object({
+    correctionKind: v.union(v.literal("record"), v.literal("update"), v.literal("remove")),
+    denizenId: v.string(),
+  }),
+});
+
+const faustianDomainSeizureCorrectedEventV1Validator = v.object({
+  type: v.literal("faustian_domain_seizure_corrected"),
+  version: v.literal(1),
+  data: v.object({
+    correctionKind: v.union(v.literal("set"), v.literal("clear")),
+    seatId: v.string(),
+  }),
+});
+
+const faustianDevilProfileCorrectedEventV1Validator = v.object({
+  type: v.literal("faustian_devil_profile_corrected"),
+  version: v.literal(1),
+  data: v.object({
+    correctionKind: v.union(
+      v.literal("laws"),
+      v.literal("forms"),
+      v.literal("origin_claim"),
+      v.literal("custom_origin_claim"),
+    ),
+  }),
+});
+
+const faustianDueMonthObligationRecordedEventV1Validator = v.object({
+  type: v.literal("faustian_due_month_obligation_recorded"),
+  version: v.literal(1),
+  data: v.object({
+    wizardId: v.string(),
+    dueMonthOrdinal: v.number(),
+    weeks: v.number(),
+  }),
+});
+
+const faustianDueMonthObligationFulfilledEventV1Validator = v.object({
+  type: v.literal("faustian_due_month_obligation_fulfilled"),
+  version: v.literal(1),
+  data: v.object({
+    wizardId: v.string(),
+    dueMonthOrdinal: v.number(),
+    weeks: v.number(),
+  }),
+});
+
+const faustianPersistentEffectCorrectedEventV1Validator = v.object({
+  type: v.literal("faustian_persistent_effect_corrected"),
+  version: v.literal(1),
+  data: v.object({
+    correctionKind: v.union(v.literal("add"), v.literal("remove")),
+    effectKind: v.union(v.literal("flush"), v.literal("full_house")),
+  }),
+});
+
 export const campaignEventValidator = v.union(
   historicalMonthChangedEventV1Validator,
   undoAppliedEventV1Validator,
@@ -3423,6 +3502,14 @@ export const campaignEventValidator = v.union(
   faustianMachinationOutcomeRecordedEventV1Validator,
   faustianMachinationResponseCompletedEventV1Validator,
   faustianMachinationChallengeFinalizedEventV1Validator,
+  faustianCardCorrectedEventV1Validator,
+  faustianAntagonistCorrectedEventV1Validator,
+  faustianDemonCorrectedEventV1Validator,
+  faustianDomainSeizureCorrectedEventV1Validator,
+  faustianDevilProfileCorrectedEventV1Validator,
+  faustianDueMonthObligationRecordedEventV1Validator,
+  faustianDueMonthObligationFulfilledEventV1Validator,
+  faustianPersistentEffectCorrectedEventV1Validator,
   sorcererInitializedEventV1Validator,
   sorcererPersonnelRecruitedEventV1Validator,
   sorcererResearcherRefocusedEventV1Validator,

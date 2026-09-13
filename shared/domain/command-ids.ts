@@ -1198,6 +1198,38 @@ export function finalizeFaustianMachinationChallengeFingerprint(
   return `finalize_faustian_machination_challenge:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
 }
 
+export function correctFaustianCardFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `correct_faustian_card:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function correctFaustianAntagonistFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `correct_faustian_antagonist:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function correctFaustianDemonFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `correct_faustian_demon:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function correctFaustianDomainSeizureFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `correct_faustian_domain_seizure:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function correctFaustianDevilProfileFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `correct_faustian_devil_profile:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function recordFaustianDueMonthObligationFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `record_faustian_due_month_obligation:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function fulfillFaustianDueMonthObligationFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `fulfill_faustian_due_month_obligation:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function correctFaustianPersistentEffectFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `correct_faustian_persistent_effect:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
 export function directFaustianAccompliceFingerprint(
   expectedCampaignId: string,
   accompliceCardId: string,

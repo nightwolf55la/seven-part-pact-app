@@ -1,153 +1,178 @@
 # M5.4A-F — Faustian Card Table & Operability
 
-**Status:** Body A/B CANDIDATE. Not complete. Body C not implemented. Not all of M5.4 complete.
-**Schema:** CampaignState V5 remains PRE-ACTIVATION. No CampaignState fields, no V6, no migration, no `pending-challenge`, no `wizard-next-month-obligation`.
+**Status:** DETERMINISTIC CANDIDATE awaiting Workstream actual-diff review. Not Faustian-complete. Not M5.4-complete. Not V5-activated.
+**Schema:** CampaignState V5 remains PRE-ACTIVATION. Approved in-place current-V5 evolution for pending Machination challenges and due-month Wizard-week obligations. No migration. No silent compatibility. No optional old current-V5 shape.
 **Branch:** `m5-4a/faustian-card-table`
 **BASE_SHA:** `ba32e19cafea37e148eb9bb3f0dc8db56625941f` (`origin/main`, Mariner merge prefix `ba32e19`)
+**Overnight start HEAD:** `12c575a52c92bd9a8b19d2c0adf88abaabf424a3`
+
+Real Convex integration, PR, merge, Production, and V5 activation remain pending. The review Development deployment `dev:wry-boar-766` was not used.
 
 ## Approved direction
 
-Deliver a source-shaped Faustian card table (Body A) plus setup and ordinary intervention/protection (Body B) as a usable PlayShell/Setup surface.
+Deliver a source-shaped Faustian card table, setup/ordinary intervention, Body C Scheme-occurrence / Machination lifecycle, and Body D typed Advanced / Correct Table coverage.
 
 Do **not**:
 
-- implement Body C Scheme-occurrence / Machination lifecycle;
-- add persisted Investigation entitlement;
-- evolve CampaignState;
 - build a generic card engine, scheduler, Notes, ACL, or entity framework;
 - rasterize the physical board or parse PPTX at runtime;
-- spend shared Time from Faustian board operations.
+- spend shared Time from Faustian board operations;
+- automatically resolve Machinations or spend Time at month boundaries;
+- activate V5 or migrate from an old current-V5 shape.
 
 ## Body checklist
 
 | Body | Status |
 |---|---|
-| A Passive card table | candidate committed `a68d919588202df3b465f55544b72a35872de3cd` |
-| B Setup + ordinary intervention/protection | candidate committed `34519b6c2970f3d602771b179ebab4f3c8309b00` |
-| C Scheme-occurrence / Machination lifecycle | NOT IMPLEMENTED — pending-challenge schema need is approved in direction only |
-| Combined `npm run check` | COMPLETE locally — 136 files / 2593 tests; `tsc -b` + `vite build` green |
-| Convex Development integration | SKIPPED — no isolated disposable Development deployment could be selected non-interactively; review deployment `wry-boar-766` was not used |
+| A Passive card table | implemented |
+| B Setup + ordinary intervention/protection | implemented; A/B actual-diff corrections applied |
+| C Scheme-occurrence / Machination lifecycle | implemented as approved PRE-ACTIVATION V5 evolution |
+| D Advanced / Correct Table operability | implemented as typed game-specific recorders |
+| Combined `npm run check` | run after final code HEAD; see overnight report |
+| Convex Development integration | STILL PENDING — no isolated disposable Development deployment; review deployment was not used |
+| Workstream actual-diff review | PENDING |
+| V5 activation | NOT DONE |
 
-## Implemented Body A surface
+## A/B actual-diff corrections
 
-- typed static card reference keyed by canonical playing-card identity (`shared/domain/faustian-card-reference.ts`); Scheme/Twist/Accomplice wording is honestly omitted (`source_not_transcribed`);
-- pure presentation read model (`src/faustian-view-model.ts`) plus bounded `getFaustianReference` query;
-- first-class Faustian PlayShell surface and Setup-hosted table;
-- source-shaped 3-column × 4-row Community tableau with Scheme / Accomplice / Pawn / Conspiracy areas, fanned/capped cards, overflow inspector;
-- supporting areas: Faustian's Deck, Devil's Deck, suit summary, Twists, Machinations, Defeated Schemes, held/entrusted/possession/Domain-placement cards, derived Sorcerer presence;
-- facedown cards do not leak rank/suit/effect through ordinary labels, tooltips, or aria text;
-- private Twist inspection is local-only (no mutation/command/event/facing change);
-- Lore reuses `LoreContextPanel` and existing subjects only;
-- Researchers show **Working** / **Unavailable this month**; Disruptive Arcanists are Domain-wide, not Community-assigned.
+1. **Investigation Stage 2 is narrow.** Foil confirmation requires only that the selected card still exist, still be that exact card, still be a face-up Scheme, and still be in the captured Community. Unrelated later Faustian changes, including a new facedown Scheme arrival, do not themselves invalidate the foil. If the selected card moved or became ineligible, reject with no retarget and no unrelated movement.
+2. **Investigation Stage 1 is a true no-op** when a Community has no facedown Schemes: no gameplay revision/event is created merely to establish an entitlement. The UI may continue with all currently face-up Schemes as Stage-2 choices. No persisted Investigation entitlement exists.
+3. **Calamity Arrange Table** attaches an **existing eligible world Denizen** as the generic Faustian Antagonist. It does not create a Conspiracy merely because setup needs an Antagonist, and it does not overwrite an incompatible Powerful profile. Representational limit: Denizen records have no creating-Wizard field; eligibility uses existing authoritative provenance (existing world Denizen, not already Antagonist/Conspiracy/Demon, not deceased, Powerful Goal already in the Faustian Antagonist goals). Event: `faustian_antagonist_established` v1.
+4. **Static Faustian source reference.** The authoritative Faustian Codex contains List of Schemes / Card Meanings, Twist text, Accomplices & Syndicates, and related headings. That Codex was **not available on the local filesystem** of this implementation environment. Status is `source_transcription_deferred`, not “source lacks the material.” No internet substitute was fetched. No wording was invented. Genuine draft/omission markers remain visible.
+5. **Twist / Machinations presentation.** An active Twist is one physical Machinations card plus an overlay. The Twist panel is a spotlight/reference, not a second physical copy.
 
-Selecting a Community or card inspects it. It does not start an action.
+## Body C — approved in-place PRE-ACTIVATION V5 evolution
 
-## Implemented Body B operations
+### Pending Machination challenges
 
-| Command | Event | Notes |
-|---|---|---|
-| `arrange_faustian_table` | `faustian_table_arranged` v1 (+ optional `faustian_conspiracy_established` v1 for Calamity) | Quiet / Dynamic / Explosive; server-random |
-| `complete_faustian_structural_placeholder` | `faustian_structural_placeholder_completed` v1 | Setup-only exact helper signature |
-| `reveal_faustian_community_schemes` | `faustian_community_schemes_revealed` v1 | Investigation Stage 1 |
-| `foil_faustian_community_scheme` | `faustian_community_scheme_foiled` v1 | Investigation Stage 2 |
-| `blackmail_faustian_community` | `faustian_community_blackmailed` **v2** | Immediate protection; V1 remains decodable |
-| `place_faustian_schemes` | `faustian_schemes_placed` v1 | No clamp / partial deal / recycle |
-| `add_faustian_pawn` / `remove_faustian_pawn` | `faustian_pawn_count_changed` v1 | Count-based; no person per Pawn |
-| `establish_faustian_conspiracy` | `faustian_conspiracy_established` v1 | One atomic compound write |
-| existing `direct_faustian_accomplice` | unchanged | Exposed from Accomplice UI |
-| existing `disrupt_faustian_pawn` | unchanged | Exposed from Pawn/Accomplice UI |
+Mandatory current-V5 field:
 
-Historical combined `investigate_faustian_community` / `faustian_community_investigated` v1 remains for decode. Body B UI does not use it for Stage 2.
+`faustian.pendingMachinationChallenges: FaustianPendingMachinationChallenge[]`
 
-## Shared-Time boundary
+Kinds: `one_pair` | `two_pair` | `three_of_a_kind`.
 
-Board operations record Faustian board consequences. They do **not** spend a Wizard week.
+- Challenge and group IDs are server-generated (`fpmc_…`, `fpmg_…`).
+- Challenge references are **metadata only**. They are never physical card locations.
+- **One Pair:** one group; `responsibleWizardId` initially null; pending non-Twist cards use `setAsideHand`.
+- **Two Pair:** two groups; distinct responsible Wizards; each pair uses `entrustedCards`.
+- **Three of a Kind:** three groups; three distinct Wizards; matching cards use `entrustedCards`.
+- Kickers belong to `scoringHandCardIds` but are not pending holdings.
+- Completed `originalCardIds` are historical metadata only. They do not reserve cards. Later movement and later challenge participation are valid.
+- Multiple pending challenges may coexist. No pending physical-holding overlap. No active Twist reserved by two unresolved challenges.
 
-UI copy for Time-associated play operations:
+### Active-Twist reservation
+
+Every `activeTwistCardId` remains physically in Machinations. `outcomeDependentTwistCardIds` is plural. Each reserved Twist must be a current active Twist. Reservation is metadata, not a second physical location. A reserved Twist cannot be independently replaced, cleaned up, moved, deactivated, or resolved by an unrelated operation. Completing a response group does not move a reserved Twist and does not keep the group pending.
+
+### Due-month Wizard-week obligation
+
+Old temporally ambiguous `wizard_owes_week_next_month` is **not** accepted in current V5.
+
+Authoritative durable shape:
+
+`{ kind: "wizard_owes_week_due_month", wizardId, dueMonthOrdinal, weeks }`
+
+- `MonthOrdinal`, not month name or wall-clock date.
+- Positive remaining weeks.
+- Same Wizard + same due MonthOrdinal accumulate.
+- Explicit fulfillment decrements and removes at zero.
+- No automatic shared-Time spending. No scheduler.
+
+### Lifecycle commands / events
+
+| Command | Event |
+|---|---|
+| `record_faustian_scheme_occurred` | `faustian_scheme_occurred` v1 |
+| `disclose_faustian_twist` | `faustian_twist_disclosed` v1 |
+| `record_faustian_twist_occurred` | `faustian_twist_occurred` v1 |
+| `record_faustian_machination_outcome` | `faustian_machination_outcome_recorded` v1 |
+| `complete_faustian_machination_response` | `faustian_machination_response_completed` v1 |
+| `finalize_faustian_machination_challenge` | `faustian_machination_challenge_finalized` v1 |
+
+Scheme occurrence: captured Community + face-up Scheme; 0/1/many local Accomplice rule; global lower-value same-suit cascade from the pre-event state; Ace falls if directly affected but never cascades and never falls via cascade; +1 Pawn in each fallen card's original Community; fallen cards shuffle into Devil's Deck once. Destinations: ordinary Machinations, existing possession, existing Domain placement. Narrative Scheme prose is not executed.
+
+Twist disclose: unreserved active Twist; server-random replacement from Faustian's Deck; empty deck rejects with no mutation; replay does not reroll. Twist occurrence: reveal; move current Devil's Deck into Machinations face-up; no automatic Machination result.
+
+Machination outcomes are table-directed. Delayed challenges create holdings/reservations and recycle only the server-computed eligible cleanup set captured at draft start. Month advancement never resolves a challenge, fails a response, moves retained cards, spends Time, or triggers Devil triumph. A completed-groups challenge still exists until explicit finalize.
+
+## Body D — Advanced / Correct Table
+
+Typed commands only. No raw CampaignState editor, JSON patcher, or arbitrary path/value UI.
+
+| Command | Event |
+|---|---|
+| `correct_faustian_card` | `faustian_card_corrected` v1 |
+| `correct_faustian_antagonist` | `faustian_antagonist_corrected` v1 |
+| `correct_faustian_demon` | `faustian_demon_corrected` v1 |
+| `correct_faustian_domain_seizure` | `faustian_domain_seizure_corrected` v1 |
+| `correct_faustian_devil_profile` | `faustian_devil_profile_corrected` v1 |
+| `record_faustian_due_month_obligation` | `faustian_due_month_obligation_recorded` v1 |
+| `fulfill_faustian_due_month_obligation` | `faustian_due_month_obligation_fulfilled` v1 |
+| `correct_faustian_persistent_effect` | `faustian_persistent_effect_corrected` v1 |
+
+Reserved Twists and pending holdings cannot be independently moved. Removing an Antagonist requires an explicit destination for every card beneath it and does not delete the world Denizen. Domain seizure records Faustian seizure state only; external Domain special rules remain table-resolved unless already implemented.
+
+## State / action coverage
+
+| State family | Coverage |
+|---|---|
+| Faustian's Deck / Devil's Deck | Ordinary count UI; Advanced deck-order correction by position |
+| Community Schemes / facing | Ordinary table + inspector; Body B Investigate/Place; Body C occurrence; Advanced facing/placement |
+| Community Accomplices | Ordinary table; Body B Direct/Blackmail; Body C cascade; Advanced placement |
+| Pawn counts | Ordinary table; Body B add/remove/Disrupt |
+| Conspiracies | Ordinary Community label; existing `establish_faustian_conspiracy` |
+| Machinations / Defeated Schemes | Ordinary table; Body C outcome/cleanup; Advanced facing/placement |
+| Active Twist overlay | Ordinary Machinations treatment + spotlight panel (not a second copy); Body C disclose/occur; reserved-Twist treatment |
+| Held / set-aside / entrusted / possession / Domain placement | Ordinary supporting areas; Body C holdings and destinations; Advanced placement |
+| Cards beneath Antagonists | Advanced inspection + destination-required removal/placement |
+| Antagonists | Calamity Arrange (existing Denizen); Advanced attach/update/remove |
+| Demons | Advanced record/update/remove on existing world Denizen + Powerful Demon taxonomy |
+| Domain seizures | Advanced set/clear |
+| Pending Machination challenges | Body C ordinary lifecycle UI |
+| Devil Laws / Forms / origin claims / custom origin | Advanced typed profile correction |
+| Due-month Wizard-week obligations | Advanced record/fulfill; due/overdue is a read-model label |
+| Other durable Devil-obligation kinds | **Explicit deferral** — represented state remains; no generic obligation editor this Workstream |
+| Persistent Flush / Full House | Body C immediate result + Advanced add/remove |
+| Sorcerer Researchers / Disruptive Arcanists | Ordinary derived presence (`Working` / `Unavailable this month`); Faustian commands do not move Sorcerer placement |
+| Lore | Existing `LoreContextPanel` / bound subjects only; no per-Community Lore; no Community Notes |
+| Investigation entitlement | **Not persisted** — captured draft only |
+| Static Scheme/Twist/Accomplice Codex wording | **Transcription deferred** — Codex not on local filesystem; status is not “source lacks material” |
+| Interpretive Scheme/Twist prose / Wicker-Ways / Pact-Law sanctions | Table-resolved; not a software defect |
+| Monthly Pawn/Conspiracy/Watching-the-Stars automation | Explicit deferral |
+| Warlock / Sage | Workstream-deferred |
+| Real Convex deployment integration | Pending after actual-diff review |
+| V5 activation / migration | Not done; not authorized |
+
+## Shared-Time and month-boundary boundary
+
+Board operations record Faustian board consequences. They do **not** spend a Wizard week and do **not** schedule Devil Time.
+
+UI copy:
 
 > Records the Faustian board result; shared Time is handled separately.
 
-No Faustian client mutation chains a Time command. Devil-only Time destinations are not used for the Faustian Wizard.
-
-## Investigation contract
-
-1. Stage 1 Reveal (Community): reveal every currently facedown Scheme in that Community. Already face-up Schemes stay face-up. Eligible Stage-2 IDs are **all face-up Schemes present at reveal**, including those already face-up. A Community that is already all face-up is a no-op reveal; the UI may still continue with the captured eligible set.
-2. Stage 2 Chosen foil: move **only** the selected card to Defeated Schemes. The selected card must still be a face-up Scheme in the same Community. Stage 2 never reveals later arrivals or substitutes another Scheme.
-3. **No persisted Investigation entitlement.** Cancel/reload after accepted Stage 1 leaves reveals in place and does not auto-foil.
-4. Explicit action start captures eligible IDs and expected Faustian state. Realtime display may update; captured intent is not silently rebased. Stale confirmation rejects.
-
-## Blackmail immediate-protection contract
-
-New accepted operations emit **v2**:
-
-1. take current top Faustian Deck card (server-selected);
-2. install it as an Accomplice;
-3. reveal all current local Schemes;
-4. evaluate protection using **all** local Accomplices including the new one;
-5. established equal-or-lower comparison and existing Ace behavior;
-6. each qualifying Scheme prevented exactly once;
-7. prevented Schemes append to the **bottom** of Devil's Deck in Community order;
-8. no shuffle for ordinary protection.
-
-Existing accepted V1 Blackmail events remain decodable with historical meaning. New operations do not re-execute old V1 commands under V2 behavior.
-
-## Setup recipes and Age rules
-
-**APPLICATION DESIGN** (Sorcerer analog for Age eligibility):
-
-| Age | Permitted arrangements |
-|---|---|
-| Awakening | Quiet, Dynamic — player chooses which Two is the Twist; that Two is reserved before any random draw |
-| Dominion | Dynamic, Explosive |
-| Calamity | Explosive — requires explicit valid Antagonist/Conspiracy choices; existing incompatible Powerful profiles are not overwritten |
-
-**Quiet:** low A/2/3/4, mid 5–8, high 9–K. Random 4 low + 2 mid → Devil's Deck; remaining low → Twist (or reserved Two); remaining mid → Accomplice in favorite Community; remainder shuffled → Faustian's Deck. Counts: Devil 6, Twist 1, Accomplice 1, Faustian 44. No Pawns.
-
-**Dynamic:** `devilCount = 3 + 2 * floor(ageYears / 20)` from the Faustian Wizard. Reject before mutation if capacity cannot leave Twist + Accomplice. One Pawn in a Community other than the Accomplice Community.
-
-**Explosive:** 2 Spades per Air, 2 Clubs per Fire, 2 Diamonds per Earth, 2 Hearts per Water. Reject if any per-suit request exceeds capacity or remainder cannot supply Twist + Accomplice. Both Pawns in **one** Community different from the Accomplice Community.
-
-Arrange Table is allowed only during **setup**, only on the exact unarranged baseline, with captured expected age/Elements/Faustian that are not silently recalculated. An empty-looking in-play table is not reset.
-
-**Complete Structural Placeholder** is a separately labeled setup-only conversion of the exact unused helper signature. Matching shape is not historical proof of unused play. In-play helper-shaped state is left alone.
-
-All selection/shuffling is server-authoritative. Same accepted command ID returns the original result and does not reroll.
+Month advancement never resolves a pending challenge.
 
 ## Concealment boundary
 
-Ordinary UI, activity labels, errors, success text, aria, and action previews introduced here must not leak hidden rank/suit/effect.
+Ordinary UI, Advanced labels, activity summaries, errors, aria, and action previews must not leak hidden rank/suit/effect. Facedown deck-order correction uses positions, not identities. Private Twist inspection remains local-only.
 
-This is not adversarial secrecy against raw CampaignState, audit payloads, backups, or developer tools. No authentication/ACL redesign.
-
-Private Twist inspection remains local-only.
+This is not adversarial secrecy against raw CampaignState, audit payloads, backups, or developer tools.
 
 ## Source vs application
 
-- **SOURCE:** physical Faustian cards carry Scheme/Twist/Accomplice wording; that text is not transcribed here.
-- **APPLICATION DESIGN:** reference layer records `source_not_transcribed` rather than inventing effects.
-- **APPLICATION DESIGN:** Ace Accomplices defeat every Scheme except a 2; otherwise equal-or-lower. Existing Direct/Disrupt semantics were preserved, not opportunistically “fixed”.
-- **APPLICATION DESIGN:** Age arrangement eligibility follows the table above; Calamity antagonist setup must be explicit.
-- **INFERENCE:** Quiet leftover-low after a reserved Awakening Two stays in the Faustian Deck; the reserved Two is the Twist overlay on Machinations, not a second physical copy.
+- **SOURCE:** physical Faustian cards carry Scheme/Twist/Accomplice wording; authoritative Codex headings exist. Local transcription is deferred because the Codex file was unavailable here.
+- **APPLICATION DESIGN:** reference layer records deferred transcription rather than inventing effects. Age arrangement eligibility, Investigation no-op, Calamity existing-Denizen Antagonist, cascade rules, and Machination cleanup conventions are application design over represented state.
+- **INFERENCE:** Quiet leftover-low after a reserved Awakening Two stays in the Faustian Deck; the reserved Two is the Twist overlay on Machinations, not a second physical copy. Denizen “created by another Wizard” is not an exact stored field.
 
 Active Twists are overlays on Machination cards. Every canonical playing card has exactly one physical location.
 
-## Explicit deferrals
+## Explicit remaining work after this candidate
 
-- Body C Scheme-occurrence / Machination lifecycle;
-- persisted Investigation entitlement / `pending-challenge` CampaignState;
-- `wizard-next-month-obligation` schema;
-- monthly Pawn/Conspiracy/Watching-the-Stars automation;
-- full Antagonist automation;
-- generic Notes / Community Notes / new Lore subject types;
-- generic card engine, drag/physics, PPTX parser, board raster hotspots;
-- Production deployment, PR, merge.
-
-## Body C
-
-The pending-challenge schema need is **approved in direction** and is **not implemented**. Do not treat Body A/B candidate status as Faustian or M5.4 completion.
-
-## Verification
-
-Focused Body A/B tests plus combined `npm run check` (136 files / 2593 tests) and `git diff --check` were run locally.
-
-Convex codegen/`npx convex dev --once` was skipped: no isolated disposable Development deployment was available non-interactively. The review Development deployment was not synchronized.
+- Workstream actual-diff review of the overnight branch.
+- Real Convex schema/function synchronization on an isolated disposable Development deployment. Do not use `dev:wry-boar-766` until the human authorizes it.
+- Static Faustian Codex transcription once the local source is available.
+- Other durable Devil-obligation kinds beyond due-month weeks.
+- Interpretive / table-resolved narrative consequences.
+- Warlock and Sage.
+- PR, merge, Production, V5 activation.

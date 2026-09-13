@@ -4,7 +4,7 @@
 
 This roadmap supersedes the earlier provisional M3+ outline.
 
-The project has completed its persistence/core-play foundations, all seven Wizard Domain structural foundations, and the shared M5.3 Lore/Compendium foundation. M5.4 active-table Domain operability is now in progress, with Lore/Compendium UX, Sorcerer operability, Hierophant + Necromancer Temples/Gates operability, and Mariner Interactive Map & Operability complete. Faustian Body A/B is a candidate; Body C and Faustian completion remain pending. Warlock and Sage remain deferred.
+The project has completed its persistence/core-play foundations, all seven Wizard Domain structural foundations, and the shared M5.3 Lore/Compendium foundation. M5.4 active-table Domain operability is now in progress, with Lore/Compendium UX, Sorcerer operability, Hierophant + Necromancer Temples/Gates operability, and Mariner Interactive Map & Operability complete. Faustian Bodies A–D are a deterministic candidate awaiting Workstream actual-diff review; Faustian is not marked complete. Warlock and Sage remain deferred. CampaignState V5 remains PRE-ACTIVATION.
 
 The roadmap describes dependency order and milestone intent. Exact Workstream boundaries remain subject to Master/human approval as source and repository evidence develops.
 
@@ -252,11 +252,11 @@ Deliberately deferred: repeat-Ravage semantics; off-Horizon Beast movement (tabl
 
 ### M5.4A-F — Faustian Card Table & Operability
 
-**BODY A/B CANDIDATE — NOT COMPLETE**
+**DETERMINISTIC CANDIDATE — AWAITING WORKSTREAM ACTUAL-DIFF REVIEW. NOT COMPLETE.**
 
-Branch `m5-4a/faustian-card-table`. Base `ba32e19cafea37e148eb9bb3f0dc8db56625941f`. Body A `a68d919588202df3b465f55544b72a35872de3cd`; Body B `34519b6c2970f3d602771b179ebab4f3c8309b00`.
+Branch `m5-4a/faustian-card-table`. Base `ba32e19cafea37e148eb9bb3f0dc8db56625941f`.
 
-Delivered the Faustian card table and ordinary setup/intervention/protection operations. Body C Scheme-occurrence/Machination lifecycle and `pending-challenge` schema are not implemented. CampaignState V5 remains PRE-ACTIVATION. Convex Development integration was skipped (no isolated disposable Development deployment non-interactively).
+Delivered the Faustian card table, A/B review corrections, approved in-place PRE-ACTIVATION V5 pending-challenge and due-month obligation foundation, Body C lifecycle, and Body D typed Advanced / Correct Table coverage. CampaignState V5 remains PRE-ACTIVATION. Real Convex integration is still pending. Do not mark Faustian or M5.4 complete.
 
 See `docs/m5-4a-f-faustian-card-table.md`.
 
@@ -264,7 +264,7 @@ See `docs/m5-4a-f-faustian-card-table.md`.
 
 Remaining active-player Domain operability:
 
-- Faustian Body C (pending Master approval for schema) and Faustian Workstream closure.
+- Faustian Workstream actual-diff review, real Convex integration on an isolated disposable Development deployment, and Faustian Workstream closure.
 
 Warlock and Sage are intentionally deferred while they have no active players.
 
@@ -421,7 +421,7 @@ Likely areas:
 
 ## Current Next Action
 
-Mariner is complete (PR #26 merged). Faustian Body A/B is an implementation candidate on `m5-4a/faustian-card-table`; Body C schema implementation still pending Master approval. Do not mark Faustian or M5.4 complete.
+Mariner is complete (PR #26 merged). Faustian Bodies A–D are a deterministic candidate on `m5-4a/faustian-card-table` awaiting Workstream actual-diff review. Do not mark Faustian or M5.4 complete.
 
 Warlock/Sage remain deferred. CampaignState V5 remains PRE-ACTIVATION.
 

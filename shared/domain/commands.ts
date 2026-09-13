@@ -148,6 +148,14 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "record_faustian_machination_outcome",
   "complete_faustian_machination_response",
   "finalize_faustian_machination_challenge",
+  "correct_faustian_card",
+  "correct_faustian_antagonist",
+  "correct_faustian_demon",
+  "correct_faustian_domain_seizure",
+  "correct_faustian_devil_profile",
+  "record_faustian_due_month_obligation",
+  "fulfill_faustian_due_month_obligation",
+  "correct_faustian_persistent_effect",
   "initialize_sorcerer",
   "recruit_sorcerer_personnel",
   "refocus_sorcerer_researcher",
@@ -332,6 +340,14 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "record_faustian_machination_outcome":
     case "complete_faustian_machination_response":
     case "finalize_faustian_machination_challenge":
+    case "correct_faustian_card":
+    case "correct_faustian_antagonist":
+    case "correct_faustian_demon":
+    case "correct_faustian_domain_seizure":
+    case "correct_faustian_devil_profile":
+    case "record_faustian_due_month_obligation":
+    case "fulfill_faustian_due_month_obligation":
+    case "correct_faustian_persistent_effect":
     case "initialize_sorcerer":
     case "recruit_sorcerer_personnel":
     case "refocus_sorcerer_researcher":

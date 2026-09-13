@@ -507,6 +507,14 @@ export {
   recordFaustianMachinationOutcomeFingerprint,
   completeFaustianMachinationResponseFingerprint,
   finalizeFaustianMachinationChallengeFingerprint,
+  correctFaustianCardFingerprint,
+  correctFaustianAntagonistFingerprint,
+  correctFaustianDemonFingerprint,
+  correctFaustianDomainSeizureFingerprint,
+  correctFaustianDevilProfileFingerprint,
+  recordFaustianDueMonthObligationFingerprint,
+  fulfillFaustianDueMonthObligationFingerprint,
+  correctFaustianPersistentEffectFingerprint,
   initializeSorcererFingerprint,
   recruitSorcererPersonnelFingerprint,
   refocusSorcererResearcherFingerprint,
@@ -1808,6 +1816,28 @@ export {
   applyCompleteFaustianMachinationResponse,
   applyFinalizeFaustianMachinationChallenge,
 } from "./faustian-lifecycle-transitions";
+
+export type {
+  FaustianPhysicalDestination,
+  CorrectFaustianCardInput,
+  CorrectFaustianAntagonistInput,
+  CorrectFaustianDemonInput,
+  CorrectFaustianDomainSeizureInput,
+  CorrectFaustianDevilProfileInput,
+  RecordFaustianDueMonthObligationInput,
+  FulfillFaustianDueMonthObligationInput,
+  CorrectFaustianPersistentEffectInput,
+} from "./faustian-advanced-transitions";
+export {
+  applyCorrectFaustianCard,
+  applyCorrectFaustianAntagonist,
+  applyCorrectFaustianDemon,
+  applyCorrectFaustianDomainSeizure,
+  applyCorrectFaustianDevilProfile,
+  applyRecordFaustianDueMonthObligation,
+  applyFulfillFaustianDueMonthObligation,
+  applyCorrectFaustianPersistentEffect,
+} from "./faustian-advanced-transitions";
 
 export type {
   NecromancerTransitionResult,

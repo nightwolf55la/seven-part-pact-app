@@ -2029,6 +2029,88 @@ export interface FaustianMachinationChallengeFinalizedEventV1 {
   readonly data: FaustianMachinationChallengeFinalizedDataV1;
 }
 
+export interface FaustianCardCorrectedDataV1 {
+  readonly correctionKind: "facing" | "placement" | "deck_order";
+  readonly cardId: FaustianCardId | null;
+  readonly deck: "faustian" | "devil" | null;
+}
+export interface FaustianCardCorrectedEventV1 {
+  readonly type: "faustian_card_corrected";
+  readonly version: 1;
+  readonly data: FaustianCardCorrectedDataV1;
+}
+
+export interface FaustianAntagonistCorrectedDataV1 {
+  readonly correctionKind: "attach" | "update" | "remove";
+  readonly denizenId: string;
+}
+export interface FaustianAntagonistCorrectedEventV1 {
+  readonly type: "faustian_antagonist_corrected";
+  readonly version: 1;
+  readonly data: FaustianAntagonistCorrectedDataV1;
+}
+
+export interface FaustianDemonCorrectedDataV1 {
+  readonly correctionKind: "record" | "update" | "remove";
+  readonly denizenId: string;
+}
+export interface FaustianDemonCorrectedEventV1 {
+  readonly type: "faustian_demon_corrected";
+  readonly version: 1;
+  readonly data: FaustianDemonCorrectedDataV1;
+}
+
+export interface FaustianDomainSeizureCorrectedDataV1 {
+  readonly correctionKind: "set" | "clear";
+  readonly seatId: string;
+}
+export interface FaustianDomainSeizureCorrectedEventV1 {
+  readonly type: "faustian_domain_seizure_corrected";
+  readonly version: 1;
+  readonly data: FaustianDomainSeizureCorrectedDataV1;
+}
+
+export interface FaustianDevilProfileCorrectedDataV1 {
+  readonly correctionKind: "laws" | "forms" | "origin_claim" | "custom_origin_claim";
+}
+export interface FaustianDevilProfileCorrectedEventV1 {
+  readonly type: "faustian_devil_profile_corrected";
+  readonly version: 1;
+  readonly data: FaustianDevilProfileCorrectedDataV1;
+}
+
+export interface FaustianDueMonthObligationRecordedDataV1 {
+  readonly wizardId: string;
+  readonly dueMonthOrdinal: MonthOrdinal;
+  readonly weeks: number;
+}
+export interface FaustianDueMonthObligationRecordedEventV1 {
+  readonly type: "faustian_due_month_obligation_recorded";
+  readonly version: 1;
+  readonly data: FaustianDueMonthObligationRecordedDataV1;
+}
+
+export interface FaustianDueMonthObligationFulfilledDataV1 {
+  readonly wizardId: string;
+  readonly dueMonthOrdinal: MonthOrdinal;
+  readonly weeks: number;
+}
+export interface FaustianDueMonthObligationFulfilledEventV1 {
+  readonly type: "faustian_due_month_obligation_fulfilled";
+  readonly version: 1;
+  readonly data: FaustianDueMonthObligationFulfilledDataV1;
+}
+
+export interface FaustianPersistentEffectCorrectedDataV1 {
+  readonly correctionKind: "add" | "remove";
+  readonly effectKind: "flush" | "full_house";
+}
+export interface FaustianPersistentEffectCorrectedEventV1 {
+  readonly type: "faustian_persistent_effect_corrected";
+  readonly version: 1;
+  readonly data: FaustianPersistentEffectCorrectedDataV1;
+}
+
 export type FaustianEvent =
   | FaustianCommunityInvestigatedEventV1
   | FaustianCommunityBlackmailedEventV1
@@ -2048,7 +2130,15 @@ export type FaustianEvent =
   | FaustianTwistOccurredEventV1
   | FaustianMachinationOutcomeRecordedEventV1
   | FaustianMachinationResponseCompletedEventV1
-  | FaustianMachinationChallengeFinalizedEventV1;
+  | FaustianMachinationChallengeFinalizedEventV1
+  | FaustianCardCorrectedEventV1
+  | FaustianAntagonistCorrectedEventV1
+  | FaustianDemonCorrectedEventV1
+  | FaustianDomainSeizureCorrectedEventV1
+  | FaustianDevilProfileCorrectedEventV1
+  | FaustianDueMonthObligationRecordedEventV1
+  | FaustianDueMonthObligationFulfilledEventV1
+  | FaustianPersistentEffectCorrectedEventV1;
 
 export interface SorcererInitializedDataV1 {
   readonly arrangementId: SorcererArrangementId;

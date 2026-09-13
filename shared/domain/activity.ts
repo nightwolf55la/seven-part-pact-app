@@ -355,6 +355,22 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Recorded a Faustian Machination response";
     case "faustian_machination_challenge_finalized":
       return "Finalized a Faustian Machination challenge";
+    case "faustian_card_corrected":
+      return "Corrected Faustian card table state";
+    case "faustian_antagonist_corrected":
+      return "Corrected a Faustian Antagonist";
+    case "faustian_demon_corrected":
+      return "Corrected a Faustian Demon";
+    case "faustian_domain_seizure_corrected":
+      return "Corrected a Faustian Domain seizure";
+    case "faustian_devil_profile_corrected":
+      return "Corrected the Faustian Devil profile";
+    case "faustian_due_month_obligation_recorded":
+      return "Recorded a Faustian due-month Wizard-week obligation";
+    case "faustian_due_month_obligation_fulfilled":
+      return "Fulfilled a Faustian due-month Wizard-week obligation";
+    case "faustian_persistent_effect_corrected":
+      return "Corrected a Faustian persistent Machination consequence";
     case "sorcerer_initialized":
       return "Initialized Sorcerer";
     case "sorcerer_personnel_recruited":
@@ -642,6 +658,14 @@ export function mapEventToActivityEntry(
     case "faustian_machination_outcome_recorded":
     case "faustian_machination_response_completed":
     case "faustian_machination_challenge_finalized":
+    case "faustian_card_corrected":
+    case "faustian_antagonist_corrected":
+    case "faustian_demon_corrected":
+    case "faustian_domain_seizure_corrected":
+    case "faustian_devil_profile_corrected":
+    case "faustian_due_month_obligation_recorded":
+    case "faustian_due_month_obligation_fulfilled":
+    case "faustian_persistent_effect_corrected":
     case "sorcerer_initialized":
     case "sorcerer_personnel_recruited":
     case "sorcerer_researcher_refocused":

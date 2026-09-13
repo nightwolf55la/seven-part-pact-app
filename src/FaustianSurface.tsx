@@ -8,6 +8,7 @@ import LoreContextPanel from "./LoreContextPanel";
 import type { LoreCompendiumUiState } from "./lore-view-model";
 import type { WorldReference } from "./WorldSurface";
 import FaustianActions from "./FaustianActions";
+import FaustianAdvancedActions from "./FaustianAdvancedActions";
 import FaustianLifecycleActions from "./FaustianLifecycleActions";
 import {
   FAUSTIAN_TABLE_MIN_WIDTH_PX,
@@ -242,6 +243,14 @@ export default function FaustianSurface({
         wizards={wizards}
         selectedCommunityId={selection?.kind === "community" ? selection.communityId : null}
         presentation={presentation}
+      />
+
+      <FaustianAdvancedActions
+        faustian={faustian}
+        campaignId={campaignId}
+        wizards={wizards}
+        denizens={world?.denizens ?? []}
+        monthOrdinal={monthOrdinal}
       />
 
       <div className="overflow-x-auto">
