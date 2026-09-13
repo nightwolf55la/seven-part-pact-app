@@ -341,6 +341,7 @@ function renderFaustian(
       layout={layout}
       lifecycleKind="play"
       ageId={faustianRef.ageId ?? null}
+      monthOrdinal={playRef.monthOrdinal}
     />
   );
 }

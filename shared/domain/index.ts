@@ -501,6 +501,12 @@ export {
   placeFaustianSchemesFingerprint,
   changeFaustianPawnCountFingerprint,
   establishFaustianConspiracyFingerprint,
+  recordFaustianSchemeOccurredFingerprint,
+  discloseFaustianTwistFingerprint,
+  recordFaustianTwistOccurredFingerprint,
+  recordFaustianMachinationOutcomeFingerprint,
+  completeFaustianMachinationResponseFingerprint,
+  finalizeFaustianMachinationChallengeFingerprint,
   initializeSorcererFingerprint,
   recruitSorcererPersonnelFingerprint,
   refocusSorcererResearcherFingerprint,
@@ -1773,6 +1779,35 @@ export {
   applyChangeFaustianPawnCount,
   applyEstablishFaustianConspiracy,
 } from "./faustian-operability-transitions";
+
+export type {
+  FaustianSchemeOccurrenceDestination,
+  RecordFaustianSchemeOccurredInput,
+  FaustianSchemeOccurrencePreview,
+  DiscloseFaustianTwistInput,
+  RecordFaustianTwistOccurredInput,
+  FaustianTwistDisposition,
+  FaustianTwistDispositionDestination,
+  FaustianPendingHoldingDisposition,
+  FaustianMachinationOutcomeResult,
+  RecordFaustianMachinationOutcomeInput,
+  CompleteFaustianMachinationResponseInput,
+  FinalizeFaustianMachinationChallengeInput,
+} from "./faustian-lifecycle-transitions";
+export {
+  reservedFaustianActiveTwistCardIds,
+  isFaustianTwistReserved,
+  eligibleFaustianMachinationCleanupCardIds,
+  faustianChallengeScheduleLabel,
+  isFaustianSchemeOccurrenceTargetValid,
+  previewFaustianSchemeOccurrence,
+  applyRecordFaustianSchemeOccurred,
+  applyDiscloseFaustianTwist,
+  applyRecordFaustianTwistOccurred,
+  applyRecordFaustianMachinationOutcome,
+  applyCompleteFaustianMachinationResponse,
+  applyFinalizeFaustianMachinationChallenge,
+} from "./faustian-lifecycle-transitions";
 
 export type {
   NecromancerTransitionResult,

@@ -3163,6 +3163,110 @@ const faustianAntagonistEstablishedEventV1Validator = v.object({
   }),
 });
 
+const faustianOccurrenceDestinationValidator = v.union(
+  v.object({ kind: v.literal("ordinary_machinations") }),
+  v.object({
+    kind: v.literal("possession"),
+    wizardId: v.string(),
+    represented: faustianPossessionRepresentationValidator,
+  }),
+  v.object({
+    kind: v.literal("domain_placement"),
+    seatId: v.string(),
+    represented: faustianPossessionRepresentationValidator,
+  }),
+);
+
+const faustianSchemeOccurredEventV1Validator = v.object({
+  type: v.literal("faustian_scheme_occurred"),
+  version: v.literal(1),
+  data: v.object({
+    communityId: v.string(),
+    schemeCardId: v.string(),
+    destination: faustianOccurrenceDestinationValidator,
+    directAccompliceCardIds: v.array(v.string()),
+    cascadedAccompliceCardIds: v.array(v.string()),
+    fallenAccompliceCardIds: v.array(v.string()),
+    pawnCommunityIds: v.array(v.string()),
+  }),
+});
+
+const faustianTwistDisclosedEventV1Validator = v.object({
+  type: v.literal("faustian_twist_disclosed"),
+  version: v.literal(1),
+  data: v.object({
+    disclosedTwistCardId: v.string(),
+    replacementTwistCardId: v.string(),
+  }),
+});
+
+const faustianTwistOccurredEventV1Validator = v.object({
+  type: v.literal("faustian_twist_occurred"),
+  version: v.literal(1),
+  data: v.object({
+    twistCardId: v.string(),
+    movedDevilDeckCardIds: v.array(v.string()),
+  }),
+});
+
+const faustianMachinationOutcomeRecordedEventV1Validator = v.object({
+  type: v.literal("faustian_machination_outcome_recorded"),
+  version: v.literal(1),
+  data: v.object({
+    resultKind: v.union(
+      v.literal("one_pair"),
+      v.literal("two_pair"),
+      v.literal("three_of_a_kind"),
+      v.literal("flush"),
+      v.literal("full_house"),
+      v.literal("table_resolved"),
+    ),
+    scoringHandCardIds: v.array(v.string()),
+    challengeId: v.union(v.string(), v.null()),
+    recycledCardIds: v.array(v.string()),
+    outcomeDependentTwistCardIds: v.array(v.string()),
+    persistentEffect: v.union(
+      v.null(),
+      v.object({ kind: v.literal("flush"), suit: v.string() }),
+      v.object({ kind: v.literal("full_house"), rank: v.string() }),
+    ),
+  }),
+});
+
+const faustianMachinationResponseCompletedEventV1Validator = v.object({
+  type: v.literal("faustian_machination_response_completed"),
+  version: v.literal(1),
+  data: v.object({
+    challengeId: v.string(),
+    groupId: v.string(),
+    completedByWizardId: v.string(),
+    completedMonthOrdinal: v.number(),
+    recycledCardIds: v.array(v.string()),
+  }),
+});
+
+const faustianMachinationChallengeFinalizedEventV1Validator = v.object({
+  type: v.literal("faustian_machination_challenge_finalized"),
+  version: v.literal(1),
+  data: v.object({
+    challengeId: v.string(),
+    pendingHoldingDisposition: v.union(
+      v.literal("shuffle_into_faustian_deck"),
+      v.literal("shuffle_into_devil_deck"),
+      v.literal("move_to_defeated_schemes"),
+    ),
+    routedCardIds: v.array(v.string()),
+    twistDispositions: v.array(v.object({
+      cardId: v.string(),
+      destination: v.union(
+        v.literal("remain_face_up_in_machinations"),
+        v.literal("recycle_into_faustian_deck"),
+        v.literal("move_to_defeated_schemes"),
+      ),
+    })),
+  }),
+});
+
 export const campaignEventValidator = v.union(
   historicalMonthChangedEventV1Validator,
   undoAppliedEventV1Validator,
@@ -3313,6 +3417,12 @@ export const campaignEventValidator = v.union(
   faustianPawnCountChangedEventV1Validator,
   faustianConspiracyEstablishedEventV1Validator,
   faustianAntagonistEstablishedEventV1Validator,
+  faustianSchemeOccurredEventV1Validator,
+  faustianTwistDisclosedEventV1Validator,
+  faustianTwistOccurredEventV1Validator,
+  faustianMachinationOutcomeRecordedEventV1Validator,
+  faustianMachinationResponseCompletedEventV1Validator,
+  faustianMachinationChallengeFinalizedEventV1Validator,
   sorcererInitializedEventV1Validator,
   sorcererPersonnelRecruitedEventV1Validator,
   sorcererResearcherRefocusedEventV1Validator,

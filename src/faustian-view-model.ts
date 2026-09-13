@@ -27,6 +27,8 @@ import {
   pactSeatDisplayName,
   isExactUnarrangedFaustianBaseline,
   isExactStructuralHelperFaustian,
+  faustianChallengeScheduleLabel,
+  reservedFaustianActiveTwistCardIds,
 } from "../shared/domain";
 import type { LoreCompendiumUiState } from "./lore-view-model";
 import { findPresentationSubjectByRef } from "./lore-view-model";
@@ -42,6 +44,7 @@ export const FACEDOWN_TWIST_LABEL = "Unrevealed Twist";
 export const FACEDOWN_MACHINATION_LABEL = "Unrevealed Machination";
 export const FACEDOWN_CARD_LABEL = "Unrevealed card";
 export const ACTIVE_TWIST_TREATMENT_LABEL = "Active Twist";
+export const RESERVED_TWIST_TREATMENT_LABEL = "Reserved Twist";
 export const ACTIVE_TWIST_SPOTLIGHT_LABEL =
   "Same physical card as the highlighted Machinations card. This panel is a reference, not a second copy.";
 export const PRIVATE_TWIST_INSPECT_LABEL = "Inspect Twist privately";
@@ -136,7 +139,25 @@ export interface FaustianLocatedCardPresentation extends FaustianRevealedCardPre
 export interface FaustianMachinationPresentation {
   readonly card: FaustianPublicCardPresentation;
   readonly isActiveTwist: boolean;
+  readonly isReservedTwist: boolean;
   readonly treatmentLabel: string | null;
+}
+
+export interface FaustianPendingChallengeGroupPresentation {
+  readonly groupId: string;
+  readonly status: "pending" | "completed";
+  readonly responsibleWizardName: string | null;
+  readonly completedByWizardName: string | null;
+}
+
+export interface FaustianPendingChallengePresentation {
+  readonly challengeId: string;
+  readonly kindLabel: string;
+  readonly sourceMonthOrdinal: number;
+  readonly dueMonthOrdinal: number;
+  readonly scheduleLabel: "upcoming" | "due_this_month" | "overdue";
+  readonly groups: readonly FaustianPendingChallengeGroupPresentation[];
+  readonly reservedTwistCount: number;
 }
 
 export interface FaustianTwistSpotlightPresentation {
@@ -161,6 +182,7 @@ export interface FaustianTablePresentation {
   readonly entrustedCards: readonly FaustianLocatedCardPresentation[];
   readonly possessionCards: readonly FaustianLocatedCardPresentation[];
   readonly domainPlacements: readonly FaustianLocatedCardPresentation[];
+  readonly pendingChallenges: readonly FaustianPendingChallengePresentation[];
   readonly devilSchemeResearchers: readonly {
     readonly denizenId: string;
     readonly name: string;
@@ -274,16 +296,25 @@ function schoolLabel(school: Extract<SorcererExternalPresence, { kind: "disrupti
   return school.kind === "source" ? school.schoolId : school.schoolId;
 }
 
+function challengeKindLabel(kind: FaustianState["pendingMachinationChallenges"][number]["kind"]): string {
+  if (kind === "one_pair") return "One Pair";
+  if (kind === "two_pair") return "Two Pair";
+  return "Three of a Kind";
+}
+
 export function buildFaustianTablePresentation(args: {
   readonly faustian: FaustianState;
   readonly sorcererPresence?: readonly SorcererExternalPresence[];
   readonly denizens?: readonly DenizenRef[];
   readonly wizards?: readonly NamedWizardRef[];
+  readonly currentMonthOrdinal?: number;
 }): FaustianTablePresentation {
   const faustian = args.faustian;
   const denizens = args.denizens ?? [];
   const wizards = args.wizards ?? [];
   const presence = args.sorcererPresence ?? [];
+  const reservedTwists = new Set(reservedFaustianActiveTwistCardIds(faustian));
+  const currentMonthOrdinal = args.currentMonthOrdinal ?? 0;
 
   const communities = FAUSTIAN_COMMUNITY_IDS.map((communityId, index) => {
     const state = faustian.communities.find((community) => community.communityId === communityId)
@@ -326,14 +357,20 @@ export function buildFaustianTablePresentation(args: {
   const machinations = faustian.machinations.map((card, index) => {
     const instanceKey = `machination:${index}`;
     const isActiveTwist = faustian.activeTwistCardIds.includes(card.cardId);
-    const treatmentLabel = isActiveTwist ? ACTIVE_TWIST_TREATMENT_LABEL : null;
+    const isReservedTwist = reservedTwists.has(card.cardId);
+    const treatmentLabel = isReservedTwist
+      ? RESERVED_TWIST_TREATMENT_LABEL
+      : isActiveTwist ? ACTIVE_TWIST_TREATMENT_LABEL : null;
     if (card.facing === "face_down") {
-      const publicLabel = isActiveTwist
+      const publicLabel = isReservedTwist
+        ? `${FACEDOWN_MACHINATION_LABEL} · ${RESERVED_TWIST_TREATMENT_LABEL}`
+        : isActiveTwist
         ? `${FACEDOWN_MACHINATION_LABEL} · ${ACTIVE_TWIST_TREATMENT_LABEL}`
         : FACEDOWN_MACHINATION_LABEL;
       return {
         card: concealed("machination", publicLabel, instanceKey),
         isActiveTwist,
+        isReservedTwist,
         treatmentLabel,
       };
     }
@@ -342,9 +379,12 @@ export function buildFaustianTablePresentation(args: {
         "machination",
         card.cardId,
         instanceKey,
-        isActiveTwist ? `Machination · ${ACTIVE_TWIST_TREATMENT_LABEL}` : "Machination",
+        isReservedTwist
+          ? `Machination · ${RESERVED_TWIST_TREATMENT_LABEL}`
+          : isActiveTwist ? `Machination · ${ACTIVE_TWIST_TREATMENT_LABEL}` : "Machination",
       ),
       isActiveTwist,
+      isReservedTwist,
       treatmentLabel,
     };
   });
@@ -389,6 +429,20 @@ export function buildFaustianTablePresentation(args: {
     domainPlacements: faustian.domainPlacements.map((card, index) => ({
       ...revealed("domain", card.cardId, `domain:${index}`, "Domain-placed card"),
       locationLabel: `${pactSeatDisplayName(card.seatId as PactSeatId)} Domain`,
+    })),
+    pendingChallenges: faustian.pendingMachinationChallenges.map((challenge) => ({
+      challengeId: challenge.challengeId,
+      kindLabel: challengeKindLabel(challenge.kind),
+      sourceMonthOrdinal: challenge.sourceMonthOrdinal,
+      dueMonthOrdinal: challenge.dueMonthOrdinal,
+      scheduleLabel: faustianChallengeScheduleLabel(challenge.dueMonthOrdinal, currentMonthOrdinal as never),
+      groups: challenge.groups.map((group) => ({
+        groupId: group.groupId,
+        status: group.status,
+        responsibleWizardName: group.responsibleWizardId === null ? null : wizardName(wizards, group.responsibleWizardId),
+        completedByWizardName: group.completedByWizardId === null ? null : wizardName(wizards, group.completedByWizardId),
+      })),
+      reservedTwistCount: challenge.outcomeDependentTwistCardIds.length,
     })),
     devilSchemeResearchers: faustianDevilSchemeResearchers(presence).map((researcher) => ({
       denizenId: researcher.denizenId,

@@ -307,6 +307,42 @@ describe("crowded Community overflow", () => {
   });
 });
 
+describe("pending challenge presentation", () => {
+  it("shows reserved Twist treatment on the Machinations card without a second copy", () => {
+    const faustian: FaustianState = {
+      ...populatedFaustian(),
+      pendingMachinationChallenges: [{
+        challengeId: "fpmc_00000000-0000-0000-0000-000000000001" as never,
+        kind: "one_pair",
+        sourceMonthOrdinal: 2 as never,
+        dueMonthOrdinal: 3 as never,
+        scoringHandCardIds: [HELD],
+        groups: [{
+          groupId: "fpmg_00000000-0000-0000-0000-000000000001" as never,
+          responsibleWizardId: null,
+          originalCardIds: [HELD],
+          status: "pending",
+          completedByWizardId: null,
+          completedMonthOrdinal: null,
+        }],
+        outcomeDependentTwistCardIds: [TWIST],
+      }],
+    };
+    const presentation = buildFaustianTablePresentation({
+      faustian,
+      wizards: [{ wizardId: WIZ_A, name: "Mara" }],
+      currentMonthOrdinal: 3,
+    });
+    expect(presentation.machinations[0]?.isReservedTwist).toBe(true);
+    expect(presentation.machinations[0]?.treatmentLabel).toBe("Reserved Twist");
+    expect(presentation.twists).toHaveLength(1);
+    expect(presentation.pendingChallenges).toHaveLength(1);
+    expect(presentation.pendingChallenges[0]?.kindLabel).toBe("One Pair");
+    expect(presentation.pendingChallenges[0]?.scheduleLabel).toBe("due_this_month");
+    expect(presentation.pendingChallenges[0]?.reservedTwistCount).toBe(1);
+  });
+});
+
 describe("denizen fallback", () => {
   const unused: DenizenRef[] = [];
   it("does not require World denizens to render the tableau", () => {

@@ -1156,6 +1156,48 @@ export function establishFaustianConspiracyFingerprint(
   return `establish_faustian_conspiracy:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
 }
 
+export function recordFaustianSchemeOccurredFingerprint(
+  expectedCampaignId: string,
+  input: unknown,
+): string {
+  return `record_faustian_scheme_occurred:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function discloseFaustianTwistFingerprint(
+  expectedCampaignId: string,
+  input: unknown,
+): string {
+  return `disclose_faustian_twist:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function recordFaustianTwistOccurredFingerprint(
+  expectedCampaignId: string,
+  input: unknown,
+): string {
+  return `record_faustian_twist_occurred:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function recordFaustianMachinationOutcomeFingerprint(
+  expectedCampaignId: string,
+  input: unknown,
+): string {
+  return `record_faustian_machination_outcome:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function completeFaustianMachinationResponseFingerprint(
+  expectedCampaignId: string,
+  input: unknown,
+): string {
+  return `complete_faustian_machination_response:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function finalizeFaustianMachinationChallengeFingerprint(
+  expectedCampaignId: string,
+  input: unknown,
+): string {
+  return `finalize_faustian_machination_challenge:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
 export function directFaustianAccompliceFingerprint(
   expectedCampaignId: string,
   accompliceCardId: string,

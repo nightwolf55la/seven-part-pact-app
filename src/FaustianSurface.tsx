@@ -8,6 +8,7 @@ import LoreContextPanel from "./LoreContextPanel";
 import type { LoreCompendiumUiState } from "./lore-view-model";
 import type { WorldReference } from "./WorldSurface";
 import FaustianActions from "./FaustianActions";
+import FaustianLifecycleActions from "./FaustianLifecycleActions";
 import {
   FAUSTIAN_TABLE_MIN_WIDTH_PX,
   FACEDOWN_TWIST_LABEL,
@@ -163,6 +164,7 @@ export default function FaustianSurface({
   layout = "full",
   lifecycleKind = "play",
   ageId = null,
+  monthOrdinal = 0,
 }: {
   readonly faustian: FaustianState;
   readonly campaignId: string;
@@ -174,6 +176,7 @@ export default function FaustianSurface({
   readonly layout?: "full" | "narrow";
   readonly lifecycleKind?: "setup" | "play";
   readonly ageId?: string | null;
+  readonly monthOrdinal?: number;
 }) {
   const presentation = useMemo(
     () => buildFaustianTablePresentation({
@@ -181,8 +184,9 @@ export default function FaustianSurface({
       sorcererPresence,
       denizens: world?.denizens ?? [],
       wizards,
+      currentMonthOrdinal: monthOrdinal,
     }),
-    [faustian, sorcererPresence, world, wizards],
+    [faustian, sorcererPresence, world, wizards, monthOrdinal],
   );
   const loreSubjects = useMemo(
     () => faustianLoreSubjects(loreCompendium, faustianWizard),
@@ -227,6 +231,15 @@ export default function FaustianSurface({
         ageId={ageId}
         faustianWizard={faustianWizard}
         denizens={world?.denizens ?? []}
+        selectedCommunityId={selection?.kind === "community" ? selection.communityId : null}
+        presentation={presentation}
+      />
+
+      <FaustianLifecycleActions
+        faustian={faustian}
+        campaignId={campaignId}
+        lifecycleKind={lifecycleKind}
+        wizards={wizards}
         selectedCommunityId={selection?.kind === "community" ? selection.communityId : null}
         presentation={presentation}
       />

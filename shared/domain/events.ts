@@ -1930,6 +1930,105 @@ export interface FaustianAntagonistEstablishedEventV1 {
   readonly data: FaustianAntagonistEstablishedDataV1;
 }
 
+export type FaustianSchemeOccurrenceDestinationAuditV1 =
+  | { readonly kind: "ordinary_machinations" }
+  | {
+      readonly kind: "possession";
+      readonly wizardId: string;
+      readonly represented:
+        | { readonly kind: "none" }
+        | { readonly kind: "denizen"; readonly denizenId: string }
+        | { readonly kind: "treasure"; readonly treasureId: string };
+    }
+  | {
+      readonly kind: "domain_placement";
+      readonly seatId: string;
+      readonly represented:
+        | { readonly kind: "none" }
+        | { readonly kind: "denizen"; readonly denizenId: string }
+        | { readonly kind: "treasure"; readonly treasureId: string };
+    };
+
+export interface FaustianSchemeOccurredDataV1 {
+  readonly communityId: FaustianCommunityId;
+  readonly schemeCardId: FaustianCardId;
+  readonly destination: FaustianSchemeOccurrenceDestinationAuditV1;
+  readonly directAccompliceCardIds: readonly FaustianCardId[];
+  readonly cascadedAccompliceCardIds: readonly FaustianCardId[];
+  readonly fallenAccompliceCardIds: readonly FaustianCardId[];
+  readonly pawnCommunityIds: readonly FaustianCommunityId[];
+}
+export interface FaustianSchemeOccurredEventV1 {
+  readonly type: "faustian_scheme_occurred";
+  readonly version: 1;
+  readonly data: FaustianSchemeOccurredDataV1;
+}
+
+export interface FaustianTwistDisclosedDataV1 {
+  readonly disclosedTwistCardId: FaustianCardId;
+  readonly replacementTwistCardId: FaustianCardId;
+}
+export interface FaustianTwistDisclosedEventV1 {
+  readonly type: "faustian_twist_disclosed";
+  readonly version: 1;
+  readonly data: FaustianTwistDisclosedDataV1;
+}
+
+export interface FaustianTwistOccurredDataV1 {
+  readonly twistCardId: FaustianCardId;
+  readonly movedDevilDeckCardIds: readonly FaustianCardId[];
+}
+export interface FaustianTwistOccurredEventV1 {
+  readonly type: "faustian_twist_occurred";
+  readonly version: 1;
+  readonly data: FaustianTwistOccurredDataV1;
+}
+
+export interface FaustianMachinationOutcomeRecordedDataV1 {
+  readonly resultKind: "one_pair" | "two_pair" | "three_of_a_kind" | "flush" | "full_house" | "table_resolved";
+  readonly scoringHandCardIds: readonly FaustianCardId[];
+  readonly challengeId: string | null;
+  readonly recycledCardIds: readonly FaustianCardId[];
+  readonly outcomeDependentTwistCardIds: readonly FaustianCardId[];
+  readonly persistentEffect:
+    | { readonly kind: "flush"; readonly suit: string }
+    | { readonly kind: "full_house"; readonly rank: string }
+    | null;
+}
+export interface FaustianMachinationOutcomeRecordedEventV1 {
+  readonly type: "faustian_machination_outcome_recorded";
+  readonly version: 1;
+  readonly data: FaustianMachinationOutcomeRecordedDataV1;
+}
+
+export interface FaustianMachinationResponseCompletedDataV1 {
+  readonly challengeId: string;
+  readonly groupId: string;
+  readonly completedByWizardId: string;
+  readonly completedMonthOrdinal: MonthOrdinal;
+  readonly recycledCardIds: readonly FaustianCardId[];
+}
+export interface FaustianMachinationResponseCompletedEventV1 {
+  readonly type: "faustian_machination_response_completed";
+  readonly version: 1;
+  readonly data: FaustianMachinationResponseCompletedDataV1;
+}
+
+export interface FaustianMachinationChallengeFinalizedDataV1 {
+  readonly challengeId: string;
+  readonly pendingHoldingDisposition: "shuffle_into_faustian_deck" | "shuffle_into_devil_deck" | "move_to_defeated_schemes";
+  readonly routedCardIds: readonly FaustianCardId[];
+  readonly twistDispositions: readonly {
+    readonly cardId: FaustianCardId;
+    readonly destination: "remain_face_up_in_machinations" | "recycle_into_faustian_deck" | "move_to_defeated_schemes";
+  }[];
+}
+export interface FaustianMachinationChallengeFinalizedEventV1 {
+  readonly type: "faustian_machination_challenge_finalized";
+  readonly version: 1;
+  readonly data: FaustianMachinationChallengeFinalizedDataV1;
+}
+
 export type FaustianEvent =
   | FaustianCommunityInvestigatedEventV1
   | FaustianCommunityBlackmailedEventV1
@@ -1943,7 +2042,13 @@ export type FaustianEvent =
   | FaustianSchemesPlacedEventV1
   | FaustianPawnCountChangedEventV1
   | FaustianConspiracyEstablishedEventV1
-  | FaustianAntagonistEstablishedEventV1;
+  | FaustianAntagonistEstablishedEventV1
+  | FaustianSchemeOccurredEventV1
+  | FaustianTwistDisclosedEventV1
+  | FaustianTwistOccurredEventV1
+  | FaustianMachinationOutcomeRecordedEventV1
+  | FaustianMachinationResponseCompletedEventV1
+  | FaustianMachinationChallengeFinalizedEventV1;
 
 export interface SorcererInitializedDataV1 {
   readonly arrangementId: SorcererArrangementId;

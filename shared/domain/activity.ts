@@ -343,6 +343,18 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Established a Faustian Conspiracy";
     case "faustian_antagonist_established":
       return "Established a Faustian Antagonist";
+    case "faustian_scheme_occurred":
+      return "Recorded a Faustian Scheme occurrence";
+    case "faustian_twist_disclosed":
+      return "Disclosed a Faustian Twist";
+    case "faustian_twist_occurred":
+      return "Recorded a Faustian Twist occurrence";
+    case "faustian_machination_outcome_recorded":
+      return "Recorded a Faustian Machination outcome";
+    case "faustian_machination_response_completed":
+      return "Recorded a Faustian Machination response";
+    case "faustian_machination_challenge_finalized":
+      return "Finalized a Faustian Machination challenge";
     case "sorcerer_initialized":
       return "Initialized Sorcerer";
     case "sorcerer_personnel_recruited":
@@ -624,6 +636,12 @@ export function mapEventToActivityEntry(
     case "faustian_pawn_count_changed":
     case "faustian_conspiracy_established":
     case "faustian_antagonist_established":
+    case "faustian_scheme_occurred":
+    case "faustian_twist_disclosed":
+    case "faustian_twist_occurred":
+    case "faustian_machination_outcome_recorded":
+    case "faustian_machination_response_completed":
+    case "faustian_machination_challenge_finalized":
     case "sorcerer_initialized":
     case "sorcerer_personnel_recruited":
     case "sorcerer_researcher_refocused":
