@@ -318,7 +318,7 @@ See `docs/m5-4a-f-faustian-card-table.md`.
 
 The remaining active-player Domain-operability work is:
 
-- Faustian Workstream actual-diff review, real Convex integration on an isolated disposable Development deployment, and Faustian Workstream closure.
+- Faustian real Convex integration on an isolated disposable Development deployment after human Convex login/project configuration, then Faustian Workstream closure. Do not use `dev:wry-boar-766`.
 
 Warlock and Sage are intentionally deferred while they have no active players. Their existing structural state remains authoritative and may be consumed by active-Domain cross-references.
 
