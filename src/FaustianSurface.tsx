@@ -59,10 +59,12 @@ function PlayingCardToken({
   card,
   selected = false,
   onSelect,
+  treatmentLabel = null,
 }: {
   readonly card: FaustianPublicCardPresentation;
   readonly selected?: boolean;
   readonly onSelect?: () => void;
+  readonly treatmentLabel?: string | null;
 }) {
   const interactive = onSelect !== undefined;
   return (
@@ -74,8 +76,13 @@ function PlayingCardToken({
       title={card.publicLabel}
       className={`relative shrink-0 w-[4.5rem] h-[6.25rem] rounded-md border text-[0.65rem] leading-tight px-1.5 py-1 text-left shadow-sm ${cardFaceClass(card)} ${
         selected ? "ring-2 ring-teal-500" : ""
-      } ${interactive ? "cursor-pointer" : "cursor-default"}`}
+      } ${treatmentLabel !== null ? "ring-2 ring-amber-500" : ""} ${interactive ? "cursor-pointer" : "cursor-default"}`}
     >
+      {treatmentLabel !== null && (
+        <span className="absolute -top-2 left-1 rounded bg-amber-600 px-1 text-[0.55rem] font-semibold text-white">
+          {treatmentLabel}
+        </span>
+      )}
       <span className="font-semibold block">{card.publicLabel}</span>
       {card.facing === "face_up" && card.kind === "accomplice" && (
         <span className="block text-[0.6rem] text-slate-600 dark:text-amber-200/80 mt-1">
@@ -323,24 +330,29 @@ export default function FaustianSurface({
             ))}
           </ul>
         </Area>
-        <Area title="Active Twist(s)" selected={selection?.kind === "supporting" && selection.area === "twists"} onSelect={() => setSelection({ kind: "supporting", area: "twists" })}>
+        <Area title="Active Twist reference" selected={selection?.kind === "supporting" && selection.area === "twists"} onSelect={() => setSelection({ kind: "supporting", area: "twists" })}>
           {presentation.twists.length === 0 ? (
             <p className="text-xs text-slate-400">None</p>
           ) : (
-            <div className="flex flex-wrap gap-2">
-              {presentation.twists.map((card, index) => (
-                <div key={card.instanceKey} className="space-y-1">
-                  <PlayingCardToken
-                    card={card}
-                    selected={selection?.kind === "twist" && selection.index === index}
-                    onSelect={() => setSelection({ kind: "twist", index })}
-                  />
-                  {card.facing === "face_down" && (
+            <div className="space-y-2">
+              <p className="text-xs text-slate-500">
+                Each Active Twist is one physical card in Devil&apos;s Machinations. This panel is a spotlight, not a second copy.
+              </p>
+              {presentation.twists.map((spotlight) => (
+                <div key={spotlight.machinationInstanceKey} className="space-y-1">
+                  <p
+                    className="text-xs"
+                    aria-label={spotlight.ariaLabel}
+                  >
+                    {spotlight.publicLabel}
+                  </p>
+                  <p className="text-[0.65rem] text-slate-500">{spotlight.relationshipLabel}</p>
+                  {spotlight.inspectablePrivately && (
                     <button
                       type="button"
                       className={ghostBtn}
                       aria-label={PRIVATE_TWIST_INSPECT_LABEL}
-                      onClick={() => setPrivateTwistIndex(index)}
+                      onClick={() => setPrivateTwistIndex(spotlight.index)}
                     >
                       {PRIVATE_TWIST_INSPECT_LABEL}
                     </button>
@@ -352,7 +364,20 @@ export default function FaustianSurface({
         </Area>
         <Area title="Devil's Machinations" selected={selection?.kind === "supporting" && selection.area === "machinations"} onSelect={() => setSelection({ kind: "supporting", area: "machinations" })}>
           <div className="flex flex-wrap gap-2">
-            {presentation.machinations.map((card) => <PlayingCardToken key={card.instanceKey} card={card} />)}
+            {presentation.machinations.map((entry) => (
+              <PlayingCardToken
+                key={entry.card.instanceKey}
+                card={entry.card}
+                treatmentLabel={entry.treatmentLabel}
+                selected={selection?.kind === "twist" && presentation.twists.some((spotlight) => spotlight.machinationInstanceKey === entry.card.instanceKey && selection.index === spotlight.index)}
+                onSelect={entry.isActiveTwist
+                  ? () => {
+                    const spotlight = presentation.twists.find((item) => item.machinationInstanceKey === entry.card.instanceKey);
+                    if (spotlight !== undefined) setSelection({ kind: "twist", index: spotlight.index });
+                  }
+                  : undefined}
+              />
+            ))}
             {presentation.machinations.length === 0 && <p className="text-xs text-slate-400">None</p>}
           </div>
         </Area>

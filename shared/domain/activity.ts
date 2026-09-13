@@ -341,6 +341,8 @@ function describeConfigEvent(event: CampaignEvent): string {
         : "Removed a Faustian Pawn";
     case "faustian_conspiracy_established":
       return "Established a Faustian Conspiracy";
+    case "faustian_antagonist_established":
+      return "Established a Faustian Antagonist";
     case "sorcerer_initialized":
       return "Initialized Sorcerer";
     case "sorcerer_personnel_recruited":
@@ -621,6 +623,7 @@ export function mapEventToActivityEntry(
     case "faustian_schemes_placed":
     case "faustian_pawn_count_changed":
     case "faustian_conspiracy_established":
+    case "faustian_antagonist_established":
     case "sorcerer_initialized":
     case "sorcerer_personnel_recruited":
     case "sorcerer_researcher_refocused":

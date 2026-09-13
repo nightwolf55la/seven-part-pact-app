@@ -3132,6 +3132,16 @@ const faustianConspiracyEstablishedEventV1Validator = v.object({
   }),
 });
 
+const faustianAntagonistEstablishedEventV1Validator = v.object({
+  type: v.literal("faustian_antagonist_established"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    seatId: v.string(),
+    chipCount: v.union(v.literal(1), v.literal(2), v.literal(3)),
+  }),
+});
+
 export const campaignEventValidator = v.union(
   historicalMonthChangedEventV1Validator,
   undoAppliedEventV1Validator,
@@ -3281,6 +3291,7 @@ export const campaignEventValidator = v.union(
   faustianSchemesPlacedEventV1Validator,
   faustianPawnCountChangedEventV1Validator,
   faustianConspiracyEstablishedEventV1Validator,
+  faustianAntagonistEstablishedEventV1Validator,
   sorcererInitializedEventV1Validator,
   sorcererPersonnelRecruitedEventV1Validator,
   sorcererResearcherRefocusedEventV1Validator,

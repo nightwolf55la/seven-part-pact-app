@@ -267,12 +267,7 @@ describe("Faustian investigation stages", () => {
       ),
     };
     const afterC = { ...revealed.nextState, faustian: withLaterC };
-    expectCode(
-      () => applyFoilFaustianCommunityScheme(afterC, ARIES, SCHEME_A, revealed.nextState.faustian),
-      "STALE_COMMAND_PRECONDITION",
-    );
-
-    const foil = applyFoilFaustianCommunityScheme(afterC, ARIES, SCHEME_A, withLaterC);
+    const foil = applyFoilFaustianCommunityScheme(afterC, ARIES, SCHEME_A, revealed.nextState.faustian);
     const ariesAfterFoil = foil.nextState.faustian.communities.find((community) => community.communityId === ARIES);
     expect(foil.nextState.faustian.defeatedSchemes).toEqual([SCHEME_A]);
     expect(ariesAfterFoil?.schemes).toEqual([
@@ -281,6 +276,36 @@ describe("Faustian investigation stages", () => {
     ]);
     expect(foil.events[0]?.type).toBe("faustian_community_scheme_foiled");
     expect(() => validateFaustianStructure(foil.nextState.faustian)).not.toThrow();
+  });
+
+  it("Stage 1 with only face-up Schemes is a true no-op and still allows ordinary foil choice", () => {
+    let faustian = take(EMPTY_FAUSTIAN_STATE, [SCHEME_A, SCHEME_B]);
+    faustian = {
+      ...faustian,
+      communities: faustian.communities.map((community) =>
+        community.communityId === ARIES
+          ? {
+            ...community,
+            schemes: [
+              { cardId: SCHEME_A, facing: "face_up" },
+              { cardId: SCHEME_B, facing: "face_up" },
+            ],
+          }
+          : community
+      ),
+    };
+    const start = baseSetup(faustian);
+    const before = structuredClone(start);
+    expectCode(
+      () => applyRevealFaustianCommunitySchemes(start, ARIES, start.faustian),
+      "INVALID_CAMPAIGN_STATE",
+    );
+    expect(start.faustian).toEqual(before.faustian);
+    const foil = applyFoilFaustianCommunityScheme(start, ARIES, SCHEME_A, start.faustian);
+    expect(foil.nextState.faustian.defeatedSchemes).toEqual([SCHEME_A]);
+    expect(foil.nextState.faustian.communities.find((community) => community.communityId === ARIES)?.schemes).toEqual([
+      { cardId: SCHEME_B, facing: "face_up" },
+    ]);
   });
 
   it("rejects Stage 2 when the chosen card moved elsewhere and moves nothing else", () => {
@@ -555,6 +580,129 @@ describe("Faustian Arrange Table", () => {
     expect(replayReceipt).toEqual({ revision: 5 });
     expect(replay.commits).toHaveLength(0);
   });
+
+  it("Calamity attaches an existing Denizen as Antagonist without creating a Conspiracy", () => {
+    const denizen = {
+      denizenId: DEN_1,
+      name: "Lord Ash",
+      representation: "individual" as const,
+      description: null,
+      mortalityState: "not_deceased" as const,
+      powerfulProfile: {
+        taxonomies: [{ kind: "builtin" as const, taxonomyId: "beast" as const }],
+        status: { kind: "standard" as const, value: "malignant" as const },
+        goal: "Subjugation",
+        methods: [],
+        truths: [],
+      },
+    };
+    const start = {
+      ...baseSetup(EMPTY_FAUSTIAN_STATE),
+      configuration: { ageId: "calamity" as const, facilitatorPlayerId: null },
+      world: {
+        ...baseSetup(EMPTY_FAUSTIAN_STATE).world,
+        denizens: [denizen],
+      },
+      wizards: baseSetup(EMPTY_FAUSTIAN_STATE).wizards.map((wizard) => ({
+        ...wizard,
+        character: { ...wizard.character, elements: { air: 1, fire: 0, earth: 0, water: 0 } },
+      })),
+    };
+    const beforeProfile = structuredClone(start.world.denizens[0]!.powerfulProfile);
+    const result = applyArrangeFaustianTable(start, {
+      arrangementId: "explosive",
+      favoriteCommunityId: ARIES,
+      pawnCommunityId: LEO,
+      reservedTwistCardId: null,
+      expectedFaustian: start.faustian,
+      expectedAgeId: "calamity",
+      expectedAgeYears: 40,
+      expectedElements: { air: 1, fire: 0, earth: 0, water: 0 },
+      calamityAntagonist: {
+        denizenId: DEN_1,
+        seatId: "hierophant",
+        chipCount: 2,
+      },
+    });
+    expect(result.nextState.faustian.conspiracies).toEqual([]);
+    expect(result.nextState.world.denizens).toHaveLength(1);
+    expect(result.nextState.world.denizens[0]?.powerfulProfile).toEqual(beforeProfile);
+    expect(result.nextState.faustian.antagonists).toEqual([
+      { denizenId: DEN_1, seatId: "hierophant", chipCount: 2 },
+    ]);
+    expect(result.events.map((event) => event.type)).toEqual([
+      "faustian_table_arranged",
+      "faustian_antagonist_established",
+    ]);
+    expect(() => validateCampaignStateV5Candidate(result.nextState)).not.toThrow();
+  });
+
+  it("Calamity rejects a stale or incompatible Denizen without arranging cards or writing world state", () => {
+    const incompatible = {
+      denizenId: DEN_1,
+      name: "Lord Ash",
+      representation: "individual" as const,
+      description: null,
+      mortalityState: "not_deceased" as const,
+      powerfulProfile: {
+        taxonomies: [{ kind: "builtin" as const, taxonomyId: "beast" as const }],
+        status: { kind: "standard" as const, value: "malignant" as const },
+        goal: "Unrelated Goal",
+        methods: [],
+        truths: [],
+      },
+    };
+    const start = {
+      ...baseSetup(EMPTY_FAUSTIAN_STATE),
+      configuration: { ageId: "calamity" as const, facilitatorPlayerId: null },
+      world: {
+        ...baseSetup(EMPTY_FAUSTIAN_STATE).world,
+        denizens: [incompatible],
+      },
+      wizards: baseSetup(EMPTY_FAUSTIAN_STATE).wizards.map((wizard) => ({
+        ...wizard,
+        character: { ...wizard.character, elements: { air: 1, fire: 0, earth: 0, water: 0 } },
+      })),
+    };
+    const before = structuredClone(start);
+    expectCode(() => applyArrangeFaustianTable(start, {
+      arrangementId: "explosive",
+      favoriteCommunityId: ARIES,
+      pawnCommunityId: LEO,
+      reservedTwistCardId: null,
+      expectedFaustian: start.faustian,
+      expectedAgeId: "calamity",
+      expectedAgeYears: 40,
+      expectedElements: { air: 1, fire: 0, earth: 0, water: 0 },
+      calamityAntagonist: {
+        denizenId: DEN_1,
+        seatId: "hierophant",
+        chipCount: 2,
+      },
+    }), "INVALID_CAMPAIGN_STATE");
+    expect(start.faustian).toEqual(before.faustian);
+    expect(start.world).toEqual(before.world);
+
+    const missing = { ...start, world: { ...start.world, denizens: [] } };
+    const beforeMissing = structuredClone(missing);
+    expectCode(() => applyArrangeFaustianTable(missing, {
+      arrangementId: "explosive",
+      favoriteCommunityId: ARIES,
+      pawnCommunityId: LEO,
+      reservedTwistCardId: null,
+      expectedFaustian: missing.faustian,
+      expectedAgeId: "calamity",
+      expectedAgeYears: 40,
+      expectedElements: { air: 1, fire: 0, earth: 0, water: 0 },
+      calamityAntagonist: {
+        denizenId: DEN_1,
+        seatId: "hierophant",
+        chipCount: 2,
+      },
+    }), "INVALID_CAMPAIGN_STATE");
+    expect(missing.faustian).toEqual(beforeMissing.faustian);
+    expect(missing.world).toEqual(beforeMissing.world);
+  });
 });
 
 describe("Place Faustian Schemes", () => {
@@ -653,6 +801,7 @@ describe("Body B concealment and event registration", () => {
       { type: "faustian_schemes_placed", version: 1, data: { communityId: ARIES, requestedQuantity: 1, placedCardIds: [SCHEME_B], revealedSchemeCardIds: [SCHEME_B], preventedSchemeCardIds: [SCHEME_B], insufficient: false } },
       { type: "faustian_pawn_count_changed", version: 1, data: { communityId: ARIES, previousCount: 0, nextCount: 1 } },
       { type: "faustian_conspiracy_established", version: 1, data: { communityId: ARIES, denizenId: DEN_1, createdDenizen: true, seatId: "faustian", chipCount: 1 } },
+      { type: "faustian_antagonist_established", version: 1, data: { denizenId: DEN_1, seatId: "hierophant", chipCount: 2 } },
     ];
     for (const event of events) {
       const text = activityText(event);
@@ -684,6 +833,7 @@ describe("Body B concealment and event registration", () => {
     expect(findValidatorMembers(campaignEventValidator as never, "faustian_schemes_placed", 1).length).toBe(1);
     expect(findValidatorMembers(campaignEventValidator as never, "faustian_pawn_count_changed", 1).length).toBe(1);
     expect(findValidatorMembers(campaignEventValidator as never, "faustian_conspiracy_established", 1).length).toBe(1);
+    expect(findValidatorMembers(campaignEventValidator as never, "faustian_antagonist_established", 1).length).toBe(1);
 
     const v1Blackmail: CampaignEvent = {
       type: "faustian_community_blackmailed",

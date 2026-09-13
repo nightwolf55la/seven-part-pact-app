@@ -184,15 +184,84 @@ export interface ArrangeFaustianTableInput {
   readonly calamityAntagonist: ArrangeFaustianCalamityAntagonistInput | null;
 }
 
+/**
+ * Age of Calamity Arrange Table selects an existing world Denizen and
+ * attaches the generic Faustian Antagonist role.
+ *
+ * APPLICATION DESIGN / representational limit: CampaignState Denizen records
+ * no creating-Wizard identity. Eligibility therefore uses the strongest
+ * existing authoritative provenance: the Denizen already exists, is not
+ * already a Faustian Conspiracy / Antagonist / Demon, and already has a
+ * Powerful Goal compatible with Antagonist representation. This is not
+ * manufactured "created by another Wizard" proof.
+ */
 export interface ArrangeFaustianCalamityAntagonistInput {
   readonly denizenId: DenizenId;
-  readonly create: {
-    readonly name: string;
-  } | null;
-  readonly communityId: FaustianCommunityId;
   readonly seatId: PactSeatId;
   readonly chipCount: FaustianAntagonistChipCount;
-  readonly goal: FaustianAntagonistGoal;
+}
+
+export function isFaustianFoilTargetStillValid(
+  faustian: FaustianState,
+  communityId: FaustianCommunityId,
+  schemeCardId: FaustianCardId,
+): boolean {
+  if (!isValidFaustianCommunityId(communityId) || !isValidFaustianCardId(schemeCardId)) {
+    return false;
+  }
+  const community = faustian.communities.find((entry) => entry.communityId === communityId);
+  if (community === undefined) return false;
+  const selected = community.schemes.find((scheme) => scheme.cardId === schemeCardId);
+  return selected !== undefined && selected.facing === "face_up";
+}
+
+export function faustianCalamityAntagonistSnapshotIneligibility(
+  faustian: FaustianState,
+  denizen: {
+    readonly denizenId: string;
+    readonly mortalityState?: "not_deceased" | "deceased" | null;
+    readonly powerfulProfile?: { readonly goal: string | null } | null;
+  } | undefined,
+): string | null {
+  if (denizen === undefined || !isValidDenizenId(denizen.denizenId)) {
+    return denizen === undefined ? "Selected Denizen does not exist" : "Invalid Denizen";
+  }
+  const denizenId = denizen.denizenId as DenizenId;
+  if (denizen.mortalityState === "deceased") {
+    return "Selected Denizen is deceased";
+  }
+  if (faustian.antagonists.some((entry) => entry.denizenId === denizenId)) {
+    return "Selected Denizen is already a Faustian Antagonist";
+  }
+  if (faustian.conspiracies.some((entry) => entry.denizenId === denizenId)) {
+    return "Selected Denizen is already a Faustian Conspiracy";
+  }
+  if (faustian.demons.some((entry) => entry.denizenId === denizenId)) {
+    return "Selected Denizen is already a Faustian Demon";
+  }
+  const profile = denizen.powerfulProfile ?? null;
+  if (profile === null) {
+    return "Selected Denizen has no Powerful profile; Calamity Antagonist setup does not create one";
+  }
+  if (!isValidFaustianAntagonistGoal(profile.goal ?? "")) {
+    return "Existing Powerful profile Goal is not compatible with Faustian Antagonist representation";
+  }
+  return null;
+}
+
+export function faustianCalamityAntagonistIneligibility(
+  state: CampaignStateV5,
+  denizenId: DenizenId,
+): string | null {
+  const denizen = state.world.denizens.find((entry) => entry.denizenId === denizenId);
+  return faustianCalamityAntagonistSnapshotIneligibility(state.faustian, denizen);
+}
+
+export function isEligibleFaustianCalamityAntagonistDenizen(
+  state: CampaignStateV5,
+  denizenId: DenizenId,
+): boolean {
+  return faustianCalamityAntagonistIneligibility(state, denizenId) === null;
 }
 
 function faustianWizard(state: CampaignStateV5) {
@@ -266,7 +335,17 @@ export function applyArrangeFaustianTable(
   }
   if (ageId === "calamity") {
     if (input.calamityAntagonist === null) {
-      throw new DomainError("INVALID_CAMPAIGN_STATE", "Age of Calamity requires explicit Antagonist/Conspiracy choices");
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        "Age of Calamity requires selecting an eligible existing Denizen as Antagonist",
+      );
+    }
+    if (!isValidPactSeatId(input.calamityAntagonist.seatId) || !isValidFaustianAntagonistChipCount(input.calamityAntagonist.chipCount)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", "Calamity Antagonist requires a valid seat and chip count");
+    }
+    const ineligible = faustianCalamityAntagonistIneligibility(state, input.calamityAntagonist.denizenId);
+    if (ineligible !== null) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", ineligible);
     }
   } else if (input.calamityAntagonist !== null) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Antagonist setup is only required for the Age of Calamity");
@@ -427,27 +506,46 @@ export function applyArrangeFaustianTable(
     },
   };
   if (input.calamityAntagonist !== null) {
-    const conspiracy = applyEstablishFaustianConspiracy(working, {
-      communityId: input.calamityAntagonist.communityId,
-      expectedFaustian: faustian,
-      subject: input.calamityAntagonist.create === null
-        ? { kind: "existing", denizenId: input.calamityAntagonist.denizenId }
-        : {
-          kind: "create",
-          denizenId: input.calamityAntagonist.denizenId,
-          name: input.calamityAntagonist.create.name,
-        },
-      seatId: input.calamityAntagonist.seatId,
-      chipCount: input.calamityAntagonist.chipCount,
-      goal: input.calamityAntagonist.goal,
-    });
+    const antagonist = attachExistingFaustianAntagonist(working, input.calamityAntagonist);
     return {
-      nextState: conspiracy.nextState,
-      events: [arrangedEvent, ...conspiracy.events],
+      nextState: antagonist.nextState,
+      events: [arrangedEvent, antagonist.event],
     };
   }
 
   return commitFaustian(working, working.faustian, [arrangedEvent], working);
+}
+
+function attachExistingFaustianAntagonist(
+  state: CampaignStateV5,
+  input: ArrangeFaustianCalamityAntagonistInput,
+): { readonly nextState: CampaignStateV5; readonly event: FaustianEvent } {
+  const ineligible = faustianCalamityAntagonistIneligibility(state, input.denizenId);
+  if (ineligible !== null) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", ineligible);
+  }
+  const faustian: FaustianState = {
+    ...state.faustian,
+    antagonists: [...state.faustian.antagonists, {
+      denizenId: input.denizenId,
+      seatId: input.seatId,
+      chipCount: input.chipCount,
+    }],
+  };
+  const nextState = replaceFaustian(state, faustian);
+  validateFaustianReferenceIntegrity(nextState);
+  return {
+    nextState,
+    event: {
+      type: "faustian_antagonist_established",
+      version: 1,
+      data: {
+        denizenId: input.denizenId,
+        seatId: input.seatId,
+        chipCount: input.chipCount,
+      },
+    },
+  };
 }
 
 export function applyCompleteFaustianStructuralPlaceholder(
@@ -487,6 +585,12 @@ export function applyRevealFaustianCommunitySchemes(
   const revealedSchemeCardIds = community.schemes
     .filter((scheme) => scheme.facing === "face_down")
     .map((scheme) => scheme.cardId);
+  if (revealedSchemeCardIds.length === 0) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      "Investigate reveal is unchanged: this Community has no facedown Schemes",
+    );
+  }
   const nextSchemes = community.schemes.map((scheme) => ({ ...scheme, facing: "face_up" as const }));
   const eligibleSchemeCardIds = nextSchemes.map((scheme) => scheme.cardId);
   const faustian: FaustianState = {
@@ -506,9 +610,12 @@ export function applyFoilFaustianCommunityScheme(
   state: CampaignStateV5,
   communityId: FaustianCommunityId,
   schemeCardId: FaustianCardId,
-  expectedFaustian: FaustianState,
+  _expectedFaustian?: FaustianState,
 ): FaustianTransitionResult {
-  requireExpectedFaustian(state, expectedFaustian, "Foil");
+  // Stage 2 stale validation is narrow: the selected card must still exist as
+  // the exact face-up Scheme in the captured Community. Unrelated Faustian
+  // changes, including later Scheme arrivals, must not themselves reject.
+  // expectedFaustian remains accepted for command-identity/fingerprint only.
   const communityIdx = requireCommunity(state, communityId);
   if (!isValidFaustianCardId(schemeCardId)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Selected Scheme is not a canonical Faustian card");

@@ -1919,6 +1919,17 @@ export interface FaustianConspiracyEstablishedEventV1 {
   readonly data: FaustianConspiracyEstablishedDataV1;
 }
 
+export interface FaustianAntagonistEstablishedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly seatId: PactSeatId;
+  readonly chipCount: 1 | 2 | 3;
+}
+export interface FaustianAntagonistEstablishedEventV1 {
+  readonly type: "faustian_antagonist_established";
+  readonly version: 1;
+  readonly data: FaustianAntagonistEstablishedDataV1;
+}
+
 export type FaustianEvent =
   | FaustianCommunityInvestigatedEventV1
   | FaustianCommunityBlackmailedEventV1
@@ -1931,7 +1942,8 @@ export type FaustianEvent =
   | FaustianCommunitySchemeFoiledEventV1
   | FaustianSchemesPlacedEventV1
   | FaustianPawnCountChangedEventV1
-  | FaustianConspiracyEstablishedEventV1;
+  | FaustianConspiracyEstablishedEventV1
+  | FaustianAntagonistEstablishedEventV1;
 
 export interface SorcererInitializedDataV1 {
   readonly arrangementId: SorcererArrangementId;

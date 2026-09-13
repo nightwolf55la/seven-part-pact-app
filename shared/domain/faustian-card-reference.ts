@@ -5,10 +5,15 @@
  * This is display/reference data only. It does not define executable card
  * effects, transitions, or randomization.
  *
- * SOURCE vs APPLICATION: Scheme, Twist, and Accomplice wording lives on the
- * physical Faustian cards. Those texts are not yet transcribed into this
- * repository, so the reference layer records that omission honestly rather
- * than inventing titles, syndicates, or effects.
+ * SOURCE: The Faustian Codex contains Card Meanings, List of Schemes,
+ * Twists & Machinations, and Accomplices & Syndicates, including suit /
+ * Syndicate definitions, rank roles, Twist text, and Ace Companion special
+ * text. The source itself is not missing that material.
+ *
+ * APPLICATION DESIGN: this local environment does not have the Faustian
+ * Codex files available for faithful transcription. Wording is therefore
+ * deferred, not invented. Genuine draft placeholders such as "page XXXX"
+ * or "NEED TO WRITE" must remain visible if later transcribed from source.
  */
 
 import type { FaustianCardId, FaustianRank, FaustianSuit } from "./faustian-catalogs";
@@ -21,12 +26,12 @@ import {
 } from "./faustian-catalogs";
 import { pactSeatDisplayName } from "./pact-seats";
 
-export const FAUSTIAN_SOURCE_WORDING_STATUSES = ["source_not_transcribed"] as const;
+export const FAUSTIAN_SOURCE_WORDING_STATUSES = ["source_transcription_deferred"] as const;
 
 export type FaustianSourceWordingStatus = (typeof FAUSTIAN_SOURCE_WORDING_STATUSES)[number];
 
 export const FAUSTIAN_SOURCE_WORDING_OMISSION =
-  "Source wording is not transcribed in this application; the physical card remains authoritative.";
+  "The Faustian Codex contains Card Meanings, List of Schemes, Twists & Machinations, and Accomplices & Syndicates. Those texts are not available in this local environment and remain untranscribed here. This is not a claim that the source lacks them.";
 
 export interface FaustianSchemeReference {
   readonly wordingStatus: FaustianSourceWordingStatus;
@@ -100,21 +105,21 @@ export const FAUSTIAN_ZODIAC_LABELS: Record<(typeof FAUSTIAN_COMMUNITY_DEFINITIO
 };
 
 const OMITTED_SCHEME: FaustianSchemeReference = {
-  wordingStatus: "source_not_transcribed",
+  wordingStatus: "source_transcription_deferred",
   title: null,
   text: null,
   omission: FAUSTIAN_SOURCE_WORDING_OMISSION,
 };
 
 const OMITTED_TWIST: FaustianTwistReference = {
-  wordingStatus: "source_not_transcribed",
+  wordingStatus: "source_transcription_deferred",
   title: null,
   text: null,
   omission: FAUSTIAN_SOURCE_WORDING_OMISSION,
 };
 
 const OMITTED_ACCOMPLICE: FaustianAccompliceReference = {
-  wordingStatus: "source_not_transcribed",
+  wordingStatus: "source_transcription_deferred",
   syndicate: null,
   role: null,
   omission: FAUSTIAN_SOURCE_WORDING_OMISSION,

@@ -41,6 +41,9 @@ export const FACEDOWN_SCHEME_LABEL = "Unrevealed Scheme";
 export const FACEDOWN_TWIST_LABEL = "Unrevealed Twist";
 export const FACEDOWN_MACHINATION_LABEL = "Unrevealed Machination";
 export const FACEDOWN_CARD_LABEL = "Unrevealed card";
+export const ACTIVE_TWIST_TREATMENT_LABEL = "Active Twist";
+export const ACTIVE_TWIST_SPOTLIGHT_LABEL =
+  "Same physical card as the highlighted Machinations card. This panel is a reference, not a second copy.";
 export const PRIVATE_TWIST_INSPECT_LABEL = "Inspect Twist privately";
 export const PRIVATE_TWIST_INSPECT_HINT =
   "Local-only view. Does not flip the card, send a command, or write an event.";
@@ -130,13 +133,29 @@ export interface FaustianLocatedCardPresentation extends FaustianRevealedCardPre
   readonly locationLabel: string;
 }
 
+export interface FaustianMachinationPresentation {
+  readonly card: FaustianPublicCardPresentation;
+  readonly isActiveTwist: boolean;
+  readonly treatmentLabel: string | null;
+}
+
+export interface FaustianTwistSpotlightPresentation {
+  readonly index: number;
+  readonly machinationInstanceKey: string;
+  readonly facing: FaustianCardFacing;
+  readonly publicLabel: string;
+  readonly ariaLabel: string;
+  readonly inspectablePrivately: boolean;
+  readonly relationshipLabel: string;
+}
+
 export interface FaustianTablePresentation {
   readonly communities: readonly FaustianCommunityPresentation[];
   readonly faustianDeckCount: number;
   readonly devilDeckCount: number;
   readonly suitSummaries: readonly FaustianSuitSummaryPresentation[];
-  readonly twists: readonly FaustianPublicCardPresentation[];
-  readonly machinations: readonly FaustianPublicCardPresentation[];
+  readonly twists: readonly FaustianTwistSpotlightPresentation[];
+  readonly machinations: readonly FaustianMachinationPresentation[];
   readonly defeatedSchemes: readonly FaustianPublicCardPresentation[];
   readonly heldCards: readonly FaustianPublicCardPresentation[];
   readonly entrustedCards: readonly FaustianLocatedCardPresentation[];
@@ -304,22 +323,46 @@ export function buildFaustianTablePresentation(args: {
     faustianDeckCount: faustian.faustianDeck.filter((cardId) => cardId.startsWith(`${suit}_`)).length,
   }));
 
-  const twists = faustian.activeTwistCardIds.map((cardId, index) => {
-    const machination = faustian.machinations.find((entry) => entry.cardId === cardId);
-    const facing = machination?.facing ?? "face_down";
-    const instanceKey = `twist:${index}`;
-    if (facing === "face_down") {
-      return concealed("twist", FACEDOWN_TWIST_LABEL, instanceKey);
-    }
-    return revealed("twist", cardId, instanceKey, "Twist");
-  });
-
   const machinations = faustian.machinations.map((card, index) => {
     const instanceKey = `machination:${index}`;
+    const isActiveTwist = faustian.activeTwistCardIds.includes(card.cardId);
+    const treatmentLabel = isActiveTwist ? ACTIVE_TWIST_TREATMENT_LABEL : null;
     if (card.facing === "face_down") {
-      return concealed("machination", FACEDOWN_MACHINATION_LABEL, instanceKey);
+      const publicLabel = isActiveTwist
+        ? `${FACEDOWN_MACHINATION_LABEL} · ${ACTIVE_TWIST_TREATMENT_LABEL}`
+        : FACEDOWN_MACHINATION_LABEL;
+      return {
+        card: concealed("machination", publicLabel, instanceKey),
+        isActiveTwist,
+        treatmentLabel,
+      };
     }
-    return revealed("machination", card.cardId, instanceKey, "Machination");
+    return {
+      card: revealed(
+        "machination",
+        card.cardId,
+        instanceKey,
+        isActiveTwist ? `Machination · ${ACTIVE_TWIST_TREATMENT_LABEL}` : "Machination",
+      ),
+      isActiveTwist,
+      treatmentLabel,
+    };
+  });
+
+  const twists = faustian.activeTwistCardIds.map((cardId, index) => {
+    const machinationIndex = faustian.machinations.findIndex((entry) => entry.cardId === cardId);
+    const machination = machinationIndex >= 0 ? faustian.machinations[machinationIndex] : undefined;
+    const facing = machination?.facing ?? "face_down";
+    const identity = faustianCardSourceReference(cardId).faceUpIdentityLabel;
+    return {
+      index,
+      machinationInstanceKey: machinationIndex >= 0 ? `machination:${machinationIndex}` : `twist-ref:${index}`,
+      facing,
+      publicLabel: facing === "face_down" ? FACEDOWN_TWIST_LABEL : identity,
+      ariaLabel: facing === "face_down" ? FACEDOWN_TWIST_LABEL : `Active Twist reference: ${identity}`,
+      inspectablePrivately: facing === "face_down",
+      relationshipLabel: ACTIVE_TWIST_SPOTLIGHT_LABEL,
+    };
   });
 
   return {

@@ -257,7 +257,7 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   blackmail_faustian_community: { required: ["faustian_community_blackmailed"] },
   direct_faustian_accomplice: { required: ["faustian_accomplice_directed"] },
   disrupt_faustian_pawn: { required: ["faustian_pawn_disrupted"] },
-  arrange_faustian_table: { required: ["faustian_table_arranged"], optional: ["faustian_conspiracy_established"] },
+  arrange_faustian_table: { required: ["faustian_table_arranged"], optional: ["faustian_antagonist_established"] },
   complete_faustian_structural_placeholder: { required: ["faustian_structural_placeholder_completed"] },
   reveal_faustian_community_schemes: { required: ["faustian_community_schemes_revealed"] },
   foil_faustian_community_scheme: { required: ["faustian_community_scheme_foiled"] },

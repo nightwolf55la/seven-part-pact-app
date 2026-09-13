@@ -16,10 +16,12 @@ import {
   FAUSTIAN_ANTAGONIST_GOALS,
   FAUSTIAN_SUITS,
   allowedFaustianArrangementsForAge,
+  faustianCalamityAntagonistSnapshotIneligibility,
   faustianCardId,
   faustianCommunityHeader,
   faustianFaceUpIdentityLabel,
   faustianStatesEqual,
+  isFaustianFoilTargetStillValid,
   isValidAgeDefinitionId,
   pactSeatDisplayName,
   PACT_SEAT_IDS,
@@ -59,12 +61,9 @@ type Draft =
     favoriteCommunityId: FaustianCommunityId;
     pawnCommunityId: FaustianCommunityId | "";
     reservedTwistCardId: FaustianCardId | "";
-    calamityName: string;
-    calamityCommunityId: FaustianCommunityId;
+    calamityDenizenId: string;
     calamitySeatId: PactSeatId;
     calamityChipCount: FaustianAntagonistChipCount;
-    calamityGoal: FaustianAntagonistGoal;
-    calamityExistingId: string;
   }
   | { readonly kind: "placeholder"; readonly expectedFaustian: FaustianState }
   | {
@@ -166,10 +165,18 @@ export default function FaustianActions({
     ? null
     : faustian.communities.find((community) => community.communityId === selectedCommunityId) ?? null;
   const collectiveDenizens = denizens.filter((denizen) => denizen.representation === "collective");
+  const calamityEligibleDenizens = denizens.filter((denizen) =>
+    faustianCalamityAntagonistSnapshotIneligibility(faustian, denizen) === null
+  );
 
   const staleFaustian = draft !== null
     && "expectedFaustian" in draft
+    && draft.kind !== "investigate"
     && !faustianStatesEqual(draft.expectedFaustian, faustian);
+  const foilTargetStale = draft?.kind === "investigate"
+    && draft.stage === "foil"
+    && draft.selectedSchemeCardId !== ""
+    && !isFaustianFoilTargetStillValid(faustian, draft.communityId, draft.selectedSchemeCardId);
 
   const communityOptions = presentation.communities.map((community) => (
     <option key={community.communityId} value={community.communityId}>{community.headerLabel}</option>
@@ -217,12 +224,9 @@ export default function FaustianActions({
                 favoriteCommunityId: "aries",
                 pawnCommunityId: "leo",
                 reservedTwistCardId: parsedAgeId === "awakening" ? TWOS[0]! : "",
-                calamityName: "",
-                calamityCommunityId: "aries",
+                calamityDenizenId: calamityEligibleDenizens[0]?.denizenId ?? "",
                 calamitySeatId: "faustian",
                 calamityChipCount: 1,
-                calamityGoal: FAUSTIAN_ANTAGONIST_GOALS[0],
-                calamityExistingId: "",
               });
             }}
           >
@@ -250,12 +254,27 @@ export default function FaustianActions({
             disabled={pending || draft !== null}
             onClick={() => {
               setError(null);
+              const facedown = selectedLive.schemes.filter((scheme) => scheme.facing === "face_down");
+              const eligible = selectedLive.schemes
+                .filter((scheme) => facedown.length === 0 || scheme.facing === "face_up" || scheme.facing === "face_down")
+                .map((scheme) => scheme.cardId);
+              if (facedown.length === 0) {
+                setDraft({
+                  kind: "investigate",
+                  stage: "foil",
+                  communityId: startCommunity,
+                  expectedFaustian: cloneFaustianState(faustian),
+                  eligibleSchemeCardIds: eligible,
+                  selectedSchemeCardId: eligible[0] ?? "",
+                });
+                return;
+              }
               setDraft({
                 kind: "investigate",
                 stage: "reveal",
                 communityId: startCommunity,
                 expectedFaustian: cloneFaustianState(faustian),
-                eligibleSchemeCardIds: selectedLive.schemes.map((scheme) => scheme.cardId),
+                eligibleSchemeCardIds: eligible,
                 selectedSchemeCardId: "",
               });
             }}
@@ -393,9 +412,11 @@ export default function FaustianActions({
         <p className="text-xs text-slate-400">Select a Community to see ordinary board actions.</p>
       )}
 
-      {staleFaustian && (
+      {(staleFaustian || foilTargetStale) && (
         <p className="text-xs text-amber-700 dark:text-amber-300">
-          The live table changed after this action started. Confirmation still uses the captured intent and will reject if those preconditions no longer match.
+          {foilTargetStale
+            ? "The selected Scheme is no longer an eligible face-up Scheme in the captured Community. Confirmation will reject without retargeting."
+            : "The live table changed after this action started. Confirmation still uses the captured intent and will reject if those preconditions no longer match."}
         </p>
       )}
       {error !== null && (
@@ -448,15 +469,24 @@ export default function FaustianActions({
           )}
           {draft.expectedAgeId === "calamity" && (
             <div className="space-y-1">
-              <p>Age of Calamity requires explicit Antagonist/Conspiracy choices. This does not invent another Domain&apos;s fiction.</p>
-              <label className="block">New collective name
-                <input className="ml-2 border rounded px-1" value={draft.calamityName} onChange={(event) => setDraft({ ...draft, calamityName: event.target.value })} />
-              </label>
-              <label className="block">Goal
-                <select className="ml-2 border rounded px-1" value={draft.calamityGoal} onChange={(event) => setDraft({ ...draft, calamityGoal: event.target.value as FaustianAntagonistGoal })}>
-                  {FAUSTIAN_ANTAGONIST_GOALS.map((goal) => <option key={goal} value={goal}>{goal}</option>)}
-                </select>
-              </label>
+              <p>Age of Calamity attaches the existing Faustian Antagonist role to an eligible existing Denizen. It does not create a Conspiracy or overwrite an incompatible Powerful profile.</p>
+              <p className="text-slate-500">
+                Campaign Denizens do not record a creating-Wizard identity. Eligible choices are existing world Denizens that already have a compatible Powerful Goal and are not already a Faustian Conspiracy, Antagonist, or Demon.
+              </p>
+              {calamityEligibleDenizens.length === 0 ? (
+                <p>No eligible existing Denizen is available. Establish a compatible Powerful Denizen through the existing shared World workflow first.</p>
+              ) : (
+                <label className="block">Existing Denizen
+                  <select className="ml-2 border rounded px-1" value={draft.calamityDenizenId} onChange={(event) => setDraft({ ...draft, calamityDenizenId: event.target.value })}>
+                    {calamityEligibleDenizens.map((denizen) => (
+                      <option key={denizen.denizenId} value={denizen.denizenId}>
+                        {denizen.name}
+                        {denizen.powerfulProfile?.goal ? ` — ${denizen.powerfulProfile.goal}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label className="block">Seat
                 <select className="ml-2 border rounded px-1" value={draft.calamitySeatId} onChange={(event) => setDraft({ ...draft, calamitySeatId: event.target.value as PactSeatId })}>
                   {PACT_SEAT_IDS.map((seatId) => <option key={seatId} value={seatId}>{pactSeatDisplayName(seatId)}</option>)}
@@ -473,7 +503,7 @@ export default function FaustianActions({
             <button
               type="button"
               className={btn}
-              disabled={pending}
+              disabled={pending || (draft.expectedAgeId === "calamity" && draft.calamityDenizenId === "")}
               onClick={() => void run(async () => {
                 await arrangeTable({
                   commandId: commandId(),
@@ -488,12 +518,9 @@ export default function FaustianActions({
                   expectedElements: draft.expectedElements,
                   calamityAntagonist: draft.expectedAgeId === "calamity"
                     ? {
-                      denizenId: `den_${crypto.randomUUID()}`,
-                      create: { name: draft.calamityName },
-                      communityId: draft.calamityCommunityId,
+                      denizenId: draft.calamityDenizenId,
                       seatId: draft.calamitySeatId,
                       chipCount: draft.calamityChipCount,
-                      goal: draft.calamityGoal,
                     }
                     : null,
                 });
@@ -567,7 +594,7 @@ export default function FaustianActions({
             </>
           ) : (
             <>
-              <p>Stage 2 foils only the selected captured Scheme. Later arrivals are not eligible. Reload or cancel does not auto-foil.</p>
+              <p>Stage 2 foils only the selected captured Scheme. Later unrelated arrivals do not themselves reject this foil. Reload or cancel does not auto-foil.</p>
               <label className="block">Eligible Scheme
                 <select
                   className="ml-2 border rounded px-1"

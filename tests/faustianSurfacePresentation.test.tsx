@@ -156,9 +156,9 @@ describe("Faustian surface presentation", () => {
     );
     expect(facedown.length).toBeGreaterThan(0);
     for (const el of facedown) {
-      expect(el.getAttribute("aria-label")).not.toMatch(/hearts|clubs|spades|Two|Three|Four|Ace/i);
-      expect(el.getAttribute("title")).not.toMatch(/hearts|Two|Three|Ace of Spades/i);
-      expect(el.textContent).not.toMatch(/Ace of Spades|Three of Hearts|hearts_3/);
+      expect(el.getAttribute("aria-label") ?? "").not.toMatch(/hearts|clubs|spades|Two|Three|Four|Ace/i);
+      expect(el.getAttribute("title") ?? "").not.toMatch(/hearts|Two|Three|Ace of Spades/i);
+      expect(el.textContent ?? "").not.toMatch(/Ace of Spades|Three of Hearts|hearts_3/);
     }
     expect(container.innerHTML).not.toContain("hearts_3");
     expect(container.innerHTML).not.toContain("spades_ace");
@@ -252,6 +252,52 @@ describe("Faustian surface presentation", () => {
     expect(container.textContent).toContain("Confirm Investigate reveal");
     expect(container.textContent).toContain("Records the Faustian board result; shared Time is handled separately.");
     expect(Object.values(mockMutations).every((fn) => fn.mock.calls.length === 0)).toBe(true);
+  });
+
+  it("continues Investigate to foil choice without a reveal command when only face-up Schemes exist", () => {
+    let faustian = take(EMPTY_FAUSTIAN_STATE, [TWIST, SCHEME_A, SCHEME_B]);
+    faustian = {
+      ...faustian,
+      machinations: [{ cardId: TWIST, facing: "face_down" }],
+      activeTwistCardIds: [TWIST],
+      communities: faustian.communities.map((community) =>
+        community.communityId === "aries"
+          ? {
+            ...community,
+            schemes: [
+              { cardId: SCHEME_A, facing: "face_up" },
+              { cardId: SCHEME_B, facing: "face_up" },
+            ],
+          }
+          : community
+      ),
+    };
+    const { container } = renderSurface({ faustian });
+    const aries = container.querySelector("[aria-label='Aries · monks/pilgrims · Hierophant']") as HTMLElement;
+    flushSync(() => {
+      aries.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    click(container, "Start Investigate");
+    expect(container.textContent).not.toContain("Confirm Investigate reveal");
+    expect(container.textContent).toContain("Confirm foil");
+    expect(container.textContent).toContain("Two of Hearts");
+    expect(Object.values(mockMutations).every((fn) => fn.mock.calls.length === 0)).toBe(true);
+  });
+
+  it("presents an Active Twist as one Machinations card plus a reference, not two copies", () => {
+    const { container } = renderSurface();
+    expect(container.textContent).toContain("Active Twist reference");
+    expect(container.textContent).toContain("spotlight, not a second copy");
+    const machinationCards = Array.from(container.querySelectorAll("button")).filter((button) =>
+      (button.getAttribute("aria-label") ?? "").includes("Active Twist")
+      && (button.getAttribute("aria-label") ?? "").includes("Machination"),
+    );
+    expect(machinationCards.length).toBeGreaterThan(0);
+    const twistCardCopies = Array.from(container.querySelectorAll("button")).filter((button) =>
+      button.getAttribute("aria-label") === FACEDOWN_TWIST_LABEL
+      && button.className.includes("w-[4.5rem]"),
+    );
+    expect(twistCardCopies).toHaveLength(0);
   });
 });
 

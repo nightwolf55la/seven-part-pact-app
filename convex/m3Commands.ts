@@ -5262,11 +5262,8 @@ const faustianCalamityAntagonistArg = v.union(
   v.null(),
   v.object({
     denizenId: v.string(),
-    create: v.union(v.null(), v.object({ name: v.string() })),
-    communityId: v.string(),
     seatId: v.string(),
     chipCount: v.union(v.literal(1), v.literal(2), v.literal(3)),
-    goal: v.string(),
   }),
 );
 

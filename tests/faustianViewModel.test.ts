@@ -103,7 +103,9 @@ describe("Faustian card source reference", () => {
   it("keys every canonical card and records source wording omissions honestly", () => {
     const ace = faustianCardSourceReference("spades_ace");
     expect(ace.faceUpIdentityLabel).toBe("Ace of Spades");
-    expect(ace.scheme.wordingStatus).toBe("source_not_transcribed");
+    expect(ace.scheme.wordingStatus).toBe("source_transcription_deferred");
+    expect(ace.scheme.omission).toMatch(/Codex contains Card Meanings/);
+    expect(ace.scheme.omission).toMatch(/not a claim that the source lacks them/);
     expect(ace.scheme.title).toBeNull();
     expect(ace.twist.text).toBeNull();
     expect(ace.accomplice.syndicate).toBeNull();
@@ -196,6 +198,10 @@ describe("represented card zones", () => {
     expect(presentation.twists).toHaveLength(2);
     expect(presentation.twists[0]?.publicLabel).toBe(FACEDOWN_TWIST_LABEL);
     expect(presentation.twists[1]?.facing).toBe("face_up");
+    expect(presentation.machinations[0]?.isActiveTwist).toBe(true);
+    expect(presentation.machinations[1]?.isActiveTwist).toBe(true);
+    expect(presentation.twists[0]?.machinationInstanceKey).toBe(presentation.machinations[0]?.card.instanceKey);
+    expect(presentation.twists.every((spotlight) => !("cardId" in spotlight))).toBe(true);
   });
 });
 
@@ -214,6 +220,8 @@ describe("facedown non-leakage", () => {
     }
     expect(presentation.twists[0]?.publicLabel).toBe(FACEDOWN_TWIST_LABEL);
     expect("cardId" in presentation.twists[0]!).toBe(false);
+    expect(presentation.machinations[0]?.isActiveTwist).toBe(true);
+    expect(presentation.machinations[0]?.treatmentLabel).toBe("Active Twist");
   });
 });
 
