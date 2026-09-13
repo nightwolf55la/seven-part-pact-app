@@ -1,10 +1,10 @@
 # M5.4 Table-Readiness UI/UX Register
 
 **Workstream:** M5.4 Table-Readiness UI/UX
-**Branch:** `m5-4/table-readiness-ux-batch-1`
-**BASE MAIN SHA:** `8aecc7fbe10c68a93d973630507dde9c76c2d93a`
-**Feature start HEAD:** `8aecc7fbe10c68a93d973630507dde9c76c2d93a`
-**Faustian merge confirmed:** PR #27, `8aecc7f` `Merge pull request #27 from nightwolf55la/m5-4a/faustian-card-table`
+**Branch:** `m5-4/table-readiness-ux-batch-2`
+**BASE MAIN SHA:** `81fecf0a641a73027426139c84b12f832bafa288`
+**Feature start HEAD:** `81fecf0a641a73027426139c84b12f832bafa288`
+**Batch 1 merge confirmed:** PR #28, `81fecf0a641a73027426139c84b12f832bafa288` `Merge pull request #28 from nightwolf55la/m5-4/table-readiness-ux-batch-1`
 
 This is the durable UX register. Original human observations are preserved. Approved Batch 1 decisions are recorded as identified resolution notes rather than silent rewrites of those observations.
 
@@ -16,19 +16,40 @@ CampaignState V5 remains PRE-ACTIVATION. No schema evolution. No migration. No P
 
 ## Approved Batch membership
 
-### Batch 1 (this implementation run)
+### Batch 1
 
 UX-001, UX-002, UX-003, UX-007, UX-008, UX-012, UX-013, UX-014, UX-019, UX-023
+
+### Batch 2 (this implementation run)
+
+UX-004, UX-009, UX-010, UX-016, UX-017, UX-018, UX-022
 
 ### Deliberately deferred from Batch 1
 
 - **UX-015** general-purpose Powerful-Denizen creation workflow: **DEFERRED**
 - Source-specific atomic creators remain allowed where a Domain procedure genuinely requires one.
-- UX-004, UX-005, UX-006, UX-009, UX-010, UX-011, UX-016, UX-017, UX-018, UX-020, UX-021, UX-022 remain later-batch work.
+
+### Deliberately deferred from Batch 2 (Batch 3 / later)
+
+- **UX-005** whole-Pact overview
+- **UX-006** navigation redesign
+- **UX-011** shared Laws convention
+- **UX-020** general Save-button policy (UX-018 is a concrete Depth-only improvement and does not close this)
+- **UX-021** general cross-Domain shell convention
+- Warlock / Sage UI
 
 ### Product target for this run
 
-Full-screen desktop / table use. Phone and narrow split-screen layouts are out of scope.
+Full-screen desktop / table use. Primary acceptance viewport **1600×1000**. Phone and narrow split-screen layouts are out of scope. Half-screen optimization is not an acceptance criterion.
+
+### Approved Batch 2 interaction
+
+When a Mariner or Necromancer board item is selected, a dismissible right-side overlay inspector (~360–420px) appears. The board does **not** resize. Escape and an explicit Close control dismiss it. Focus is not trapped as a modal.
+
+### Source visuals used
+
+- Requested PPTX `Patreon Materials [04.26.04].pptx` was not available on this machine.
+- Implementation used approved source observations for **slide 14 (Mariner map)** and **slide 5 (Necromancer Gates)** plus existing repository geometry. No PPTX or exported slide images were committed.
 
 ---
 
@@ -182,9 +203,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** SHARED
 - **Source/rules relevance:** No written-rule issue. Table-facing layout/application design.
 - **Suggested direction:** Make the PlayShell/board workspace desktop-first and width-responsive.
-- **Current status:** OPEN
+- **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Strongly affects UX-009, UX-010, UX-016, and UX-005.
-- **Approved batch:** Not Batch 1
+- **Approved batch:** Batch 2
+- **Resolution / implementation note:** Ordinary play (primary-only and dual-pane) uses `max-w-[1800px]`. Campaign Tools remain `max-w-5xl`. No navigation redesign.
 
 ### UX-005
 
@@ -259,9 +281,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** MARINER
 - **Source/rules relevance:** Presentation priority rather than a rule dispute.
 - **Suggested direction:** Compress the Ship/Sanctum summary substantially or place it below/alongside the map.
-- **Current status:** OPEN
+- **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Related to UX-008, UX-010, and UX-004.
-- **Approved batch:** Not Batch 1
+- **Approved batch:** Batch 2
+- **Resolution / implementation note:** Normal header is compact campaign labels (`Ship · Sanctum · Home: …`). Exceptional Ship/Sanctum mismatch remains conspicuous. Ship correction stays behind Advanced / Correct.
 
 ### UX-010
 
@@ -274,9 +297,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** MARINER
 - **Source/rules relevance:** SOURCE: Materials PowerPoint provides a deliberate spatial/map vocabulary. APPLICATION DESIGN: current SVG board preserves topology/state but not enough geographic presentation.
 - **Suggested direction:** Rework presentation around source map geometry/visual vocabulary after setup/workflow blockers.
-- **Current status:** OPEN
+- **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Strongly dependent on UX-004 and related to UX-009.
-- **Approved batch:** Not Batch 1
+- **Approved batch:** Batch 2
+- **Resolution / implementation note:** Source-inspired live SVG: pale-green field, white circular sea, blue dashed routes, colored Isle silhouettes, circumference destinations, selection halo. Existing geometry retained. Overlay inspector does not resize the map. No normal desktop horizontal scrollbar at 1600×1000.
 
 ### UX-011
 
@@ -368,9 +392,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** NECROMANCER
 - **Source/rules relevance:** SOURCE: Materials depict the eleven Gates as recognizable gate/door shapes.
 - **Suggested direction:** Preserve current branching spatial logic while adopting source Gate silhouettes later.
-- **Current status:** OPEN
+- **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Strongly affected by UX-004.
-- **Approved batch:** Not Batch 1
+- **Approved batch:** Batch 2
+- **Resolution / implementation note:** Live arched Gate silhouettes; Near / Far / Furthest tree with small circular path spaces and curved connections. Overlay inspector does not resize the board. No normal desktop horizontal scrollbar at 1600×1000. Gate IDs and persisted topology unchanged.
 
 ### UX-017
 
@@ -383,9 +408,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** NECROMANCER
 - **Source/rules relevance:** SOURCE: Codex describes the Necromancer's Depth as a Domain quantity.
 - **Suggested direction:** Hide internal owner IDs in normal play.
-- **Current status:** OPEN
+- **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Related to UX-021 and UX-020.
-- **Approved batch:** Not Batch 1
+- **Approved batch:** Batch 2
+- **Resolution / implementation note:** Normal presentation is compact `Depth` with a numeric stepper. Raw `wiz_...` owner IDs are not shown. Exceptional previous-owner state is described in human-readable terms.
 
 ### UX-018
 
@@ -398,9 +424,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** NECROMANCER
 - **Source/rules relevance:** No rules conflict. Interaction granularity.
 - **Suggested direction:** Compact single-value control with immediate server-authoritative commit.
-- **Current status:** OPEN
+- **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Specific example of UX-020.
-- **Approved batch:** Not Batch 1
+- **Approved batch:** Batch 2
+- **Resolution / implementation note:** Isolated Depth changes use the existing `set_necromancer_depth` operation immediately. No Save Depth button. Pending and stale/error remain visible. Does **not** close UX-020.
 
 ### UX-019
 
@@ -459,9 +486,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** LORE/COMPENDIUM
 - **Source/rules relevance:** No rules issue.
 - **Suggested direction:** Sticky pane or independently scrolling list/detail columns on desktop.
-- **Current status:** OPEN
+- **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** UX-004's wider desktop workspace may improve layout.
-- **Approved batch:** Not Batch 1
+- **Approved batch:** Batch 2
+- **Resolution / implementation note:** Desktop reading pane is sticky with a viewport-relative max height; long entry content scrolls inside the pane. No Lore persistence change.
 
 ### UX-023
 
@@ -483,21 +511,22 @@ Supports: UX-001, UX-019.
 
 ## Human retest path
 
-1. Open the demo/review campaign created by **Start Review Campaign** on a disposable Development deployment (creates a new campaign; do not repair it first). Confirm realistic Players/Wizards and currently supported Domains are already initialized enough to use.
-2. Open Hierophant. Confirm canonical Temples/Hestar already exist and ordinary setup does not ask the human to create/bind their locations.
-3. Open Mariner. Confirm canonical map Isles and starting Ship/Sanctum are already established. The human should not create World Isles or a "mobile Place" first.
-4. Perform one ordinary Mariner creation action from the Mariner surface if that existing action is part of the addressed shared pattern. Confirm no unrelated World setup detour is required.
-5. Open/initialize Necromancer in an appropriate clean/disposable campaign. Create/name required starting Foes/Ally through the Gates flow. Confirm no Powerful-profile/taxonomy prerequisite or raw DomainError leaks into normal setup.
-6. Depth is **not** in Batch 1. Do not treat spinner/raw-owner polish as fixed.
-7. Open Sorcerer. Confirm the review campaign is established. Confirm an eligible uninitialized Sorcerer has a useful next action or exact prerequisite.
-8. Open Compendium → Isles. Confirm canonical setting Isles present coherently and correspond to the conceptual Isles used by Mariner without manual duplicate setup.
-9. Quick full-screen desktop check of Batch 1 setup flows. Do not claim later board-width/map-redesign issues verified.
+Batch 2 visual retest at **1600×1000** full-screen desktop (also 1920×1080 if convenient). Use a disposable campaign. Do not inspect phones.
+
+1. Open Mariner with nothing selected. Confirm the map dominates, geography is recognizable, Ship/Sanctum is compact, and there is no normal horizontal scrollbar.
+2. Select an Isle. Confirm the overlay inspector opens and the map does **not** shrink. Close with the button and with Escape.
+3. Select a Route or Sea. Confirm the overlay updates without resizing the board.
+4. Open Necromancer with nothing selected. Confirm arched Gates, Near/Far/Furthest branching, compact Depth (no raw owner UUID, no Save Depth), and no normal horizontal scrollbar.
+5. Select a Gate, then a path space. Confirm overlay behavior and that the board does not resize.
+6. If safely available without unsafe mutation, inspect Hostile / Destroyed / 5+ Souls treatments.
+7. Open Compendium, select a long entry, and scroll the subject list. Confirm the detail pane stays available and long text scrolls inside it.
+8. Glance Hierophant, Sorcerer, and Faustian at full desktop. Confirm no obvious regression from the wider PlayShell. Do not treat UX-005/006/011/020/021 as fixed.
 
 Do not claim human verification from implementation or browser inspection alone.
 
 ## Implementation checkpoint log
 
-Recorded as work proceeds.
+Batch 1 (merged PR #28):
 
 | Body | SHA | Subject |
 |---|---|---|
@@ -505,15 +534,23 @@ Recorded as work proceeds.
 | 2 | `fb8a841394656e82a342bb3d2a5751b40d45574a` | M5.4 UX B1: make Gates setup source-shaped |
 | 3 | `8776ac8b85becfb9e63bba9ea7ffc90a8f1c06c7` | M5.4 UX B1: add representative review readiness |
 
+Batch 2:
+
+| Body | SHA | Subject |
+|---|---|---|
+| 1 | `c3eb8af5f71e160f702362d7c1fa63c2899a60d9` | M5.4 UX B2: expand desktop Mariner board |
+| 2 | `99e3bfd4d5ae396ad673cb8a426209fc272baa11` | M5.4 UX B2: reshape the Gates board |
+| 3 | *(this commit)* | M5.4 UX B2: finish desktop reading pass |
+
 ## Browser / desktop inspection (implementation worker)
 
-Attempted a 1600×1000 desktop inspection of `http://localhost:5183/` in the isolated browser. The Vite app loaded but React did not mount in that browser (empty `#root`). No mutations were sent.
+Inspected at **1600×1000** against disposable Development `academic-gazelle-299` via local Vite. No mutations were sent. `wry-boar-766` was not used. **No Production.** **No function sync.**
 
-**Did not** start a review campaign against the local `.env.local` Development slug `wry-boar-766`, which prior Faustian docs identify as the human's review deployment.
+Implementation-worker observations (not human verification):
 
-**Did not** run `npx convex deploy`. **No Production.**
-
-Remaining unique integration proof: sync Batch 1 Convex functions to a **disposable** Development deployment and create a new review campaign there, then walk the human retest path. Do not use `dev:wry-boar-766` for that proof unless the human explicitly authorizes it.
+- Mariner: map fits without horizontal scroll; compact Ship/Sanctum; overlay does not resize the SVG.
+- Necromancer: arched Gates and Near/Far/Furthest tree visible; Depth stepper; no raw owner UUID; overlay does not resize the board.
+- Compendium / Hierophant / Sorcerer / Faustian: inspected for shared-width regression only.
 
 ## New UX findings from this run
 

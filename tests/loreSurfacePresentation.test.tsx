@@ -152,6 +152,30 @@ describe("LoreSurface presentation", () => {
     container.remove();
   });
 
+  it("keeps the selected reading pane sticky and independently scrollable on desktop", () => {
+    const presentation = presentationFrom(boundState());
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    flushSync(() => {
+      root.render(createElement(LoreSurface, {
+        campaignId: CAMPAIGN_ID,
+        uiState: { status: "ready", presentation },
+      }));
+    });
+    const firstSubject = container.querySelector('[aria-label="Compendium subjects"] button') as HTMLButtonElement | null;
+    expect(firstSubject).not.toBeNull();
+    flushSync(() => { firstSubject!.click(); });
+    const pane = container.querySelector("[data-compendium-reading-pane]");
+    expect(pane).not.toBeNull();
+    expect(pane?.className).toContain("lg:sticky");
+    expect(pane?.className).toContain("lg:top-4");
+    expect(pane?.className).toContain("lg:max-h-[calc(100vh-8rem)]");
+    expect(pane?.className).toContain("lg:overflow-y-auto");
+    root.unmount();
+    container.remove();
+  });
+
   it("shows provenance, separate contexts, printed wording, and add/revise flows", () => {
     const presentation = presentationFrom(boundState({
       lore: {

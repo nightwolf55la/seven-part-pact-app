@@ -316,17 +316,25 @@ See `docs/m5-4a-f-faustian-card-table.md`.
 
 #### M5.4 Table-Readiness UI/UX — Batch 1
 
-**IMPLEMENTATION CANDIDATE — NEEDS HUMAN RETEST.** Do not mark VERIFIED or complete.
+**MERGED — NEEDS HUMAN RETEST.** PR #28. Do not mark VERIFIED or complete.
 
 Branch `m5-4/table-readiness-ux-batch-1`. Durable register: `docs/m5-4-table-readiness-ux.md`.
 
-Source-shaped Wizard/Mariner/Hierophant geography realization, location-sensitive Necromancer Foe validation, source-shaped Gates setup, readable stale-precondition output, Pact-Fragment defaulting behind Advanced / Correct, Sorcerer establishment path, and a disposable seven-seat review campaign. No CampaignState schema change. UX-015 general Powerful-Denizen creation remains deferred. Board-width/map/Gates visual issues remain later-batch work.
+Source-shaped Wizard/Mariner/Hierophant geography realization, location-sensitive Necromancer Foe validation, source-shaped Gates setup, readable stale-precondition output, Pact-Fragment defaulting behind Advanced / Correct, Sorcerer establishment path, and a disposable seven-seat review campaign. No CampaignState schema change. UX-015 general Powerful-Denizen creation remains deferred.
+
+#### M5.4 Table-Readiness UI/UX — Batch 2
+
+**IMPLEMENTATION CANDIDATE — NEEDS HUMAN RETEST.** Do not mark VERIFIED or complete.
+
+Branch `m5-4/table-readiness-ux-batch-2`. Durable register: `docs/m5-4-table-readiness-ux.md`.
+
+Full-screen desktop play canvas (~1800px), source-inspired live Mariner map and Necromancer Gates SVG, dismissible overlay inspector that does not resize the board, compact Necromancer Depth control, and sticky Compendium reading pane. No CampaignState schema change. UX-005/006/011/020/021 remain later work.
 
 #### Remaining M5.4 active-table work
 
 The remaining active-player Domain-operability work is:
 
-- later Table-Readiness UI/UX batches after human retest of Batch 1;
+- later Table-Readiness UI/UX batches after human retest of Batch 2;
 - Warlock and Sage, still deferred while they have no active players.
 
 Warlock and Sage are intentionally deferred while they have no active players. Their existing structural state remains authoritative and may be consumed by active-Domain cross-references.
@@ -381,7 +389,7 @@ Final hardening for trusted long-running campaigns: deployment/environment safet
 
 ### Current Next Action
 
-Faustian M5.4A-F is merged (PR #27). M5.4 Table-Readiness UI/UX Batch 1 is an implementation candidate on `m5-4/table-readiness-ux-batch-1` and needs **human retest**. Do not mark Batch 1 or M5.4 complete.
+Faustian M5.4A-F is merged (PR #27). M5.4 Table-Readiness UI/UX Batch 1 is merged (PR #28) and still needs **human retest**. Batch 2 is an implementation candidate on `m5-4/table-readiness-ux-batch-2` and needs **human retest**. Do not mark Batch 2 or M5.4 complete.
 
 Warlock/Sage remain deferred. CampaignState V5 remains PRE-ACTIVATION.
 
