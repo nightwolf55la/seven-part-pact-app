@@ -42,6 +42,7 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "set_wizard_companion",
   "update_companion_description",
   "initialize_hierophant",
+  "initialize_hierophant_source_setup",
   "adjust_temple_resources",
   "create_temple",
   "update_temple",
@@ -65,6 +66,7 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "create_campaign_doctrine",
   "update_campaign_doctrine",
   "initialize_mariner",
+  "initialize_mariner_source_setup",
   "set_mariner_ship",
   "set_selected_sea_laws",
   "set_mariner_route_occupancy",
@@ -234,6 +236,7 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "set_wizard_companion":
     case "update_companion_description":
     case "initialize_hierophant":
+    case "initialize_hierophant_source_setup":
     case "adjust_temple_resources":
     case "create_temple":
     case "update_temple":
@@ -257,6 +260,7 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "create_campaign_doctrine":
     case "update_campaign_doctrine":
     case "initialize_mariner":
+    case "initialize_mariner_source_setup":
     case "set_mariner_ship":
     case "set_selected_sea_laws":
     case "set_mariner_route_occupancy":

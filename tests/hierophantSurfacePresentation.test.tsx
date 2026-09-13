@@ -33,6 +33,7 @@ vi.mock("../convex/_generated/api.js", () => ({
   api: {
     m3Commands: {
       initializeHierophant: "m3Commands.initializeHierophant",
+      initializeHierophantSourceSetup: "m3Commands.initializeHierophantSourceSetup",
       createPlace: "m3Commands.createPlace",
       setSelectedFlameLaws: "m3Commands.setSelectedFlameLaws",
       adjustTempleResources: "m3Commands.adjustTempleResources",
@@ -110,10 +111,9 @@ describe("Hierophant surface setup", () => {
   it("shows a setup flow when temples are empty", () => {
     const { container, root } = renderSurface();
     expect(container.innerHTML).toContain("Initialize Hierophant");
-    expect(container.innerHTML).toContain("Temple Krolis");
-    expect(container.innerHTML).toContain("Temple Hestar");
+    expect(container.innerHTML).toContain("five Temples, including Hestar");
+    expect(container.innerHTML).toContain("Advanced / Correct Board");
     expect(container.innerHTML).toContain("Create Temple Place");
-    expect(container.innerHTML).toContain("Unresolved Places");
     const init = Array.from(container.querySelectorAll("button")).find((b) => b.textContent === "Initialize Hierophant");
     expect(init).toBeDefined();
     expect((init as HTMLButtonElement).disabled).toBe(true);

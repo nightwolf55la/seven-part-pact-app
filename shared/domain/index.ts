@@ -402,6 +402,7 @@ export {
   setWizardCompanionFingerprint,
   updateCompanionDescriptionFingerprint,
   initializeHierophantFingerprint,
+  initializeHierophantSourceSetupFingerprint,
   adjustTempleResourcesFingerprint,
   createTempleFingerprint,
   updateTempleFingerprint,
@@ -425,6 +426,7 @@ export {
   createCampaignDoctrineFingerprint,
   updateCampaignDoctrineFingerprint,
   initializeMarinerFingerprint,
+  initializeMarinerSourceSetupFingerprint,
   setMarinerShipFingerprint,
   setSelectedSeaLawsFingerprint,
   setMarinerRouteOccupancyFingerprint,
@@ -1909,6 +1911,26 @@ export type {
   InitializeMarinerInput,
   UpdateMarinerBeastFields,
 } from "./mariner-transitions";
+export type {
+  ProposedBoardIsleId,
+  ProposedTemplePlaceId,
+  InitializeMarinerSourceSetupInput,
+  InitializeHierophantSourceSetupInput,
+  CanonicalBoardIsleRealization,
+  CanonicalTempleRealization,
+} from "./canonical-setting-realization";
+export {
+  PACT_SEAT_HOME_BOARD_ISLE,
+  authoritativeWorldIsleForBoardSlot,
+  authoritativePlaceForTemple,
+  realizeCanonicalBoardIsles,
+  realizeCanonicalTemplePlaces,
+  canonicalizeInitializeMarinerSourceSetupInput,
+  canonicalizeInitializeHierophantSourceSetupInput,
+  applyInitializeMarinerSourceSetup,
+  applyInitializeHierophantSourceSetup,
+} from "./canonical-setting-realization";
+
 export {
   canonicalizeInitializeMarinerInput,
   normalizeMarinerIsleMarket,

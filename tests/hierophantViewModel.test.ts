@@ -7,6 +7,7 @@ import {
   buildAdjustTempleResourcesPayload,
   buildEstablishCultPayload,
   buildInitializeHierophantPayload,
+  buildInitializeHierophantSourceSetupPayload,
   buildRemoveRolePayload,
   buildSetSelectedFlameLawsPayload,
   buildTemplePlaceCreatePayload,
@@ -17,6 +18,7 @@ import {
   deriveSupplicantSupport,
   baseBenefactionReference,
   hierophantSetupReady,
+  hierophantSourceSetupReady,
   hostedProphets,
   hostedSupplicants,
   isHierophantInitialized,
@@ -60,6 +62,17 @@ describe("Hierophant setup helpers", () => {
     expect(hierophantSetupReady(["first"], full)).toBe(false);
     expect(hierophantSetupReady(["first", "second", "third"], full)).toBe(false);
     expect(hierophantSetupReady(["first", "second"], full)).toBe(true);
+    expect(hierophantSourceSetupReady(["first", "second"])).toBe(true);
+    expect(hierophantSourceSetupReady(["first"])).toBe(false);
+    const sourcePayload = buildInitializeHierophantSourceSetupPayload({
+      commandId: "cmd_1",
+      expectedCampaignId: "cmp_1",
+      selectedLawIds: ["second", "first"],
+      nextUuid: () => "11111111-1111-1111-1111-111111111111",
+    });
+    expect(sourcePayload?.selectedFlameLawIds).toEqual(["first", "second"]);
+    expect(sourcePayload?.proposedTemplePlaceIds).toHaveLength(5);
+    expect(sourcePayload?.proposedTemplePlaceIds.every((entry) => entry.placeId.startsWith("plc_"))).toBe(true);
   });
 
   it("retains an existing Place selection in initialize payload", () => {

@@ -34,6 +34,7 @@ import {
   buildAdjustTempleResourcesPayload,
   buildEstablishCultPayload,
   buildInitializeHierophantPayload,
+  buildInitializeHierophantSourceSetupPayload,
   buildRemoveRolePayload,
   buildSetSelectedFlameLawsPayload,
   buildTemplePlaceCreatePayload,
@@ -43,6 +44,7 @@ import {
   denizenLabel,
   dogmaDisplay,
   hierophantSetupReady,
+  hierophantSourceSetupReady,
   hostSeatLabel,
   hostSummary,
   hostedProphets,
@@ -159,6 +161,7 @@ export default function HierophantSurface({
   } | null>(null);
 
   const initializeHierophant = useMutation(api.m3Commands.initializeHierophant);
+  const initializeHierophantSourceSetup = useMutation(api.m3Commands.initializeHierophantSourceSetup);
   const createPlace = useMutation(api.m3Commands.createPlace);
   const setSelectedFlameLaws = useMutation(api.m3Commands.setSelectedFlameLaws);
   const adjustTempleResources = useMutation(api.m3Commands.adjustTempleResources);
@@ -286,6 +289,21 @@ export default function HierophantSurface({
   }
 
   async function handleInitialize(): Promise<void> {
+    const payload = buildInitializeHierophantSourceSetupPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      selectedLawIds: setupLaws,
+    });
+    if (payload === null) {
+      setError("Choose exactly two Laws of the Flame.");
+      return;
+    }
+    await run(async () => {
+      await initializeHierophantSourceSetup(payload);
+    });
+  }
+
+  async function handleAdvancedInitialize(): Promise<void> {
     const payload = buildInitializeHierophantPayload({
       commandId: newCommandId(),
       expectedCampaignId: campaignId,
@@ -745,7 +763,7 @@ export default function HierophantSurface({
       {!initialized ? (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-slate-600 dark:text-slate-300">
-            Bind the five starting Temples to shared World Places that represent the Temples themselves, and choose exactly two Laws of the Flame.
+            Choose exactly two Laws of the Flame. The five Temples, including Hestar, are part of the setting and will be established automatically.
           </p>
           <div>
             <h3 className="text-sm font-semibold mb-2">Laws of the Flame</h3>
@@ -767,8 +785,19 @@ export default function HierophantSurface({
               Selected {lawsInCatalogOrder(setupLaws).length}; initialization requires exactly two.
             </p>
           </div>
-          <div>
-            <h3 className="text-sm font-semibold mb-2">Starting Temples</h3>
+          <button
+            type="button"
+            className={btnClass}
+            disabled={pending || !hierophantSourceSetupReady(setupLaws)}
+            onClick={() => void handleInitialize()}
+          >
+            Initialize Hierophant
+          </button>
+          <details className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+            <summary className="cursor-pointer text-sm font-medium">Advanced / Correct Board — bind existing Temple Places</summary>
+            <p className="text-xs text-slate-500 mt-2 mb-3">
+              Ordinary setup creates the five Temple locations automatically. Use this only to bind already-created World Places.
+            </p>
             {unresolvedStartingTemples(setupBindings).length > 0 && (
               <p className="text-xs text-amber-800 dark:text-amber-200 mb-2">
                 Unresolved Places: {unresolvedStartingTemples(setupBindings).map(hierophantStartingTempleDisplayName).join(", ")}
@@ -799,15 +828,15 @@ export default function HierophantSurface({
                 </div>
               ))}
             </div>
-          </div>
-          <button
-            type="button"
-            className={btnClass}
-            disabled={pending || !hierophantSetupReady(setupLaws, setupBindings)}
-            onClick={() => void handleInitialize()}
-          >
-            Initialize Hierophant
-          </button>
+            <button
+              type="button"
+              className={`${btnClass} mt-3`}
+              disabled={pending || !hierophantSetupReady(setupLaws, setupBindings)}
+              onClick={() => void handleAdvancedInitialize()}
+            >
+              Initialize using existing Places
+            </button>
+          </details>
         </div>
       ) : (
         <>

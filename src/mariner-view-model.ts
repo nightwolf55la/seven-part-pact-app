@@ -117,6 +117,14 @@ export function newDenizenId(uuid: string = crypto.randomUUID()): string {
   return `den_${uuid}`;
 }
 
+export function newIsleId(uuid: string = crypto.randomUUID()): string {
+  return `isl_${uuid}`;
+}
+
+export function newPlaceId(uuid: string = crypto.randomUUID()): string {
+  return `plc_${uuid}`;
+}
+
 export function newMethodEntryId(uuid: string = crypto.randomUUID()): string {
   return `pdmth_${uuid}`;
 }
@@ -431,6 +439,70 @@ export function shipSanctumMismatch(
 ): boolean {
   if (wizard === null) return false;
   return wizard.sanctumPlaceId === null || wizard.sanctumPlaceId !== shipPlaceId;
+}
+
+export function marinerSourceSetupReady(draft: MarinerSetupDraft): boolean {
+  if (!isValidMarinerArrangementId(draft.arrangementId)) return false;
+  if (!setupLawsValid(draft.selectedLawIds)) return false;
+  if (arrangementNeedsStartingBeast(draft.arrangementId)) {
+    if (draft.startingBeastDenizenId.trim() === "") return false;
+    if (draft.startingBeastElement === "") return false;
+    if (draft.startingBeastDefinitionId !== "") {
+      const element = builtinBeastElement(draft.startingBeastDefinitionId);
+      if (element === null || element !== draft.startingBeastElement) return false;
+    }
+  }
+  if (arrangementNeedsRarity(draft.arrangementId) && draft.scuttleportRarity.trim() === "") {
+    return false;
+  }
+  return true;
+}
+
+export function buildInitializeMarinerSourceSetupPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly draft: MarinerSetupDraft;
+  readonly nextUuid?: () => string;
+}): {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly arrangementId: MarinerArrangementId;
+  readonly proposedShipPlaceId: string;
+  readonly selectedLawOfSeaIds: MarinerLawOfSeaId[];
+  readonly proposedIsleIds: { boardIsleId: MarinerBoardIsleId; worldIsleId: string }[];
+  readonly arrangementBeasts: MarinerBeastState[];
+  readonly rarityDescriptions: { boardIsleId: MarinerBoardIsleId; description: string }[];
+} | null {
+  if (!marinerSourceSetupReady(args.draft)) return null;
+  const nextUuid = args.nextUuid ?? (() => crypto.randomUUID());
+  const arrangementId = args.draft.arrangementId as MarinerArrangementId;
+  const arrangementBeasts: MarinerBeastState[] = arrangementNeedsStartingBeast(arrangementId)
+    ? [{
+        denizenId: args.draft.startingBeastDenizenId as MarinerBeastState["denizenId"],
+        element: args.draft.startingBeastElement as ElementId,
+        definitionId: args.draft.startingBeastDefinitionId === ""
+          ? null
+          : args.draft.startingBeastDefinitionId as MarinerBuiltinBeastId,
+        condition: "distrusting",
+        location: { kind: "sea_region", regionId: "sunken_fleet" },
+      }]
+    : [];
+  const rarityDescriptions = arrangementNeedsRarity(arrangementId)
+    ? [{ boardIsleId: "scuttleport" as const, description: args.draft.scuttleportRarity.trim() }]
+    : [];
+  return {
+    commandId: args.commandId,
+    expectedCampaignId: args.expectedCampaignId,
+    arrangementId,
+    proposedShipPlaceId: newPlaceId(nextUuid()),
+    selectedLawOfSeaIds: uniqueSelectedLawIds(args.draft.selectedLawIds),
+    proposedIsleIds: MARINER_BOARD_ISLE_IDS.map((boardIsleId) => ({
+      boardIsleId,
+      worldIsleId: newIsleId(nextUuid()),
+    })),
+    arrangementBeasts,
+    rarityDescriptions,
+  };
 }
 
 export function marinerSetupReady(

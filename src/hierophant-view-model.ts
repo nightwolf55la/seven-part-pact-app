@@ -97,6 +97,35 @@ export function unresolvedStartingTemples(bindings: StartingTempleBindings): Hie
   });
 }
 
+export function hierophantSourceSetupReady(selectedLawIds: readonly string[]): boolean {
+  const ordered = lawsInCatalogOrder(selectedLawIds);
+  return ordered.length === 2 && selectedLawIds.length === 2;
+}
+
+export function buildInitializeHierophantSourceSetupPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly selectedLawIds: readonly string[];
+  readonly nextUuid?: () => string;
+}): {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly selectedFlameLawIds: HierophantFlameLawId[];
+  readonly proposedTemplePlaceIds: { templeId: HierophantStartingTempleId; placeId: string }[];
+} | null {
+  if (!hierophantSourceSetupReady(args.selectedLawIds)) return null;
+  const nextUuid = args.nextUuid ?? (() => crypto.randomUUID());
+  return {
+    commandId: args.commandId,
+    expectedCampaignId: args.expectedCampaignId,
+    selectedFlameLawIds: lawsInCatalogOrder(args.selectedLawIds),
+    proposedTemplePlaceIds: HIEROPHANT_STARTING_TEMPLE_IDS.map((templeId) => ({
+      templeId,
+      placeId: newPlaceId(nextUuid()),
+    })),
+  };
+}
+
 export function hierophantSetupReady(
   selectedLawIds: readonly string[],
   bindings: StartingTempleBindings,

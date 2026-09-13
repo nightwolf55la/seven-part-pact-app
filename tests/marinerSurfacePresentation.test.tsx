@@ -157,6 +157,7 @@ vi.mock("../convex/_generated/api.js", () => ({
   api: {
     m3Commands: {
       initializeMariner: "m3Commands.initializeMariner",
+      initializeMarinerSourceSetup: "m3Commands.initializeMarinerSourceSetup",
       setMarinerShip: "m3Commands.setMarinerShip",
       setSelectedSeaLaws: "m3Commands.setSelectedSeaLaws",
       setMarinerRouteOccupancy: "m3Commands.setMarinerRouteOccupancy",
@@ -279,17 +280,18 @@ beforeEach(() => {
 });
 
 describe("Mariner surface setup", () => {
-  it("shows Initialize Mariner, arrangement, 15 bindings, and only mobile ship Places", () => {
+  it("shows source-shaped Initialize Mariner without ordinary World Isle or Ship Place binding work", () => {
     const { container, root } = renderSurface();
     expect(container.innerHTML).toContain("Initialize Mariner");
+    expect(container.innerHTML).toContain("Isles of Isha");
+    expect(container.innerHTML).toContain("starting Ship");
     expect(select(container, "Arrangement")).toBeDefined();
-    expect(container.querySelectorAll('select[aria-label^="Bind "]')).toHaveLength(15);
-    const ship = select(container, "Ship Place");
-    const optionTexts = Array.from(ship.options).map((o) => o.textContent);
-    expect(optionTexts).toContain("The Wave");
-    expect(optionTexts).toContain("Second Hull");
-    expect(optionTexts).not.toContain("Stone Hall");
+    const advanced = container.querySelector("details");
+    expect(advanced?.textContent).toContain("Advanced / Correct Board");
+    expect(advanced?.querySelectorAll('select[aria-label^="Bind "]')).toHaveLength(15);
+    expect(advanced?.querySelector('[aria-label="Ship Place"]')).not.toBeNull();
     expect(button(container, "Initialize Mariner").disabled).toBe(true);
+    expect(container.innerHTML).toContain("Advanced / Correct Board");
     expect(container.innerHTML).not.toContain("Starting Beast");
     expect(container.innerHTML).not.toContain("Scuttleport Rarity");
     root.unmount();

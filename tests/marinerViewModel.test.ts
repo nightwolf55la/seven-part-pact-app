@@ -25,6 +25,7 @@ import {
   beastLocationLabel,
   boardIsleWorldName,
   buildInitializeMarinerPayload,
+  buildInitializeMarinerSourceSetupPayload,
   buildSetMarinerRouteOccupancyPayload,
   buildSetMarinerSeaStormCountPayload,
   buildUpdateMarinerBeastFields,
@@ -38,6 +39,7 @@ import {
   marinerRouteGeometry,
   marinerSeaResearchers,
   marinerSetupReady,
+  marinerSourceSetupReady,
   researcherOperationalLabel,
   routeOccupancyLabel,
   setupLawsValid,
@@ -227,6 +229,15 @@ describe("setup readiness", () => {
     expect(marinerSetupReady(readyDraft(), places, wizard)).toBe(false);
     expect(marinerSetupReady(readyDraft({ shipPlaceId: SANCTUM }), places, wizard)).toBe(true);
     expect(marinerSetupReady(readyDraft(), places, null)).toBe(true);
+    expect(marinerSourceSetupReady(readyDraft({ isleBindings: {}, shipPlaceId: "" }))).toBe(true);
+    const sourcePayload = buildInitializeMarinerSourceSetupPayload({
+      commandId: "cmd_1",
+      expectedCampaignId: "cmp_1",
+      draft: readyDraft({ isleBindings: {}, shipPlaceId: "" }),
+      nextUuid: () => "11111111-1111-1111-1111-111111111111",
+    });
+    expect(sourcePayload?.proposedIsleIds).toHaveLength(15);
+    expect(sourcePayload?.proposedShipPlaceId.startsWith("plc_")).toBe(true);
   });
 
   it("requires a starting Beast for Dynamic/Explosive and Rarity for Explosive", () => {
