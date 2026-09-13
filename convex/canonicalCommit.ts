@@ -207,6 +207,7 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   nest_mariner_beast: { required: ["mariner_beast_nested"] },
   record_mariner_ravage_result: { required: ["mariner_ravage_result_recorded"] },
   initialize_necromancer: { required: ["necromancer_initialized"] },
+  initialize_necromancer_source_setup: { required: ["necromancer_initialized"] },
   set_necromancer_depth: { required: ["necromancer_depth_changed"] },
   set_selected_death_laws: { required: ["necromancer_laws_changed"] },
   set_necromancer_gate_status: { required: ["necromancer_gate_status_changed"] },

@@ -189,6 +189,7 @@ import {
   applyNestMarinerBeast,
   applyRecordMarinerRavageResult,
   initializeNecromancerFingerprint,
+  initializeNecromancerSourceSetupFingerprint,
   setNecromancerDepthFingerprint,
   setSelectedDeathLawsFingerprint,
   setNecromancerGateStatusFingerprint,
@@ -223,6 +224,8 @@ import {
   canonicalizeNecromancerGhoulCaller,
   canonicalizeUpdateNecromancerGhoulCallerFields,
   applyInitializeNecromancer,
+  applyInitializeNecromancerSourceSetup,
+  canonicalizeInitializeNecromancerSourceSetupInput,
   applySetNecromancerDepth,
   applySetNecromancerSelectedLaws,
   applySetNecromancerGateStatus,
@@ -3558,6 +3561,80 @@ export const initializeNecromancer = mutation({
           commandType: "initialize_necromancer",
           commandFingerprint: initializeNecromancerFingerprint(args.expectedCampaignId, input),
           apply: (state) => applyInitializeNecromancer(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const initializeNecromancerSourceSetup = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    arrangementId: v.string(),
+    selectedLawIds: v.array(v.string()),
+    arrangementFoes: v.array(v.object({
+      denizenId: v.string(),
+      name: v.string(),
+      gateId: v.string(),
+    })),
+    arrangementAlly: v.object({
+      denizenId: v.string(),
+      name: v.string(),
+      gateId: v.string(),
+    }),
+    arrangementGhoulCaller: v.union(
+      v.null(),
+      v.object({
+        denizenId: v.string(),
+        name: v.string(),
+        pathSpaceId: v.string(),
+        primaryElement: v.union(
+          v.literal("air"),
+          v.literal("fire"),
+          v.literal("earth"),
+          v.literal("water"),
+        ),
+        aesthetic: v.string(),
+        strangeQuirk: v.string(),
+        ageYears: v.number(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeInitializeNecromancerSourceSetupInput({
+          arrangementId: args.arrangementId as NecromancerArrangementId,
+          selectedLawIds: args.selectedLawIds as NecromancerLawOfDeathId[],
+          arrangementFoes: args.arrangementFoes.map((foe) => ({
+            denizenId: foe.denizenId as DenizenId,
+            name: foe.name,
+            gateId: foe.gateId as NecromancerBuiltinGateId,
+          })),
+          arrangementAlly: {
+            denizenId: args.arrangementAlly.denizenId as DenizenId,
+            name: args.arrangementAlly.name,
+            gateId: args.arrangementAlly.gateId as NecromancerBuiltinGateId,
+          },
+          arrangementGhoulCaller: args.arrangementGhoulCaller === null
+            ? null
+            : {
+                denizenId: args.arrangementGhoulCaller.denizenId as DenizenId,
+                name: args.arrangementGhoulCaller.name,
+                pathSpaceId: args.arrangementGhoulCaller.pathSpaceId as NecromancerBuiltinPathSpaceId,
+                primaryElement: args.arrangementGhoulCaller.primaryElement,
+                aesthetic: args.arrangementGhoulCaller.aesthetic,
+                strangeQuirk: args.arrangementGhoulCaller.strangeQuirk,
+                ageYears: args.arrangementGhoulCaller.ageYears,
+              },
+        });
+        return {
+          commandType: "initialize_necromancer_source_setup",
+          commandFingerprint: initializeNecromancerSourceSetupFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyInitializeNecromancerSourceSetup(state, input),
         };
       },
     );

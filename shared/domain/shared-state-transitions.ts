@@ -41,6 +41,7 @@ import {
   isValidWizardId,
 } from "./ids";
 import { DomainError } from "./errors";
+import { stalePreconditionMessage } from "./stale-precondition-format";
 import { canonicalJsonStringify } from "./canonical-json";
 import type { PactSeatId } from "./pact-seats";
 import { isValidPactSeatId } from "./pact-seats";
@@ -136,7 +137,7 @@ function checkPrecondition<T>(
   if (!eq(current, change.expected)) {
     throw new DomainError(
       "STALE_COMMAND_PRECONDITION",
-      `${fieldLabel}: expected "${String(change.expected)}" but current is "${String(current)}"`,
+      stalePreconditionMessage(fieldLabel, change.expected, current),
     );
   }
 }

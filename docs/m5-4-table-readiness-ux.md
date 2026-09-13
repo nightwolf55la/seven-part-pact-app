@@ -230,7 +230,7 @@ Supports: UX-001, UX-019.
 - **Current status:** OPEN
 - **Dependencies / duplicates:** Umbrella pattern for UX-012, UX-013, UX-015, and parts of UX-008.
 - **Approved batch:** Batch 1
-- **Resolution / implementation note:** Body 1 addressed the geography/Temple/Ship World-detour. Remainder: Necromancer starting Foe/Ally atomic create/name (Body 2); Dynamic/Explosive starting Beast still uses an existing Denizen; general Powerful-Denizen creation remains UX-015 deferred.
+- **Resolution / implementation note:** Body 1 addressed the geography/Temple/Ship World-detour. Body 2 adds `initialize_necromancer_source_setup` so ordinary Gates arrangement creates/names starting Foes and Ally in-Domain. Remainder: Dynamic/Explosive starting Beast still asks for a pre-built World Denizen; general Powerful-Denizen creation remains UX-015 deferred.
 
 ### UX-008
 
@@ -304,10 +304,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** NECROMANCER
 - **Source/rules relevance:** Independent of the larger model question in UX-013, the client currently permits choices that the authoritative command rejects.
 - **Suggested direction:** The UI must not present server-invalid choices. Under the approved representation, normal initialization should create the correct starting pieces itself.
-- **Current status:** OPEN; reproducible
+- **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Depends on UX-013. Related to UX-007 and UX-015.
 - **Approved batch:** Batch 1
-- **Resolution / implementation note:** Body 2 work.
+- **Resolution / implementation note:** Ordinary setup no longer offers a World Denizen picker that the server will reject. It asks for names and genuine placement choices. Advanced / Correct Board still binds existing identities; ordinary in-Death Foes no longer require Powerful/`foe_of_death`.
 
 ### UX-013
 
@@ -320,10 +320,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** NECROMANCER
 - **Source/rules relevance:** SOURCE: Gates arrangement instructs the player to create and name the starting Foes and Ally as part of arranging the Domain.
 - **Suggested direction:** Approved location-sensitive Foe invariant. Normal setup must mirror create/name/place.
-- **Current status:** OPEN
+- **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Parent design issue for UX-012.
 - **Approved batch:** Batch 1
-- **Resolution / implementation note:** Body 2 work.
+- **Resolution / implementation note:** Location-sensitive validator: ordinary in-Death Denizen Foes need no Powerful profile; escaped/emerged Denizen Foes still require Powerful + `foe_of_death`. Generic `update_necromancer_foe` cannot move an in-Death Denizen Foe to escaped. Source-shaped initialize creates backing individuals atomically. Explosive Ghoul-Caller receives its constrained Powerful profile in that same command. No CampaignState shape change.
 
 ### UX-014
 
@@ -336,10 +336,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** WORLD
 - **Source/rules relevance:** No rules interpretation is required.
 - **Suggested direction:** Fix stale-precondition/value presentation so taxonomy edits either succeed or explain the actual conflict in game/domain terms. Preserve fail-closed stale behavior.
-- **Current status:** OPEN; reproducible
+- **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Related to UX-015 and encountered because of UX-013's previous setup model.
 - **Approved batch:** Batch 1
-- **Resolution / implementation note:** Body 2 work.
+- **Resolution / implementation note:** Shared stale-precondition formatter renders taxonomy collections as readable IDs (`foe_of_death, beast`) instead of `[object Object]`. Authoritative stale rejection is unchanged.
 
 ### UX-015
 
@@ -355,6 +355,7 @@ Supports: UX-001, UX-019.
 - **Current status:** DEFERRED
 - **Dependencies / duplicates:** Child of UX-007. Related to UX-012, UX-013, and UX-014.
 - **Approved batch:** Deferred (not a general Batch 1 implementation target)
+- **Resolution / implementation note:** Explosive source setup atomically attaches the constrained Disruptive Ghoul-Caller Powerful profile. That is a source-specific creator and does not close this general World workflow.
 
 ### UX-016
 
@@ -490,6 +491,6 @@ Recorded as work proceeds.
 
 | Body | SHA | Subject |
 |---|---|---|
-| 1 | pending | source-shaped setup realization |
+| 1 | `b1bb14a82982d23f5814c779db3f11868bf788fd` | M5.4 UX B1: add source-shaped setup realization |
 | 2 | pending | Gates setup source-shaped |
 | 3 | pending | representative review readiness |

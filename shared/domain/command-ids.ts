@@ -611,6 +611,10 @@ export function initializeNecromancerFingerprint(expectedCampaignId: string, inp
   return `initialize_necromancer:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
 }
 
+export function initializeNecromancerSourceSetupFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `initialize_necromancer_source_setup:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
 export function setNecromancerDepthFingerprint(
   expectedCampaignId: string,
   expectedDepth: unknown,

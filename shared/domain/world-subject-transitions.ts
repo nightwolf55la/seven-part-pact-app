@@ -9,6 +9,7 @@ import type {
 import type { DenizenId, IsleId, PlaceId } from "./ids";
 import { isValidDenizenId, isValidIsleId, isValidPlaceId } from "./ids";
 import { DomainError } from "./errors";
+import { stalePreconditionMessage } from "./stale-precondition-format";
 import type { DenizenCreatedEventV1, DenizenUpdatedEventV1, IsleCreatedEventV1, IsleUpdatedEventV1, PlaceCreatedEventV1, PlaceUpdatedEventV1 } from "./events";
 
 // ---------------------------------------------------------------------------
@@ -141,7 +142,7 @@ function checkPrecondition<T>(
   if (!eq(current, change.expected)) {
     throw new DomainError(
       "STALE_COMMAND_PRECONDITION",
-      `${fieldLabel}: expected "${String(change.expected)}" but current is "${String(current)}"`,
+      stalePreconditionMessage(fieldLabel, change.expected, current),
     );
   }
 }

@@ -444,6 +444,7 @@ export {
   nestMarinerBeastFingerprint,
   recordMarinerRavageResultFingerprint,
   initializeNecromancerFingerprint,
+  initializeNecromancerSourceSetupFingerprint,
   setNecromancerDepthFingerprint,
   setSelectedDeathLawsFingerprint,
   setNecromancerGateStatusFingerprint,
@@ -1898,11 +1899,21 @@ export {
 export type {
   TransformNecromancerSoulIntoAllyInput,
   NecromancerOperabilityTransitionResult,
+  NecromancerSourceSetupNamedFoe,
+  NecromancerSourceSetupNamedAlly,
+  NecromancerSourceSetupNamedGhoulCaller,
+  InitializeNecromancerSourceSetupInput,
 } from "./necromancer-operability-transitions";
 export {
   canonicalizeTransformNecromancerSoulIntoAllyInput,
   applyTransformNecromancerSoulIntoAlly,
+  canonicalizeInitializeNecromancerSourceSetupInput,
+  applyInitializeNecromancerSourceSetup,
 } from "./necromancer-operability-transitions";
+export {
+  formatStalePreconditionValue,
+  stalePreconditionMessage,
+} from "./stale-precondition-format";
 
 export type {
   MarinerTransitionResult,

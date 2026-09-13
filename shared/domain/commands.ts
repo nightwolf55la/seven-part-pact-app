@@ -84,6 +84,7 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "nest_mariner_beast",
   "record_mariner_ravage_result",
   "initialize_necromancer",
+  "initialize_necromancer_source_setup",
   "set_necromancer_depth",
   "set_selected_death_laws",
   "set_necromancer_gate_status",
@@ -278,6 +279,7 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "nest_mariner_beast":
     case "record_mariner_ravage_result":
     case "initialize_necromancer":
+    case "initialize_necromancer_source_setup":
     case "set_necromancer_depth":
     case "set_selected_death_laws":
     case "set_necromancer_gate_status":

@@ -603,20 +603,22 @@ export function validateNecromancerReferenceIntegrity(state: CampaignStateV5): v
           `${path}.subject.denizenId does not resolve: ${foe.subject.denizenId}`,
         );
       }
-      if (denizen.powerfulProfile === null) {
-        throw new DomainError(
-          "INVALID_CAMPAIGN_STATE",
-          `${path} requires a Powerful-Denizen profile`,
+      if (foe.location.kind === "escaped") {
+        if (denizen.powerfulProfile === null) {
+          throw new DomainError(
+            "INVALID_CAMPAIGN_STATE",
+            `${path} escaped Denizen Foe requires a Powerful-Denizen profile`,
+          );
+        }
+        const hasFoeTaxonomy = denizen.powerfulProfile.taxonomies.some(
+          (ref) => ref.kind === "builtin" && ref.taxonomyId === "foe_of_death",
         );
-      }
-      const hasFoeTaxonomy = denizen.powerfulProfile.taxonomies.some(
-        (ref) => ref.kind === "builtin" && ref.taxonomyId === "foe_of_death",
-      );
-      if (!hasFoeTaxonomy) {
-        throw new DomainError(
-          "INVALID_CAMPAIGN_STATE",
-          `${path} requires builtin taxonomy foe_of_death`,
-        );
+        if (!hasFoeTaxonomy) {
+          throw new DomainError(
+            "INVALID_CAMPAIGN_STATE",
+            `${path} escaped Denizen Foe requires builtin taxonomy foe_of_death`,
+          );
+        }
       }
       continue;
     }

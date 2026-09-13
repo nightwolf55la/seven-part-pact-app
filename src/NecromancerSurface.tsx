@@ -67,6 +67,7 @@ import {
   buildCreateNecromancerCampaignPathSpacePayload,
   buildEscapeNecromancerWizardFoePayload,
   buildInitializeNecromancerPayload,
+  buildInitializeNecromancerSourceSetupPayload,
   buildMoveNecromancerSoulsPayload,
   buildRemoveNecromancerAllyPayload,
   buildRemoveNecromancerCampaignPathSpacePayload,
@@ -109,6 +110,7 @@ import {
   namedOccupantTokens,
   necromancerDepthUiKind,
   necromancerSetupReady,
+  necromancerSourceSetupReady,
   newCampaignGateId,
   newCampaignPathSpaceId,
   newCommandId,
@@ -232,6 +234,7 @@ export default function NecromancerSurface({
   sorcererPresence?: readonly SorcererExternalPresence[];
 }) {
   const initializeNecromancer = useMutation(api.m3Commands.initializeNecromancer);
+  const initializeNecromancerSourceSetup = useMutation(api.m3Commands.initializeNecromancerSourceSetup);
   const setNecromancerDepth = useMutation(api.m3Commands.setNecromancerDepth);
   const setSelectedDeathLaws = useMutation(api.m3Commands.setSelectedDeathLaws);
   const setNecromancerGateStatus = useMutation(api.m3Commands.setNecromancerGateStatus);
@@ -327,6 +330,21 @@ export default function NecromancerSurface({
   }
 
   async function handleInitialize(): Promise<void> {
+    const payload = buildInitializeNecromancerSourceSetupPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      draft: setup,
+    });
+    if (payload === null) {
+      setError("Name the starting pieces and finish the required arrangement choices before initializing.");
+      return;
+    }
+    await run(async () => {
+      await initializeNecromancerSourceSetup(payload);
+    });
+  }
+
+  async function handleAdvancedInitialize(): Promise<void> {
     const payload = buildInitializeNecromancerPayload({
       commandId: newCommandId(),
       expectedCampaignId: campaignId,
@@ -334,7 +352,7 @@ export default function NecromancerSurface({
       denizens: world.denizens,
     });
     if (payload === null) {
-      setError("Finish the required arrangement choices before initializing.");
+      setError("Finish the Advanced World-identity bindings before initializing.");
       return;
     }
     await run(async () => {
@@ -401,6 +419,7 @@ export default function NecromancerSurface({
         pending={pending}
         error={error}
         onInitialize={() => { void handleInitialize(); }}
+        onAdvancedInitialize={() => { void handleAdvancedInitialize(); }}
       />
     );
   }
@@ -663,6 +682,7 @@ function SetupPanel({
   pending,
   error,
   onInitialize,
+  onAdvancedInitialize,
 }: {
   setup: NecromancerSetupDraft;
   setSetup: (updater: (current: NecromancerSetupDraft) => NecromancerSetupDraft) => void;
@@ -670,8 +690,10 @@ function SetupPanel({
   pending: boolean;
   error: string | null;
   onInitialize: () => void;
+  onAdvancedInitialize: () => void;
 }) {
-  const ready = necromancerSetupReady(setup, world.denizens);
+  const ready = necromancerSourceSetupReady(setup);
+  const advancedReady = necromancerSetupReady(setup, world.denizens);
   const slots = arrangementSetupSlots(setup.arrangementId);
   const lawCount = setup.selectedLawIds.filter((id, index, all) => all.indexOf(id) === index).length;
 
@@ -689,9 +711,7 @@ function SetupPanel({
       <div>
         <h2 className="text-lg font-semibold text-violet-900 dark:text-violet-100">Initialize Necromancer</h2>
         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-          The command constructs arrangement state; this form only gathers the choices that cannot be derived.
-          Named Foes, Ally, and Ghoul-Caller are existing World Denizens. Create missing characters in World first.
-          This form does not create World Denizens.
+          Arrange the Gates by naming the starting Foes and Ally. Ordinary starting Foes are created here; they do not need a Powerful profile or Foe-of-Death taxonomy first.
         </p>
       </div>
       {error !== null && (
@@ -738,47 +758,31 @@ function SetupPanel({
       </section>
       {slots.filter((slot) => slot.kind !== "ally" && slot.kind !== "ghoul_caller").length > 0 && (
         <section>
-          <h3 className="text-sm font-semibold mb-2">Foe bindings</h3>
+          <h3 className="text-sm font-semibold mb-2">Starting Foes</h3>
           <div className="space-y-3">
             {slots.filter((slot) => slot.kind === "deep_foe" || slot.kind === "terminus_foe" || slot.kind === "far_foe").map((slot) => (
               <div key={slot.id} className="grid sm:grid-cols-2 gap-2">
                 <label className="text-sm">
-                  <span className="block font-medium mb-1">{slot.label}</span>
-                  <select
-                    aria-label={slot.label}
+                  <span className="block font-medium mb-1">{slot.label} name</span>
+                  <input
+                    aria-label={`${slot.label} name`}
                     className={fieldClass}
                     value={
                       slot.kind === "deep_foe"
-                        ? setup.deepFoeDenizenId
+                        ? setup.deepFoeName
                         : slot.kind === "terminus_foe"
-                          ? setup.terminusFoeDenizenId
-                          : setup.farFoes[slot.farIndex ?? 0]?.denizenId ?? ""
+                          ? setup.terminusFoeName
+                          : setup.farFoes[slot.farIndex ?? 0]?.name ?? ""
                     }
                     onChange={(event) => setSetup((current) => {
-                      if (slot.kind === "deep_foe") return { ...current, deepFoeDenizenId: event.target.value };
-                      if (slot.kind === "terminus_foe") return { ...current, terminusFoeDenizenId: event.target.value };
+                      if (slot.kind === "deep_foe") return { ...current, deepFoeName: event.target.value };
+                      if (slot.kind === "terminus_foe") return { ...current, terminusFoeName: event.target.value };
                       const farFoes = current.farFoes.map((foe, index) =>
-                        index === (slot.farIndex ?? 0) ? { ...foe, denizenId: event.target.value } : foe,
+                        index === (slot.farIndex ?? 0) ? { ...foe, name: event.target.value } : foe,
                       );
                       return { ...current, farFoes };
                     })}
-                  >
-                    <option value="">Select Denizen…</option>
-                    {availableSetupDenizens(
-                      world.denizens,
-                      setup,
-                      slot.kind === "deep_foe"
-                        ? setup.deepFoeDenizenId
-                        : slot.kind === "terminus_foe"
-                          ? setup.terminusFoeDenizenId
-                          : setup.farFoes[slot.farIndex ?? 0]?.denizenId ?? "",
-                      false,
-                    ).map((denizen) => (
-                      <option key={denizen.denizenId} value={denizen.denizenId}>
-                        {denizen.name} ({denizen.representation})
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </label>
                 {slot.kind === "far_foe" && (
                   <label className="text-sm">
@@ -809,23 +813,16 @@ function SetupPanel({
         </section>
       )}
       <section>
-        <h3 className="text-sm font-semibold mb-2">Ally binding</h3>
+        <h3 className="text-sm font-semibold mb-2">Starting Ally</h3>
         <div className="grid sm:grid-cols-2 gap-2">
           <label className="text-sm">
-            <span className="block font-medium mb-1">Ally Denizen</span>
-            <select
-              aria-label="Ally Denizen"
+            <span className="block font-medium mb-1">Ally name</span>
+            <input
+              aria-label="Ally name"
               className={fieldClass}
-              value={setup.allyDenizenId}
-              onChange={(event) => setSetup((current) => ({ ...current, allyDenizenId: event.target.value }))}
-            >
-              <option value="">Select Denizen…</option>
-              {availableSetupDenizens(world.denizens, setup, setup.allyDenizenId, false).map((denizen) => (
-                <option key={denizen.denizenId} value={denizen.denizenId}>
-                  {denizen.name} ({denizen.representation})
-                </option>
-              ))}
-            </select>
+              value={setup.allyName}
+              onChange={(event) => setSetup((current) => ({ ...current, allyName: event.target.value }))}
+            />
           </label>
           <label className="text-sm">
             <span className="block font-medium mb-1">Near Gate</span>
@@ -847,27 +844,17 @@ function SetupPanel({
       </section>
       {slots.some((slot) => slot.kind === "ghoul_caller") && (
         <section>
-          <h3 className="text-sm font-semibold mb-2">Ghoul-Caller binding</h3>
-          <p className="text-xs text-slate-500 mb-2">Explosive starts the Ghoul-Caller Disruptive with petty dead 0. Those values are not asked here.</p>
+          <h3 className="text-sm font-semibold mb-2">Disruptive Ghoul-Caller</h3>
+          <p className="text-xs text-slate-500 mb-2">Explosive creates this Ghoul-Caller as Disruptive with petty dead 0. Name and place them here; the required Powerful profile is attached automatically.</p>
           <div className="grid sm:grid-cols-2 gap-2">
             <label className="text-sm">
-              <span className="block font-medium mb-1">Individual Denizen</span>
-              <select
-                aria-label="Ghoul-Caller Denizen"
+              <span className="block font-medium mb-1">Ghoul-Caller name</span>
+              <input
+                aria-label="Ghoul-Caller name"
                 className={fieldClass}
-                value={setup.ghoulCallerDenizenId}
-                onChange={(event) => setSetup((current) => ({ ...current, ghoulCallerDenizenId: event.target.value }))}
-              >
-                <option value="">Select individual Denizen…</option>
-                {availableSetupGhoulCallerDenizens(world.denizens, setup, setup.ghoulCallerDenizenId).map((denizen) => (
-                  <option key={denizen.denizenId} value={denizen.denizenId}>{denizen.name}</option>
-                ))}
-              </select>
-              {availableSetupGhoulCallerDenizens(world.denizens, setup, setup.ghoulCallerDenizenId).length === 0 && (
-                <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">
-                  Starting Ghoul-Caller requires a shared Powerful profile with Ghoul-Caller taxonomy and Disruptive Status. Configure it in World first.
-                </p>
-              )}
+                value={setup.ghoulCallerName}
+                onChange={(event) => setSetup((current) => ({ ...current, ghoulCallerName: event.target.value }))}
+              />
             </label>
             <label className="text-sm">
               <span className="block font-medium mb-1">Edge-of-Life path</span>
@@ -933,6 +920,90 @@ function SetupPanel({
       <button className={btnClass} disabled={pending || !ready} onClick={onInitialize}>
         Initialize Necromancer
       </button>
+      <details className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+        <summary className="text-sm font-semibold cursor-pointer">Advanced / Correct Board — bind existing World Denizens</summary>
+        <p className="text-xs text-slate-500 mt-2 mb-3">
+          Ordinary setup creates and names the starting pieces. Use this only to bind already-created World identities.
+        </p>
+        <section className="space-y-3">
+          <h3 className="text-sm font-semibold">Existing Foe identities</h3>
+          {slots.filter((slot) => slot.kind === "deep_foe" || slot.kind === "terminus_foe" || slot.kind === "far_foe").map((slot) => (
+            <label key={`advanced-${slot.id}`} className="text-sm block">
+              <span className="block font-medium mb-1">{slot.label}</span>
+              <select
+                aria-label={`Advanced ${slot.label}`}
+                className={fieldClass}
+                value={
+                  slot.kind === "deep_foe"
+                    ? setup.deepFoeDenizenId
+                    : slot.kind === "terminus_foe"
+                      ? setup.terminusFoeDenizenId
+                      : setup.farFoes[slot.farIndex ?? 0]?.denizenId ?? ""
+                }
+                onChange={(event) => setSetup((current) => {
+                  if (slot.kind === "deep_foe") return { ...current, deepFoeDenizenId: event.target.value };
+                  if (slot.kind === "terminus_foe") return { ...current, terminusFoeDenizenId: event.target.value };
+                  const farFoes = current.farFoes.map((foe, index) =>
+                    index === (slot.farIndex ?? 0) ? { ...foe, denizenId: event.target.value } : foe,
+                  );
+                  return { ...current, farFoes };
+                })}
+              >
+                <option value="">Select Denizen…</option>
+                {availableSetupDenizens(
+                  world.denizens,
+                  setup,
+                  slot.kind === "deep_foe"
+                    ? setup.deepFoeDenizenId
+                    : slot.kind === "terminus_foe"
+                      ? setup.terminusFoeDenizenId
+                      : setup.farFoes[slot.farIndex ?? 0]?.denizenId ?? "",
+                  false,
+                ).map((denizen) => (
+                  <option key={denizen.denizenId} value={denizen.denizenId}>
+                    {denizen.name} ({denizen.representation})
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+          <label className="text-sm block">
+            <span className="block font-medium mb-1">Ally Denizen</span>
+            <select
+              aria-label="Advanced Ally Denizen"
+              className={fieldClass}
+              value={setup.allyDenizenId}
+              onChange={(event) => setSetup((current) => ({ ...current, allyDenizenId: event.target.value }))}
+            >
+              <option value="">Select Denizen…</option>
+              {availableSetupDenizens(world.denizens, setup, setup.allyDenizenId, false).map((denizen) => (
+                <option key={denizen.denizenId} value={denizen.denizenId}>
+                  {denizen.name} ({denizen.representation})
+                </option>
+              ))}
+            </select>
+          </label>
+          {slots.some((slot) => slot.kind === "ghoul_caller") && (
+            <label className="text-sm block">
+              <span className="block font-medium mb-1">Ghoul-Caller Denizen</span>
+              <select
+                aria-label="Advanced Ghoul-Caller Denizen"
+                className={fieldClass}
+                value={setup.ghoulCallerDenizenId}
+                onChange={(event) => setSetup((current) => ({ ...current, ghoulCallerDenizenId: event.target.value }))}
+              >
+                <option value="">Select individual Denizen…</option>
+                {availableSetupGhoulCallerDenizens(world.denizens, setup, setup.ghoulCallerDenizenId).map((denizen) => (
+                  <option key={denizen.denizenId} value={denizen.denizenId}>{denizen.name}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          <button className={btnClass} disabled={pending || !advancedReady} onClick={onAdvancedInitialize}>
+            Initialize from existing Denizens
+          </button>
+        </section>
+      </details>
     </div>
   );
 }
