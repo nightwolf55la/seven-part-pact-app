@@ -1,6 +1,6 @@
 export type { Brand } from "./brand";
 
-export type { CampaignId, CommandId, CheckpointId, PlayerId, WizardId, AllocationId, EngagementId, DenizenId, IsleId, PlaceId, CompanionRelationshipId, TreasureId, CampaignPowerfulDenizenTaxonomyId, PowerfulDenizenMethodEntryId, PowerfulDenizenTruthId, LoreCollectionId, LoreEntryId } from "./ids";
+export type { CampaignId, CommandId, CheckpointId, PlayerId, WizardId, AllocationId, EngagementId, DenizenId, IsleId, PlaceId, CompanionRelationshipId, TreasureId, CampaignPowerfulDenizenTaxonomyId, PowerfulDenizenMethodEntryId, PowerfulDenizenTruthId, LoreCollectionId, LoreEntryId, FaustianPendingMachinationChallengeId, FaustianPendingMachinationGroupId } from "./ids";
 export {
   isValidCampaignId,
   parseCampaignId,
@@ -40,6 +40,12 @@ export {
   generateLoreEntryId,
   isValidLoreEntryId,
   parseLoreEntryId,
+  generateFaustianPendingMachinationChallengeId,
+  isValidFaustianPendingMachinationChallengeId,
+  parseFaustianPendingMachinationChallengeId,
+  generateFaustianPendingMachinationGroupId,
+  isValidFaustianPendingMachinationGroupId,
+  parseFaustianPendingMachinationGroupId,
 } from "./ids";
 
 export type {
@@ -1336,6 +1342,10 @@ export type {
   FaustianCustomOriginClaim,
   FaustianSelectedDevilForms,
   FaustianDevilObligation,
+  FaustianPendingMachinationKind,
+  FaustianPendingMachinationGroupStatus,
+  FaustianPendingMachinationGroup,
+  FaustianPendingMachinationChallenge,
   FaustianPersistentFullHouseRank,
   FaustianPersistentMachinationEffect,
   FaustianState,
@@ -1345,13 +1355,20 @@ export {
   EMPTY_FAUSTIAN_STATE,
   EMPTY_SELECTED_DEVIL_FORMS,
   FAUSTIAN_DEMON_CONDITIONS,
+  FAUSTIAN_PENDING_MACHINATION_KINDS,
+  FAUSTIAN_PENDING_MACHINATION_GROUP_STATUSES,
   FAUSTIAN_PERSISTENT_FULL_HOUSE_RANKS,
   buildInitializedDefaultFaustianState,
   faustianDeckMissingSuits,
   devilWeeksOwedForMissingSuits,
   isFaustianDeckEmpty,
   isValidFaustianDemonCondition,
+  isValidFaustianPendingMachinationKind,
+  isValidFaustianPendingMachinationGroupStatus,
   isValidFaustianPersistentFullHouseRank,
+  followingFaustianChallengeDueMonth,
+  accumulateFaustianDueMonthObligation,
+  fulfillFaustianDueMonthObligation,
 } from "./faustian-state";
 
 export { validateFaustianStructure, validateFaustianReferenceIntegrity } from "./faustian-validation";

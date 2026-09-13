@@ -142,6 +142,7 @@ export function isExactUnarrangedFaustianBaseline(faustian: FaustianState): bool
     && faustian.antagonists.length === 0
     && faustian.demons.length === 0
     && faustian.domainSeizures.length === 0
+    && faustian.pendingMachinationChallenges.length === 0
     && faustian.devilObligations.length === 0
     && faustian.resolvedFlushSuits.length === 0
     && faustian.persistentMachinationEffects.length === 0

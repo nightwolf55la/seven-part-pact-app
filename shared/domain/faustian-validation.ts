@@ -1,8 +1,11 @@
 import type { CampaignStateV5 } from "./campaign-state";
 import { DomainError } from "./errors";
+import { advanceOrdinal } from "./calendar";
 import {
   isValidCompanionRelationshipId,
   isValidDenizenId,
+  isValidFaustianPendingMachinationChallengeId,
+  isValidFaustianPendingMachinationGroupId,
   isValidTreasureId,
   isValidWizardId,
 } from "./ids";
@@ -26,10 +29,13 @@ import {
 import type { FaustianCardId, FaustianDevilFormId, FaustianSuit } from "./faustian-catalogs";
 import {
   isValidFaustianDemonCondition,
+  isValidFaustianPendingMachinationGroupStatus,
+  isValidFaustianPendingMachinationKind,
   isValidFaustianPersistentFullHouseRank,
   type FaustianCommunityState,
   type FaustianDevilObligation,
   type FaustianMachinationCard,
+  type FaustianPendingMachinationChallenge,
   type FaustianPersistentMachinationEffect,
   type FaustianPossessionRepresentation,
   type FaustianSelectedDevilForms,
@@ -180,8 +186,8 @@ function validatePossessionRepresentation(path: string, value: unknown): Faustia
 
 function obligationKey(obligation: FaustianDevilObligation): string {
   switch (obligation.kind) {
-    case "wizard_owes_week_next_month":
-      return `${obligation.kind}:${obligation.wizardId}`;
+    case "wizard_owes_week_due_month":
+      return `${obligation.kind}:${obligation.wizardId}:${obligation.dueMonthOrdinal}`;
     case "wizard_owes_week_monthly_while_denizen_alive":
       return `${obligation.kind}:${obligation.wizardId}:${obligation.denizenId}`;
     case "monthly_card_drain_while_powerful_in_isha":
@@ -202,7 +208,24 @@ function validateObligation(path: string, value: unknown): FaustianDevilObligati
     throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be an object`);
   }
   const obligation = value as Record<string, unknown>;
-  if (obligation.kind === "wizard_owes_week_next_month" || obligation.kind === "monthly_card_drain_while_wizard_alive") {
+  if (obligation.kind === "wizard_owes_week_due_month") {
+    if (typeof obligation.wizardId !== "string" || !isValidWizardId(obligation.wizardId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.wizardId is invalid: ${JSON.stringify(obligation.wizardId)}`);
+    }
+    if (typeof obligation.dueMonthOrdinal !== "number" || !Number.isSafeInteger(obligation.dueMonthOrdinal) || obligation.dueMonthOrdinal < 0) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.dueMonthOrdinal must be a non-negative MonthOrdinal`);
+    }
+    if (typeof obligation.weeks !== "number" || !Number.isSafeInteger(obligation.weeks) || obligation.weeks < 1) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.weeks must be a positive safe integer`);
+    }
+    return {
+      kind: "wizard_owes_week_due_month",
+      wizardId: obligation.wizardId,
+      dueMonthOrdinal: obligation.dueMonthOrdinal,
+      weeks: obligation.weeks,
+    };
+  }
+  if (obligation.kind === "monthly_card_drain_while_wizard_alive") {
     if (typeof obligation.wizardId !== "string" || !isValidWizardId(obligation.wizardId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.wizardId is invalid: ${JSON.stringify(obligation.wizardId)}`);
     }
@@ -281,6 +304,225 @@ function validatePersistentMachinationEffect(path: string, value: unknown): Faus
     return { kind: "full_house", rank: effect.rank };
   }
   throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.kind is invalid: ${JSON.stringify(effect.kind)}`);
+}
+
+function requireMonthOrdinal(path: string, value: unknown): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be a non-negative MonthOrdinal`);
+  }
+  return value;
+}
+
+function cardRankFromId(cardId: FaustianCardId): string {
+  return cardId.slice(cardId.indexOf("_") + 1);
+}
+
+function validatePendingMachinationChallenges(
+  value: unknown,
+  faustian: FaustianState,
+): readonly FaustianPendingMachinationChallenge[] {
+  if (!Array.isArray(value)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "faustian.pendingMachinationChallenges must be an array");
+  }
+  const challenges = value as FaustianPendingMachinationChallenge[];
+  const challengeIds = new Set<string>();
+  const groupIds = new Set<string>();
+  const pendingPhysicalOwners = new Map<string, string>();
+  const reservedTwists = new Map<string, string>();
+  const setAside = new Set(faustian.setAsideHand);
+  const entrustedByCard = new Map(faustian.entrustedCards.map((card) => [card.cardId, card.wizardId]));
+  const machinationIds = new Set(faustian.machinations.map((card) => card.cardId));
+  const activeTwists = new Set(faustian.activeTwistCardIds);
+
+  for (let i = 0; i < challenges.length; i++) {
+    const challenge = challenges[i];
+    const path = `faustian.pendingMachinationChallenges[${i}]`;
+    if (challenge === null || challenge === undefined || typeof challenge !== "object") {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} must be an object`);
+    }
+    if (typeof challenge.challengeId !== "string" || !isValidFaustianPendingMachinationChallengeId(challenge.challengeId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.challengeId is invalid: ${JSON.stringify(challenge.challengeId)}`);
+    }
+    if (challengeIds.has(challenge.challengeId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate Faustian pending Machination challenge: ${challenge.challengeId}`);
+    }
+    challengeIds.add(challenge.challengeId);
+    if (typeof challenge.kind !== "string" || !isValidFaustianPendingMachinationKind(challenge.kind)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.kind is invalid: ${JSON.stringify(challenge.kind)}`);
+    }
+    const sourceMonth = requireMonthOrdinal(`${path}.sourceMonthOrdinal`, challenge.sourceMonthOrdinal);
+    const dueMonth = requireMonthOrdinal(`${path}.dueMonthOrdinal`, challenge.dueMonthOrdinal);
+    if (dueMonth !== advanceOrdinal(sourceMonth, "forward")) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `${path}.dueMonthOrdinal must be the following campaign month after sourceMonthOrdinal`,
+      );
+    }
+    const scoringHandCardIds = validateCardIdArray(`${path}.scoringHandCardIds`, challenge.scoringHandCardIds);
+    const scoringSet = new Set(scoringHandCardIds);
+    if (!Array.isArray(challenge.groups)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.groups must be an array`);
+    }
+    const outcomeDependentTwistCardIds = validateCardIdArray(
+      `${path}.outcomeDependentTwistCardIds`,
+      challenge.outcomeDependentTwistCardIds,
+    );
+    for (const twistId of outcomeDependentTwistCardIds) {
+      if (!activeTwists.has(twistId)) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `${path}.outcomeDependentTwistCardIds reserved Twist must be a current active Twist: ${twistId}`,
+        );
+      }
+      if (!machinationIds.has(twistId)) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `${path}.outcomeDependentTwistCardIds reserved Twist must remain physically in Machinations: ${twistId}`,
+        );
+      }
+      const owner = reservedTwists.get(twistId);
+      if (owner !== undefined && owner !== challenge.challengeId) {
+        throw new DomainError(
+          "INVALID_CAMPAIGN_STATE",
+          `Active Twist ${twistId} is reserved by more than one unresolved challenge`,
+        );
+      }
+      reservedTwists.set(twistId, challenge.challengeId);
+    }
+    const reservedTwistSet = new Set(outcomeDependentTwistCardIds);
+
+    if (challenge.kind === "one_pair" && challenge.groups.length !== 1) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} One Pair must have exactly one group`);
+    }
+    if (challenge.kind === "two_pair" && challenge.groups.length !== 2) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} Two Pair must have exactly two groups`);
+    }
+    if (challenge.kind === "three_of_a_kind" && challenge.groups.length !== 3) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} Three of a Kind must have exactly three groups`);
+    }
+
+    const responsibleWizards = new Set<string>();
+    const groupCardsInChallenge = new Set<string>();
+    for (let g = 0; g < challenge.groups.length; g++) {
+      const group = challenge.groups[g];
+      const groupPath = `${path}.groups[${g}]`;
+      if (group === null || group === undefined || typeof group !== "object") {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${groupPath} must be an object`);
+      }
+      if (typeof group.groupId !== "string" || !isValidFaustianPendingMachinationGroupId(group.groupId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${groupPath}.groupId is invalid: ${JSON.stringify(group.groupId)}`);
+      }
+      if (groupIds.has(group.groupId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Duplicate Faustian pending Machination group: ${group.groupId}`);
+      }
+      groupIds.add(group.groupId);
+      if (typeof group.status !== "string" || !isValidFaustianPendingMachinationGroupStatus(group.status)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${groupPath}.status is invalid: ${JSON.stringify(group.status)}`);
+      }
+      const originalCardIds = validateCardIdArray(`${groupPath}.originalCardIds`, group.originalCardIds);
+      if (originalCardIds.length === 0) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${groupPath}.originalCardIds must not be empty`);
+      }
+      for (const cardId of originalCardIds) {
+        if (!scoringSet.has(cardId)) {
+          throw new DomainError(
+            "INVALID_CAMPAIGN_STATE",
+            `${groupPath}.originalCardIds must be members of scoringHandCardIds: ${cardId}`,
+          );
+        }
+        if (groupCardsInChallenge.has(cardId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} group cards must be unique within the challenge: ${cardId}`);
+        }
+        groupCardsInChallenge.add(cardId);
+      }
+      if (challenge.kind === "one_pair") {
+        if (originalCardIds.length !== scoringHandCardIds.length
+          || scoringHandCardIds.some((cardId, index) => cardId !== originalCardIds[index])) {
+          throw new DomainError(
+            "INVALID_CAMPAIGN_STATE",
+            `${groupPath}.originalCardIds must preserve the complete retained selected hand`,
+          );
+        }
+        if (group.status === "pending" && group.responsibleWizardId !== null) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `${groupPath}.responsibleWizardId must be null while One Pair is pending`);
+        }
+      }
+      if (challenge.kind === "two_pair") {
+        if (originalCardIds.length !== 2) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `${groupPath}.originalCardIds must contain exactly one selected pair`);
+        }
+        if (cardRankFromId(originalCardIds[0]!) !== cardRankFromId(originalCardIds[1]!)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `${groupPath}.originalCardIds must be a matching pair`);
+        }
+      }
+      if (challenge.kind === "three_of_a_kind" && originalCardIds.length !== 1) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${groupPath}.originalCardIds must contain exactly one of the matching three cards`);
+      }
+      if (challenge.kind !== "one_pair") {
+        if (typeof group.responsibleWizardId !== "string" || !isValidWizardId(group.responsibleWizardId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `${groupPath}.responsibleWizardId is invalid: ${JSON.stringify(group.responsibleWizardId)}`);
+        }
+        if (responsibleWizards.has(group.responsibleWizardId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} responsible Wizards must be distinct`);
+        }
+        responsibleWizards.add(group.responsibleWizardId);
+      } else if (group.responsibleWizardId !== null && (typeof group.responsibleWizardId !== "string" || !isValidWizardId(group.responsibleWizardId))) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${groupPath}.responsibleWizardId is invalid: ${JSON.stringify(group.responsibleWizardId)}`);
+      }
+      if (group.status === "pending") {
+        if (group.completedByWizardId !== null || group.completedMonthOrdinal !== null) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `${groupPath} pending completion metadata must be null`);
+        }
+        for (const cardId of originalCardIds) {
+          if (reservedTwistSet.has(cardId)) {
+            continue;
+          }
+          const owner = pendingPhysicalOwners.get(cardId);
+          if (owner !== undefined) {
+            throw new DomainError(
+              "INVALID_CAMPAIGN_STATE",
+              `Pending Faustian card ${cardId} is reserved by more than one pending response group`,
+            );
+          }
+          pendingPhysicalOwners.set(cardId, group.groupId);
+          if (challenge.kind === "one_pair") {
+            if (!setAside.has(cardId)) {
+              throw new DomainError(
+                "INVALID_CAMPAIGN_STATE",
+                `${groupPath} pending One Pair non-Twist cards must be in setAsideHand: ${cardId}`,
+              );
+            }
+          } else {
+            const entrustedWizard = entrustedByCard.get(cardId);
+            if (entrustedWizard !== group.responsibleWizardId) {
+              throw new DomainError(
+                "INVALID_CAMPAIGN_STATE",
+                `${groupPath} pending non-Twist cards must be entrusted to the responsible Wizard: ${cardId}`,
+              );
+            }
+          }
+        }
+      } else {
+        if (typeof group.completedByWizardId !== "string" || !isValidWizardId(group.completedByWizardId)) {
+          throw new DomainError("INVALID_CAMPAIGN_STATE", `${groupPath}.completedByWizardId is invalid: ${JSON.stringify(group.completedByWizardId)}`);
+        }
+        requireMonthOrdinal(`${groupPath}.completedMonthOrdinal`, group.completedMonthOrdinal);
+        if (challenge.kind !== "one_pair" && group.completedByWizardId !== group.responsibleWizardId) {
+          throw new DomainError(
+            "INVALID_CAMPAIGN_STATE",
+            `${groupPath}.completedByWizardId must be the assigned responsible Wizard`,
+          );
+        }
+      }
+    }
+    if (challenge.kind === "three_of_a_kind") {
+      const ranks = challenge.groups.map((group) => cardRankFromId(group.originalCardIds[0]!));
+      if (ranks.some((rank) => rank !== ranks[0])) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path} Three of a Kind groups must share one matching rank`);
+      }
+    }
+  }
+  return challenges;
 }
 
 function collectLocatedCards(faustian: FaustianState): string[] {
@@ -650,6 +892,16 @@ export function validateFaustianStructure(faustian: unknown): void {
     validatePersistentMachinationEffect(`faustian.persistentMachinationEffects[${i}]`, f.persistentMachinationEffects[i]);
   }
 
+  validatePendingMachinationChallenges(f.pendingMachinationChallenges, {
+    ...(f as unknown as FaustianState),
+    faustianDeck,
+    devilDeck,
+    communities,
+    machinations,
+    defeatedSchemes,
+    setAsideHand,
+  });
+
   const located = collectLocatedCards({
     ...(f as unknown as FaustianState),
     faustianDeck,
@@ -815,6 +1067,21 @@ export function validateFaustianReferenceIntegrity(state: CampaignStateV5): void
       const denizen = denizenById.get(obligation.denizenId);
       if (denizen === undefined || denizen.powerfulProfile === null) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId must reference a Powerful Denizen`);
+      }
+    }
+  }
+
+  for (let i = 0; i < faustian.pendingMachinationChallenges.length; i++) {
+    const challenge = faustian.pendingMachinationChallenges[i];
+    const path = `faustian.pendingMachinationChallenges[${i}]`;
+    for (let g = 0; g < challenge.groups.length; g++) {
+      const group = challenge.groups[g];
+      const groupPath = `${path}.groups[${g}]`;
+      if (group.responsibleWizardId !== null && !wizardIds.has(group.responsibleWizardId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${groupPath}.responsibleWizardId does not resolve: ${group.responsibleWizardId}`);
+      }
+      if (group.completedByWizardId !== null && !wizardIds.has(group.completedByWizardId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${groupPath}.completedByWizardId does not resolve: ${group.completedByWizardId}`);
       }
     }
   }

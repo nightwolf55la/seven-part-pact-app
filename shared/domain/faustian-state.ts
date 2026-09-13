@@ -1,4 +1,18 @@
-import type { CompanionRelationshipId, DenizenId, TreasureId, WizardId } from "./ids";
+import type { MonthOrdinal } from "./calendar";
+import { advanceOrdinal } from "./calendar";
+import type {
+  CompanionRelationshipId,
+  DenizenId,
+  FaustianPendingMachinationChallengeId,
+  FaustianPendingMachinationGroupId,
+  TreasureId,
+  WizardId,
+} from "./ids";
+import {
+  generateFaustianPendingMachinationChallengeId,
+  generateFaustianPendingMachinationGroupId,
+  isValidWizardId,
+} from "./ids";
 import type { PactSeatId } from "./pact-seats";
 import type {
   FaustianAntagonistChipCount,
@@ -132,10 +146,62 @@ export interface FaustianSelectedDevilForms {
   readonly duress: readonly FaustianDevilFormId[];
 }
 
+export const FAUSTIAN_PENDING_MACHINATION_KINDS = [
+  "one_pair",
+  "two_pair",
+  "three_of_a_kind",
+] as const;
+
+export type FaustianPendingMachinationKind = (typeof FAUSTIAN_PENDING_MACHINATION_KINDS)[number];
+
+export function isValidFaustianPendingMachinationKind(
+  value: string,
+): value is FaustianPendingMachinationKind {
+  return (FAUSTIAN_PENDING_MACHINATION_KINDS as readonly string[]).includes(value);
+}
+
+export const FAUSTIAN_PENDING_MACHINATION_GROUP_STATUSES = ["pending", "completed"] as const;
+
+export type FaustianPendingMachinationGroupStatus =
+  (typeof FAUSTIAN_PENDING_MACHINATION_GROUP_STATUSES)[number];
+
+export function isValidFaustianPendingMachinationGroupStatus(
+  value: string,
+): value is FaustianPendingMachinationGroupStatus {
+  return (FAUSTIAN_PENDING_MACHINATION_GROUP_STATUSES as readonly string[]).includes(value);
+}
+
+export interface FaustianPendingMachinationGroup {
+  readonly groupId: FaustianPendingMachinationGroupId;
+  readonly responsibleWizardId: WizardId | null;
+  readonly originalCardIds: readonly FaustianCardId[];
+  readonly status: FaustianPendingMachinationGroupStatus;
+  readonly completedByWizardId: WizardId | null;
+  readonly completedMonthOrdinal: MonthOrdinal | null;
+}
+
+export interface FaustianPendingMachinationChallenge {
+  readonly challengeId: FaustianPendingMachinationChallengeId;
+  readonly kind: FaustianPendingMachinationKind;
+  readonly sourceMonthOrdinal: MonthOrdinal;
+  readonly dueMonthOrdinal: MonthOrdinal;
+  readonly scoringHandCardIds: readonly FaustianCardId[];
+  readonly groups: readonly FaustianPendingMachinationGroup[];
+  readonly outcomeDependentTwistCardIds: readonly FaustianCardId[];
+}
+
+export function followingFaustianChallengeDueMonth(sourceMonthOrdinal: MonthOrdinal): MonthOrdinal {
+  return advanceOrdinal(sourceMonthOrdinal, "forward");
+}
+
+export { generateFaustianPendingMachinationChallengeId, generateFaustianPendingMachinationGroupId };
+
 export type FaustianDevilObligation =
   | {
-      readonly kind: "wizard_owes_week_next_month";
+      readonly kind: "wizard_owes_week_due_month";
       readonly wizardId: WizardId;
+      readonly dueMonthOrdinal: MonthOrdinal;
+      readonly weeks: number;
     }
   | {
       readonly kind: "wizard_owes_week_monthly_while_denizen_alive";
@@ -212,6 +278,7 @@ export interface FaustianState {
   readonly antagonists: readonly FaustianAntagonistState[];
   readonly demons: readonly FaustianDemonState[];
   readonly domainSeizures: readonly FaustianDomainSeizure[];
+  readonly pendingMachinationChallenges: readonly FaustianPendingMachinationChallenge[];
   readonly selectedDevilLawIds: readonly FaustianDevilLawId[];
   readonly selectedDevilForms: FaustianSelectedDevilForms;
   readonly originClaims: readonly FaustianOriginClaimState[];
@@ -259,6 +326,7 @@ export const EMPTY_FAUSTIAN_STATE: FaustianState = {
   antagonists: [],
   demons: [],
   domainSeizures: [],
+  pendingMachinationChallenges: [],
   selectedDevilLawIds: [],
   selectedDevilForms: EMPTY_SELECTED_DEVIL_FORMS,
   originClaims: openOriginClaims(),
@@ -346,4 +414,74 @@ export function devilWeeksOwedForMissingSuits(faustian: FaustianState): number {
 
 export function isFaustianDeckEmpty(faustian: FaustianState): boolean {
   return faustian.faustianDeck.length === 0;
+}
+
+export function accumulateFaustianDueMonthObligation(
+  obligations: readonly FaustianDevilObligation[],
+  wizardId: WizardId,
+  dueMonthOrdinal: MonthOrdinal,
+  weeks: number,
+): readonly FaustianDevilObligation[] {
+  if (!isValidWizardId(wizardId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Due-month obligation requires a valid Wizard");
+  }
+  if (typeof dueMonthOrdinal !== "number" || !Number.isSafeInteger(dueMonthOrdinal) || dueMonthOrdinal < 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Due-month obligation requires a valid MonthOrdinal");
+  }
+  if (!Number.isSafeInteger(weeks) || weeks < 1) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Due-month obligation weeks must be a positive integer");
+  }
+  const existingIndex = obligations.findIndex((obligation) =>
+    obligation.kind === "wizard_owes_week_due_month"
+    && obligation.wizardId === wizardId
+    && obligation.dueMonthOrdinal === dueMonthOrdinal
+  );
+  if (existingIndex === -1) {
+    return [
+      ...obligations,
+      { kind: "wizard_owes_week_due_month", wizardId, dueMonthOrdinal, weeks },
+    ];
+  }
+  const existing = obligations[existingIndex];
+  if (existing.kind !== "wizard_owes_week_due_month") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Due-month obligation key matched a different obligation kind");
+  }
+  return obligations.map((obligation, index) =>
+    index === existingIndex
+      ? { ...existing, weeks: existing.weeks + weeks }
+      : obligation
+  );
+}
+
+export function fulfillFaustianDueMonthObligation(
+  obligations: readonly FaustianDevilObligation[],
+  wizardId: WizardId,
+  dueMonthOrdinal: MonthOrdinal,
+  weeks: number,
+): readonly FaustianDevilObligation[] {
+  if (!Number.isSafeInteger(weeks) || weeks < 1) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Due-month fulfillment weeks must be a positive integer");
+  }
+  const existingIndex = obligations.findIndex((obligation) =>
+    obligation.kind === "wizard_owes_week_due_month"
+    && obligation.wizardId === wizardId
+    && obligation.dueMonthOrdinal === dueMonthOrdinal
+  );
+  if (existingIndex === -1) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "No due-month Wizard-week obligation matches that Wizard and MonthOrdinal");
+  }
+  const existing = obligations[existingIndex];
+  if (existing.kind !== "wizard_owes_week_due_month") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Due-month obligation key matched a different obligation kind");
+  }
+  if (weeks > existing.weeks) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Cannot fulfill more weeks than remain on that due-month obligation");
+  }
+  const remaining = existing.weeks - weeks;
+  if (remaining === 0) {
+    return obligations.filter((_, index) => index !== existingIndex);
+  }
+  return obligations.map((obligation, index) =>
+    index === existingIndex ? { ...existing, weeks: remaining } : obligation
+  );
 }

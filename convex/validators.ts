@@ -1246,7 +1246,12 @@ const faustianDemonBindingValidator = v.union(
   v.object({ kind: v.literal("unbound"), malignance: v.string() }),
 );
 const faustianDevilObligationValidator = v.union(
-  v.object({ kind: v.literal("wizard_owes_week_next_month"), wizardId: v.string() }),
+  v.object({
+    kind: v.literal("wizard_owes_week_due_month"),
+    wizardId: v.string(),
+    dueMonthOrdinal: v.number(),
+    weeks: v.number(),
+  }),
   v.object({
     kind: v.literal("wizard_owes_week_monthly_while_denizen_alive"),
     wizardId: v.string(),
@@ -1549,6 +1554,22 @@ export const faustianStateValidator = v.object({
   domainSeizures: v.array(v.object({
     seatId: v.string(),
     conduitDenizenId: v.string(),
+  })),
+  pendingMachinationChallenges: v.array(v.object({
+    challengeId: v.string(),
+    kind: v.union(v.literal("one_pair"), v.literal("two_pair"), v.literal("three_of_a_kind")),
+    sourceMonthOrdinal: v.number(),
+    dueMonthOrdinal: v.number(),
+    scoringHandCardIds: v.array(v.string()),
+    groups: v.array(v.object({
+      groupId: v.string(),
+      responsibleWizardId: v.union(v.string(), v.null()),
+      originalCardIds: v.array(v.string()),
+      status: v.union(v.literal("pending"), v.literal("completed")),
+      completedByWizardId: v.union(v.string(), v.null()),
+      completedMonthOrdinal: v.union(v.number(), v.null()),
+    })),
+    outcomeDependentTwistCardIds: v.array(v.string()),
   })),
   selectedDevilLawIds: v.array(v.string()),
   selectedDevilForms: v.object({
