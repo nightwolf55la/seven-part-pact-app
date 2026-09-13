@@ -1,12 +1,12 @@
 # M5.4A-F — Faustian Card Table & Operability
 
-**Status:** DETERMINISTIC CANDIDATE after Workstream empty-direct-set fix. Real Convex Development closure is BLOCKED in this isolated worktree (anonymous Convex CLI; login/project selection required). Not Faustian-complete. Not M5.4-complete. Not V5-activated.
+**Status:** COMPLETE / READY FOR PR. Real Convex Development closure succeeded on disposable `dev/m5-4a-f-closure` (`patient-pheasant-353`). Not M5.4-complete. Not V5-activated. Warlock/Sage remain deferred. Authoritative Faustian Codex transcription remains deferred.
 **Schema:** CampaignState V5 remains PRE-ACTIVATION. Approved in-place current-V5 evolution for pending Machination challenges and due-month Wizard-week obligations. No migration. No silent compatibility. No optional old current-V5 shape.
 **Branch:** `m5-4a/faustian-card-table`
 **BASE_SHA:** `ba32e19cafea37e148eb9bb3f0dc8db56625941f` (`origin/main`, Mariner merge prefix `ba32e19`)
 **Overnight start HEAD:** `12c575a52c92bd9a8b19d2c0adf88abaabf424a3`
 
-Real Convex integration, PR, merge, Production, and V5 activation remain pending. The review Development deployment `dev:wry-boar-766` was not used.
+PR, merge, Production, and V5 activation remain pending. The review Development deployment `dev:wry-boar-766` was not used.
 
 ## Approved direction
 
@@ -29,8 +29,8 @@ Do **not**:
 | C Scheme-occurrence / Machination lifecycle | implemented as approved PRE-ACTIVATION V5 evolution |
 | D Advanced / Correct Table operability | implemented as typed game-specific recorders |
 | Combined `npm run check` | 140 files / 2660 tests; `tsc -b` + Vite pass after `fd01193` |
-| Convex Development integration | BLOCKED — `npx convex deployment create dev/m5-4a-f-closure --type dev --select` failed: anonymous mode; `npx convex login` + project config required. Review deployment `dev:wry-boar-766` was not used. |
-| Workstream actual-diff review | empty multi-local direct set fixed; remaining real-integration gates not run |
+| Convex Development integration | COMPLETE on disposable Development `patient-pheasant-353` (`dev/m5-4a-f-closure`). Review deployment `dev:wry-boar-766` was not used. |
+| Workstream actual-diff review | empty multi-local direct set fixed; real-integration gates proved on `patient-pheasant-353` |
 | V5 activation | NOT DONE |
 
 ## A/B actual-diff corrections
@@ -140,7 +140,7 @@ Reserved Twists and pending holdings cannot be independently moved. Removing an 
 | Interpretive Scheme/Twist prose / Wicker-Ways / Pact-Law sanctions | Table-resolved; not a software defect |
 | Monthly Pawn/Conspiracy/Watching-the-Stars automation | Explicit deferral |
 | Warlock / Sage | Workstream-deferred |
-| Real Convex deployment integration | Pending after actual-diff review |
+| Real Convex deployment integration | COMPLETE on `patient-pheasant-353` |
 | V5 activation / migration | Not done; not authorized |
 
 ## Shared-Time and month-boundary boundary
@@ -177,24 +177,37 @@ Actual-diff review of HEAD `827639d` confirmed the approved A/B contracts, manda
 
 Code HEAD after this fix: `fd011937d3413b728467f65067f48acb10772dc7`.
 
-## Real Convex closure attempt
+## Real Convex closure
 
-This isolated worktree has no `.env.local` and no Convex project association. Established provisioning:
+Disposable Development deployment `dev/m5-4a-f-closure` / cloud slug `patient-pheasant-353`. Human-provisioned. Worktree `.env.local` selects that deployment. Schema/functions were accepted by a prior `npx convex dev --once` (`Convex functions ready!`). No later source change required a resync. No Production. `npx convex deploy` was not run. Review deployment `dev:wry-boar-766` was not used. No raw writes, temporary seed mutation, silent migration, or V5 activation.
 
-`npx convex deployment create dev/m5-4a-f-closure --type dev --select --expiration "in 7 days"`
+Empty baseline before seed: `verifyMigration:verifyMigration` → `no_canonical_campaign`. Campaign created with public `campaign:startNewCampaign`. Seed and proofs used only public canonical mutations/commands plus typed Faustian Correct Table placements where needed to assemble a One Pair hand and a Scheme-fall table.
 
-failed immediately with: `Cannot create a deployment in anonymous mode. Run npx convex login and configure a project first.`
+| Proof | Result |
+|---|---|
+| Campaign | `cmp_cc1e3585-c833-4078-a5a4-ea8a53e4f326` |
+| Setup | Awakening; March ordinal 11; Faustian present; other seats absent |
+| Starting / final revision | 0 → 51 |
+| Pending challenge | `fpmc_dabb570e-4761-4331-a7fb-43e909f03a5a` / group `fpmg_99955758-be2d-4ebb-a974-58ad93e5de6d` |
+| Challenge schedule | One Pair; source MonthOrdinal 12; due MonthOrdinal 13 |
+| Holdings | `setAsideHand` = hearts_9, spades_9, hearts_ace, hearts_8, clubs_7; 52 physical cards remain coherent |
+| Live query | `m3Queries:getFaustianReference` serialized the mandatory V5 pending-challenge shape |
+| Due-month obligation | 1 → 2 accumulated → 1 fulfilled for Wizard `wiz_953f7b83-11eb-4ea6-8aa9-6a4edbdcc020` at due MonthOrdinal 13 |
+| Time | Portable-backup fingerprint of New Moon allocations unchanged across record/fulfill; no shared-Time command |
+| Twist disclose replay | `cmd_54fd0354-a86a-4bc8-a3a6-518ca7dc7f71` stayed at revision 34; replacement `diamonds_9` did not reroll |
+| Scheme-fall shuffle replay | `cmd_eda344c4-f6fe-42d1-bd40-276628795f53` stayed at revision 48; Devil's Deck order unchanged |
+| Undo / Redo | Undo restored weeks=2 + same pending challenge; Redo restored weeks=1 + same holdings |
+| Checkpoint / restore | `chk_c3b0f7aa-85e4-458f-ac9e-ab38503c731e` (`Before Ritual`); restore kept challenge + 1-week obligation and wiped the later Scheme fall |
+| Backup / import | `backup:exportPortableBackup` / `backup:importPortableBackup` restored the same challenge, holdings, and 1-week obligation |
+| Browser / refresh | Vite `:5180` against `VITE_CONVEX_URL=https://patient-pheasant-353.convex.cloud`. Faustian surface showed `One Pair · source month 12 · due month 13` and held cards. Reload preserved that pending state. |
+| Final health | `verifyMigration` `valid`; revision 51; history/checkpoint valid; 1 checkpoint; 52 events |
 
-`npx convex login` was not run (browser/device authentication). Review deployment `dev:wry-boar-766` was not used. Production was not used. `npx convex deploy` was not run.
+Suggested PR title: `M5.4A-F: add Faustian card-table operability`.
 
-Therefore live pending-challenge serialization, due-month obligation, random replay, Undo/Redo, checkpoint, backup/import, campaign-health, and browser/refresh proofs were not started.
+## Explicit remaining work after this Workstream
 
-## Explicit remaining work after this candidate
-
-- Human Convex login + project configuration in this worktree, then a fresh disposable Development deployment `dev/m5-4a-f-closure` (not `dev:wry-boar-766`) and the remaining live closure gates.
 - Static Faustian Codex transcription once the local source is available. Authoritative Codex material exists; only application transcription is deferred.
-- Static Faustian Codex transcription once the local source is available.
 - Other durable Devil-obligation kinds beyond due-month weeks.
 - Interpretive / table-resolved narrative consequences.
 - Warlock and Sage.
-- PR, merge, Production, V5 activation.
+- PR, merge, Production, V5 activation. Do not mark all of M5.4 complete.

@@ -252,11 +252,11 @@ Deliberately deferred: repeat-Ravage semantics; off-Horizon Beast movement (tabl
 
 ### M5.4A-F — Faustian Card Table & Operability
 
-**DETERMINISTIC CANDIDATE — REAL CONVEX CLOSURE BLOCKED. NOT COMPLETE.**
+**COMPLETE / READY FOR PR.**
 
-Branch `m5-4a/faustian-card-table`. Base `ba32e19cafea37e148eb9bb3f0dc8db56625941f`. Code HEAD after the Workstream empty-direct-set fix: `fd011937d3413b728467f65067f48acb10772dc7`.
+Branch `m5-4a/faustian-card-table`. Base `ba32e19cafea37e148eb9bb3f0dc8db56625941f`. Deterministic code HEAD after the Workstream empty-direct-set fix: `fd011937d3413b728467f65067f48acb10772dc7`.
 
-Delivered the Faustian card table, A/B review corrections, approved in-place PRE-ACTIVATION V5 pending-challenge and due-month obligation foundation, Body C lifecycle, and Body D typed Advanced / Correct Table coverage. Post-overnight audit corrected Two Pair / Three of a Kind table assignment and immediate Twist disposition / Full House rank derivation. Multiple local Accomplices now require a nonempty explicit direct set. Deterministic gate: 140 files / 2660 tests. Real Convex Development provisioning failed in anonymous CLI mode. CampaignState V5 remains PRE-ACTIVATION. Do not mark Faustian or M5.4 complete.
+Delivered the Faustian card table, A/B review corrections, approved in-place PRE-ACTIVATION V5 pending-challenge and due-month obligation foundation, Body C lifecycle, and Body D typed Advanced / Correct Table coverage. Post-overnight audit corrected Two Pair / Three of a Kind table assignment and immediate Twist disposition / Full House rank derivation. Multiple local Accomplices now require a nonempty explicit direct set. Deterministic gate: 140 files / 2660 tests. Real Convex Development closure succeeded on disposable `dev/m5-4a-f-closure` (`patient-pheasant-353`); campaign `cmp_cc1e3585-c833-4078-a5a4-ea8a53e4f326` revision 0 → 51 with pending-challenge, due-month, replay, Undo/Redo, checkpoint, backup/import, health, and browser-refresh proofs. CampaignState V5 remains PRE-ACTIVATION. Do not mark all of M5.4 complete.
 
 See `docs/m5-4a-f-faustian-card-table.md`.
 
@@ -264,7 +264,7 @@ See `docs/m5-4a-f-faustian-card-table.md`.
 
 Remaining active-player Domain operability:
 
-- Faustian real Convex integration on an isolated disposable Development deployment (`dev/m5-4a-f-closure`, not `dev:wry-boar-766`) after human Convex login/project configuration, then Faustian Workstream closure.
+- Warlock and Sage Domain operability, still deferred while they have no active players.
 
 Warlock and Sage are intentionally deferred while they have no active players.
 
