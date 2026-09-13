@@ -5776,12 +5776,6 @@ export const finalizeFaustianMachinationChallenge = mutation({
   },
 });
 
-const faustianPossessionRepresentationArg = v.union(
-  v.object({ kind: v.literal("none") }),
-  v.object({ kind: v.literal("denizen"), denizenId: v.string() }),
-  v.object({ kind: v.literal("treasure"), treasureId: v.string() }),
-);
-
 const faustianPhysicalDestinationArg = v.union(
   v.object({ kind: v.literal("faustian_deck") }),
   v.object({ kind: v.literal("devil_deck") }),
