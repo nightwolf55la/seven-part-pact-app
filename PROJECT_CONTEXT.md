@@ -49,7 +49,7 @@ Before starting new repository work, verify current `main`, status, and HEAD rat
 
 ## Current Milestone State
 
-As of September 12, 2026, **all seven Wizard Domains have structural CampaignState foundations**, M5.3 shared Lore/Compendium foundations are complete, and M5.4 active-table operability work is in progress. Lore/Compendium, Sorcerer, Hierophant, Necromancer, and Mariner operability Workstreams are complete; Faustian remains in the active tranche.
+As of September 12, 2026, **all seven Wizard Domains have structural CampaignState foundations**, M5.3 shared Lore/Compendium foundations are complete, and M5.4 active-table operability work is in progress. Lore/Compendium, Sorcerer, Hierophant, Necromancer, and Mariner operability Workstreams are complete. Faustian Body A/B is an implementation candidate on `m5-4a/faustian-card-table`; Body C and Faustian completion remain pending. Warlock and Sage remain deferred.
 
 ### M1 — Realtime Foundation
 
@@ -302,15 +302,27 @@ No CampaignState schema change or migration occurred. CampaignState V5 remains P
 
 Deliberately deferred: repeat-Ravage semantics; off-Horizon Beast movement remains table-resolved (SOURCE requires directional Lore change + Complication).
 
+#### M5.4A-F — Faustian Card Table & Operability
+
+**BODY A/B CANDIDATE — NOT COMPLETE**
+
+Branch `m5-4a/faustian-card-table`. Verified base `ba32e19cafea37e148eb9bb3f0dc8db56625941f` (merged Mariner `ba32e19`). Body A `a68d919588202df3b465f55544b72a35872de3cd`; Body B `34519b6c2970f3d602771b179ebab4f3c8309b00`. Isolated implementation worktree; review checkout and `wry-boar-766` were not modified. Convex Development integration skipped (no isolated disposable Development deployment non-interactively).
+
+Delivered a source-shaped Faustian card table plus setup and ordinary intervention/protection: Arrange Table, Complete Structural Placeholder, two-stage Investigate (no persisted entitlement), Blackmail V2 immediate protection, Place Schemes, ordinary Pawn counts, atomic Conspiracy establishment, and existing Direct/Disrupt UI. Shared Time is not spent by these board operations. CampaignState V5 remains PRE-ACTIVATION.
+
+Body C Scheme-occurrence/Machination lifecycle and `pending-challenge` schema are approved in direction and are **not implemented**. Do not mark Faustian or M5.4 complete.
+
+See `docs/m5-4a-f-faustian-card-table.md`.
+
 #### Remaining M5.4 active-table work
 
 The remaining active-player Domain-operability work is:
 
-- Faustian.
+- Faustian Body C (pending Master approval for schema) and Faustian Workstream closure.
 
 Warlock and Sage are intentionally deferred while they have no active players. Their existing structural state remains authoritative and may be consumed by active-Domain cross-references.
 
-Hierophant and Necromancer now consume derived Sorcerer Researcher presence without duplicating placement state. Later Domain Workstreams should follow the same rule for Mariner/Faustian and any applicable Disruptive Arcanist presentation.
+Hierophant, Necromancer, Mariner, and Faustian Body A consume derived Sorcerer Researcher presence without duplicating placement state.
 
 The editable/vector source `Patreon Materials [04.26.04].pptx` is available for board work. It should be treated as a vector/spatial design source rather than an implementation specification. It is especially useful for the Mariner map/geography and Faustian card-table presentation.
 
@@ -360,11 +372,9 @@ Final hardening for trusted long-running campaigns: deployment/environment safet
 
 ### Current Next Action
 
-M5.4A-M is complete in PR #26. PR #26 is ready for final review/merge. Release **M5.4A-F — Faustian Operability** as the next implementation Workstream from the merged result.
+Mariner is complete (PR #26 merged). Faustian Body A/B is an implementation candidate on `m5-4a/faustian-card-table`; Body C schema implementation still pending Master approval. Do not mark Faustian or M5.4 complete.
 
-Keep one implementation Workstream active at a time; use parallel Workstreams for design/research preparation rather than competing feature branches.
-
-Do not mark M5.4 complete until Faustian active-table operability is complete and the Master/human explicitly decide how the deferred Warlock/Sage tranche is handled.
+Warlock/Sage remain deferred. CampaignState V5 remains PRE-ACTIVATION.
 
 ## Explicit Pre-V5-Activation Architecture Review Items
 
