@@ -3,6 +3,7 @@ import type { MonthOrdinal } from "./calendar";
 import { DomainError } from "./errors";
 import type { FaustianEvent } from "./events";
 import type {
+  FaustianAntagonistChipCount,
   FaustianCardFacing,
   FaustianCardId,
   FaustianCommunityId,
@@ -25,7 +26,6 @@ import {
   isValidFaustianSuit,
 } from "./faustian-catalogs";
 import type {
-  FaustianAntagonistChipCount,
   FaustianDemonBinding,
   FaustianDemonCondition,
   FaustianDemonOccupancy,

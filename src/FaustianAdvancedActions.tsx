@@ -10,6 +10,7 @@ import type {
   FaustianPhysicalDestination,
   FaustianState,
   FaustianSuit,
+  MonthOrdinal,
   PactSeatId,
   WizardId,
 } from "../shared/domain";
@@ -221,7 +222,7 @@ export default function FaustianAdvancedActions({
           ))}
           {dueMonthObligations.map((obligation) => (
             <li key={`${obligation.wizardId}:${obligation.dueMonthOrdinal}`}>
-              Due-month obligation: {wizards.find((wizard) => wizard.wizardId === obligation.wizardId)?.name ?? "Wizard"} · {obligation.weeks} week(s) · {faustianChallengeScheduleLabel(obligation.dueMonthOrdinal, monthOrdinal)}
+              Due-month obligation: {wizards.find((wizard) => wizard.wizardId === obligation.wizardId)?.name ?? "Wizard"} · {obligation.weeks} week(s) · {faustianChallengeScheduleLabel(obligation.dueMonthOrdinal, monthOrdinal as MonthOrdinal)}
             </li>
           ))}
           {faustian.persistentMachinationEffects.map((effect) => (
@@ -383,10 +384,18 @@ export default function FaustianAdvancedActions({
                 }));
                 return;
               }
+              if (draft.mode === "attach") {
+                void run(() => correctAntagonist({
+                  commandId: commandId(),
+                  expectedCampaignId: campaignId,
+                  input: { kind: "attach", denizenId: draft.denizenId, seatId: draft.seatId, chipCount: draft.chipCount },
+                }));
+                return;
+              }
               void run(() => correctAntagonist({
                 commandId: commandId(),
                 expectedCampaignId: campaignId,
-                input: { kind: draft.mode, denizenId: draft.denizenId, seatId: draft.seatId, chipCount: draft.chipCount },
+                input: { kind: "update", denizenId: draft.denizenId, seatId: draft.seatId, chipCount: draft.chipCount },
               }));
             }}
           >

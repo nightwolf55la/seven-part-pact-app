@@ -4,6 +4,7 @@ import type {
   FaustianCardId,
   FaustianPendingMachinationChallenge,
   FaustianPendingMachinationGroup,
+  FaustianPendingMachinationGroupId,
   FaustianState,
   MonthOrdinal,
   PlayerId,
@@ -19,6 +20,8 @@ import {
   faustianCardId,
   fulfillFaustianDueMonthObligation,
   followingFaustianChallengeDueMonth,
+  parseFaustianPendingMachinationChallengeId,
+  parseFaustianPendingMachinationGroupId,
   statesDeepEqual,
   validateBackupState,
   validateCampaignStateV5Candidate,
@@ -35,12 +38,12 @@ const PLR_A = "plr_00000000-0000-0000-0000-00000000000a" as PlayerId;
 const WIZ_A = "wiz_00000000-0000-0000-0000-00000000000a" as WizardId;
 const WIZ_B = "wiz_00000000-0000-0000-0000-00000000000b" as WizardId;
 const WIZ_C = "wiz_00000000-0000-0000-0000-00000000000c" as WizardId;
-const CH_1 = "fpmc_00000000-0000-0000-0000-000000000001";
-const CH_2 = "fpmc_00000000-0000-0000-0000-000000000002";
-const GRP_1 = "fpmg_00000000-0000-0000-0000-000000000001";
-const GRP_2 = "fpmg_00000000-0000-0000-0000-000000000002";
-const GRP_3 = "fpmg_00000000-0000-0000-0000-000000000003";
-const GRP_4 = "fpmg_00000000-0000-0000-0000-000000000004";
+const CH_1 = parseFaustianPendingMachinationChallengeId("fpmc_00000000-0000-0000-0000-000000000001");
+const CH_2 = parseFaustianPendingMachinationChallengeId("fpmc_00000000-0000-0000-0000-000000000002");
+const GRP_1 = parseFaustianPendingMachinationGroupId("fpmg_00000000-0000-0000-0000-000000000001");
+const GRP_2 = parseFaustianPendingMachinationGroupId("fpmg_00000000-0000-0000-0000-000000000002");
+const GRP_3 = parseFaustianPendingMachinationGroupId("fpmg_00000000-0000-0000-0000-000000000003");
+const GRP_4 = parseFaustianPendingMachinationGroupId("fpmg_00000000-0000-0000-0000-000000000004");
 const TWIST = faustianCardId("spades", "ace");
 const HK = faustianCardId("hearts", "king");
 const SK = faustianCardId("spades", "king");
@@ -130,7 +133,7 @@ function campaign(faustian: FaustianState): CampaignStateV5 {
 }
 
 function pendingGroup(
-  groupId: typeof GRP_1,
+  groupId: FaustianPendingMachinationGroupId,
   originalCardIds: readonly FaustianCardId[],
   responsibleWizardId: WizardId | null,
 ): FaustianPendingMachinationGroup {

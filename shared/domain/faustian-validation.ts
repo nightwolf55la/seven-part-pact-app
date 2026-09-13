@@ -1,6 +1,6 @@
 import type { CampaignStateV5 } from "./campaign-state";
 import { DomainError } from "./errors";
-import { advanceOrdinal } from "./calendar";
+import { advanceOrdinal, type MonthOrdinal } from "./calendar";
 import {
   isValidCompanionRelationshipId,
   isValidDenizenId,
@@ -221,7 +221,7 @@ function validateObligation(path: string, value: unknown): FaustianDevilObligati
     return {
       kind: "wizard_owes_week_due_month",
       wizardId: obligation.wizardId,
-      dueMonthOrdinal: obligation.dueMonthOrdinal,
+      dueMonthOrdinal: obligation.dueMonthOrdinal as MonthOrdinal,
       weeks: obligation.weeks,
     };
   }

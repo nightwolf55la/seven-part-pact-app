@@ -246,7 +246,7 @@ export default function FaustianLifecycleActions({
           {presentation.pendingChallenges.map((challenge) => (
             <div key={challenge.challengeId} className="rounded border border-slate-200 dark:border-slate-700 p-2 space-y-1">
               <p>
-                {challenge.kindLabel} · source month {challenge.sourceMonthOrdinal} · due month {challenge.dueMonthOrdinal} · {challenge.scheduleLabel.replaceAll("_", " ")}
+                {challenge.kindLabel} · source month {challenge.sourceMonthOrdinal} · due month {challenge.dueMonthOrdinal} · {challenge.scheduleLabel.replace(/_/g, " ")}
               </p>
               {challenge.reservedTwistCount > 0 && (
                 <p>Reserved active Twist{challenge.reservedTwistCount === 1 ? "" : "s"}: {challenge.reservedTwistCount}. The physical card stays in Machinations.</p>

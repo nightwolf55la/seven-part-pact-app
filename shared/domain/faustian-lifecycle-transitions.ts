@@ -71,6 +71,13 @@ function commitFaustian(
   return { nextState, events };
 }
 
+function requireCurrentMonthOrdinal(state: CampaignStateV5): MonthOrdinal {
+  if (state.calendar.monthOrdinal === null) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Faustian Machination lifecycle requires a current MonthOrdinal");
+  }
+  return state.calendar.monthOrdinal;
+}
+
 function cardRank(cardId: FaustianCardId): FaustianRank {
   return cardId.slice(cardId.indexOf("_") + 1) as FaustianRank;
 }
@@ -760,40 +767,41 @@ export function applyRecordFaustianMachinationOutcome(
     input.outcomeDependentTwistCardIds,
   );
   const reservedTwistSet = new Set(reservedTwists);
-  const sourceMonthOrdinal = state.calendar.monthOrdinal;
+  const sourceMonthOrdinal = requireCurrentMonthOrdinal(state);
   const dueMonthOrdinal = followingFaustianChallengeDueMonth(sourceMonthOrdinal);
   const eligibleBefore = eligibleFaustianMachinationCleanupCardIds(state.faustian);
 
   if (input.result.kind === "flush" || input.result.kind === "full_house" || input.result.kind === "table_resolved") {
+    const immediate = input.result;
     let faustian = state.faustian;
-    if (input.result.kind === "flush") {
-      if (!isValidFaustianSuit(input.result.suit) || scoringHandCardIds.some((cardId) => cardSuit(cardId) !== input.result.suit)) {
+    if (immediate.kind === "flush") {
+      if (!isValidFaustianSuit(immediate.suit) || scoringHandCardIds.some((cardId) => cardSuit(cardId) !== immediate.suit)) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", "Flush suit must match the selected hand");
       }
-      if (faustian.resolvedFlushSuits.includes(input.result.suit)
-        || faustian.persistentMachinationEffects.some((effect) => effect.kind === "flush" && effect.suit === input.result.suit)) {
+      if (faustian.resolvedFlushSuits.includes(immediate.suit)
+        || faustian.persistentMachinationEffects.some((effect) => effect.kind === "flush" && effect.suit === immediate.suit)) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", "That Flush consequence is already recorded");
       }
       faustian = {
         ...faustian,
-        resolvedFlushSuits: [...faustian.resolvedFlushSuits, input.result.suit],
-        persistentMachinationEffects: [...faustian.persistentMachinationEffects, { kind: "flush", suit: input.result.suit }],
+        resolvedFlushSuits: [...faustian.resolvedFlushSuits, immediate.suit],
+        persistentMachinationEffects: [...faustian.persistentMachinationEffects, { kind: "flush", suit: immediate.suit }],
       };
     }
-    if (input.result.kind === "full_house") {
+    if (immediate.kind === "full_house") {
       const three = [...rankCounts(scoringHandCardIds).entries()].find(([, cards]) => cards.length === 3);
-      if (three === undefined || !isValidFaustianPersistentFullHouseRank(input.result.rank) || three[0] !== input.result.rank) {
+      if (three === undefined || !isValidFaustianPersistentFullHouseRank(immediate.rank) || three[0] !== immediate.rank) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", "Full House rank must match the selected three-of-a-kind");
       }
-      if (faustian.persistentMachinationEffects.some((effect) => effect.kind === "full_house" && effect.rank === input.result.rank)) {
+      if (faustian.persistentMachinationEffects.some((effect) => effect.kind === "full_house" && effect.rank === immediate.rank)) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", "That Full House consequence is already recorded");
       }
       faustian = {
         ...faustian,
-        persistentMachinationEffects: [...faustian.persistentMachinationEffects, { kind: "full_house", rank: input.result.rank }],
+        persistentMachinationEffects: [...faustian.persistentMachinationEffects, { kind: "full_house", rank: immediate.rank }],
       };
     }
-    faustian = applyTwistDispositions(faustian, input.result.twistDispositions, reservedTwists);
+    faustian = applyTwistDispositions(faustian, immediate.twistDispositions, reservedTwists);
     const recycle = recycleEligibleCards(faustian, eligibleBefore, new Set(faustian.activeTwistCardIds));
     return commitFaustian(state, recycle.faustian, [{
       type: "faustian_machination_outcome_recorded",
@@ -996,7 +1004,7 @@ export function applyCompleteFaustianMachinationResponse(
   }
   const recycledCardIds = shuffleInPlace([...physicalIds]);
   const recycled = new Set(recycledCardIds);
-  const completedMonthOrdinal = state.calendar.monthOrdinal;
+  const completedMonthOrdinal = requireCurrentMonthOrdinal(state);
   const nextGroups = challenge.groups.map((entry) => (
     entry.groupId === group.groupId
       ? {
