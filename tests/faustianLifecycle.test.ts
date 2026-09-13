@@ -255,19 +255,28 @@ describe("Body C Scheme occurrence", () => {
     expect(result.nextState.faustian.devilDeck).toEqual([H5]);
   });
 
-  it("requires an explicit direct set when multiple locals exist", () => {
+  it("requires an explicit nonempty direct set when multiple locals exist", () => {
     const start = playState(communityFaustian({
       ariesSchemes: [{ cardId: SCHEME, facing: "face_up" }],
       ariesAccomplices: [H5, S5],
     }));
-    const none = applyRecordFaustianSchemeOccurred(start, {
+    const before = structuredClone(start);
+    expectCode(() => applyRecordFaustianSchemeOccurred(start, {
       communityId: ARIES,
       schemeCardId: SCHEME,
       destination: { kind: "ordinary_machinations" },
       directAccompliceCardIds: [],
       expectedLocalAccompliceCardIds: [H5, S5],
-    });
-    expect(none.nextState.faustian.communities.find((community) => community.communityId === ARIES)?.accompliceCardIds).toEqual([H5, S5]);
+    }), "INVALID_CAMPAIGN_STATE");
+    expect(start.faustian).toEqual(before.faustian);
+    expectCode(() => applyRecordFaustianSchemeOccurred(start, {
+      communityId: ARIES,
+      schemeCardId: SCHEME,
+      destination: { kind: "ordinary_machinations" },
+      directAccompliceCardIds: [H2],
+      expectedLocalAccompliceCardIds: [H5, S5],
+    }), "INVALID_CAMPAIGN_STATE");
+    expect(start.faustian).toEqual(before.faustian);
     const onlyHearts = applyRecordFaustianSchemeOccurred(start, {
       communityId: ARIES,
       schemeCardId: SCHEME,
@@ -400,6 +409,15 @@ describe("Body C Scheme occurrence", () => {
     expect(preview.directAccompliceCardIds).toEqual([H5]);
     expect(preview.cascadedAccompliceCardIds).toEqual([H2]);
     expect(preview.fallenAccompliceCardIds).toEqual([H5, H2]);
+
+    const multi = communityFaustian({
+      ariesSchemes: [{ cardId: SCHEME, facing: "face_up" }],
+      ariesAccomplices: [H5, S5],
+    });
+    const emptyPreview = previewFaustianSchemeOccurrence(multi, ARIES, SCHEME, []);
+    expect(emptyPreview.requiresExplicitDirectSet).toBe(true);
+    expect(emptyPreview.directAccompliceCardIds).toEqual([]);
+    expect(emptyPreview.fallenAccompliceCardIds).toEqual([]);
   });
 });
 

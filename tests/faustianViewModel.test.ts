@@ -28,6 +28,7 @@ import {
   buildFaustianTablePresentation,
   faustianLoreSubjects,
   isFaustianMachinationOutcomeDraftReady,
+  isFaustianSchemeOccurrenceConfirmReady,
   presentationContainsSecretIdentity,
   privateTwistInspection,
   researcherOperationalLabel,
@@ -366,6 +367,26 @@ describe("denizen fallback", () => {
       denizens: unused,
     });
     expect(presentation.communities).toHaveLength(12);
+  });
+});
+
+describe("scheme occurrence confirm guard", () => {
+  it("blocks confirmation when multiple locals have no explicit direct set", () => {
+    expect(isFaustianSchemeOccurrenceConfirmReady({
+      schemeCardId: SCHEME_A,
+      requiresExplicitDirectSet: true,
+      selectedDirectCount: 0,
+    })).toBe(false);
+    expect(isFaustianSchemeOccurrenceConfirmReady({
+      schemeCardId: SCHEME_A,
+      requiresExplicitDirectSet: true,
+      selectedDirectCount: 1,
+    })).toBe(true);
+    expect(isFaustianSchemeOccurrenceConfirmReady({
+      schemeCardId: SCHEME_A,
+      requiresExplicitDirectSet: false,
+      selectedDirectCount: 0,
+    })).toBe(true);
   });
 });
 

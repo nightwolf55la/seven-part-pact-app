@@ -264,6 +264,12 @@ function resolveDirectAccomplices(
   }
   const localSet = new Set(localIds);
   const unique = uniqueCardIds(requested.map((cardId) => requireCardId("Direct Accomplice", cardId)));
+  if (unique.length === 0) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      "Multiple local Accomplices require an explicit nonempty direct set",
+    );
+  }
   for (const cardId of unique) {
     if (!localSet.has(cardId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", "Selected direct Accomplice is not a current local Accomplice");

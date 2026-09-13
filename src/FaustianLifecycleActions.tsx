@@ -26,6 +26,7 @@ import {
   buildFaustianMachinationOutcomeResult,
   cloneFaustianState,
   isFaustianMachinationOutcomeDraftReady,
+  isFaustianSchemeOccurrenceConfirmReady,
 } from "./faustian-view-model";
 
 const btn =
@@ -362,7 +363,12 @@ export default function FaustianLifecycleActions({
               ))}
             </fieldset>
           )}
-          {preview !== null && (
+          {preview !== null && preview.requiresExplicitDirectSet && draft.selectedDirect.length === 0 && (
+            <p>
+              Select at least one current local Accomplice as directly affected. Confirmation is blocked until that nonempty set is chosen. A zero-fall outcome cannot be confirmed when multiple locals exist.
+            </p>
+          )}
+          {preview !== null && !(preview.requiresExplicitDirectSet && draft.selectedDirect.length === 0) && (
             <p>
               Server-derived consequence from the captured table: {preview.fallenAccompliceCardIds.length} Accomplice{preview.fallenAccompliceCardIds.length === 1 ? "" : "s"} fall
               {preview.cascadedAccompliceCardIds.length > 0 ? `, including ${preview.cascadedAccompliceCardIds.length} cascade` : ""}.
@@ -373,7 +379,11 @@ export default function FaustianLifecycleActions({
             <button
               type="button"
               className={btn}
-              disabled={pending || draft.schemeCardId === ""}
+              disabled={pending || !isFaustianSchemeOccurrenceConfirmReady({
+                schemeCardId: draft.schemeCardId,
+                requiresExplicitDirectSet: preview?.requiresExplicitDirectSet === true,
+                selectedDirectCount: draft.selectedDirect.length,
+              })}
               onClick={() => void run(async () => {
                 const destination: FaustianSchemeOccurrenceDestination = draft.destinationKind === "possession"
                   ? { kind: "possession", wizardId: draft.holderWizardId as WizardId, represented: { kind: "none" } }

@@ -550,6 +550,16 @@ export function cloneFaustianState(faustian: FaustianState): FaustianState {
   return structuredClone(faustian);
 }
 
+export function isFaustianSchemeOccurrenceConfirmReady(args: {
+  readonly schemeCardId: string;
+  readonly requiresExplicitDirectSet: boolean;
+  readonly selectedDirectCount: number;
+}): boolean {
+  if (args.schemeCardId === "") return false;
+  if (args.requiresExplicitDirectSet && args.selectedDirectCount === 0) return false;
+  return true;
+}
+
 export type FaustianMachinationOutcomeDraftInput = {
   readonly selectedScoring: readonly FaustianCardId[];
   readonly resultKind: FaustianMachinationOutcomeResult["kind"];
