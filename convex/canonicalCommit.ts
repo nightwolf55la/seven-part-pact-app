@@ -257,6 +257,14 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   blackmail_faustian_community: { required: ["faustian_community_blackmailed"] },
   direct_faustian_accomplice: { required: ["faustian_accomplice_directed"] },
   disrupt_faustian_pawn: { required: ["faustian_pawn_disrupted"] },
+  arrange_faustian_table: { required: ["faustian_table_arranged"], optional: ["faustian_conspiracy_established"] },
+  complete_faustian_structural_placeholder: { required: ["faustian_structural_placeholder_completed"] },
+  reveal_faustian_community_schemes: { required: ["faustian_community_schemes_revealed"] },
+  foil_faustian_community_scheme: { required: ["faustian_community_scheme_foiled"] },
+  place_faustian_schemes: { required: ["faustian_schemes_placed"] },
+  add_faustian_pawn: { required: ["faustian_pawn_count_changed"] },
+  remove_faustian_pawn: { required: ["faustian_pawn_count_changed"] },
+  establish_faustian_conspiracy: { required: ["faustian_conspiracy_established"] },
   initialize_sorcerer: { required: ["sorcerer_initialized"] },
   recruit_sorcerer_personnel: { required: ["sorcerer_personnel_recruited"] },
   refocus_sorcerer_researcher: { required: ["sorcerer_researcher_refocused"] },
@@ -285,6 +293,7 @@ const CURRENT_V5_EVENT_VERSION_REQUIREMENTS: Record<string, { type: string; vers
   update_wizard_character: { type: "wizard_character_updated", version: 2 },
   set_engagement_target: { type: "engagement_target_changed", version: 2 },
   reschedule_engagement: { type: "engagement_rescheduled", version: 2 },
+  blackmail_faustian_community: { type: "faustian_community_blackmailed", version: 2 },
 };
 
 function validateM3EventCoherence(input: CanonicalCommitInput): void {

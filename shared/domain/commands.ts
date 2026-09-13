@@ -134,6 +134,14 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "blackmail_faustian_community",
   "direct_faustian_accomplice",
   "disrupt_faustian_pawn",
+  "arrange_faustian_table",
+  "complete_faustian_structural_placeholder",
+  "reveal_faustian_community_schemes",
+  "foil_faustian_community_scheme",
+  "place_faustian_schemes",
+  "add_faustian_pawn",
+  "remove_faustian_pawn",
+  "establish_faustian_conspiracy",
   "initialize_sorcerer",
   "recruit_sorcerer_personnel",
   "refocus_sorcerer_researcher",
@@ -304,6 +312,14 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "blackmail_faustian_community":
     case "direct_faustian_accomplice":
     case "disrupt_faustian_pawn":
+    case "arrange_faustian_table":
+    case "complete_faustian_structural_placeholder":
+    case "reveal_faustian_community_schemes":
+    case "foil_faustian_community_scheme":
+    case "place_faustian_schemes":
+    case "add_faustian_pawn":
+    case "remove_faustian_pawn":
+    case "establish_faustian_conspiracy":
     case "initialize_sorcerer":
     case "recruit_sorcerer_personnel":
     case "refocus_sorcerer_researcher":

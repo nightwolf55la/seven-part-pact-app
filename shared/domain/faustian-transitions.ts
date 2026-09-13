@@ -6,6 +6,7 @@ import { isValidFaustianCardId, isValidFaustianCommunityId } from "./faustian-ca
 import type { FaustianState } from "./faustian-state";
 import { isFaustianDeckEmpty } from "./faustian-state";
 import { validateFaustianReferenceIntegrity } from "./faustian-validation";
+import { canonicalJsonStringify } from "./canonical-json";
 
 export interface FaustianTransitionResult {
   readonly nextState: CampaignStateV5;
@@ -49,13 +50,40 @@ function cardRank(cardId: FaustianCardId): FaustianRank {
 // Application canon: the detailed Accomplice rule removes Schemes of equal or
 // lower rank, despite shorter overview text that says only "lower". Ace
 // Accomplices override ordinary comparison and defeat every Scheme except a 2.
-function accompliceDefeatsScheme(accompliceCardId: FaustianCardId, schemeCardId: FaustianCardId): boolean {
+export function faustianAccompliceDefeatsScheme(
+  accompliceCardId: FaustianCardId,
+  schemeCardId: FaustianCardId,
+): boolean {
   const accompliceRank = cardRank(accompliceCardId);
   const schemeRank = cardRank(schemeCardId);
   if (accompliceRank === "ace") {
     return schemeRank !== "2";
   }
   return RANK_VALUE[schemeRank] <= RANK_VALUE[accompliceRank];
+}
+
+function accompliceDefeatsScheme(accompliceCardId: FaustianCardId, schemeCardId: FaustianCardId): boolean {
+  return faustianAccompliceDefeatsScheme(accompliceCardId, schemeCardId);
+}
+
+export function applyLocalAccompliceProtection(
+  schemes: readonly { readonly cardId: FaustianCardId; readonly facing: "face_down" | "face_up" }[],
+  accompliceCardIds: readonly FaustianCardId[],
+): {
+  readonly revealedSchemeCardIds: readonly FaustianCardId[];
+  readonly preventedSchemeCardIds: readonly FaustianCardId[];
+  readonly remainingSchemes: readonly { readonly cardId: FaustianCardId; readonly facing: "face_up" }[];
+} {
+  const revealedSchemeCardIds = schemes
+    .filter((scheme) => scheme.facing === "face_down")
+    .map((scheme) => scheme.cardId);
+  const preventedSchemeCardIds = schemes
+    .filter((scheme) => accompliceCardIds.some((accompliceCardId) => accompliceDefeatsScheme(accompliceCardId, scheme.cardId)))
+    .map((scheme) => scheme.cardId);
+  const remainingSchemes = schemes
+    .filter((scheme) => !accompliceCardIds.some((accompliceCardId) => accompliceDefeatsScheme(accompliceCardId, scheme.cardId)))
+    .map((scheme) => ({ cardId: scheme.cardId, facing: "face_up" as const }));
+  return { revealedSchemeCardIds, preventedSchemeCardIds, remainingSchemes };
 }
 
 function requireCommunity(state: CampaignStateV5, communityId: FaustianCommunityId): number {
@@ -135,30 +163,51 @@ export function applyInvestigateFaustianCommunity(
 export function applyBlackmailFaustianCommunity(
   state: CampaignStateV5,
   communityId: FaustianCommunityId,
+  expectedFaustian?: FaustianState,
 ): FaustianTransitionResult {
+  if (expectedFaustian !== undefined && !faustianStateEquals(expectedFaustian, state.faustian)) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      "Faustian table changed since Blackmail was started",
+    );
+  }
   const communityIdx = requireCommunity(state, communityId);
   if (isFaustianDeckEmpty(state.faustian)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Faustian Deck is empty");
   }
   const drawnCardId = state.faustian.faustianDeck[0];
+  const community = state.faustian.communities[communityIdx];
+  const accompliceCardIds = [...community.accompliceCardIds, drawnCardId];
+  const protection = applyLocalAccompliceProtection(community.schemes, accompliceCardIds);
   const faustian: FaustianState = {
     ...state.faustian,
     faustianDeck: state.faustian.faustianDeck.slice(1),
+    devilDeck: [...state.faustian.devilDeck, ...protection.preventedSchemeCardIds],
     communities: state.faustian.communities.map((entry, i) => (
       i === communityIdx
-        ? { ...entry, accompliceCardIds: [...entry.accompliceCardIds, drawnCardId] }
+        ? {
+          ...entry,
+          accompliceCardIds,
+          schemes: protection.remainingSchemes,
+        }
         : entry
     )),
   };
 
   return commitFaustian(state, faustian, [{
     type: "faustian_community_blackmailed",
-    version: 1,
+    version: 2,
     data: {
       communityId,
       drawnCardId,
+      revealedSchemeCardIds: protection.revealedSchemeCardIds,
+      preventedSchemeCardIds: protection.preventedSchemeCardIds,
     },
   }]);
+}
+
+function faustianStateEquals(expected: FaustianState, actual: FaustianState): boolean {
+  return canonicalJsonStringify(expected) === canonicalJsonStringify(actual);
 }
 
 export function applyDirectFaustianAccomplice(

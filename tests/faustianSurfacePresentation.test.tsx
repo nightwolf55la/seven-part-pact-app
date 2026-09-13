@@ -51,6 +51,17 @@ vi.mock("../convex/_generated/api.js", () => ({
     m3Commands: {
       addLoreEntry: "m3Commands.addLoreEntry",
       reviseLoreEntry: "m3Commands.reviseLoreEntry",
+      arrangeFaustianTable: "m3Commands.arrangeFaustianTable",
+      completeFaustianStructuralPlaceholder: "m3Commands.completeFaustianStructuralPlaceholder",
+      revealFaustianCommunitySchemes: "m3Commands.revealFaustianCommunitySchemes",
+      foilFaustianCommunityScheme: "m3Commands.foilFaustianCommunityScheme",
+      blackmailFaustianCommunity: "m3Commands.blackmailFaustianCommunity",
+      placeFaustianSchemes: "m3Commands.placeFaustianSchemes",
+      addFaustianPawn: "m3Commands.addFaustianPawn",
+      removeFaustianPawn: "m3Commands.removeFaustianPawn",
+      establishFaustianConspiracy: "m3Commands.establishFaustianConspiracy",
+      directFaustianAccomplice: "m3Commands.directFaustianAccomplice",
+      disruptFaustianPawn: "m3Commands.disruptFaustianPawn",
     },
   },
 }));
@@ -229,6 +240,18 @@ describe("Faustian surface presentation", () => {
     });
     expect(Object.values(mockMutations).every((fn) => fn.mock.calls.length === 0)).toBe(true);
     expect(container.textContent).not.toContain("Confirm");
+  });
+
+  it("starts Investigate only from an explicit action control", () => {
+    const { container } = renderSurface();
+    const aries = container.querySelector("[aria-label='Aries · monks/pilgrims · Hierophant']") as HTMLElement;
+    flushSync(() => {
+      aries.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    click(container, "Start Investigate");
+    expect(container.textContent).toContain("Confirm Investigate reveal");
+    expect(container.textContent).toContain("Records the Faustian board result; shared Time is handled separately.");
+    expect(Object.values(mockMutations).every((fn) => fn.mock.calls.length === 0)).toBe(true);
   });
 });
 

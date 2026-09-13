@@ -634,6 +634,7 @@ export const getFaustianReference = query({
     return {
       campaignId: doc.campaignId as string,
       campaignRevision: doc.campaignRevision as number,
+      ageId: current.configuration.ageId as string | null,
       faustian: current.faustian,
     };
   },

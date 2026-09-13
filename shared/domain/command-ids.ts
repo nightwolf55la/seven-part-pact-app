@@ -1060,11 +1060,100 @@ export function investigateFaustianCommunityFingerprint(
 export function blackmailFaustianCommunityFingerprint(
   expectedCampaignId: string,
   communityId: string,
+  expectedFaustian?: unknown,
 ): string {
-  return `blackmail_faustian_community:v1:${canonicalJsonStringify({
+  if (expectedFaustian === undefined) {
+    return `blackmail_faustian_community:v1:${canonicalJsonStringify({
+      expectedCampaignId,
+      communityId,
+    })}`;
+  }
+  return `blackmail_faustian_community:v2:${canonicalJsonStringify({
     expectedCampaignId,
     communityId,
+    expectedFaustian,
   })}`;
+}
+
+export function arrangeFaustianTableFingerprint(
+  expectedCampaignId: string,
+  input: unknown,
+): string {
+  return `arrange_faustian_table:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function completeFaustianStructuralPlaceholderFingerprint(
+  expectedCampaignId: string,
+  expectedFaustian: unknown,
+): string {
+  return `complete_faustian_structural_placeholder:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    expectedFaustian,
+  })}`;
+}
+
+export function revealFaustianCommunitySchemesFingerprint(
+  expectedCampaignId: string,
+  communityId: string,
+  expectedFaustian: unknown,
+): string {
+  return `reveal_faustian_community_schemes:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    communityId,
+    expectedFaustian,
+  })}`;
+}
+
+export function foilFaustianCommunitySchemeFingerprint(
+  expectedCampaignId: string,
+  communityId: string,
+  schemeCardId: string,
+  expectedFaustian: unknown,
+): string {
+  return `foil_faustian_community_scheme:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    communityId,
+    schemeCardId,
+    expectedFaustian,
+  })}`;
+}
+
+export function placeFaustianSchemesFingerprint(
+  expectedCampaignId: string,
+  communityId: string,
+  requestedQuantity: number,
+  expectedFaustian: unknown,
+): string {
+  return `place_faustian_schemes:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    communityId,
+    requestedQuantity,
+    expectedFaustian,
+  })}`;
+}
+
+export function changeFaustianPawnCountFingerprint(
+  expectedCampaignId: string,
+  communityId: string,
+  expectedPawnCount: number,
+  delta: number,
+  expectedFaustian: unknown,
+): string {
+  const commandType = delta === 1 ? "add_faustian_pawn" : "remove_faustian_pawn";
+  return `${commandType}:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    communityId,
+    expectedPawnCount,
+    delta,
+    expectedFaustian,
+  })}`;
+}
+
+export function establishFaustianConspiracyFingerprint(
+  expectedCampaignId: string,
+  input: unknown,
+): string {
+  return `establish_faustian_conspiracy:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
 }
 
 export function directFaustianAccompliceFingerprint(

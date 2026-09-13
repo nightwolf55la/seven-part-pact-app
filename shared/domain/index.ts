@@ -488,6 +488,13 @@ export {
   blackmailFaustianCommunityFingerprint,
   directFaustianAccompliceFingerprint,
   disruptFaustianPawnFingerprint,
+  arrangeFaustianTableFingerprint,
+  completeFaustianStructuralPlaceholderFingerprint,
+  revealFaustianCommunitySchemesFingerprint,
+  foilFaustianCommunitySchemeFingerprint,
+  placeFaustianSchemesFingerprint,
+  changeFaustianPawnCountFingerprint,
+  establishFaustianConspiracyFingerprint,
   initializeSorcererFingerprint,
   recruitSorcererPersonnelFingerprint,
   refocusSorcererResearcherFingerprint,
@@ -1720,7 +1727,31 @@ export {
   applyBlackmailFaustianCommunity,
   applyDirectFaustianAccomplice,
   applyDisruptFaustianPawn,
+  applyLocalAccompliceProtection,
+  faustianAccompliceDefeatsScheme,
 } from "./faustian-transitions";
+
+export type {
+  FaustianArrangementId,
+  ArrangeFaustianTableInput,
+  ArrangeFaustianCalamityAntagonistInput,
+  EstablishFaustianConspiracyInput,
+} from "./faustian-operability-transitions";
+export {
+  FAUSTIAN_ARRANGEMENT_IDS,
+  completedTwentyYearScores,
+  allowedFaustianArrangementsForAge,
+  isExactUnarrangedFaustianBaseline,
+  isExactStructuralHelperFaustian,
+  faustianStatesEqual,
+  applyArrangeFaustianTable,
+  applyCompleteFaustianStructuralPlaceholder,
+  applyRevealFaustianCommunitySchemes,
+  applyFoilFaustianCommunityScheme,
+  applyPlaceFaustianSchemes,
+  applyChangeFaustianPawnCount,
+  applyEstablishFaustianConspiracy,
+} from "./faustian-operability-transitions";
 
 export type {
   NecromancerTransitionResult,

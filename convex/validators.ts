@@ -1496,7 +1496,7 @@ const warlockStateValidator = v.object({
   partnerships: v.array(warlockPartnershipValidator),
 });
 
-const faustianStateValidator = v.object({
+export const faustianStateValidator = v.object({
   faustianDeck: v.array(v.string()),
   devilDeck: v.array(v.string()),
   communities: v.array(faustianCommunityValidator),
@@ -3024,6 +3024,17 @@ const faustianCommunityBlackmailedEventV1Validator = v.object({
   }),
 });
 
+const faustianCommunityBlackmailedEventV2Validator = v.object({
+  type: v.literal("faustian_community_blackmailed"),
+  version: v.literal(2),
+  data: v.object({
+    communityId: v.string(),
+    drawnCardId: v.string(),
+    revealedSchemeCardIds: v.array(v.string()),
+    preventedSchemeCardIds: v.array(v.string()),
+  }),
+});
+
 const faustianAccompliceDirectedEventV1Validator = v.object({
   type: v.literal("faustian_accomplice_directed"),
   version: v.literal(1),
@@ -3042,6 +3053,82 @@ const faustianPawnDisruptedEventV1Validator = v.object({
   data: v.object({
     communityId: v.string(),
     accompliceCardId: v.string(),
+  }),
+});
+
+const faustianTableArrangedEventV1Validator = v.object({
+  type: v.literal("faustian_table_arranged"),
+  version: v.literal(1),
+  data: v.object({
+    arrangementId: v.union(v.literal("quiet"), v.literal("dynamic"), v.literal("explosive")),
+    favoriteCommunityId: v.string(),
+    pawnCommunityId: v.union(v.string(), v.null()),
+    devilDeckCardIds: v.array(v.string()),
+    twistCardId: v.string(),
+    accompliceCardId: v.string(),
+    reservedTwistCardId: v.union(v.string(), v.null()),
+  }),
+});
+
+const faustianStructuralPlaceholderCompletedEventV1Validator = v.object({
+  type: v.literal("faustian_structural_placeholder_completed"),
+  version: v.literal(1),
+  data: v.object({
+    previousTwistCardId: v.string(),
+  }),
+});
+
+const faustianCommunitySchemesRevealedEventV1Validator = v.object({
+  type: v.literal("faustian_community_schemes_revealed"),
+  version: v.literal(1),
+  data: v.object({
+    communityId: v.string(),
+    revealedSchemeCardIds: v.array(v.string()),
+    eligibleSchemeCardIds: v.array(v.string()),
+  }),
+});
+
+const faustianCommunitySchemeFoiledEventV1Validator = v.object({
+  type: v.literal("faustian_community_scheme_foiled"),
+  version: v.literal(1),
+  data: v.object({
+    communityId: v.string(),
+    schemeCardId: v.string(),
+  }),
+});
+
+const faustianSchemesPlacedEventV1Validator = v.object({
+  type: v.literal("faustian_schemes_placed"),
+  version: v.literal(1),
+  data: v.object({
+    communityId: v.string(),
+    requestedQuantity: v.number(),
+    placedCardIds: v.array(v.string()),
+    revealedSchemeCardIds: v.array(v.string()),
+    preventedSchemeCardIds: v.array(v.string()),
+    insufficient: v.boolean(),
+  }),
+});
+
+const faustianPawnCountChangedEventV1Validator = v.object({
+  type: v.literal("faustian_pawn_count_changed"),
+  version: v.literal(1),
+  data: v.object({
+    communityId: v.string(),
+    previousCount: v.number(),
+    nextCount: v.number(),
+  }),
+});
+
+const faustianConspiracyEstablishedEventV1Validator = v.object({
+  type: v.literal("faustian_conspiracy_established"),
+  version: v.literal(1),
+  data: v.object({
+    communityId: v.string(),
+    denizenId: v.string(),
+    createdDenizen: v.boolean(),
+    seatId: v.string(),
+    chipCount: v.union(v.literal(1), v.literal(2), v.literal(3)),
   }),
 });
 
@@ -3184,8 +3271,16 @@ export const campaignEventValidator = v.union(
   pactFragmentOperationalStateChangedEventV1Validator,
   faustianCommunityInvestigatedEventV1Validator,
   faustianCommunityBlackmailedEventV1Validator,
+  faustianCommunityBlackmailedEventV2Validator,
   faustianAccompliceDirectedEventV1Validator,
   faustianPawnDisruptedEventV1Validator,
+  faustianTableArrangedEventV1Validator,
+  faustianStructuralPlaceholderCompletedEventV1Validator,
+  faustianCommunitySchemesRevealedEventV1Validator,
+  faustianCommunitySchemeFoiledEventV1Validator,
+  faustianSchemesPlacedEventV1Validator,
+  faustianPawnCountChangedEventV1Validator,
+  faustianConspiracyEstablishedEventV1Validator,
   sorcererInitializedEventV1Validator,
   sorcererPersonnelRecruitedEventV1Validator,
   sorcererResearcherRefocusedEventV1Validator,

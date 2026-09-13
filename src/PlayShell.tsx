@@ -339,6 +339,8 @@ function renderFaustian(
       loreCompendium={loreCompendium}
       sorcererPresence={sorcererRef?.presentation.externalPresence ?? []}
       layout={layout}
+      lifecycleKind="play"
+      ageId={faustianRef.ageId ?? null}
     />
   );
 }

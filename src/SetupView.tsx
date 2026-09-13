@@ -68,6 +68,7 @@ export default function SetupView({
               setup?.wizards.map((wizard) => ({ wizardId: wizard.wizardId, name: wizard.name })) ?? [],
               loreCompendiumUiStateFromQuery(loreCompendiumRef),
               sorcererRef?.presentation.externalPresence ?? [],
+              setup?.configuration.ageId ?? null,
             )}
           </>
         )}
@@ -102,6 +103,7 @@ function renderSetupFaustianTable(
   wizards: { readonly wizardId: string; readonly name: string }[],
   loreCompendium: ReturnType<typeof loreCompendiumUiStateFromQuery>,
   sorcererPresence: readonly import("../shared/domain").SorcererExternalPresence[],
+  ageId: string | null,
 ) {
   if (faustianRef === undefined || worldRef === undefined) {
     return <div className="py-8 text-sm text-slate-400">Loading Faustian table…</div>;
@@ -119,6 +121,8 @@ function renderSetupFaustianTable(
       loreCompendium={loreCompendium}
       sorcererPresence={sorcererPresence}
       layout="full"
+      lifecycleKind="setup"
+      ageId={ageId}
     />
   );
 }

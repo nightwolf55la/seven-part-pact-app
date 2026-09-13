@@ -325,6 +325,22 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Directed Faustian Accomplice";
     case "faustian_pawn_disrupted":
       return "Disrupted Faustian Pawn";
+    case "faustian_table_arranged":
+      return "Arranged Faustian Table";
+    case "faustian_structural_placeholder_completed":
+      return "Completed Faustian structural placeholder";
+    case "faustian_community_schemes_revealed":
+      return "Revealed Faustian Community Schemes";
+    case "faustian_community_scheme_foiled":
+      return "Foiled a Faustian Scheme";
+    case "faustian_schemes_placed":
+      return "Placed Faustian Schemes";
+    case "faustian_pawn_count_changed":
+      return event.data.nextCount > event.data.previousCount
+        ? "Added a Faustian Pawn"
+        : "Removed a Faustian Pawn";
+    case "faustian_conspiracy_established":
+      return "Established a Faustian Conspiracy";
     case "sorcerer_initialized":
       return "Initialized Sorcerer";
     case "sorcerer_personnel_recruited":
@@ -598,6 +614,13 @@ export function mapEventToActivityEntry(
     case "faustian_community_blackmailed":
     case "faustian_accomplice_directed":
     case "faustian_pawn_disrupted":
+    case "faustian_table_arranged":
+    case "faustian_structural_placeholder_completed":
+    case "faustian_community_schemes_revealed":
+    case "faustian_community_scheme_foiled":
+    case "faustian_schemes_placed":
+    case "faustian_pawn_count_changed":
+    case "faustian_conspiracy_established":
     case "sorcerer_initialized":
     case "sorcerer_personnel_recruited":
     case "sorcerer_researcher_refocused":

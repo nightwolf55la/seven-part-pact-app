@@ -7,6 +7,7 @@ import {
 import LoreContextPanel from "./LoreContextPanel";
 import type { LoreCompendiumUiState } from "./lore-view-model";
 import type { WorldReference } from "./WorldSurface";
+import FaustianActions from "./FaustianActions";
 import {
   FAUSTIAN_TABLE_MIN_WIDTH_PX,
   FACEDOWN_TWIST_LABEL,
@@ -153,6 +154,8 @@ export default function FaustianSurface({
   faustianWizard = null,
   wizards = [],
   layout = "full",
+  lifecycleKind = "play",
+  ageId = null,
 }: {
   readonly faustian: FaustianState;
   readonly campaignId: string;
@@ -162,6 +165,8 @@ export default function FaustianSurface({
   readonly faustianWizard?: FaustianWizardRef | null;
   readonly wizards?: readonly NamedWizardRef[];
   readonly layout?: "full" | "narrow";
+  readonly lifecycleKind?: "setup" | "play";
+  readonly ageId?: string | null;
 }) {
   const presentation = useMemo(
     () => buildFaustianTablePresentation({
@@ -207,6 +212,17 @@ export default function FaustianSurface({
           Selecting a Community or card inspects it. It does not start an action.
         </p>
       </header>
+
+      <FaustianActions
+        faustian={faustian}
+        campaignId={campaignId}
+        lifecycleKind={lifecycleKind}
+        ageId={ageId}
+        faustianWizard={faustianWizard}
+        denizens={world?.denizens ?? []}
+        selectedCommunityId={selection?.kind === "community" ? selection.communityId : null}
+        presentation={presentation}
+      />
 
       <div className="overflow-x-auto">
         <div

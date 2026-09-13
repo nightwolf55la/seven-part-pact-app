@@ -1801,6 +1801,18 @@ export interface FaustianCommunityBlackmailedEventV1 {
   readonly data: FaustianCommunityBlackmailedDataV1;
 }
 
+export interface FaustianCommunityBlackmailedDataV2 {
+  readonly communityId: FaustianCommunityId;
+  readonly drawnCardId: FaustianCardId;
+  readonly revealedSchemeCardIds: readonly FaustianCardId[];
+  readonly preventedSchemeCardIds: readonly FaustianCardId[];
+}
+export interface FaustianCommunityBlackmailedEventV2 {
+  readonly type: "faustian_community_blackmailed";
+  readonly version: 2;
+  readonly data: FaustianCommunityBlackmailedDataV2;
+}
+
 export interface FaustianAccompliceDirectedDataV1 {
   readonly accompliceCardId: FaustianCardId;
   readonly sourceCommunityId: FaustianCommunityId;
@@ -1824,11 +1836,102 @@ export interface FaustianPawnDisruptedEventV1 {
   readonly data: FaustianPawnDisruptedDataV1;
 }
 
+export interface FaustianTableArrangedDataV1 {
+  readonly arrangementId: "quiet" | "dynamic" | "explosive";
+  readonly favoriteCommunityId: FaustianCommunityId;
+  readonly pawnCommunityId: FaustianCommunityId | null;
+  readonly devilDeckCardIds: readonly FaustianCardId[];
+  readonly twistCardId: FaustianCardId;
+  readonly accompliceCardId: FaustianCardId;
+  readonly reservedTwistCardId: FaustianCardId | null;
+}
+export interface FaustianTableArrangedEventV1 {
+  readonly type: "faustian_table_arranged";
+  readonly version: 1;
+  readonly data: FaustianTableArrangedDataV1;
+}
+
+export interface FaustianStructuralPlaceholderCompletedDataV1 {
+  readonly previousTwistCardId: FaustianCardId;
+}
+export interface FaustianStructuralPlaceholderCompletedEventV1 {
+  readonly type: "faustian_structural_placeholder_completed";
+  readonly version: 1;
+  readonly data: FaustianStructuralPlaceholderCompletedDataV1;
+}
+
+export interface FaustianCommunitySchemesRevealedDataV1 {
+  readonly communityId: FaustianCommunityId;
+  readonly revealedSchemeCardIds: readonly FaustianCardId[];
+  readonly eligibleSchemeCardIds: readonly FaustianCardId[];
+}
+export interface FaustianCommunitySchemesRevealedEventV1 {
+  readonly type: "faustian_community_schemes_revealed";
+  readonly version: 1;
+  readonly data: FaustianCommunitySchemesRevealedDataV1;
+}
+
+export interface FaustianCommunitySchemeFoiledDataV1 {
+  readonly communityId: FaustianCommunityId;
+  readonly schemeCardId: FaustianCardId;
+}
+export interface FaustianCommunitySchemeFoiledEventV1 {
+  readonly type: "faustian_community_scheme_foiled";
+  readonly version: 1;
+  readonly data: FaustianCommunitySchemeFoiledDataV1;
+}
+
+export interface FaustianSchemesPlacedDataV1 {
+  readonly communityId: FaustianCommunityId;
+  readonly requestedQuantity: number;
+  readonly placedCardIds: readonly FaustianCardId[];
+  readonly revealedSchemeCardIds: readonly FaustianCardId[];
+  readonly preventedSchemeCardIds: readonly FaustianCardId[];
+  readonly insufficient: boolean;
+}
+export interface FaustianSchemesPlacedEventV1 {
+  readonly type: "faustian_schemes_placed";
+  readonly version: 1;
+  readonly data: FaustianSchemesPlacedDataV1;
+}
+
+export interface FaustianPawnCountChangedDataV1 {
+  readonly communityId: FaustianCommunityId;
+  readonly previousCount: number;
+  readonly nextCount: number;
+}
+export interface FaustianPawnCountChangedEventV1 {
+  readonly type: "faustian_pawn_count_changed";
+  readonly version: 1;
+  readonly data: FaustianPawnCountChangedDataV1;
+}
+
+export interface FaustianConspiracyEstablishedDataV1 {
+  readonly communityId: FaustianCommunityId;
+  readonly denizenId: DenizenId;
+  readonly createdDenizen: boolean;
+  readonly seatId: PactSeatId;
+  readonly chipCount: 1 | 2 | 3;
+}
+export interface FaustianConspiracyEstablishedEventV1 {
+  readonly type: "faustian_conspiracy_established";
+  readonly version: 1;
+  readonly data: FaustianConspiracyEstablishedDataV1;
+}
+
 export type FaustianEvent =
   | FaustianCommunityInvestigatedEventV1
   | FaustianCommunityBlackmailedEventV1
+  | FaustianCommunityBlackmailedEventV2
   | FaustianAccompliceDirectedEventV1
-  | FaustianPawnDisruptedEventV1;
+  | FaustianPawnDisruptedEventV1
+  | FaustianTableArrangedEventV1
+  | FaustianStructuralPlaceholderCompletedEventV1
+  | FaustianCommunitySchemesRevealedEventV1
+  | FaustianCommunitySchemeFoiledEventV1
+  | FaustianSchemesPlacedEventV1
+  | FaustianPawnCountChangedEventV1
+  | FaustianConspiracyEstablishedEventV1;
 
 export interface SorcererInitializedDataV1 {
   readonly arrangementId: SorcererArrangementId;

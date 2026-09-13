@@ -25,6 +25,8 @@ import {
   FAUSTIAN_SOURCE_WORDING_OMISSION,
   loreSubjectRefsEqual,
   pactSeatDisplayName,
+  isExactUnarrangedFaustianBaseline,
+  isExactStructuralHelperFaustian,
 } from "../shared/domain";
 import type { LoreCompendiumUiState } from "./lore-view-model";
 import { findPresentationSubjectByRef } from "./lore-view-model";
@@ -441,64 +443,27 @@ export function faustianLoreSubjects(
 
 export const FAUSTIAN_COMMUNITY_ROW_ORDER: readonly FaustianCommunityId[] = FAUSTIAN_COMMUNITY_IDS;
 
-export function isExactUnarrangedFaustianBaseline(faustian: FaustianState): boolean {
-  if (faustian.faustianDeck.length !== 52) return false;
-  if (faustian.devilDeck.length !== 0) return false;
-  if (faustian.machinations.length !== 0) return false;
-  if (faustian.defeatedSchemes.length !== 0) return false;
-  if (faustian.entrustedCards.length !== 0) return false;
-  if (faustian.beneathAntagonists.length !== 0) return false;
-  if (faustian.possessions.length !== 0) return false;
-  if (faustian.setAsideHand.length !== 0) return false;
-  if (faustian.domainPlacements.length !== 0) return false;
-  if (faustian.activeTwistCardIds.length !== 0) return false;
-  if (faustian.conspiracies.length !== 0) return false;
-  if (faustian.antagonists.length !== 0) return false;
-  if (faustian.demons.length !== 0) return false;
-  if (faustian.domainSeizures.length !== 0) return false;
-  if (faustian.devilObligations.length !== 0) return false;
-  if (faustian.resolvedFlushSuits.length !== 0) return false;
-  if (faustian.persistentMachinationEffects.length !== 0) return false;
-  return faustian.communities.every((community) =>
-    community.pawnCount === 0
-    && community.schemes.length === 0
-    && community.accompliceCardIds.length === 0,
-  );
+export { isExactUnarrangedFaustianBaseline, isExactStructuralHelperFaustian };
+
+export function cloneFaustianState(faustian: FaustianState): FaustianState {
+  return structuredClone(faustian);
 }
 
-export function isExactStructuralHelperFaustian(faustian: FaustianState): boolean {
-  if (faustian.activeTwistCardIds.length !== 1) return false;
-  if (faustian.machinations.length !== 1) return false;
-  if (faustian.machinations[0]?.cardId !== faustian.activeTwistCardIds[0]) return false;
-  if (faustian.machinations[0]?.facing !== "face_down") return false;
-  if (faustian.faustianDeck.length !== 51) return false;
-  if (faustian.devilDeck.length !== 0) return false;
-  if (faustian.defeatedSchemes.length !== 0) return false;
-  if (faustian.entrustedCards.length !== 0) return false;
-  if (faustian.beneathAntagonists.length !== 0) return false;
-  if (faustian.possessions.length !== 0) return false;
-  if (faustian.setAsideHand.length !== 0) return false;
-  if (faustian.domainPlacements.length !== 0) return false;
-  if (faustian.conspiracies.length !== 0) return false;
-  if (faustian.antagonists.length !== 0) return false;
-  if (faustian.demons.length !== 0) return false;
-  if (faustian.domainSeizures.length !== 0) return false;
-  if (faustian.devilObligations.length !== 0) return false;
-  if (faustian.resolvedFlushSuits.length !== 0) return false;
-  if (faustian.persistentMachinationEffects.length !== 0) return false;
-  if (faustian.selectedDevilLawIds.length !== 2) return false;
-  const formCount = faustian.selectedDevilForms.casual.length
-    + faustian.selectedDevilForms.special.length
-    + faustian.selectedDevilForms.duress.length;
-  if (formCount !== 6) return false;
-  if (faustian.selectedDevilForms.casual.length !== 3) return false;
-  if (faustian.selectedDevilForms.special.length !== 2) return false;
-  if (faustian.selectedDevilForms.duress.length !== 1) return false;
-  return faustian.communities.every((community) =>
-    community.pawnCount === 0
-    && community.schemes.length === 0
-    && community.accompliceCardIds.length === 0,
-  );
+export function synthesizeFaustianAfterSchemeReveal(
+  faustian: FaustianState,
+  communityId: FaustianCommunityId,
+): FaustianState {
+  return {
+    ...faustian,
+    communities: faustian.communities.map((community) =>
+      community.communityId === communityId
+        ? {
+          ...community,
+          schemes: community.schemes.map((scheme) => ({ ...scheme, facing: "face_up" as const })),
+        }
+        : community
+    ),
+  };
 }
 
 export { FAUSTIAN_COMMUNITY_DEFINITIONS, FAUSTIAN_SOURCE_WORDING_OMISSION };
