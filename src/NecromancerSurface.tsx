@@ -1133,13 +1133,13 @@ function LawsPanel({
   onSave: () => Promise<void>;
 }) {
   return (
-    <section className="rounded-lg border border-violet-100 dark:border-violet-900 p-3 space-y-2">
+    <section data-necromancer-laws className="rounded-lg border border-violet-100 dark:border-violet-900 p-3 space-y-2">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">Laws of Death</h3>
         <button className={ghostBtn} onClick={onToggleEdit}>{editing ? "Close Edit Laws" : "Edit Laws"}</button>
       </div>
       {!editing && (
-        <ul className="flex flex-wrap gap-x-3 gap-y-1">
+        <ul className="space-y-2">
           {necromancer.selectedLaws.length === 0 && (
             <li className="text-sm text-slate-500">No Laws selected.</li>
           )}
@@ -1149,8 +1149,9 @@ function LawsPanel({
               return <li key={`hidden-${index}`} className="text-sm italic">Hidden Law</li>;
             }
             return (
-              <li key={view.lawId} className="text-sm" title={view.text}>
+              <li key={view.lawId} className="text-sm">
                 <span className="font-medium">{view.applicationLabel}</span>
+                <span className="block text-slate-500">{view.text}</span>
               </li>
             );
           })}

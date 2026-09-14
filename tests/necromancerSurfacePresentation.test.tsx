@@ -322,10 +322,15 @@ describe("Gates board operability presentation", () => {
     const { container, root } = renderSurface({ necromancer });
     expect(container.querySelector('[aria-label="Gates of Death board"]')).not.toBeNull();
     expect(container.textContent).toContain("I Amber");
-    expect(container.textContent).toContain("Near");
-    expect(container.textContent).toContain("Far");
-    expect(container.textContent).toContain("Furthest");
+    expect(container.textContent).toContain("Near Gates");
+    expect(container.textContent).toContain("Far Gates");
+    expect(container.textContent).toContain("Furthest Gates");
     expect(container.textContent).toContain("Edge of Life");
+    expect(container.textContent).toContain("Far Lands");
+    expect(container.textContent).toContain("Abyss");
+    expect(container.textContent).toContain("Depth 1");
+    expect(container.textContent).toContain("Depth 2");
+    expect(container.textContent).toContain("Depth 3");
     expect(container.textContent).toContain("Hostile");
     expect(container.textContent).toContain("Destroyed");
     expect(container.textContent).toContain("5+ Souls pending");
@@ -702,6 +707,62 @@ describe("Necromancer desktop board and Depth presentation", () => {
     expect(container.querySelector('[aria-label^="XI Terminus"]')).not.toBeNull();
     expect(container.querySelector('[aria-label^="Sage Edge of Life"]')).not.toBeNull();
     expect(container.querySelector('[aria-label^="Marching Abyss"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps active Law wording in normal rendered content instead of a title tooltip", () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      selectedLaws: [
+        { lawId: "first", visibility: "revealed" },
+        { lawId: "second", visibility: "hidden" },
+      ],
+    });
+    const { container, root } = renderSurface({ necromancer });
+    const laws = container.querySelector("[data-necromancer-laws]");
+    expect(laws).not.toBeNull();
+    expect(laws?.textContent).toContain("First Law of Death");
+    expect(laws?.textContent).toContain("Do not eat the food of the dead or drink their water.");
+    expect(laws?.textContent).toContain("Hidden Law");
+    expect(laws?.textContent).not.toContain("Do not reveal your name to the dead or look into their eyes.");
+    const titleOnly = Array.from(laws!.querySelectorAll("[title]")).some((el) => {
+      const title = el.getAttribute("title") ?? "";
+      return title.includes("Do not eat the food of the dead") && !el.textContent?.includes("Do not eat the food of the dead");
+    });
+    expect(titleOnly).toBe(false);
+    root.unmount();
+    container.remove();
+  });
+
+  it("draws branching Gate connections without flowchart arrowheads", () => {
+    const { container, root } = renderSurface();
+    expect(container.querySelector("#nec-step-arrow")).toBeNull();
+    expect(container.querySelector("#nec-terminal-arrow")).toBeNull();
+    const connections = container.querySelectorAll("[data-board-connection]");
+    expect(connections.length).toBeGreaterThan(0);
+    for (const connection of connections) {
+      expect(connection.getAttribute("marker-end")).toBeNull();
+    }
+    root.unmount();
+    container.remove();
+  });
+
+  it("shows both source Gate-band and Death-region depth labels", () => {
+    const { container, root } = renderSurface();
+    const bands = container.querySelectorAll('[data-board-label="gate_band"]');
+    const regions = container.querySelectorAll('[data-board-label="depth_region"]');
+    expect(bands).toHaveLength(3);
+    expect(regions).toHaveLength(3);
+    expect(Array.from(bands).map((el) => el.textContent)).toEqual([
+      "Near Gates",
+      "Far Gates",
+      "Furthest Gates",
+    ]);
+    expect(Array.from(regions).map((el) => el.textContent)).toEqual([
+      "Edge of LifeDepth 1",
+      "Far LandsDepth 2",
+      "AbyssDepth 3",
+    ]);
     root.unmount();
     container.remove();
   });

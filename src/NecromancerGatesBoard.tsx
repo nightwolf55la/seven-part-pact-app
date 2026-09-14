@@ -72,16 +72,10 @@ export default function NecromancerGatesBoard({
           role="img"
           aria-label="Gates of Death board"
           data-necromancer-board
-          viewBox={`0 0 ${NECROMANCER_BOARD_VIEWBOX.width} ${NECROMANCER_BOARD_VIEWBOX.height}`}
+          viewBox={`${NECROMANCER_BOARD_VIEWBOX.minX} ${NECROMANCER_BOARD_VIEWBOX.minY} ${NECROMANCER_BOARD_VIEWBOX.width} ${NECROMANCER_BOARD_VIEWBOX.height}`}
           className="mx-auto block h-auto w-full max-w-[min(100%,calc(100vh-18rem))] text-slate-800 dark:text-slate-100"
         >
           <defs>
-            <marker id="nec-step-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
-            </marker>
-            <marker id="nec-terminal-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
-            </marker>
             <pattern id="nec-hostile-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
               <rect width="8" height="8" fill="#fff7ed" />
               <line x1="0" y1="0" x2="0" y2="8" stroke="#9a3412" strokeWidth="3" />
@@ -92,7 +86,20 @@ export default function NecromancerGatesBoard({
             </pattern>
           </defs>
           {NECROMANCER_BOARD_BAND_LABELS.map((label) => (
-            <text key={label.text} x={label.x} y={label.y} fontSize={15} fontWeight={700} fill="#4c1d95">{label.text}</text>
+            <text
+              key={label.text}
+              data-board-label={label.kind}
+              x={label.x}
+              y={label.y}
+              textAnchor={label.anchor}
+              fontSize={13}
+              fontWeight={700}
+              fill="#4c1d95"
+            >
+              {label.lines.map((line, index) => (
+                <tspan key={line} x={label.x} dy={index === 0 ? 0 : 15}>{line}</tspan>
+              ))}
+            </text>
           ))}
           {necromancer.steps.map((step, index) => {
             const path = builtinInternalStepPresentation(step);
@@ -102,17 +109,18 @@ export default function NecromancerGatesBoard({
             return (
               <path
                 key={`step-${index}`}
+                data-board-connection="step"
                 d={`M ${path.a.x} ${path.a.y} Q ${cx} ${cy} ${path.b.x} ${path.b.y}`}
                 fill="none"
                 stroke="#64748b"
                 strokeWidth={2}
-                markerEnd="url(#nec-step-arrow)"
               />
             );
           })}
           {NECROMANCER_STATIC_TERMINAL_PRESENTATIONS.map((exit) => (
             <g key={exit.terminalId}>
               <line
+                data-board-connection="terminal"
                 x1={exit.fromPoint.x}
                 y1={exit.fromPoint.y}
                 x2={exit.toPoint.x}
@@ -120,7 +128,6 @@ export default function NecromancerGatesBoard({
                 stroke="#94a3b8"
                 strokeWidth={2}
                 strokeDasharray="6 5"
-                markerEnd="url(#nec-terminal-arrow)"
               />
               <rect
                 x={exit.toPoint.x - 54}

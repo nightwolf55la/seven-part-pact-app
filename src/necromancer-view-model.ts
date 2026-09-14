@@ -117,7 +117,7 @@ export const NECROMANCER_FURTHEST_BUILTIN_GATE_IDS = NECROMANCER_BUILTIN_GATE_DE
   .filter((gate) => gate.band === "furthest")
   .map((gate) => gate.gateId);
 
-export const NECROMANCER_BOARD_VIEWBOX = { width: 1000, height: 1000 } as const;
+export const NECROMANCER_BOARD_VIEWBOX = { minX: -90, minY: 0, width: 1180, height: 1000 } as const;
 
 /**
  * APPLICATION PRESENTATION based on the Draft-4 Materials board.
@@ -170,13 +170,18 @@ export const NECROMANCER_TERMINAL_MAP_POINTS: Record<NecromancerTerminalExitId, 
 
 export const NECROMANCER_BOARD_BAND_LABELS: readonly {
   readonly text: string;
+  readonly lines: readonly string[];
   readonly x: number;
   readonly y: number;
+  readonly anchor: "start" | "end";
+  readonly kind: "gate_band" | "depth_region";
 }[] = [
-  { text: "Edge of Life", x: 20, y: 28 },
-  { text: "Near", x: 20, y: 168 },
-  { text: "Far", x: 20, y: 428 },
-  { text: "Furthest", x: 20, y: 688 },
+  { text: "Near Gates", lines: ["Near Gates"], x: -82, y: 214, anchor: "start", kind: "gate_band" },
+  { text: "Far Gates", lines: ["Far Gates"], x: -82, y: 474, anchor: "start", kind: "gate_band" },
+  { text: "Furthest Gates", lines: ["Furthest Gates"], x: -82, y: 796, anchor: "start", kind: "gate_band" },
+  { text: "Edge of Life — Depth 1", lines: ["Edge of Life", "Depth 1"], x: 1084, y: 52, anchor: "end", kind: "depth_region" },
+  { text: "Far Lands — Depth 2", lines: ["Far Lands", "Depth 2"], x: 1084, y: 328, anchor: "end", kind: "depth_region" },
+  { text: "Abyss — Depth 3", lines: ["Abyss", "Depth 3"], x: 1084, y: 708, anchor: "end", kind: "depth_region" },
 ];
 
 export interface NecromancerStaticTerminalPresentation {

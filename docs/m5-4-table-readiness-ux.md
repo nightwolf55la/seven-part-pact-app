@@ -316,6 +316,7 @@ Supports: UX-001, UX-019.
 - **Current status:** OPEN
 - **Dependencies / duplicates:** Closely related to UX-021 and potentially UX-005.
 - **Approved batch:** Not Batch 1
+- **Resolution / implementation note:** Batch 2 code-review correction restored the pre-Batch-2 visible Necromancer Law wording in the compact Depth + Laws header. That does not close this shared Laws convention.
 
 ### UX-012
 
@@ -395,7 +396,7 @@ Supports: UX-001, UX-019.
 - **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Strongly affected by UX-004.
 - **Approved batch:** Batch 2
-- **Resolution / implementation note:** Live arched Gate silhouettes; Near / Far / Furthest tree with small circular path spaces and curved connections. Overlay inspector does not resize the board. No normal desktop horizontal scrollbar at 1600×1000. Gate IDs and persisted topology unchanged.
+- **Resolution / implementation note:** Live arched Gate silhouettes; branching curved connections without arrowheads. Left Gate-band labels (Near / Far / Furthest Gates) and right Death-region labels (Edge of Life / Far Lands / Abyss with Depth 1 / 2 / 3). Overlay inspector does not resize the board. No normal desktop horizontal scrollbar at 1600×1000. Gate IDs and persisted topology unchanged.
 
 ### UX-017
 
