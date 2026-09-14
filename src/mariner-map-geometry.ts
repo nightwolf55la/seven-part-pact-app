@@ -1,12 +1,13 @@
 /**
- * Static Mariner map presentation for the fixed Draft-4 Isha board.
+ * Static Mariner map overlay geometry for the fixed Draft-4 Isha board.
  *
- * Geometry is presentation only. Adjacency, Route endpoints, Sea relationships,
- * Raider direction, and piece locations come from catalogs/state, never from
- * these coordinates.
+ * These coordinates are hit regions and token anchors only. Decorative
+ * geography, routes, and labels come from the PowerPoint-native SVG asset.
+ * Adjacency, Route endpoints, Sea relationships, Raider direction, and piece
+ * locations come from catalogs/state, never from these coordinates.
  *
- * Source: Patreon Materials [04.26.04].pptx Slide 14 / slideLayout7,
- * distilled into a 1000x1000 SVG frame. PowerPoint object names are not IDs.
+ * Overlay space is 1000×1000 and is aligned onto the exported SVG via
+ * MARINER_SOURCE_BOARD.overlayTransform. PowerPoint object names are not IDs.
  */
 
 import {

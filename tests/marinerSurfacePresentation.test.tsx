@@ -640,15 +640,16 @@ describe("Mariner Sorcerer presence on the map", () => {
 });
 
 describe("Mariner map interaction and narrow treatment", () => {
-  it("keeps Sea hit regions under Route hits and decorative labels non-interactive", () => {
+  it("keeps Sea hit regions under Route hits and the source SVG decorative layer non-interactive", () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     const sea = container.querySelector('[data-map-layer="sea-hit"]');
     const route = container.querySelector('[data-map-layer="route-hit"]');
-    const labels = container.querySelector('[data-map-layer="labels"]');
+    const source = container.querySelector("[data-mariner-source-board]");
     expect(sea).not.toBeNull();
     expect(route).not.toBeNull();
+    expect(source?.getAttribute("aria-hidden")).toBe("true");
     expect(sea!.compareDocumentPosition(route!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(labels?.getAttribute("pointer-events")).toBe("none");
+    expect(container.querySelector('[data-map-layer="labels"]')).toBeNull();
     expect(container.querySelector('[data-map-layer="frame"]')?.getAttribute("pointer-events")).toBe("none");
     root.unmount();
     container.remove();
@@ -694,8 +695,9 @@ describe("Mariner map interaction and narrow treatment", () => {
     expect(stage?.className).not.toContain("overflow-x-auto");
     expect(board?.getAttribute("data-min-width")).toBeNull();
     expect(board?.style.minWidth).toBe("");
-    expect(board?.viewBox.baseVal.width).toBe(1000);
-    expect(board?.viewBox.baseVal.height).toBe(1000);
+    expect(board?.viewBox.baseVal.width).toBe(957);
+    expect(board?.viewBox.baseVal.height).toBe(812);
+    expect(board?.querySelector("[data-mariner-source-board]")).not.toBeNull();
     root.unmount();
     container.remove();
   });
@@ -769,25 +771,21 @@ describe("Mariner desktop board hierarchy and overlay inspector", () => {
     container.remove();
   });
 
-  it("keeps live SVG chart framing, dashed empty routes, and source-map label metadata", () => {
+  it("renders a decorative PowerPoint-native source SVG under live hit regions", () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     const board = container.querySelector("[data-mariner-board]") as SVGSVGElement | null;
     expect(board).not.toBeNull();
     expect(board?.tagName.toLowerCase()).toBe("svg");
+    const source = container.querySelector("[data-mariner-source-board]");
+    expect(source).not.toBeNull();
+    expect(source?.getAttribute("aria-hidden")).toBe("true");
     expect(container.querySelector("[data-mariner-map-field]")).not.toBeNull();
-    expect(container.querySelector("[data-mariner-map-sea]")).not.toBeNull();
     expect(container.querySelector("[data-mariner-chart-title]")?.textContent).toContain("The Archipelago of Isha");
-    expect(container.querySelector('[data-map-framing="external-destination"]')).not.toBeNull();
-    expect(container.querySelector('[data-external-direction="druj_lands"]')?.textContent).toBe("to the West");
-    expect(container.querySelector('[data-external-direction="ur"]')?.textContent).toBe("to the East");
-    expect(container.querySelector('[data-horizon-label="true"]')).not.toBeNull();
-    const emptyRoute = container.querySelector('[data-route-occupancy="empty"]');
-    expect(emptyRoute?.getAttribute("stroke-dasharray")).toBeTruthy();
-    expect(container.querySelector('[data-isle-label="ishana"]')?.getAttribute("data-label-rotate")).not.toBe("0");
-    expect(container.querySelector('[data-isle-label="far_reach"]')?.getAttribute("data-label-wrap")).toBe("true");
-    expect(container.querySelector('[data-isle-label="halcyon_isles"]')?.getAttribute("data-label-wrap")).toBe("true");
-    const labels = container.querySelector("[data-map-layer=\"labels\"]") as SVGGElement | null;
-    expect(labels?.getAttribute("font-family") ?? labels?.style.fontFamily).toMatch(/Georgia/);
+    expect(container.querySelector('[data-map-layer="isle"][data-isle-id="ishana"]')).not.toBeNull();
+    expect(container.querySelector('[data-map-layer="route-hit"]')).not.toBeNull();
+    expect(container.querySelector('[data-map-layer="sea-hit"]')).not.toBeNull();
+    expect(container.querySelector("[data-map-layer=\"labels\"]")).toBeNull();
+    expect(container.querySelector('[data-route-occupancy="empty"]')).toBeNull();
     root.unmount();
     container.remove();
   });

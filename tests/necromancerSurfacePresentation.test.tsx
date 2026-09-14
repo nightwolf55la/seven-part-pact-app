@@ -321,16 +321,10 @@ describe("Gates board operability presentation", () => {
     });
     const { container, root } = renderSurface({ necromancer });
     expect(container.querySelector('[aria-label="Gates of Death board"]')).not.toBeNull();
+    expect(container.querySelector("[data-necromancer-source-board]")?.getAttribute("aria-hidden")).toBe("true");
     expect(container.textContent).toContain("I Amber");
-    expect(container.textContent).toContain("Near Gates");
-    expect(container.textContent).toContain("Far Gates");
-    expect(container.textContent).toContain("Furthest Gates");
-    expect(container.textContent).toContain("Edge of Life");
-    expect(container.textContent).toContain("Far Lands");
-    expect(container.textContent).toContain("Abyss");
-    expect(container.textContent).toContain("Depth 1");
-    expect(container.textContent).toContain("Depth 2");
-    expect(container.textContent).toContain("Depth 3");
+    expect(container.querySelector('[aria-label^="I Amber"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label*="Sage Edge of Life"]')).not.toBeNull();
     expect(container.textContent).toContain("Hostile");
     expect(container.textContent).toContain("Destroyed");
     expect(container.textContent).toContain("5+ Souls pending");
@@ -626,10 +620,18 @@ describe("Necromancer desktop board and Depth presentation", () => {
     const { container, root } = renderSurface();
     expect(container.querySelector("[data-board-overlay-inspector]")).toBeNull();
     expect(container.innerHTML).not.toContain("lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,1fr)]");
+    const board = container.querySelector("[data-necromancer-board]") as SVGSVGElement;
+    const before = { width: board.viewBox.baseVal.width, height: board.viewBox.baseVal.height };
+    expect(before.width).toBe(1046);
+    expect(before.height).toBe(783);
+    expect(container.querySelector("[data-necromancer-source-board]")).not.toBeNull();
     const amber = container.querySelector('[aria-label^="I Amber"]') as Element;
     flushSync(() => { amber.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
     expect(container.querySelector('[aria-label="Selected space"]')?.textContent).toContain("Amber");
+    expect(board.viewBox.baseVal.width).toBe(before.width);
+    expect(board.viewBox.baseVal.height).toBe(before.height);
+    expect(container.querySelector("[data-necromancer-board-scroll]")).toBeNull();
     flushSync(() => { (container.querySelector('[aria-label="Close inspector"]') as HTMLButtonElement).click(); });
     expect(container.querySelector("[data-board-overlay-inspector]")).toBeNull();
     root.unmount();
@@ -734,35 +736,14 @@ describe("Necromancer desktop board and Depth presentation", () => {
     container.remove();
   });
 
-  it("draws branching Gate connections without flowchart arrowheads", () => {
+  it("uses a decorative PowerPoint-native source SVG without reconstructed connectors or arrowheads", () => {
     const { container, root } = renderSurface();
+    expect(container.querySelector("[data-necromancer-source-board]")).not.toBeNull();
     expect(container.querySelector("#nec-step-arrow")).toBeNull();
     expect(container.querySelector("#nec-terminal-arrow")).toBeNull();
-    const connections = container.querySelectorAll("[data-board-connection]");
-    expect(connections.length).toBeGreaterThan(0);
-    for (const connection of connections) {
-      expect(connection.getAttribute("marker-end")).toBeNull();
-    }
-    root.unmount();
-    container.remove();
-  });
-
-  it("shows both source Gate-band and Death-region depth labels", () => {
-    const { container, root } = renderSurface();
-    const bands = container.querySelectorAll('[data-board-label="gate_band"]');
-    const regions = container.querySelectorAll('[data-board-label="depth_region"]');
-    expect(bands).toHaveLength(3);
-    expect(regions).toHaveLength(3);
-    expect(Array.from(bands).map((el) => el.textContent)).toEqual([
-      "Near Gates",
-      "Far Gates",
-      "Furthest Gates",
-    ]);
-    expect(Array.from(regions).map((el) => el.textContent)).toEqual([
-      "Edge of LifeDepth 1",
-      "Far LandsDepth 2",
-      "AbyssDepth 3",
-    ]);
+    expect(container.querySelectorAll("[data-board-connection]")).toHaveLength(0);
+    expect(container.querySelectorAll("[data-board-label]")).toHaveLength(0);
+    expect(container.querySelector('[aria-label^="I Amber"]')).not.toBeNull();
     root.unmount();
     container.remove();
   });

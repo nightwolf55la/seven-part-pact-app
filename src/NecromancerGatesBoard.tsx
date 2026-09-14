@@ -2,16 +2,14 @@ import type { KeyboardEvent } from "react";
 import type { NecromancerState, SorcererExternalPresence } from "../shared/domain";
 import type { WorldReference } from "./WorldSurface";
 import { NecromancerGateShape } from "./NecromancerGateShape";
+import { NECROMANCER_SOURCE_BOARD } from "./source-board-assets";
 import {
-  NECROMANCER_BOARD_BAND_LABELS,
-  NECROMANCER_BOARD_VIEWBOX,
   NECROMANCER_BUILTIN_GATE_IDS,
   NECROMANCER_BUILTIN_GATE_MAP_POINTS,
   NECROMANCER_BUILTIN_PATH_SPACE_DEFINITIONS,
   NECROMANCER_BUILTIN_PATH_SPACE_IDS,
   NECROMANCER_BUILTIN_PATH_MAP_POINTS,
   NECROMANCER_STATIC_TERMINAL_PRESENTATIONS,
-  builtinInternalStepPresentation,
   canTransformSoulIntoAlly,
   finalDeathResearchers,
   fivePlusSoulWarning,
@@ -72,7 +70,7 @@ export default function NecromancerGatesBoard({
           role="img"
           aria-label="Gates of Death board"
           data-necromancer-board
-          viewBox={`${NECROMANCER_BOARD_VIEWBOX.minX} ${NECROMANCER_BOARD_VIEWBOX.minY} ${NECROMANCER_BOARD_VIEWBOX.width} ${NECROMANCER_BOARD_VIEWBOX.height}`}
+          viewBox={`0 0 ${NECROMANCER_SOURCE_BOARD.width} ${NECROMANCER_SOURCE_BOARD.height}`}
           className="mx-auto block h-auto w-full max-w-[min(100%,calc(100vh-18rem))] text-slate-800 dark:text-slate-100"
         >
           <defs>
@@ -85,65 +83,15 @@ export default function NecromancerGatesBoard({
               <line x1="0" y1="0" x2="6" y2="0" stroke="#64748b" strokeWidth="2" />
             </pattern>
           </defs>
-          {NECROMANCER_BOARD_BAND_LABELS.map((label) => (
-            <text
-              key={label.text}
-              data-board-label={label.kind}
-              x={label.x}
-              y={label.y}
-              textAnchor={label.anchor}
-              fontSize={13}
-              fontWeight={700}
-              fill="#4c1d95"
-            >
-              {label.lines.map((line, index) => (
-                <tspan key={line} x={label.x} dy={index === 0 ? 0 : 15}>{line}</tspan>
-              ))}
-            </text>
-          ))}
-          {necromancer.steps.map((step, index) => {
-            const path = builtinInternalStepPresentation(step);
-            if (path === null) return null;
-            const cx = (path.a.x + path.b.x) / 2;
-            const cy = (path.a.y + path.b.y) / 2 + Math.min(28, Math.abs(path.b.y - path.a.y) * 0.18);
-            return (
-              <path
-                key={`step-${index}`}
-                data-board-connection="step"
-                d={`M ${path.a.x} ${path.a.y} Q ${cx} ${cy} ${path.b.x} ${path.b.y}`}
-                fill="none"
-                stroke="#64748b"
-                strokeWidth={2}
-              />
-            );
-          })}
-          {NECROMANCER_STATIC_TERMINAL_PRESENTATIONS.map((exit) => (
-            <g key={exit.terminalId}>
-              <line
-                data-board-connection="terminal"
-                x1={exit.fromPoint.x}
-                y1={exit.fromPoint.y}
-                x2={exit.toPoint.x}
-                y2={exit.toPoint.y}
-                stroke="#94a3b8"
-                strokeWidth={2}
-                strokeDasharray="6 5"
-              />
-              <rect
-                x={exit.toPoint.x - 54}
-                y={exit.toPoint.y - 16}
-                width={108}
-                height={32}
-                rx={6}
-                fill="#f8fafc"
-                stroke="#94a3b8"
-                strokeDasharray={exit.terminalId === "void_beyond" ? "4 3" : undefined}
-              />
-              <text x={exit.toPoint.x} y={exit.toPoint.y + 4} textAnchor="middle" fontSize={11} fill="#334155">
-                {exit.label}
-              </text>
-            </g>
-          ))}
+          <image
+            data-necromancer-source-board
+            href={NECROMANCER_SOURCE_BOARD.href}
+            x={0}
+            y={0}
+            width={NECROMANCER_SOURCE_BOARD.width}
+            height={NECROMANCER_SOURCE_BOARD.height}
+            aria-hidden="true"
+          />
           {finalDeath !== undefined && researchers.map((researcher, index) => (
             <g
               key={researcher.denizenId}
@@ -152,7 +100,7 @@ export default function NecromancerGatesBoard({
             >
               <rect
                 x={finalDeath.toPoint.x - 70}
-                y={finalDeath.toPoint.y + 22 + index * 34}
+                y={finalDeath.toPoint.y + 8 + index * 34}
                 width={140}
                 height={30}
                 rx={6}
@@ -160,10 +108,10 @@ export default function NecromancerGatesBoard({
                 stroke="#4338ca"
                 strokeWidth={1.5}
               />
-              <text x={finalDeath.toPoint.x} y={finalDeath.toPoint.y + 34 + index * 34} textAnchor="middle" fontSize={9} fill="#312e81">
+              <text x={finalDeath.toPoint.x} y={finalDeath.toPoint.y + 20 + index * 34} textAnchor="middle" fontSize={9} fill="#312e81">
                 {researcher.name}
               </text>
-              <text x={finalDeath.toPoint.x} y={finalDeath.toPoint.y + 46 + index * 34} textAnchor="middle" fontSize={8} fill="#4338ca">
+              <text x={finalDeath.toPoint.x} y={finalDeath.toPoint.y + 32 + index * 34} textAnchor="middle" fontSize={8} fill="#4338ca">
                 {researcherOperationalLabel(researcher.operationalThisMonth)}
               </text>
             </g>
@@ -191,13 +139,23 @@ export default function NecromancerGatesBoard({
                   cx={point.x}
                   cy={point.y}
                   r={14}
-                  fill={selected ? "#ddd6fe" : "#f8fafc"}
-                  stroke="#4c1d95"
-                  strokeWidth={selected ? 3 : 1.5}
+                  fill={selected ? "#ddd6fe" : "transparent"}
+                  stroke={selected ? "#4c1d95" : "transparent"}
+                  strokeWidth={selected ? 3 : 0}
                 />
-                <text x={point.x} y={point.y - 20} textAnchor="middle" fontSize={10} fontWeight={600} fill="#0f172a">
-                  {label.replace(" Edge of Life", "").replace(" Far Lands", "").replace(" Abyss", "").replace(" (Upper)", "").replace(" (Lower)", "")}
-                </text>
+                {selected && (
+                  <circle
+                    data-selection-halo
+                    cx={point.x}
+                    cy={point.y}
+                    r={18}
+                    fill="none"
+                    stroke="#6d28d9"
+                    strokeWidth={4}
+                    opacity={0.4}
+                    pointerEvents="none"
+                  />
+                )}
                 <SpaceTokens
                   originX={point.x}
                   originY={point.y + 10}
@@ -225,9 +183,9 @@ export default function NecromancerGatesBoard({
               ? "url(#nec-destroyed-hatch)"
               : status === "hostile"
                 ? "url(#nec-hostile-hatch)"
-                : selected ? "#ddd6fe" : "#f5f3ff";
+                : selected ? "rgba(221,214,254,0.35)" : "transparent";
             const textFill = status === "destroyed" ? "#e2e8f0" : "#0f172a";
-            const stroke = status === "destroyed" ? "#94a3b8" : status === "hostile" ? "#9a3412" : selected ? "#5b21b6" : "#4c1d95";
+            const stroke = status === "destroyed" ? "#94a3b8" : status === "hostile" ? "#9a3412" : selected ? "#5b21b6" : "transparent";
             const warning = fivePlusSoulWarning(pieces.souls);
             const transformEligible = canTransformSoulIntoAlly(gate, pieces.souls);
             return (
@@ -245,7 +203,7 @@ export default function NecromancerGatesBoard({
                     cx={point.x}
                     cy={point.y}
                     rx={56}
-                    ry={48}
+                    ry={68}
                     fill="none"
                     stroke="#6d28d9"
                     strokeWidth={5}
@@ -261,7 +219,14 @@ export default function NecromancerGatesBoard({
                   strokeWidth={selected ? 3 : 2}
                   strokeDasharray={status === "destroyed" ? "5 4" : undefined}
                 />
-                <text x={point.x} y={point.y - 8} textAnchor="middle" fontSize={12} fontWeight={700} fill={textFill}>
+                <text
+                  x={point.x}
+                  y={point.y - 8}
+                  textAnchor="middle"
+                  fontSize={12}
+                  fontWeight={700}
+                  fill={gate.origin === "builtin" ? "transparent" : textFill}
+                >
                   {gateBoardTitle(gate)}
                 </text>
                 <text x={point.x} y={point.y + 8} textAnchor="middle" fontSize={8} fill={textFill}>

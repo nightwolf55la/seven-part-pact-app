@@ -48,9 +48,10 @@ When a Mariner or Necromancer board item is selected, a dismissible right-side o
 
 ### Source visuals used
 
-- Requested PPTX `Patreon Materials [04.26.04].pptx` was not available on this machine.
-- Implementation used approved source observations for **slide 14 (Mariner map)** and **slide 5 (Necromancer Gates)** plus existing repository geometry. No PPTX or exported slide images were committed.
-- For the Batch 2 Mariner visual correction, the human-supplied map screenshot superseded the earlier generated/exported visual reference. That screenshot was used as a presentation target only and was not committed.
+- Authoritative source for Batch 2 board art: local `Patreon Materials [04.26.04].pptx` (not committed).
+- Batch 2 was corrected to use **PowerPoint-native SVG export** (`ShapeRange.Export(..., SVG)`) for **Mariner** and **Necromancer** decorative board bases. Regenerable extractor: `scripts/export-source-board-svgs.ps1`. Committed assets: `src/assets/source-boards/mariner-board.svg` and `src/assets/source-boards/necromancer-gates-board.svg`.
+- This replaced the prior reconstructed decorative board-layer approach for those two boards. Live hit regions, selection, tokens, inspectors, and CampaignState overlays remain application-owned.
+- Future visually distinctive source boards should prefer this PowerPoint-native SVG approach when practical. Hierophant / Warlock / Faustian / Sage / Sorcerer were not redone in this run.
 
 ---
 
@@ -301,7 +302,7 @@ Supports: UX-001, UX-019.
 - **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Strongly dependent on UX-004 and related to UX-009.
 - **Approved batch:** Batch 2
-- **Resolution / implementation note:** Source-inspired live SVG: pale-green field, white circular sea, blue dashed routes, colored Isle silhouettes, circumference destinations, selection halo. Existing geometry retained. Overlay inspector does not resize the map. No normal desktop horizontal scrollbar at 1600×1000. Batch 2 visual correction: the human-supplied Mariner map screenshot superseded the earlier generated/exported slide reference for palette, serif typography, label rotation, horizon/perimeter treatment, and outer destination framing. Status remains FIXED — NEEDS HUMAN RETEST.
+- **Resolution / implementation note:** Batch 2 was later corrected to a PowerPoint-native exported SVG decorative base (`mariner-board.svg`) under live Isle/Route/Sea hit regions, selection halo, and state tokens. Prior reconstructed geography/routes/labels are no longer the visual map. Overlay inspector does not resize the map. No normal desktop horizontal scrollbar at 1600×1000. Status remains FIXED — NEEDS HUMAN RETEST.
 
 ### UX-011
 
@@ -397,7 +398,7 @@ Supports: UX-001, UX-019.
 - **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Strongly affected by UX-004.
 - **Approved batch:** Batch 2
-- **Resolution / implementation note:** Live arched Gate silhouettes; branching curved connections without arrowheads. Left Gate-band labels (Near / Far / Furthest Gates) and right Death-region labels (Edge of Life / Far Lands / Abyss with Depth 1 / 2 / 3). Overlay inspector does not resize the board. No normal desktop horizontal scrollbar at 1600×1000. Gate IDs and persisted topology unchanged.
+- **Resolution / implementation note:** Batch 2 was later corrected to a PowerPoint-native exported SVG decorative base (`necromancer-gates-board.svg`) under live Gate/path hit regions, Hostile/Destroyed hatch overlays, and state tokens. Prior reconstructed arches/tree/band labels are no longer the visual board. Overlay inspector does not resize the board. No normal desktop horizontal scrollbar at 1600×1000. Gate IDs and persisted topology unchanged.
 
 ### UX-017
 
@@ -550,8 +551,8 @@ Inspected at **1600×1000** against disposable Development `academic-gazelle-299
 
 Implementation-worker observations (not human verification):
 
-- Mariner: map fits without horizontal scroll; compact Ship/Sanctum; overlay does not resize the SVG.
-- Necromancer: arched Gates and Near/Far/Furthest tree visible; Depth stepper; no raw owner UUID; overlay does not resize the board.
+- Mariner: PowerPoint-native source SVG is the decorative map; live hits/tokens overlay it; compact Ship/Sanctum; overlay does not resize the SVG; no normal horizontal scrollbar.
+- Necromancer: PowerPoint-native source SVG is the decorative Gates board; live Gate/path overlays remain; Depth stepper; no raw owner UUID; overlay does not resize the board.
 - Compendium / Hierophant / Sorcerer / Faustian: inspected for shared-width regression only.
 
 ## New UX findings from this run

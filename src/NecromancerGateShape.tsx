@@ -17,7 +17,7 @@ export function NecromancerGateShape({
     <path
       data-gate-silhouette="arch"
       transform={`translate(${x} ${y})`}
-      d="M -42 32 L -42 6 Q -42 -34 0 -38 Q 42 -34 42 6 L 42 32 Z"
+      d="M -42 56.5 L -42 0 C -42 -31.204 -23.196 -56.5 0 -56.5 C 23.196 -56.5 42 -31.204 42 0 L 42 56.5 Z"
       fill={fill}
       stroke={stroke}
       strokeWidth={strokeWidth}

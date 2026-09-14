@@ -117,57 +117,62 @@ export const NECROMANCER_FURTHEST_BUILTIN_GATE_IDS = NECROMANCER_BUILTIN_GATE_DE
   .filter((gate) => gate.band === "furthest")
   .map((gate) => gate.gateId);
 
-export const NECROMANCER_BOARD_VIEWBOX = { minX: -90, minY: 0, width: 1180, height: 1000 } as const;
+export const NECROMANCER_BOARD_VIEWBOX = { minX: 0, minY: 0, width: 1046, height: 783 } as const;
 
 /**
- * APPLICATION PRESENTATION based on the Draft-4 Materials board.
+ * APPLICATION PRESENTATION anchors in the PowerPoint-native Gates SVG
+ * display space (exported inner coords + translate(3,-20)).
  * These coordinates are not game topology and are not persisted.
  */
 export const NECROMANCER_BUILTIN_GATE_MAP_POINTS: Record<NecromancerBuiltinGateId, MapPoint> = {
-  amber: { x: 120, y: 210 },
-  bronze: { x: 300, y: 210 },
-  lead: { x: 480, y: 210 },
-  ivory: { x: 660, y: 210 },
-  antimony: { x: 840, y: 210 },
-  marching: { x: 210, y: 470 },
-  churning: { x: 400, y: 470 },
-  weeping: { x: 590, y: 470 },
-  howling: { x: 780, y: 470 },
-  deep: { x: 500, y: 720 },
-  terminus: { x: 500, y: 870 },
+  amber: { x: 154.5, y: 157 },
+  bronze: { x: 285, y: 157 },
+  lead: { x: 416, y: 157 },
+  ivory: { x: 546.5, y: 157 },
+  antimony: { x: 677, y: 157 },
+  marching: { x: 220, y: 320 },
+  churning: { x: 350.5, y: 320 },
+  weeping: { x: 481, y: 320 },
+  howling: { x: 612, y: 320 },
+  deep: { x: 285, y: 493.5 },
+  terminus: { x: 375, y: 667.5 },
 };
 
 /**
- * APPLICATION PRESENTATION based on the Draft-4 Materials board.
+ * APPLICATION PRESENTATION anchors on the occupiable source-board dots.
  * These coordinates are not game topology and are not persisted.
  */
 export const NECROMANCER_BUILTIN_PATH_MAP_POINTS: Record<NecromancerBuiltinPathSpaceId, MapPoint> = {
-  edge_sage: { x: 90, y: 64 },
-  edge_hierophant: { x: 250, y: 64 },
-  edge_warlock: { x: 410, y: 64 },
-  edge_mariner: { x: 570, y: 64 },
-  edge_faustian: { x: 730, y: 64 },
-  edge_sorcerer: { x: 890, y: 64 },
-  far_amber: { x: 160, y: 340 },
-  far_bronze: { x: 330, y: 340 },
-  far_lead: { x: 500, y: 340 },
-  far_ivory: { x: 670, y: 340 },
-  far_antimony: { x: 840, y: 340 },
-  abyss_marching: { x: 280, y: 600 },
-  abyss_churning: { x: 500, y: 600 },
-  abyss_weeping_upper: { x: 680, y: 590 },
-  abyss_weeping_lower: { x: 620, y: 660 },
+  edge_sage: { x: 116, y: 70 },
+  edge_hierophant: { x: 191, y: 70 },
+  edge_warlock: { x: 322, y: 70 },
+  edge_mariner: { x: 456, y: 70 },
+  edge_faustian: { x: 587, y: 70 },
+  edge_sorcerer: { x: 720, y: 70 },
+  far_amber: { x: 179, y: 239 },
+  far_bronze: { x: 313, y: 238 },
+  far_lead: { x: 388.5, y: 238 },
+  far_ivory: { x: 520, y: 238 },
+  far_antimony: { x: 652, y: 238 },
+  abyss_marching: { x: 247.5, y: 407 },
+  abyss_churning: { x: 323, y: 407 },
+  abyss_weeping_upper: { x: 471, y: 434 },
+  abyss_weeping_lower: { x: 416, y: 507 },
 };
 
 /**
- * APPLICATION PRESENTATION based on the Draft-4 Materials board.
- * Static terminal destinations are catalog facts, not occupiable spaces.
+ * APPLICATION PRESENTATION for static terminal destinations.
+ * Labels themselves live in the source SVG; these points only place live overlays.
  */
 export const NECROMANCER_TERMINAL_MAP_POINTS: Record<NecromancerTerminalExitId, MapPoint> = {
-  void_beyond: { x: 930, y: 530 },
-  final_death: { x: 500, y: 955 },
+  void_beyond: { x: 640, y: 410 },
+  final_death: { x: 375, y: 756 },
 };
 
+/**
+ * Source Gate-band / Death-region captions now live in the exported SVG.
+ * Kept as a catalog of those captions for overlay alignment reference only.
+ */
 export const NECROMANCER_BOARD_BAND_LABELS: readonly {
   readonly text: string;
   readonly lines: readonly string[];

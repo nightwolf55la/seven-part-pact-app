@@ -130,19 +130,13 @@ import {
 import BoardOverlayInspector from "./BoardOverlayInspector";
 import {
   MARINER_DOMAIN_PRESENCE_ANCHOR,
-  MARINER_EXTERNAL_LAND_GEOMETRY,
   MARINER_ISLE_GEOMETRY,
-  MARINER_MAP_CHART_TITLE,
-  MARINER_MAP_FRAME,
   MARINER_MAP_PALETTE,
   MARINER_MAP_TYPE,
-  MARINER_MAP_VIEWBOX,
   MARINER_ROUTE_HIT_STROKE_WIDTH,
   MARINER_SEA_GEOMETRY,
-  marinerIsleFill,
-  marinerMapLabelLines,
-  type MarinerMapLabel,
 } from "./mariner-map-geometry";
+import { MARINER_SOURCE_BOARD } from "./source-board-assets";
 
 export type { MarinerWizardRef };
 
@@ -810,48 +804,6 @@ function towardLabel(toward: MarinerRouteEndpoint): string {
     : externalLandDisplayName(toward.externalLandId);
 }
 
-function chartLabelTransform(label: Pick<MarinerMapLabel, "x" | "y" | "rotate">): string | undefined {
-  return label.rotate !== undefined && label.rotate !== 0
-    ? `rotate(${label.rotate} ${label.x} ${label.y})`
-    : undefined;
-}
-
-function renderChartLabel(
-  label: MarinerMapLabel,
-  options: {
-    readonly fill: string;
-    readonly fontSize?: number;
-    readonly fontWeight?: number;
-    readonly fontStyle?: "normal" | "italic";
-    readonly text?: string;
-    readonly lines?: readonly string[];
-  },
-) {
-  const fontSize = options.fontSize ?? label.fontSize ?? 11;
-  const lines = options.lines ?? (options.text !== undefined ? [options.text] : []);
-  const lineHeight = fontSize * 1.12;
-  const startY = label.y - ((lines.length - 1) * lineHeight) / 2;
-  return (
-    <text
-      x={label.x}
-      y={startY}
-      textAnchor={label.anchor ?? "middle"}
-      fontSize={fontSize}
-      fontWeight={options.fontWeight}
-      fontStyle={options.fontStyle}
-      letterSpacing={label.letterSpacing}
-      fill={options.fill}
-      transform={chartLabelTransform(label)}
-    >
-      {lines.map((line, index) => (
-        <tspan key={`${line}-${index}`} x={label.x} y={startY + index * lineHeight}>
-          {line}
-        </tspan>
-      ))}
-    </text>
-  );
-}
-
 function MarinerMap({
   mariner,
   world,
@@ -870,7 +822,7 @@ function MarinerMap({
   return (
     <div className="overflow-hidden">
       <svg
-        viewBox={`0 0 ${MARINER_MAP_VIEWBOX.width} ${MARINER_MAP_VIEWBOX.height}`}
+        viewBox={`0 0 ${MARINER_SOURCE_BOARD.width} ${MARINER_SOURCE_BOARD.height}`}
         className="mx-auto block h-auto w-full max-w-[min(100%,calc(100vh-13.5rem))] text-slate-800 dark:text-slate-100"
         role="group"
         aria-label="Interactive Archipelago of Isha map"
@@ -889,20 +841,36 @@ function MarinerMap({
         <g data-map-layer="frame" pointerEvents="none">
           <rect
             data-mariner-map-field
-            width={MARINER_MAP_VIEWBOX.width}
-            height={MARINER_MAP_VIEWBOX.height}
+            width={MARINER_SOURCE_BOARD.width}
+            height={MARINER_SOURCE_BOARD.height}
             fill={MARINER_MAP_PALETTE.field}
           />
-          <circle
+          <image
+            data-mariner-source-board
             data-mariner-map-sea
-            cx={MARINER_MAP_FRAME.cx}
-            cy={MARINER_MAP_FRAME.cy}
-            r={MARINER_MAP_FRAME.r}
-            fill={MARINER_MAP_PALETTE.sea}
-            stroke={MARINER_MAP_PALETTE.seaRim}
-            strokeWidth={1.15}
+            href={MARINER_SOURCE_BOARD.href}
+            x={0}
+            y={0}
+            width={MARINER_SOURCE_BOARD.width}
+            height={MARINER_SOURCE_BOARD.height}
+            aria-hidden="true"
           />
+          <text
+            data-mariner-chart-title
+            x={10}
+            y={410}
+            textAnchor="middle"
+            fontSize={16}
+            fontWeight={600}
+            letterSpacing="0.14em"
+            fill={MARINER_MAP_PALETTE.label}
+            fontFamily={MARINER_MAP_TYPE.fontFamily}
+            transform="rotate(-90 22 410)"
+          >
+            The Archipelago of Isha
+          </text>
         </g>
+        <g data-map-layer="overlay" transform={MARINER_SOURCE_BOARD.overlayTransform}>
         {MARINER_SEA_GEOMETRY.map((sea) => {
           const definition = MARINER_SEA_REGION_CATALOG.find((region) => region.regionId === sea.regionId);
           const stormCount = mariner.seaRegions.find((entry) => entry.regionId === sea.regionId)?.stormCount ?? 0;
@@ -949,6 +917,7 @@ function MarinerMap({
             const geometry = marinerRouteGeometry(route.routeId);
             if (geometry === null) return null;
             const occupancy = mariner.routes.find((entry) => entry.routeId === route.routeId)?.occupancy ?? { kind: "empty" as const };
+            if (occupancy.kind === "empty") return null;
             const selected = selection?.kind === "route" && selection.routeId === route.routeId;
             return (
               <path
@@ -957,9 +926,8 @@ function MarinerMap({
                 data-route-occupancy={occupancy.kind}
                 d={geometry.pathD}
                 fill="none"
-                stroke={occupancy.kind === "empty" ? MARINER_MAP_PALETTE.route : occupancy.kind === "ship" ? MARINER_MAP_PALETTE.routeOccupied : MARINER_MAP_PALETTE.routeRaider}
-                strokeWidth={selected ? 4.25 : occupancy.kind === "empty" ? 1.35 : 3.1}
-                strokeDasharray={occupancy.kind === "empty" ? "5.5 6.5" : undefined}
+                stroke={occupancy.kind === "ship" ? MARINER_MAP_PALETTE.routeOccupied : MARINER_MAP_PALETTE.routeRaider}
+                strokeWidth={selected ? 4.25 : 3.1}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -1035,98 +1003,20 @@ function MarinerMap({
                   pointerEvents="none"
                 />
               )}
-              {isle.shapes.map((shape, index) => (
+              {ravage > 0 && (
                 <ellipse
-                  key={`${isle.boardIsleId}-shape-${index}`}
-                  cx={shape.cx}
-                  cy={shape.cy}
-                  rx={shape.rx}
-                  ry={shape.ry}
-                  transform={shape.rotate ? `rotate(${shape.rotate} ${shape.cx} ${shape.cy})` : undefined}
-                  fill={ravage > 0 ? "url(#mariner-ravage-hatch)" : marinerIsleFill(isle.boardIsleId)}
-                  stroke="none"
+                  cx={isle.hit.cx}
+                  cy={isle.hit.cy}
+                  rx={isle.hit.rx}
+                  ry={isle.hit.ry}
+                  fill="url(#mariner-ravage-hatch)"
+                  opacity={0.72}
                   pointerEvents="none"
                 />
-              ))}
+              )}
             </g>
           );
         })}
-        <g data-map-layer="labels" pointerEvents="none" fontFamily={MARINER_MAP_TYPE.fontFamily}>
-          <text
-            data-mariner-chart-title
-            x={MARINER_MAP_CHART_TITLE.x}
-            y={MARINER_MAP_CHART_TITLE.y}
-            textAnchor="middle"
-            fontSize={18}
-            fontWeight={600}
-            letterSpacing="0.16em"
-            fill={MARINER_MAP_PALETTE.label}
-            transform={`rotate(${MARINER_MAP_CHART_TITLE.rotate} ${MARINER_MAP_CHART_TITLE.x} ${MARINER_MAP_CHART_TITLE.y})`}
-          >
-            {MARINER_MAP_CHART_TITLE.text}
-          </text>
-          {MARINER_EXTERNAL_LAND_GEOMETRY.map((land) => (
-            <g key={land.externalLandId} data-external-land={land.externalLandId} data-map-framing="external-destination">
-              {renderChartLabel(land.nameLabel, {
-                fill: MARINER_MAP_PALETTE.label,
-                fontWeight: 700,
-                text: externalLandDisplayName(land.externalLandId).toUpperCase(),
-              })}
-              {land.direction !== undefined && (
-                <text
-                  data-external-direction={land.externalLandId}
-                  x={land.direction.x}
-                  y={land.direction.y}
-                  textAnchor="middle"
-                  fontSize={10}
-                  fontStyle="italic"
-                  fill={MARINER_MAP_PALETTE.label}
-                  transform={land.direction.rotate !== undefined && land.direction.rotate !== 0
-                    ? `rotate(${land.direction.rotate} ${land.direction.x} ${land.direction.y})`
-                    : undefined}
-                >
-                  {land.direction.text}
-                </text>
-              )}
-            </g>
-          ))}
-          {MARINER_SEA_GEOMETRY.map((sea) => {
-            const definition = MARINER_SEA_REGION_CATALOG.find((region) => region.regionId === sea.regionId);
-            const horizon = definition?.kind === "horizon";
-            const caption = sea.caption ?? { x: sea.label.x, y: sea.label.y + 3 };
-            return (
-              <g key={`label-${sea.regionId}`} data-sea-label={sea.regionId} data-horizon-label={horizon ? "true" : "false"}>
-                {renderChartLabel(caption, {
-                  fill: horizon ? MARINER_MAP_PALETTE.horizonLabel : MARINER_MAP_PALETTE.seaLabel,
-                  fontSize: caption.fontSize ?? (horizon ? 11.5 : 10.75),
-                  fontStyle: "italic",
-                  fontWeight: horizon ? 600 : 500,
-                  text: definition?.displayName ?? sea.regionId,
-                })}
-              </g>
-            );
-          })}
-          {MARINER_ISLE_GEOMETRY.map((isle) => {
-            const lines = marinerMapLabelLines(
-              boardIsleWorldName(mariner, world.isles, isle.boardIsleId),
-              isle.label,
-            );
-            return (
-              <g
-                key={`label-${isle.boardIsleId}`}
-                data-isle-label={isle.boardIsleId}
-                data-label-rotate={isle.label.rotate ?? 0}
-                data-label-wrap={isle.label.wrap === true ? "true" : "false"}
-              >
-                {renderChartLabel(isle.label, {
-                  fill: MARINER_MAP_PALETTE.label,
-                  fontWeight: 700,
-                  lines,
-                })}
-              </g>
-            );
-          })}
-        </g>
         <g data-map-layer="pieces">
           {MARINER_SEA_GEOMETRY.map((sea) => {
             const stormCount = mariner.seaRegions.find((entry) => entry.regionId === sea.regionId)?.stormCount ?? 0;
@@ -1331,6 +1221,7 @@ function MarinerMap({
               </text>
             </g>
           )}
+        </g>
         </g>
       </svg>
     </div>
