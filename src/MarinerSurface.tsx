@@ -132,7 +132,6 @@ import {
   MARINER_DOMAIN_PRESENCE_ANCHOR,
   MARINER_ISLE_GEOMETRY,
   MARINER_MAP_PALETTE,
-  MARINER_MAP_TYPE,
   MARINER_ROUTE_HIT_STROKE_WIDTH,
   MARINER_SEA_GEOMETRY,
 } from "./mariner-map-geometry";
@@ -140,6 +139,7 @@ import { MARINER_SOURCE_BOARD, marinerOverlayLengthToBoard, marinerOverlayPointT
 import {
   MARINER_INTERACTION_GEOMETRY_RAW,
   SourceGeometrySprite,
+  SourceSymbolClone,
   marinerIsleSymbolId,
   marinerRouteSymbolId,
 } from "./source-interaction-geometry";
@@ -843,6 +843,21 @@ function MarinerMap({
             <rect width="6" height="6" fill="#eef2ff" />
             <line x1="0" y1="0" x2="6" y2="0" stroke="#4338ca" strokeWidth="2" />
           </pattern>
+          <filter
+            id="mariner-isle-silhouette-edge"
+            filterUnits="userSpaceOnUse"
+            primitiveUnits="userSpaceOnUse"
+            x="0"
+            y="0"
+            width={MARINER_SOURCE_BOARD.width}
+            height={MARINER_SOURCE_BOARD.height}
+            colorInterpolationFilters="sRGB"
+          >
+            <feMorphology in="SourceAlpha" operator="dilate" radius="5" result="dilated" />
+            <feComposite in="dilated" in2="SourceAlpha" operator="out" result="ring" />
+            <feFlood floodColor="#0f766e" floodOpacity="0.95" result="edgeColor" />
+            <feComposite in="edgeColor" in2="ring" operator="in" />
+          </filter>
         </defs>
         <SourceGeometrySprite raw={MARINER_INTERACTION_GEOMETRY_RAW} label="mariner" />
         <g data-map-layer="frame" pointerEvents="none">
@@ -862,20 +877,6 @@ function MarinerMap({
             height={MARINER_SOURCE_BOARD.height}
             aria-hidden="true"
           />
-          <text
-            data-mariner-chart-title
-            x={10}
-            y={410}
-            textAnchor="middle"
-            fontSize={16}
-            fontWeight={600}
-            letterSpacing="0.14em"
-            fill={MARINER_MAP_PALETTE.label}
-            fontFamily={MARINER_MAP_TYPE.fontFamily}
-            transform="rotate(-90 22 410)"
-          >
-            The Archipelago of Isha
-          </text>
         </g>
         <g data-map-layer="sea-overlay" transform={MARINER_SOURCE_BOARD.overlayTransform}>
         {MARINER_SEA_GEOMETRY.map((sea) => {
@@ -935,7 +936,7 @@ function MarinerMap({
                 data-route-visible={route.routeId}
                 data-route-occupancy={occupancy.kind}
                 data-source-geometry={marinerRouteSymbolId(route.routeId)}
-                fill={color}
+                fill="none"
                 stroke={color}
                 strokeWidth={selected ? 4.25 : 3.1}
                 strokeLinecap="round"
@@ -1031,24 +1032,38 @@ function MarinerMap({
                 />
               )}
               {selected && (
-                <use
-                  href={href}
+                <g
                   data-selection-halo
                   data-isle-id={isle.boardIsleId}
-                  data-source-geometry={symbolId}
-                  fill="rgba(15,118,110,0.38)"
-                  stroke="none"
+                  data-isle-silhouette-edge
+                  filter="url(#mariner-isle-silhouette-edge)"
                   pointerEvents="none"
-                />
+                >
+                  <use href={href} data-source-geometry={symbolId} fill="none" stroke="none" />
+                  <SourceSymbolClone href={href} fill="#0f172a" stroke="none" />
+                </g>
               )}
               {ravage > 0 && (
-                <use
-                  href={href}
-                  fill="url(#mariner-ravage-hatch)"
-                  stroke="none"
-                  opacity={0.72}
-                  pointerEvents="none"
-                />
+                <g data-isle-ravage pointerEvents="none">
+                  <mask
+                    id={`mariner-isle-silhouette-mask-${isle.boardIsleId}`}
+                    maskUnits="userSpaceOnUse"
+                    x={0}
+                    y={0}
+                    width={MARINER_SOURCE_BOARD.width}
+                    height={MARINER_SOURCE_BOARD.height}
+                  >
+                    <rect width={MARINER_SOURCE_BOARD.width} height={MARINER_SOURCE_BOARD.height} fill="black" />
+                    <SourceSymbolClone href={href} fill="white" stroke="none" />
+                  </mask>
+                  <rect
+                    width={MARINER_SOURCE_BOARD.width}
+                    height={MARINER_SOURCE_BOARD.height}
+                    fill="url(#mariner-ravage-hatch)"
+                    mask={`url(#mariner-isle-silhouette-mask-${isle.boardIsleId})`}
+                    opacity={0.72}
+                  />
+                </g>
               )}
             </g>
           );

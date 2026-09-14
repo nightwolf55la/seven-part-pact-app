@@ -781,7 +781,7 @@ describe("Mariner desktop board hierarchy and overlay inspector", () => {
     expect(source).not.toBeNull();
     expect(source?.getAttribute("aria-hidden")).toBe("true");
     expect(container.querySelector("[data-mariner-map-field]")).not.toBeNull();
-    expect(container.querySelector("[data-mariner-chart-title]")?.textContent).toContain("The Archipelago of Isha");
+    expect(container.querySelector("[data-mariner-chart-title]")).toBeNull();
     expect(container.querySelector('[data-map-layer="isle"][data-isle-id="ishana"]')).not.toBeNull();
     expect(container.querySelector('[data-map-layer="route-hit"]')).not.toBeNull();
     expect(container.querySelector('[data-map-layer="sea-hit"]')).not.toBeNull();
@@ -894,6 +894,60 @@ describe("Mariner desktop board hierarchy and overlay inspector", () => {
       const ry = Number(el.getAttribute("ry"));
       return Math.abs(rx - (approx.hit.rx + 10)) < 0.5 || Math.abs(ry - (approx.hit.ry + 10)) < 0.5;
     })).toBe(false);
+    root.unmount();
+    container.remove();
+  });
+
+  it("strokes occupied Ship Routes with fill none instead of filling connector wedges", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const visible = container.querySelector(`[data-route-visible="${SHIP_ROUTE}"]`);
+    expect(visible).not.toBeNull();
+    expect(visible?.getAttribute("data-route-occupancy")).toBe("ship");
+    expect(useHref(visible)).toBe(`#mariner-route-${SHIP_ROUTE}`);
+    expect(visible?.getAttribute("fill")).toBe("none");
+    expect(visible?.getAttribute("stroke")).not.toBe("none");
+    expect(visible?.getAttribute("stroke")).not.toBe("transparent");
+    root.unmount();
+    container.remove();
+  });
+
+  it("strokes occupied Raider Routes with fill none instead of filling connector wedges", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const visible = container.querySelector(`[data-route-visible="${RAID_ROUTE}"]`);
+    expect(visible).not.toBeNull();
+    expect(visible?.getAttribute("data-route-occupancy")).toBe("raider");
+    expect(useHref(visible)).toBe(`#mariner-route-${RAID_ROUTE}`);
+    expect(visible?.getAttribute("fill")).toBe("none");
+    expect(visible?.getAttribute("stroke")).not.toBe("none");
+    expect(visible?.getAttribute("stroke")).not.toBe("transparent");
+    root.unmount();
+    container.remove();
+  });
+
+  it("selects an Isle with a composited silhouette edge on exact source geometry", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickIsle(container, "World ishana");
+    const isle = container.querySelector('[data-map-layer="isle"][data-isle-id="ishana"]') as SVGElement;
+    const halo = isle.querySelector("[data-selection-halo]") as SVGElement | null;
+    expect(halo).not.toBeNull();
+    expect(halo?.getAttribute("data-isle-silhouette-edge")).not.toBeNull();
+    expect(halo?.getAttribute("filter") ?? halo?.closest("[filter]")?.getAttribute("filter") ?? "").toContain("mariner-isle-silhouette-edge");
+    const source = isle.querySelector('[data-source-geometry="mariner-isle-ishana"]');
+    expect(useHref(source)).toBe("#mariner-isle-ishana");
+    const translucentFills = Array.from(isle.querySelectorAll("[data-selection-halo], [data-selection-halo] use, [data-source-geometry]")).filter((el) => {
+      const fill = el.getAttribute("fill") ?? "";
+      return fill.includes("rgba") || fill.includes("0.38");
+    });
+    expect(translucentFills).toHaveLength(0);
+    expect(isle.querySelector("[data-selection-halo] ellipse, ellipse[data-selection-halo]")).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("does not render a duplicate application-generated Archipelago chart title", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    expect(container.querySelector("[data-mariner-chart-title]")).toBeNull();
+    expect(container.querySelector("[data-mariner-source-board]")).not.toBeNull();
     root.unmount();
     container.remove();
   });

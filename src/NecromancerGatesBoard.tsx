@@ -48,6 +48,9 @@ function activate(event: KeyboardEvent<Element>, action: () => void): void {
   }
 }
 
+const INTERACTIVE_FOCUS_CLASS =
+  "outline-none focus:outline-none focus-visible:outline-none [&_[data-focus-ring]]:opacity-0 [&:focus-visible_[data-focus-ring]]:opacity-100";
+
 function occupantFill(kind: BoardOccupantToken["kind"]): string {
   if (kind === "foe") return "#7f1d1d";
   if (kind === "ally") return "#1e3a8a";
@@ -150,6 +153,8 @@ export default function NecromancerGatesBoard({
                 role="button"
                 tabIndex={0}
                 aria-label={`${label}. ${occupantSummaryLabel(tokens, pieces.souls)}`}
+                className={INTERACTIVE_FOCUS_CLASS}
+                style={{ outline: "none" }}
                 onClick={() => onSelect({ kind: "path", pathSpaceId })}
                 onKeyDown={(event) => activate(event, () => onSelect({ kind: "path", pathSpaceId }))}
               >
@@ -174,6 +179,15 @@ export default function NecromancerGatesBoard({
                         pointerEvents="none"
                       />
                     )}
+                    <use
+                      href={sourceHref}
+                      data-focus-ring
+                      data-source-geometry={symbolId}
+                      fill="none"
+                      stroke="#7c3aed"
+                      strokeWidth={5}
+                      pointerEvents="none"
+                    />
                   </>
                 ) : (
                   <>
@@ -198,6 +212,16 @@ export default function NecromancerGatesBoard({
                         pointerEvents="none"
                       />
                     )}
+                    <circle
+                      data-focus-ring
+                      cx={point.x}
+                      cy={point.y}
+                      r={18}
+                      fill="none"
+                      stroke="#7c3aed"
+                      strokeWidth={5}
+                      pointerEvents="none"
+                    />
                   </>
                 )}
                 <SpaceTokens
@@ -241,6 +265,8 @@ export default function NecromancerGatesBoard({
                 role="button"
                 tabIndex={0}
                 aria-label={gateBoardAriaLabel(gate) + `. ${occupantSummaryLabel(tokens, pieces.souls)}${transformEligible ? ". Transform Soul into Ally available." : ""}`}
+                className={INTERACTIVE_FOCUS_CLASS}
+                style={{ outline: "none" }}
                 onClick={() => onSelect({ kind: "gate", gateId })}
                 onKeyDown={(event) => activate(event, () => onSelect({ kind: "gate", gateId }))}
               >
@@ -265,6 +291,15 @@ export default function NecromancerGatesBoard({
                         pointerEvents="none"
                       />
                     )}
+                    <use
+                      href={sourceHref}
+                      data-focus-ring
+                      data-source-geometry={symbolId}
+                      fill="none"
+                      stroke="#7c3aed"
+                      strokeWidth={6}
+                      pointerEvents="none"
+                    />
                   </>
                 ) : (
                   <>
@@ -289,6 +324,17 @@ export default function NecromancerGatesBoard({
                       stroke={stroke}
                       strokeWidth={selected ? 3 : 2}
                       strokeDasharray={status === "destroyed" ? "5 4" : undefined}
+                    />
+                    <ellipse
+                      data-focus-ring
+                      cx={point.x}
+                      cy={point.y}
+                      rx={56}
+                      ry={68}
+                      fill="none"
+                      stroke="#7c3aed"
+                      strokeWidth={6}
+                      pointerEvents="none"
                     />
                   </>
                 )}

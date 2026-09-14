@@ -118,6 +118,7 @@ export const MARINER_MAP_TYPE = {
   fontFamily: 'Georgia, "Times New Roman", Times, serif',
 } as const;
 
+/** Leftover title metadata. The PowerPoint-native board SVG now supplies the chart framing; do not render this as extra SVG text. */
 export const MARINER_MAP_CHART_TITLE = {
   text: "The Archipelago of Isha",
   x: 20,

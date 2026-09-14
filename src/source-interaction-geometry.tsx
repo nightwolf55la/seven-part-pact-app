@@ -40,3 +40,22 @@ export function SourceGeometrySprite({ raw, label }: { raw: string; label: strin
   }, [raw]);
   return <g ref={hostRef} data-source-geometry-sprite={label} aria-hidden="true" />;
 }
+
+/** Clone generated symbol children so SVG filters can composite the exact source group. */
+export function SourceSymbolClone({ href, fill, stroke }: { href: string; fill: string; stroke: string }) {
+  const hostRef = useRef<SVGGElement>(null);
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (host === null) return;
+    while (host.firstChild !== null) {
+      host.removeChild(host.firstChild);
+    }
+    const id = href.startsWith("#") ? href.slice(1) : href;
+    const symbol = document.getElementById(id);
+    if (symbol === null) return;
+    for (const child of Array.from(symbol.childNodes)) {
+      host.appendChild(child.cloneNode(true));
+    }
+  }, [href]);
+  return <g ref={hostRef} fill={fill} stroke={stroke} />;
+}

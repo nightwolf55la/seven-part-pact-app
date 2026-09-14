@@ -775,4 +775,36 @@ describe("Necromancer desktop board and Depth presentation", () => {
     root.unmount();
     container.remove();
   });
+
+  it("keeps Gate and path spaces keyboard-focusable without a native rectangular outline class", () => {
+    const { container, root } = renderSurface();
+    const amber = container.querySelector('[aria-label^="I Amber"]') as SVGElement;
+    const path = container.querySelector('[aria-label^="Sage Edge of Life"]') as SVGElement;
+    expect(amber.getAttribute("tabindex") ?? amber.getAttribute("tabIndex")).toBe("0");
+    expect(path.getAttribute("tabindex") ?? path.getAttribute("tabIndex")).toBe("0");
+    expect(amber.getAttribute("role")).toBe("button");
+    expect(path.getAttribute("role")).toBe("button");
+    const amberClass = amber.getAttribute("class") ?? "";
+    const pathClass = path.getAttribute("class") ?? "";
+    expect(amberClass).toContain("outline-none");
+    expect(pathClass).toContain("outline-none");
+    expect(amberClass).not.toMatch(/focus-visible:outline(?!-none)/);
+    expect(pathClass).not.toMatch(/focus-visible:outline(?!-none)/);
+    root.unmount();
+    container.remove();
+  });
+
+  it("presents Gate and path keyboard focus on exact source geometry", () => {
+    const { container, root } = renderSurface();
+    const amber = container.querySelector('[aria-label^="I Amber"]') as SVGElement;
+    const path = container.querySelector('[aria-label^="Sage Edge of Life"]') as SVGElement;
+    const gateFocus = amber.querySelector('[data-focus-ring][data-source-geometry="necromancer-gate-amber"]');
+    const pathFocus = path.querySelector('[data-focus-ring][data-source-geometry="necromancer-path-edge_sage"]');
+    expect(gateFocus).not.toBeNull();
+    expect(pathFocus).not.toBeNull();
+    expect(gateFocus?.getAttribute("href") ?? gateFocus?.getAttribute("xlink:href")).toBe("#necromancer-gate-amber");
+    expect(pathFocus?.getAttribute("href") ?? pathFocus?.getAttribute("xlink:href")).toBe("#necromancer-path-edge_sage");
+    root.unmount();
+    container.remove();
+  });
 });
