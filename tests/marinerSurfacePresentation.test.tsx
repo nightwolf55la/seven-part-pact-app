@@ -761,6 +761,49 @@ describe("Mariner desktop board hierarchy and overlay inspector", () => {
     flushSync(() => { isle.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     expect(container.querySelector("[data-selection-halo][data-isle-id=\"ishana\"]")).not.toBeNull();
     expect(isle.querySelectorAll("ellipse").length).toBeGreaterThan(1);
+    const fillAfterSelect = isle.querySelector('[data-isle-id="ishana"]') === null
+      ? isle.querySelectorAll("ellipse[fill]:not([fill='transparent']):not([data-selection-halo])")
+      : isle.querySelectorAll("ellipse[cx]");
+    expect(fillAfterSelect.length).toBeGreaterThan(0);
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps live SVG chart framing, dashed empty routes, and source-map label metadata", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const board = container.querySelector("[data-mariner-board]") as SVGSVGElement | null;
+    expect(board).not.toBeNull();
+    expect(board?.tagName.toLowerCase()).toBe("svg");
+    expect(container.querySelector("[data-mariner-map-field]")).not.toBeNull();
+    expect(container.querySelector("[data-mariner-map-sea]")).not.toBeNull();
+    expect(container.querySelector("[data-mariner-chart-title]")?.textContent).toContain("The Archipelago of Isha");
+    expect(container.querySelector('[data-map-framing="external-destination"]')).not.toBeNull();
+    expect(container.querySelector('[data-external-direction="druj_lands"]')?.textContent).toBe("to the West");
+    expect(container.querySelector('[data-external-direction="ur"]')?.textContent).toBe("to the East");
+    expect(container.querySelector('[data-horizon-label="true"]')).not.toBeNull();
+    const emptyRoute = container.querySelector('[data-route-occupancy="empty"]');
+    expect(emptyRoute?.getAttribute("stroke-dasharray")).toBeTruthy();
+    expect(container.querySelector('[data-isle-label="ishana"]')?.getAttribute("data-label-rotate")).not.toBe("0");
+    expect(container.querySelector('[data-isle-label="far_reach"]')?.getAttribute("data-label-wrap")).toBe("true");
+    expect(container.querySelector('[data-isle-label="halcyon_isles"]')?.getAttribute("data-label-wrap")).toBe("true");
+    const labels = container.querySelector("[data-map-layer=\"labels\"]") as SVGGElement | null;
+    expect(labels?.getAttribute("font-family") ?? labels?.style.fontFamily).toMatch(/Georgia/);
+    root.unmount();
+    container.remove();
+  });
+
+  it("does not resize the board when the overlay inspector opens", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const board = container.querySelector("[data-mariner-board]") as SVGSVGElement;
+    const before = {
+      width: board.viewBox.baseVal.width,
+      height: board.viewBox.baseVal.height,
+    };
+    clickIsle(container, "World scuttleport");
+    expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
+    expect(board.viewBox.baseVal.width).toBe(before.width);
+    expect(board.viewBox.baseVal.height).toBe(before.height);
+    expect(container.querySelector("[data-mariner-board-scroll]")).toBeNull();
     root.unmount();
     container.remove();
   });

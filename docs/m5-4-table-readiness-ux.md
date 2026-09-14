@@ -50,6 +50,7 @@ When a Mariner or Necromancer board item is selected, a dismissible right-side o
 
 - Requested PPTX `Patreon Materials [04.26.04].pptx` was not available on this machine.
 - Implementation used approved source observations for **slide 14 (Mariner map)** and **slide 5 (Necromancer Gates)** plus existing repository geometry. No PPTX or exported slide images were committed.
+- For the Batch 2 Mariner visual correction, the human-supplied map screenshot superseded the earlier generated/exported visual reference. That screenshot was used as a presentation target only and was not committed.
 
 ---
 
@@ -300,7 +301,7 @@ Supports: UX-001, UX-019.
 - **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Strongly dependent on UX-004 and related to UX-009.
 - **Approved batch:** Batch 2
-- **Resolution / implementation note:** Source-inspired live SVG: pale-green field, white circular sea, blue dashed routes, colored Isle silhouettes, circumference destinations, selection halo. Existing geometry retained. Overlay inspector does not resize the map. No normal desktop horizontal scrollbar at 1600×1000.
+- **Resolution / implementation note:** Source-inspired live SVG: pale-green field, white circular sea, blue dashed routes, colored Isle silhouettes, circumference destinations, selection halo. Existing geometry retained. Overlay inspector does not resize the map. No normal desktop horizontal scrollbar at 1600×1000. Batch 2 visual correction: the human-supplied Mariner map screenshot superseded the earlier generated/exported slide reference for palette, serif typography, label rotation, horizon/perimeter treatment, and outer destination framing. Status remains FIXED — NEEDS HUMAN RETEST.
 
 ### UX-011
 
