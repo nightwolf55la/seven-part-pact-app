@@ -84,7 +84,6 @@ import {
   isMarinerInitialized,
   isTyphoon,
   marinerDomainDisruptiveArcanists,
-  marinerRouteGeometry,
   marinerSeaResearchers,
   marinerSetupReady,
   marinerSourceSetupReady,
@@ -111,7 +110,6 @@ import {
   WIND_CONFIRMATION_LABEL,
   parseNonNegInt,
   placeName,
-  raiderDirectionDeg,
   researcherOperationalLabel,
   routeEndpointLabel,
   routeOccupancyLabel,
@@ -131,6 +129,7 @@ import BoardOverlayInspector from "./BoardOverlayInspector";
 import {
   MARINER_DOMAIN_PRESENCE_ANCHOR,
   MARINER_ISLE_GEOMETRY,
+  MARINER_ISLE_SELECTION_GLOW,
   MARINER_MAP_PALETTE,
   MARINER_ROUTE_HIT_STROKE_WIDTH,
   MARINER_SEA_GEOMETRY,
@@ -139,6 +138,7 @@ import { MARINER_SOURCE_BOARD, marinerOverlayLengthToBoard, marinerOverlayPointT
 import {
   MARINER_INTERACTION_GEOMETRY_RAW,
   SourceGeometrySprite,
+  SourceRouteOccupancyMarker,
   SourceSymbolClone,
   marinerIsleSymbolId,
   marinerRouteSymbolId,
@@ -795,7 +795,8 @@ function ShipSanctumSummary({
   );
 }
 
-const FOCUS_CLASS = "outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800 dark:focus-visible:outline-teal-200";
+const INTERACTIVE_FOCUS_CLASS =
+  "outline-none focus:outline-none focus-visible:outline-none [&_[data-focus-ring]:not([data-isle-shore-glow])]:opacity-0 [&:focus-visible_[data-focus-ring]]:opacity-100 [&_[data-isle-shore-glow]]:opacity-0 [&[aria-pressed=true]_[data-isle-shore-glow]]:opacity-100 [&:focus-visible_[data-isle-shore-glow]]:opacity-100";
 
 function activate(event: KeyboardEvent<Element>, action: () => void): void {
   if (event.key === "Enter" || event.key === " ") {
@@ -844,19 +845,26 @@ function MarinerMap({
             <line x1="0" y1="0" x2="6" y2="0" stroke="#4338ca" strokeWidth="2" />
           </pattern>
           <filter
-            id="mariner-isle-silhouette-edge"
+            id="mariner-isle-shore-glow"
             filterUnits="userSpaceOnUse"
             primitiveUnits="userSpaceOnUse"
-            x="0"
-            y="0"
-            width={MARINER_SOURCE_BOARD.width}
-            height={MARINER_SOURCE_BOARD.height}
+            x={-48}
+            y={-48}
+            width={MARINER_SOURCE_BOARD.width + 96}
+            height={MARINER_SOURCE_BOARD.height + 96}
             colorInterpolationFilters="sRGB"
           >
-            <feMorphology in="SourceAlpha" operator="dilate" radius="5" result="dilated" />
-            <feComposite in="dilated" in2="SourceAlpha" operator="out" result="ring" />
-            <feFlood floodColor="#0f766e" floodOpacity="0.95" result="edgeColor" />
-            <feComposite in="edgeColor" in2="ring" operator="in" />
+            <feMorphology in="SourceAlpha" operator="dilate" radius="1.5" result="dilated" />
+            <feComposite in="dilated" in2="SourceAlpha" operator="out" result="edge" />
+            <feGaussianBlur in="edge" stdDeviation="2.4" result="blur" />
+            <feFlood floodColor="currentColor" floodOpacity="0.88" result="glowColor" />
+            <feComposite in="glowColor" in2="blur" operator="in" result="glow" />
+            <feFlood floodColor="currentColor" floodOpacity="0.8" result="edgeColor" />
+            <feComposite in="edgeColor" in2="edge" operator="in" result="crisp" />
+            <feMerge>
+              <feMergeNode in="glow" />
+              <feMergeNode in="crisp" />
+            </feMerge>
           </filter>
         </defs>
         <SourceGeometrySprite raw={MARINER_INTERACTION_GEOMETRY_RAW} label="mariner" />
@@ -894,7 +902,8 @@ function MarinerMap({
               tabIndex={0}
               aria-pressed={selected}
               aria-label={`${kind} ${name}: ${seaRegionStateLabel(stormCount)}`}
-              className={FOCUS_CLASS}
+              className={INTERACTIVE_FOCUS_CLASS}
+              style={{ outline: "none" }}
               onClick={() => onSelect({ kind: "region", regionId: sea.regionId })}
               onKeyDown={(event) => activate(event, () => onSelect({ kind: "region", regionId: sea.regionId }))}
             >
@@ -917,6 +926,14 @@ function MarinerMap({
                   pointerEvents="none"
                 />
               )}
+              <path
+                data-focus-ring
+                d={sea.hitPath}
+                fill="none"
+                stroke="#0f766e"
+                strokeWidth={3}
+                pointerEvents="none"
+              />
             </g>
           );
         })}
@@ -938,9 +955,9 @@ function MarinerMap({
                 data-source-geometry={marinerRouteSymbolId(route.routeId)}
                 fill="none"
                 stroke={color}
-                strokeWidth={selected ? 4.25 : 3.1}
-                strokeLinecap="round"
-                strokeLinejoin="round"
+                strokeWidth={selected ? 2.55 : 2.15}
+                strokeLinecap="butt"
+                strokeLinejoin="miter"
               />
             );
           })}
@@ -962,7 +979,8 @@ function MarinerMap({
               tabIndex={0}
               aria-pressed={selected}
               aria-label={`Route ${aName} to ${bName}: ${label}`}
-              className={FOCUS_CLASS}
+              className={INTERACTIVE_FOCUS_CLASS}
+              style={{ outline: "none" }}
               onClick={() => onSelect({ kind: "route", routeId: route.routeId })}
               onKeyDown={(event) => activate(event, () => onSelect({ kind: "route", routeId: route.routeId }))}
             >
@@ -973,7 +991,7 @@ function MarinerMap({
                 stroke="transparent"
                 strokeWidth={MARINER_ROUTE_HIT_STROKE_WIDTH}
               />
-              {selected && (
+              {selected && occupancy.kind === "empty" && (
                 <use
                   href={href}
                   data-selection-halo
@@ -985,7 +1003,49 @@ function MarinerMap({
                   pointerEvents="none"
                 />
               )}
+              {selected && occupancy.kind !== "empty" && (
+                <use
+                  href={href}
+                  data-selection-halo
+                  data-source-geometry={symbolId}
+                  fill="none"
+                  stroke="#0f766e"
+                  strokeWidth={4.2}
+                  opacity={0.22}
+                  pointerEvents="none"
+                />
+              )}
+              <use
+                href={href}
+                data-focus-ring
+                data-source-geometry={symbolId}
+                fill="none"
+                stroke="#0f766e"
+                strokeWidth={occupancy.kind === "empty" ? 6 : 4}
+                pointerEvents="none"
+              />
             </g>
+          );
+        })}
+        {MARINER_ROUTE_CATALOG.map((route) => {
+          const occupancy = mariner.routes.find((entry) => entry.routeId === route.routeId)?.occupancy ?? { kind: "empty" as const };
+          if (occupancy.kind === "empty") return null;
+          const href = `#${marinerRouteSymbolId(route.routeId)}`;
+          const color = occupancy.kind === "ship" ? MARINER_MAP_PALETTE.routeOccupied : MARINER_MAP_PALETTE.routeRaider;
+          const toward = occupancy.kind === "raider"
+            ? (occupancy.toward.kind === "board_isle" ? occupancy.toward.boardIsleId : occupancy.toward.externalLandId)
+            : undefined;
+          return (
+            <SourceRouteOccupancyMarker
+              key={`marker-${route.routeId}`}
+              href={href}
+              kind={occupancy.kind}
+              routeId={route.routeId}
+              label={occupancy.kind === "ship" ? "Ship" : `Raider toward ${towardLabel(occupancy.toward)}`}
+              toward={toward}
+              color={color}
+              onSelect={() => onSelect({ kind: "route", routeId: route.routeId })}
+            />
           );
         })}
         {MARINER_ISLE_GEOMETRY.map((isle) => {
@@ -1015,7 +1075,8 @@ function MarinerMap({
               tabIndex={0}
               aria-pressed={selected}
               aria-label={`Isle ${worldName}${bits.length > 0 ? `: ${bits.join(", ")}` : ""}`}
-              className={FOCUS_CLASS}
+              className={INTERACTIVE_FOCUS_CLASS}
+              style={{ outline: "none" }}
               onClick={() => onSelect({ kind: "isle", boardIsleId: isle.boardIsleId })}
               onKeyDown={(event) => activate(event, () => onSelect({ kind: "isle", boardIsleId: isle.boardIsleId }))}
             >
@@ -1031,18 +1092,18 @@ function MarinerMap({
                   stroke="transparent"
                 />
               )}
-              {selected && (
-                <g
-                  data-selection-halo
-                  data-isle-id={isle.boardIsleId}
-                  data-isle-silhouette-edge
-                  filter="url(#mariner-isle-silhouette-edge)"
-                  pointerEvents="none"
-                >
-                  <use href={href} data-source-geometry={symbolId} fill="none" stroke="none" />
-                  <SourceSymbolClone href={href} fill="#0f172a" stroke="none" />
-                </g>
-              )}
+              <g
+                data-selection-halo={selected ? "true" : undefined}
+                data-isle-id={isle.boardIsleId}
+                data-isle-shore-glow
+                data-focus-ring
+                filter="url(#mariner-isle-shore-glow)"
+                color={MARINER_ISLE_SELECTION_GLOW[isle.boardIsleId]}
+                pointerEvents="none"
+              >
+                <use href={href} data-source-geometry={symbolId} fill="none" stroke="none" />
+                <SourceSymbolClone href={href} fill="#0f172a" stroke="none" />
+              </g>
               {ravage > 0 && (
                 <g data-isle-ravage pointerEvents="none">
                   <mask
@@ -1148,51 +1209,6 @@ function MarinerMap({
                     </text>
                   </g>
                 ))}
-              </g>
-            );
-          })}
-          {MARINER_ROUTE_CATALOG.map((route) => {
-            const geometry = marinerRouteGeometry(route.routeId);
-            const occupancy = mariner.routes.find((entry) => entry.routeId === route.routeId)?.occupancy ?? { kind: "empty" as const };
-            if (geometry === null || occupancy.kind === "empty") return null;
-            if (occupancy.kind === "ship") {
-              return (
-                <g
-                  key={`ship-${route.routeId}`}
-                  data-piece="ship"
-                  data-route-id={route.routeId}
-                  aria-label="Ship"
-                  transform={`translate(${geometry.pieceAnchor.x} ${geometry.pieceAnchor.y}) rotate(${geometry.tangentDeg})`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onSelect({ kind: "route", routeId: route.routeId });
-                  }}
-                >
-                  <path d="M -14 4 L -8 -6 L 10 -6 L 16 4 Z" fill="#0f766e" stroke="#042f2e" />
-                  <rect x={-2} y={-12} width={5} height={7} fill="#134e4a" />
-                  <text x={0} y={16} textAnchor="middle" fontSize={8} fill="#0f766e" transform={`rotate(${-geometry.tangentDeg})`}>Ship</text>
-                </g>
-              );
-            }
-            const heading = raiderDirectionDeg(route.routeId, occupancy.toward);
-            return (
-              <g
-                key={`raider-${route.routeId}`}
-                data-piece="raider"
-                data-route-id={route.routeId}
-                data-raider-toward={occupancy.toward.kind === "board_isle" ? occupancy.toward.boardIsleId : occupancy.toward.externalLandId}
-                aria-label={`Raider toward ${towardLabel(occupancy.toward)}`}
-                transform={`translate(${geometry.pieceAnchor.x} ${geometry.pieceAnchor.y}) rotate(${heading})`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onSelect({ kind: "route", routeId: route.routeId });
-                }}
-              >
-                <path d="M -12 5 L -6 -5 L 8 -5 L 14 5 Z" fill="#7f1d1d" stroke="#450a0a" />
-                <polygon points="16,0 28,-7 28,7" fill="#b45309" stroke="#7c2d12" />
-                <text x={4} y={18} textAnchor="middle" fontSize={8} fill="#7c2d12" transform={`rotate(${-heading})`}>
-                  {`Raider → ${towardLabel(occupancy.toward)}`}
-                </text>
               </g>
             );
           })}

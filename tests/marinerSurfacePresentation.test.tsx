@@ -930,8 +930,8 @@ describe("Mariner desktop board hierarchy and overlay inspector", () => {
     const isle = container.querySelector('[data-map-layer="isle"][data-isle-id="ishana"]') as SVGElement;
     const halo = isle.querySelector("[data-selection-halo]") as SVGElement | null;
     expect(halo).not.toBeNull();
-    expect(halo?.getAttribute("data-isle-silhouette-edge")).not.toBeNull();
-    expect(halo?.getAttribute("filter") ?? halo?.closest("[filter]")?.getAttribute("filter") ?? "").toContain("mariner-isle-silhouette-edge");
+    expect(halo?.getAttribute("data-isle-shore-glow")).not.toBeNull();
+    expect(halo?.getAttribute("filter") ?? halo?.closest("[filter]")?.getAttribute("filter") ?? "").toContain("mariner-isle-shore-glow");
     const source = isle.querySelector('[data-source-geometry="mariner-isle-ishana"]');
     expect(useHref(source)).toBe("#mariner-isle-ishana");
     const translucentFills = Array.from(isle.querySelectorAll("[data-selection-halo], [data-selection-halo] use, [data-source-geometry]")).filter((el) => {
@@ -950,6 +950,125 @@ describe("Mariner desktop board hierarchy and overlay inspector", () => {
     expect(container.querySelector("[data-mariner-source-board]")).not.toBeNull();
     root.unmount();
     container.remove();
+  });
+
+  it("does not render the old large Ship silhouette on an occupied Route", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const ship = container.querySelector(`[data-piece="ship"][data-route-id="${SHIP_ROUTE}"]`);
+    expect(ship).not.toBeNull();
+    expect(ship?.innerHTML).not.toContain("M -14 4 L -8 -6 L 10 -6 L 16 4 Z");
+    expect(Array.from(ship?.querySelectorAll("text") ?? []).some((el) => el.textContent === "Ship")).toBe(false);
+    root.unmount();
+    container.remove();
+  });
+
+  it("does not render the old large Raider silhouette on an occupied Route", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const raider = container.querySelector(`[data-piece="raider"][data-route-id="${RAID_ROUTE}"]`);
+    expect(raider).not.toBeNull();
+    expect(raider?.innerHTML).not.toContain("M -12 5 L -6 -5 L 8 -5 L 14 5 Z");
+    expect(raider?.querySelector('polygon[points="16,0 28,-7 28,7"]')).toBeNull();
+    expect(Array.from(raider?.querySelectorAll("text") ?? []).some((el) => (el.textContent ?? "").startsWith("Raider"))).toBe(false);
+    root.unmount();
+    container.remove();
+  });
+
+  it("marks occupied Ship Routes with a compact non-color semantic marker on exact source geometry", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const visible = container.querySelector(`[data-route-visible="${SHIP_ROUTE}"]`);
+    const marker = container.querySelector(`[data-route-occupancy-marker="ship"][data-route-id="${SHIP_ROUTE}"]`);
+    expect(useHref(visible)).toBe(`#mariner-route-${SHIP_ROUTE}`);
+    expect(marker).not.toBeNull();
+    expect(marker?.getAttribute("data-marker-from")).toBe("exact-source-path");
+    expect(marker?.querySelector("path, polygon, line")).not.toBeNull();
+    const oldAnchor = marinerRouteGeometry(SHIP_ROUTE)!.pieceAnchor;
+    expect(marker?.getAttribute("transform") ?? "").not.toContain(`translate(${oldAnchor.x} ${oldAnchor.y})`);
+    root.unmount();
+    container.remove();
+  });
+
+  it("marks occupied Raider Routes with a distinct compact semantic marker on exact source geometry", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const visible = container.querySelector(`[data-route-visible="${RAID_ROUTE}"]`);
+    const marker = container.querySelector(`[data-route-occupancy-marker="raider"][data-route-id="${RAID_ROUTE}"]`);
+    const shipMarker = container.querySelector(`[data-route-occupancy-marker="ship"][data-route-id="${SHIP_ROUTE}"]`);
+    expect(useHref(visible)).toBe(`#mariner-route-${RAID_ROUTE}`);
+    expect(marker).not.toBeNull();
+    expect(marker?.getAttribute("data-marker-from")).toBe("exact-source-path");
+    expect(marker?.querySelector("path, polygon, line")).not.toBeNull();
+    expect(marker?.innerHTML).not.toBe(shipMarker?.innerHTML);
+    const oldAnchor = marinerRouteGeometry(RAID_ROUTE)!.pieceAnchor;
+    expect(marker?.getAttribute("transform") ?? "").not.toContain(`translate(${oldAnchor.x} ${oldAnchor.y})`);
+    root.unmount();
+    container.remove();
+  });
+
+  it("selects an Isle with a soft shoreline glow on exact source geometry", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickIsle(container, "World ishana");
+    const isle = container.querySelector('[data-map-layer="isle"][data-isle-id="ishana"]') as SVGElement;
+    const halo = isle.querySelector("[data-selection-halo]") as SVGElement | null;
+    expect(halo).not.toBeNull();
+    expect(halo?.getAttribute("data-isle-silhouette-edge")).toBeNull();
+    expect(halo?.getAttribute("data-isle-shore-glow")).not.toBeNull();
+    expect(halo?.getAttribute("filter") ?? "").toContain("mariner-isle-shore-glow");
+    expect(useHref(isle.querySelector('[data-source-geometry="mariner-isle-ishana"]'))).toBe("#mariner-isle-ishana");
+    const translucentFills = Array.from(isle.querySelectorAll("[data-selection-halo], [data-selection-halo] use, [data-source-geometry]")).filter((el) => {
+      const fill = el.getAttribute("fill") ?? "";
+      return fill.includes("rgba") || fill.includes("0.38");
+    });
+    expect(translucentFills).toHaveLength(0);
+    root.unmount();
+    container.remove();
+  });
+
+  it("expands the Isle glow filter region so dilation and blur are not clipped", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const filter = container.querySelector("#mariner-isle-shore-glow") as SVGFilterElement | null;
+    expect(filter).not.toBeNull();
+    expect(filter?.querySelector("feGaussianBlur")).not.toBeNull();
+    const x = Number(filter?.getAttribute("x"));
+    const y = Number(filter?.getAttribute("y"));
+    const width = Number(filter?.getAttribute("width"));
+    const height = Number(filter?.getAttribute("height"));
+    expect(x).toBeLessThan(0);
+    expect(y).toBeLessThan(0);
+    expect(width).toBeGreaterThan(957);
+    expect(height).toBeGreaterThan(812);
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps Mariner Isle, Route, and Sea keyboard-focusable without a rectangular focus outline class", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const isle = container.querySelector('[data-map-layer="isle"][data-isle-id="ishana"]') as SVGElement;
+    const sea = container.querySelector('[data-map-layer="sea-hit"][data-region-id="sunken_fleet"]') as SVGElement;
+    const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`) as SVGElement;
+    expect(isle.tabIndex).toBe(0);
+    expect(sea.tabIndex).toBe(0);
+    expect(route.tabIndex).toBe(0);
+    for (const el of [isle, sea, route]) {
+      const className = el.getAttribute("class") ?? "";
+      expect(className).toContain("outline-none");
+      expect(className).not.toMatch(/focus-visible:outline(?!-none)/);
+    }
+    expect(isle.querySelector("[data-focus-ring]")).not.toBeNull();
+    expect(route.querySelector("[data-focus-ring]")).not.toBeNull();
+    expect(useHref(route.querySelector("[data-focus-ring]"))).toBe(`#mariner-route-${SHIP_ROUTE}`);
+    expect(sea.querySelector("[data-focus-ring]")).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("M5.4 UX register continuation", () => {
+  it("records deferred UX-024 Storm spatial-piece movement", async () => {
+    const { readFileSync } = await import("node:fs");
+    const register = readFileSync("docs/m5-4-table-readiness-ux.md", "utf8");
+    expect(register).toMatch(/### UX-024/);
+    expect(register).toMatch(/Storms should read as spatial Sea pieces/);
+    const section = register.slice(register.indexOf("### UX-024"));
+    expect(section).toMatch(/\*\*Current status:\*\* DEFERRED/);
   });
 });
 
