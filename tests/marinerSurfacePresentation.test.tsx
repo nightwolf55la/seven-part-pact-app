@@ -21,6 +21,10 @@ import {
 } from "../shared/domain";
 import type { SorcererExternalPresence } from "../shared/domain";
 import MarinerSurface from "../src/MarinerSurface";
+import {
+  marinerIsleGeometry,
+  marinerRouteGeometry,
+} from "../src/mariner-map-geometry";
 import type { WorldReference } from "../src/WorldSurface";
 import type { LoreCompendiumUiState } from "../src/lore-view-model";
 import {
@@ -755,18 +759,15 @@ describe("Mariner desktop board hierarchy and overlay inspector", () => {
     container.remove();
   });
 
-  it("renders source-shaped sea/field structure and a selection halo instead of replacing an Isle", () => {
+  it("renders source-shaped sea/field structure and exact Isle geometry instead of replacing an Isle", () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     expect(container.querySelector("[data-mariner-map-field]")).not.toBeNull();
     expect(container.querySelector("[data-mariner-map-sea]")).not.toBeNull();
     const isle = container.querySelector('[data-map-layer="isle"][data-isle-id="ishana"]') as SVGElement;
     flushSync(() => { isle.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     expect(container.querySelector("[data-selection-halo][data-isle-id=\"ishana\"]")).not.toBeNull();
-    expect(isle.querySelectorAll("ellipse").length).toBeGreaterThan(1);
-    const fillAfterSelect = isle.querySelector('[data-isle-id="ishana"]') === null
-      ? isle.querySelectorAll("ellipse[fill]:not([fill='transparent']):not([data-selection-halo])")
-      : isle.querySelectorAll("ellipse[cx]");
-    expect(fillAfterSelect.length).toBeGreaterThan(0);
+    expect(isle.querySelector('[data-source-geometry="mariner-isle-ishana"]')).not.toBeNull();
+    expect(Array.from(isle.querySelectorAll("ellipse")).filter((el) => isVisiblyStrokedOrFilled(el))).toHaveLength(0);
     root.unmount();
     container.remove();
   });
@@ -805,6 +806,97 @@ describe("Mariner desktop board hierarchy and overlay inspector", () => {
     root.unmount();
     container.remove();
   });
+
+  it("selects Ishana with exact source landform geometry instead of a visible ellipse halo", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickIsle(container, "World ishana");
+    const isle = container.querySelector('[data-map-layer="isle"][data-isle-id="ishana"]') as SVGElement;
+    expect(isle).not.toBeNull();
+    const source = isle.querySelector('[data-source-geometry="mariner-isle-ishana"]');
+    expect(source).not.toBeNull();
+    expect(useHref(source)).toBe("#mariner-isle-ishana");
+    expect(isle.querySelector("[data-selection-halo] ellipse, ellipse[data-selection-halo]")).toBeNull();
+    const visibleHalo = Array.from(isle.querySelectorAll("ellipse")).filter((el) => isVisiblyStrokedOrFilled(el));
+    expect(visibleHalo).toHaveLength(0);
+    expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
+    expect(container.innerHTML).toContain("Isle inspector");
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps a generous invisible hit on a small Isle without making that approximation visible", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const izor = container.querySelector('[data-map-layer="isle"][data-isle-id="izor"]') as SVGElement;
+    expect(izor).not.toBeNull();
+    const convenienceHit = izor.querySelector("[data-isle-convenience-hit]");
+    expect(convenienceHit).not.toBeNull();
+    expect(isVisiblyStrokedOrFilled(convenienceHit!)).toBe(false);
+    flushSync(() => { izor.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(izor.querySelector('[data-source-geometry="mariner-isle-izor"]')).not.toBeNull();
+    expect(useHref(izor.querySelector('[data-source-geometry="mariner-isle-izor"]'))).toBe("#mariner-isle-izor");
+    expect(Array.from(izor.querySelectorAll("ellipse")).filter((el) => isVisiblyStrokedOrFilled(el))).toHaveLength(0);
+    expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("reuses the same exact source Route geometry for Ship occupancy, selection, and hit", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const oldPath = marinerRouteGeometry(SHIP_ROUTE)?.pathD;
+    expect(oldPath && oldPath.length > 0).toBe(true);
+    const visible = container.querySelector(`[data-route-visible="${SHIP_ROUTE}"]`);
+    const hit = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`);
+    expect(visible).not.toBeNull();
+    expect(hit).not.toBeNull();
+    expect(visible?.getAttribute("data-route-occupancy")).toBe("ship");
+    const visibleGeom = visible!.querySelector("[data-source-geometry]") ?? visible;
+    const hitGeom = hit!.querySelector("[data-source-geometry]") ?? hit!.querySelector("use");
+    expect(useHref(visibleGeom)).toBe(`#mariner-route-${SHIP_ROUTE}`);
+    expect(useHref(hitGeom)).toBe(`#mariner-route-${SHIP_ROUTE}`);
+    expect(visibleGeom?.getAttribute("d")).not.toBe(oldPath);
+    expect(hit?.querySelector(`path[d="${cssEscape(oldPath!)}"]`)).toBeNull();
+    const routeHit = hit as SVGElement;
+    flushSync(() => { routeHit.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    const selected = routeHit.querySelector("[data-selection-halo], [data-source-geometry]");
+    expect(useHref(routeHit.querySelector("[data-selection-halo]") ?? selected)).toBe(`#mariner-route-${SHIP_ROUTE}`);
+    expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
+    expect(container.innerHTML).toContain("Route inspector");
+    root.unmount();
+    container.remove();
+  });
+
+  it("reuses the same exact source Route geometry for Raider occupancy instead of old pathD", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const oldPath = marinerRouteGeometry(RAID_ROUTE)?.pathD;
+    expect(oldPath && oldPath.length > 0).toBe(true);
+    const visible = container.querySelector(`[data-route-visible="${RAID_ROUTE}"]`);
+    expect(visible?.getAttribute("data-route-occupancy")).toBe("raider");
+    const visibleGeom = visible!.querySelector("[data-source-geometry]") ?? visible;
+    expect(useHref(visibleGeom)).toBe(`#mariner-route-${RAID_ROUTE}`);
+    expect(visibleGeom?.getAttribute("d")).not.toBe(oldPath);
+    const hit = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${RAID_ROUTE}"]`);
+    expect(useHref(hit!.querySelector("[data-source-geometry]") ?? hit!.querySelector("use"))).toBe(
+      `#mariner-route-${RAID_ROUTE}`,
+    );
+    root.unmount();
+    container.remove();
+  });
+
+  it("does not paint approximate Isle ellipse geometry as a visible selected-Isle halo", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const approx = marinerIsleGeometry("ishana")!;
+    clickIsle(container, "World ishana");
+    const painted = Array.from(
+      container.querySelectorAll('[data-map-layer="isle"][data-isle-id="ishana"] ellipse'),
+    ).filter((el) => isVisiblyStrokedOrFilled(el));
+    expect(painted.some((el) => {
+      const rx = Number(el.getAttribute("rx"));
+      const ry = Number(el.getAttribute("ry"));
+      return Math.abs(rx - (approx.hit.rx + 10)) < 0.5 || Math.abs(ry - (approx.hit.ry + 10)) < 0.5;
+    })).toBe(false);
+    root.unmount();
+    container.remove();
+  });
 });
 
 function setInput(el: HTMLInputElement, value: string): void {
@@ -825,6 +917,25 @@ function clickIsle(container: HTMLElement, name: string): void {
   const isle = container.querySelector(`[aria-label^="Isle ${name}"]`) as SVGElement | null;
   if (isle === null) throw new Error(`Missing isle: ${name}`);
   flushSync(() => { isle.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+}
+
+function useHref(el: Element | null): string | null {
+  if (el === null) return null;
+  return el.getAttribute("href") ?? el.getAttribute("xlink:href") ?? el.getAttribute("xlinkHref");
+}
+
+function isVisiblyStrokedOrFilled(el: Element): boolean {
+  const fill = el.getAttribute("fill") ?? "";
+  const stroke = el.getAttribute("stroke") ?? "";
+  const fillOpacity = Number(el.getAttribute("fill-opacity") ?? el.getAttribute("fillOpacity") ?? "1");
+  const strokeWidth = Number(el.getAttribute("stroke-width") ?? el.getAttribute("strokeWidth") ?? (stroke && stroke !== "none" && stroke !== "transparent" ? "1" : "0"));
+  const visibleFill = fill !== "" && fill !== "none" && fill !== "transparent" && fillOpacity > 0;
+  const visibleStroke = stroke !== "" && stroke !== "none" && stroke !== "transparent" && strokeWidth > 0;
+  return visibleFill || visibleStroke;
+}
+
+function cssEscape(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 function surroundRegion(mariner: MarinerState, regionId: string): MarinerState {

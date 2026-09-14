@@ -49,9 +49,10 @@ When a Mariner or Necromancer board item is selected, a dismissible right-side o
 ### Source visuals used
 
 - Authoritative source for Batch 2 board art: local `Patreon Materials [04.26.04].pptx` (not committed).
-- Batch 2 was corrected to use **PowerPoint-native SVG export** (`ShapeRange.Export(..., SVG)`) for **Mariner** and **Necromancer** decorative board bases. Regenerable extractor: `scripts/export-source-board-svgs.ps1`. Committed assets: `src/assets/source-boards/mariner-board.svg` and `src/assets/source-boards/necromancer-gates-board.svg`.
-- This replaced the prior reconstructed decorative board-layer approach for those two boards. Live hit regions, selection, tokens, inspectors, and CampaignState overlays remain application-owned.
-- Future visually distinctive source boards should prefer this PowerPoint-native SVG approach when practical. Hierophant / Warlock / Faustian / Sage / Sorcerer were not redone in this run.
+- Batch 2 uses **PowerPoint-native SVG export** (`ShapeRange.Export(..., SVG)`) for **Mariner** and **Necromancer** decorative board bases **and** semantic interaction-geometry sprites. Regenerable extractor: `scripts/export-source-board-svgs.ps1`. Committed assets: `mariner-board.svg`, `mariner-interaction-geometry.svg`, `necromancer-gates-board.svg`, `necromancer-interaction-geometry.svg`.
+- Preferred pattern for these source boards: copy exact PowerPoint vector objects into reusable `<symbol>`s, then restyle them at runtime with SVG `<use>`. Application IDs stay in typed catalogs; the extractor mapping is development metadata only.
+- Live tokens, Sea hit regions, inspectors, and CampaignState overlays remain application-owned. Approximate overlay geometry must not be reused as visible Isle/Route/Gate art.
+- Hierophant / Warlock / Faustian / Sage / Sorcerer were not redone in this run.
 
 ---
 
@@ -302,7 +303,7 @@ Supports: UX-001, UX-019.
 - **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Strongly dependent on UX-004 and related to UX-009.
 - **Approved batch:** Batch 2
-- **Resolution / implementation note:** Batch 2 was later corrected to a PowerPoint-native exported SVG decorative base (`mariner-board.svg`) under live Isle/Route/Sea hit regions, selection halo, and state tokens. Prior reconstructed geography/routes/labels are no longer the visual map. Overlay inspector does not resize the map. No normal desktop horizontal scrollbar at 1600×1000. Status remains FIXED — NEEDS HUMAN RETEST.
+- **Resolution / implementation note:** Batch 2 was later corrected to a PowerPoint-native exported SVG decorative base (`mariner-board.svg`) under live Isle/Route/Sea hit regions and state tokens. Human retest then found the exact source board substantially improved Mariner, but remaining visible interaction overlays still used approximate ellipse/path geometry. Visible Isle/Route overlays now reuse the same PowerPoint-native source objects via generated `mariner-interaction-geometry.svg` symbols (explicit Draft-4 shape mapping, not label parsing). Approximate geometry remains only for Sea hits, token anchors, and invisible convenience hits. Overlay inspector does not resize the map. Status remains FIXED — NEEDS HUMAN RETEST.
 
 ### UX-011
 

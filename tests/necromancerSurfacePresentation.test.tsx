@@ -702,9 +702,9 @@ describe("Necromancer desktop board and Depth presentation", () => {
     second.container.remove();
   });
 
-  it("renders arched Gate silhouettes and keeps accessible labels for Gates and path spaces", () => {
+  it("renders exact source Gate geometry and keeps accessible labels for Gates and path spaces", () => {
     const { container, root } = renderSurface();
-    expect(container.querySelectorAll("[data-gate-silhouette='arch']").length).toBeGreaterThanOrEqual(11);
+    expect(container.querySelector('[data-source-geometry-sprite="necromancer"]')).not.toBeNull();
     expect(container.querySelector('[aria-label^="I Amber"]')).not.toBeNull();
     expect(container.querySelector('[aria-label^="XI Terminus"]')).not.toBeNull();
     expect(container.querySelector('[aria-label^="Sage Edge of Life"]')).not.toBeNull();
@@ -744,6 +744,34 @@ describe("Necromancer desktop board and Depth presentation", () => {
     expect(container.querySelectorAll("[data-board-connection]")).toHaveLength(0);
     expect(container.querySelectorAll("[data-board-label]")).toHaveLength(0);
     expect(container.querySelector('[aria-label^="I Amber"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("selects a Gate with exact source geometry rather than a reconstructed arch or ellipse halo", () => {
+    const { container, root } = renderSurface();
+    const amber = container.querySelector('[aria-label^="I Amber"]') as SVGElement;
+    flushSync(() => { amber.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    const source = amber.querySelector('[data-source-geometry="necromancer-gate-amber"]');
+    expect(source).not.toBeNull();
+    expect(source?.getAttribute("href") ?? source?.getAttribute("xlink:href")).toBe("#necromancer-gate-amber");
+    expect(amber.querySelector("[data-gate-silhouette='arch']")).toBeNull();
+    expect(amber.querySelector("ellipse[data-selection-halo], [data-selection-halo] ellipse")).toBeNull();
+    expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
+    expect(container.querySelector('[aria-label="Selected space"]')?.textContent).toContain("Amber");
+    root.unmount();
+    container.remove();
+  });
+
+  it("selects an occupiable path space with exact source circle geometry", () => {
+    const { container, root } = renderSurface();
+    const path = container.querySelector('[aria-label^="Sage Edge of Life"]') as SVGElement;
+    expect(path).not.toBeNull();
+    flushSync(() => { path.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    const source = path.querySelector('[data-source-geometry="necromancer-path-edge_sage"]');
+    expect(source).not.toBeNull();
+    expect(source?.getAttribute("href") ?? source?.getAttribute("xlink:href")).toBe("#necromancer-path-edge_sage");
+    expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
     root.unmount();
     container.remove();
   });

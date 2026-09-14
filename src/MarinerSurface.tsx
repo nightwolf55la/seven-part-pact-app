@@ -136,7 +136,13 @@ import {
   MARINER_ROUTE_HIT_STROKE_WIDTH,
   MARINER_SEA_GEOMETRY,
 } from "./mariner-map-geometry";
-import { MARINER_SOURCE_BOARD } from "./source-board-assets";
+import { MARINER_SOURCE_BOARD, marinerOverlayLengthToBoard, marinerOverlayPointToBoard } from "./source-board-assets";
+import {
+  MARINER_INTERACTION_GEOMETRY_RAW,
+  SourceGeometrySprite,
+  marinerIsleSymbolId,
+  marinerRouteSymbolId,
+} from "./source-interaction-geometry";
 
 export type { MarinerWizardRef };
 
@@ -838,6 +844,7 @@ function MarinerMap({
             <line x1="0" y1="0" x2="6" y2="0" stroke="#4338ca" strokeWidth="2" />
           </pattern>
         </defs>
+        <SourceGeometrySprite raw={MARINER_INTERACTION_GEOMETRY_RAW} label="mariner" />
         <g data-map-layer="frame" pointerEvents="none">
           <rect
             data-mariner-map-field
@@ -870,7 +877,7 @@ function MarinerMap({
             The Archipelago of Isha
           </text>
         </g>
-        <g data-map-layer="overlay" transform={MARINER_SOURCE_BOARD.overlayTransform}>
+        <g data-map-layer="sea-overlay" transform={MARINER_SOURCE_BOARD.overlayTransform}>
         {MARINER_SEA_GEOMETRY.map((sea) => {
           const definition = MARINER_SEA_REGION_CATALOG.find((region) => region.regionId === sea.regionId);
           const stormCount = mariner.seaRegions.find((entry) => entry.regionId === sea.regionId)?.stormCount ?? 0;
@@ -912,21 +919,24 @@ function MarinerMap({
             </g>
           );
         })}
+        </g>
+        <g data-map-layer="exact-source-overlays">
         <g data-map-layer="routes-visible" pointerEvents="none">
           {MARINER_ROUTE_CATALOG.map((route) => {
-            const geometry = marinerRouteGeometry(route.routeId);
-            if (geometry === null) return null;
             const occupancy = mariner.routes.find((entry) => entry.routeId === route.routeId)?.occupancy ?? { kind: "empty" as const };
             if (occupancy.kind === "empty") return null;
             const selected = selection?.kind === "route" && selection.routeId === route.routeId;
+            const href = `#${marinerRouteSymbolId(route.routeId)}`;
+            const color = occupancy.kind === "ship" ? MARINER_MAP_PALETTE.routeOccupied : MARINER_MAP_PALETTE.routeRaider;
             return (
-              <path
+              <use
                 key={`visible-${route.routeId}`}
+                href={href}
                 data-route-visible={route.routeId}
                 data-route-occupancy={occupancy.kind}
-                d={geometry.pathD}
-                fill="none"
-                stroke={occupancy.kind === "ship" ? MARINER_MAP_PALETTE.routeOccupied : MARINER_MAP_PALETTE.routeRaider}
+                data-source-geometry={marinerRouteSymbolId(route.routeId)}
+                fill={color}
+                stroke={color}
                 strokeWidth={selected ? 4.25 : 3.1}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -935,13 +945,13 @@ function MarinerMap({
           })}
         </g>
         {MARINER_ROUTE_CATALOG.map((route) => {
-          const geometry = marinerRouteGeometry(route.routeId);
-          if (geometry === null) return null;
           const occupancy = mariner.routes.find((entry) => entry.routeId === route.routeId)?.occupancy ?? { kind: "empty" as const };
           const selected = selection?.kind === "route" && selection.routeId === route.routeId;
           const label = routeOccupancyLabel(occupancy, mariner, world.isles);
           const aName = routeEndpointLabel(route.endpointA, mariner, world.isles);
           const bName = routeEndpointLabel(route.endpointB, mariner, world.isles);
+          const href = `#${marinerRouteSymbolId(route.routeId)}`;
+          const symbolId = marinerRouteSymbolId(route.routeId);
           return (
             <g
               key={`hit-${route.routeId}`}
@@ -955,8 +965,25 @@ function MarinerMap({
               onClick={() => onSelect({ kind: "route", routeId: route.routeId })}
               onKeyDown={(event) => activate(event, () => onSelect({ kind: "route", routeId: route.routeId }))}
             >
-              <path d={geometry.pathD} fill="none" stroke="transparent" strokeWidth={MARINER_ROUTE_HIT_STROKE_WIDTH} />
-              {selected && <path d={geometry.pathD} fill="none" stroke="#0f766e" strokeWidth={8} opacity={0.28} strokeDasharray="4 3" />}
+              <use
+                href={href}
+                data-source-geometry={symbolId}
+                fill="transparent"
+                stroke="transparent"
+                strokeWidth={MARINER_ROUTE_HIT_STROKE_WIDTH}
+              />
+              {selected && (
+                <use
+                  href={href}
+                  data-selection-halo
+                  data-source-geometry={symbolId}
+                  fill="none"
+                  stroke="#0f766e"
+                  strokeWidth={8}
+                  opacity={0.28}
+                  pointerEvents="none"
+                />
+              )}
             </g>
           );
         })}
@@ -974,6 +1001,10 @@ function MarinerMap({
             ravage > 0 ? `Ravage ${ravage}` : null,
             nested.length > 0 ? "Nesting Beast" : null,
           ].filter((bit): bit is string => bit !== null);
+          const symbolId = marinerIsleSymbolId(isle.boardIsleId);
+          const href = `#${symbolId}`;
+          const convenience = isle.shapes.length === 1;
+          const hit = marinerOverlayPointToBoard(isle.hit.cx, isle.hit.cy);
           return (
             <g
               key={isle.boardIsleId}
@@ -987,29 +1018,34 @@ function MarinerMap({
               onClick={() => onSelect({ kind: "isle", boardIsleId: isle.boardIsleId })}
               onKeyDown={(event) => activate(event, () => onSelect({ kind: "isle", boardIsleId: isle.boardIsleId }))}
             >
-              <ellipse cx={isle.hit.cx} cy={isle.hit.cy} rx={isle.hit.rx} ry={isle.hit.ry} fill="transparent" />
-              {selected && (
+              <use href={href} fill="transparent" stroke="transparent" />
+              {convenience && (
                 <ellipse
+                  data-isle-convenience-hit
+                  cx={hit.x}
+                  cy={hit.y}
+                  rx={marinerOverlayLengthToBoard(isle.hit.rx)}
+                  ry={marinerOverlayLengthToBoard(isle.hit.ry)}
+                  fill="transparent"
+                  stroke="transparent"
+                />
+              )}
+              {selected && (
+                <use
+                  href={href}
                   data-selection-halo
                   data-isle-id={isle.boardIsleId}
-                  cx={isle.hit.cx}
-                  cy={isle.hit.cy}
-                  rx={isle.hit.rx + 10}
-                  ry={isle.hit.ry + 10}
-                  fill="none"
-                  stroke="#0f766e"
-                  strokeWidth={5}
-                  opacity={0.45}
+                  data-source-geometry={symbolId}
+                  fill="rgba(15,118,110,0.38)"
+                  stroke="none"
                   pointerEvents="none"
                 />
               )}
               {ravage > 0 && (
-                <ellipse
-                  cx={isle.hit.cx}
-                  cy={isle.hit.cy}
-                  rx={isle.hit.rx}
-                  ry={isle.hit.ry}
+                <use
+                  href={href}
                   fill="url(#mariner-ravage-hatch)"
+                  stroke="none"
                   opacity={0.72}
                   pointerEvents="none"
                 />
@@ -1017,6 +1053,8 @@ function MarinerMap({
             </g>
           );
         })}
+        </g>
+        <g data-map-layer="overlay" transform={MARINER_SOURCE_BOARD.overlayTransform}>
         <g data-map-layer="pieces">
           {MARINER_SEA_GEOMETRY.map((sea) => {
             const stormCount = mariner.seaRegions.find((entry) => entry.regionId === sea.regionId)?.stormCount ?? 0;

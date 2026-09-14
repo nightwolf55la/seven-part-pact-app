@@ -1,8 +1,19 @@
 import type { KeyboardEvent } from "react";
-import type { NecromancerState, SorcererExternalPresence } from "../shared/domain";
+import {
+  isValidNecromancerBuiltinGateId,
+  isValidNecromancerBuiltinPathSpaceId,
+  type NecromancerState,
+  type SorcererExternalPresence,
+} from "../shared/domain";
 import type { WorldReference } from "./WorldSurface";
 import { NecromancerGateShape } from "./NecromancerGateShape";
 import { NECROMANCER_SOURCE_BOARD } from "./source-board-assets";
+import {
+  NECROMANCER_INTERACTION_GEOMETRY_RAW,
+  SourceGeometrySprite,
+  necromancerGateSymbolId,
+  necromancerPathSymbolId,
+} from "./source-interaction-geometry";
 import {
   NECROMANCER_BUILTIN_GATE_IDS,
   NECROMANCER_BUILTIN_GATE_MAP_POINTS,
@@ -92,6 +103,7 @@ export default function NecromancerGatesBoard({
             height={NECROMANCER_SOURCE_BOARD.height}
             aria-hidden="true"
           />
+          <SourceGeometrySprite raw={NECROMANCER_INTERACTION_GEOMETRY_RAW} label="necromancer" />
           {finalDeath !== undefined && researchers.map((researcher, index) => (
             <g
               key={researcher.denizenId}
@@ -126,6 +138,12 @@ export default function NecromancerGatesBoard({
             const definition = NECROMANCER_BUILTIN_PATH_SPACE_DEFINITIONS.find((path) => path.pathSpaceId === pathSpaceId);
             const label = definition?.applicationLabel ?? pathSpaceId;
             const warning = fivePlusSoulWarning(pieces.souls);
+            const sourceHref = isValidNecromancerBuiltinPathSpaceId(pathSpaceId)
+              ? `#${necromancerPathSymbolId(pathSpaceId)}`
+              : null;
+            const symbolId = isValidNecromancerBuiltinPathSpaceId(pathSpaceId)
+              ? necromancerPathSymbolId(pathSpaceId)
+              : null;
             return (
               <g
                 key={pathSpaceId}
@@ -135,26 +153,52 @@ export default function NecromancerGatesBoard({
                 onClick={() => onSelect({ kind: "path", pathSpaceId })}
                 onKeyDown={(event) => activate(event, () => onSelect({ kind: "path", pathSpaceId }))}
               >
-                <circle
-                  cx={point.x}
-                  cy={point.y}
-                  r={14}
-                  fill={selected ? "#ddd6fe" : "transparent"}
-                  stroke={selected ? "#4c1d95" : "transparent"}
-                  strokeWidth={selected ? 3 : 0}
-                />
-                {selected && (
-                  <circle
-                    data-selection-halo
-                    cx={point.x}
-                    cy={point.y}
-                    r={18}
-                    fill="none"
-                    stroke="#6d28d9"
-                    strokeWidth={4}
-                    opacity={0.4}
-                    pointerEvents="none"
-                  />
+                {sourceHref !== null && symbolId !== null ? (
+                  <>
+                    <circle cx={point.x} cy={point.y} r={14} fill="transparent" stroke="transparent" />
+                    <use
+                      href={sourceHref}
+                      fill={selected ? "#ddd6fe" : "transparent"}
+                      stroke={selected ? "#4c1d95" : "transparent"}
+                      strokeWidth={selected ? 3 : 0}
+                    />
+                    {selected && (
+                      <use
+                        href={sourceHref}
+                        data-selection-halo
+                        data-source-geometry={symbolId}
+                        fill="none"
+                        stroke="#6d28d9"
+                        strokeWidth={4}
+                        opacity={0.45}
+                        pointerEvents="none"
+                      />
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <circle
+                      cx={point.x}
+                      cy={point.y}
+                      r={14}
+                      fill={selected ? "#ddd6fe" : "transparent"}
+                      stroke={selected ? "#4c1d95" : "transparent"}
+                      strokeWidth={selected ? 3 : 0}
+                    />
+                    {selected && (
+                      <circle
+                        data-selection-halo
+                        cx={point.x}
+                        cy={point.y}
+                        r={18}
+                        fill="none"
+                        stroke="#6d28d9"
+                        strokeWidth={4}
+                        opacity={0.4}
+                        pointerEvents="none"
+                      />
+                    )}
+                  </>
                 )}
                 <SpaceTokens
                   originX={point.x}
@@ -188,6 +232,9 @@ export default function NecromancerGatesBoard({
             const stroke = status === "destroyed" ? "#94a3b8" : status === "hostile" ? "#9a3412" : selected ? "#5b21b6" : "transparent";
             const warning = fivePlusSoulWarning(pieces.souls);
             const transformEligible = canTransformSoulIntoAlly(gate, pieces.souls);
+            const builtin = isValidNecromancerBuiltinGateId(gateId);
+            const symbolId = builtin ? necromancerGateSymbolId(gateId) : null;
+            const sourceHref = symbolId !== null ? `#${symbolId}` : null;
             return (
               <g
                 key={gateId}
@@ -197,28 +244,54 @@ export default function NecromancerGatesBoard({
                 onClick={() => onSelect({ kind: "gate", gateId })}
                 onKeyDown={(event) => activate(event, () => onSelect({ kind: "gate", gateId }))}
               >
-                {selected && (
-                  <ellipse
-                    data-selection-halo
-                    cx={point.x}
-                    cy={point.y}
-                    rx={56}
-                    ry={68}
-                    fill="none"
-                    stroke="#6d28d9"
-                    strokeWidth={5}
-                    opacity={0.4}
-                    pointerEvents="none"
-                  />
+                {sourceHref !== null && symbolId !== null ? (
+                  <>
+                    <use
+                      href={sourceHref}
+                      fill={fill}
+                      stroke={stroke}
+                      strokeWidth={selected ? 3 : 2}
+                      strokeDasharray={status === "destroyed" ? "5 4" : undefined}
+                    />
+                    {selected && (
+                      <use
+                        href={sourceHref}
+                        data-selection-halo
+                        data-source-geometry={symbolId}
+                        fill="none"
+                        stroke="#6d28d9"
+                        strokeWidth={5}
+                        opacity={0.45}
+                        pointerEvents="none"
+                      />
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {selected && (
+                      <ellipse
+                        data-selection-halo
+                        cx={point.x}
+                        cy={point.y}
+                        rx={56}
+                        ry={68}
+                        fill="none"
+                        stroke="#6d28d9"
+                        strokeWidth={5}
+                        opacity={0.4}
+                        pointerEvents="none"
+                      />
+                    )}
+                    <NecromancerGateShape
+                      x={point.x}
+                      y={point.y}
+                      fill={fill}
+                      stroke={stroke}
+                      strokeWidth={selected ? 3 : 2}
+                      strokeDasharray={status === "destroyed" ? "5 4" : undefined}
+                    />
+                  </>
                 )}
-                <NecromancerGateShape
-                  x={point.x}
-                  y={point.y}
-                  fill={fill}
-                  stroke={stroke}
-                  strokeWidth={selected ? 3 : 2}
-                  strokeDasharray={status === "destroyed" ? "5 4" : undefined}
-                />
                 <text
                   x={point.x}
                   y={point.y - 8}

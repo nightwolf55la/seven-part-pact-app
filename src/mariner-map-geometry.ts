@@ -1,13 +1,17 @@
 /**
  * Static Mariner map overlay geometry for the fixed Draft-4 Isha board.
  *
- * These coordinates are hit regions and token anchors only. Decorative
- * geography, routes, and labels come from the PowerPoint-native SVG asset.
+ * These coordinates are APPROXIMATE hit regions and token anchors only.
+ * They must not be reused as visible Isle landforms or Route strokes.
+ * Decorative geography, routes, and labels come from the PowerPoint-native
+ * SVG board. Visible Isle/Route overlays reuse generated exact-source
+ * symbols from mariner-interaction-geometry.svg.
  * Adjacency, Route endpoints, Sea relationships, Raider direction, and piece
  * locations come from catalogs/state, never from these coordinates.
  *
  * Overlay space is 1000×1000 and is aligned onto the exported SVG via
- * MARINER_SOURCE_BOARD.overlayTransform. PowerPoint object names are not IDs.
+ * MARINER_SOURCE_BOARD.overlayTransform for tokens and Sea hits.
+ * PowerPoint object names are not IDs.
  */
 
 import {
@@ -61,6 +65,7 @@ export interface MarinerIsleGeometry {
 
 export interface MarinerRouteGeometry {
   readonly routeId: string;
+  /** Approximate leftover path. Not used for visible occupied/selection Route strokes. */
   readonly pathD: string;
   readonly pieceAnchor: MapPoint;
   readonly tangentDeg: number;
