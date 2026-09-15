@@ -10,7 +10,9 @@ import {
   MARINER_BOARD_ISLE_MAP_POINTS,
   MARINER_EXTERNAL_LAND_GEOMETRY,
   MARINER_EXTERNAL_LAND_MAP_POINTS,
+  MARINER_ISLE_FILLS,
   MARINER_ISLE_GEOMETRY,
+  MARINER_ISLE_SELECTION_GLOW,
   MARINER_MAP_CHART_TITLE,
   MARINER_MAP_PALETTE,
   MARINER_MAP_TYPE,
@@ -154,4 +156,44 @@ describe("Mariner map presentation frame", () => {
     expect(marinerSeaGeometry("northwest_horizon").caption?.rotate).not.toBeUndefined();
     expect(marinerSeaGeometry("sunken_fleet").label).toEqual({ x: 289, y: 375 });
   });
+
+  it("keeps Isle selection glow in each Isle fill family instead of a generic dark edge", () => {
+    const previousNeutralDark = {
+      ishana: "#c45c28",
+      far_reach: "#2f6f2c",
+      scuttleport: "#9a3d62",
+    } as const;
+    expect(MARINER_ISLE_SELECTION_GLOW.ishana).not.toBe(previousNeutralDark.ishana);
+    expect(MARINER_ISLE_SELECTION_GLOW.far_reach).not.toBe(previousNeutralDark.far_reach);
+    expect(MARINER_ISLE_SELECTION_GLOW.scuttleport).not.toBe(previousNeutralDark.scuttleport);
+    expect(MARINER_ISLE_SELECTION_GLOW.ishana).not.toBe("#0f172a");
+    expect(MARINER_ISLE_SELECTION_GLOW.far_reach).not.toBe("#042f2e");
+    for (const isleId of ["ishana", "far_reach", "scuttleport"] as const) {
+      const fill = MARINER_ISLE_FILLS[isleId];
+      const glow = MARINER_ISLE_SELECTION_GLOW[isleId];
+      expect(glow).not.toBe(fill);
+      expect(hueDelta(hexHue(fill), hexHue(glow))).toBeLessThan(28);
+    }
+  });
 });
+
+function hexHue(hex: string): number {
+  const n = hex.replace("#", "");
+  const r = parseInt(n.slice(0, 2), 16) / 255;
+  const g = parseInt(n.slice(2, 4), 16) / 255;
+  const b = parseInt(n.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+  if (delta === 0) return 0;
+  let hue = 0;
+  if (max === r) hue = ((g - b) / delta) % 6;
+  else if (max === g) hue = (b - r) / delta + 2;
+  else hue = (r - g) / delta + 4;
+  return ((hue * 60) + 360) % 360;
+}
+
+function hueDelta(a: number, b: number): number {
+  const delta = Math.abs(a - b);
+  return Math.min(delta, 360 - delta);
+}

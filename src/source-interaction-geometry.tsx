@@ -262,9 +262,40 @@ export function SourceRouteOccupancyMarker({
       }}
     >
       {kind === "ship" ? (
-        <path d="M-4.5 1.7 L-2.4 -1.5 L3.6 -1.5 L5.6 1.7 Z" fill={color} stroke="#042f2e" strokeWidth={0.85} />
+        <g data-ship-pictogram="hull-mast-sail">
+          <path
+            data-ship-part="hull"
+            d="M-4.2 2.1 L-2.3 -1.1 L3.2 -1.1 L5.1 2.1 Z"
+            fill={color}
+            stroke="#042f2e"
+            strokeWidth={0.85}
+          />
+          <line
+            data-ship-part="mast"
+            x1="0.5"
+            y1="-1.1"
+            x2="0.5"
+            y2="-5.3"
+            stroke="#042f2e"
+            strokeWidth={0.9}
+            strokeLinecap="round"
+          />
+          <path
+            data-ship-part="sail"
+            d="M0.6 -5.2 L4.3 -3.3 L0.6 -1.5 Z"
+            fill={color}
+            stroke="#042f2e"
+            strokeWidth={0.7}
+          />
+        </g>
       ) : (
-        <polygon points="0,-4.2 3.4,0 0,3.2 -2.2,0" fill={color} stroke="#450a0a" strokeWidth={0.85} />
+        <polygon
+          data-raider-pictogram="directional"
+          points="-3.4,-2.7 -3.4,2.7 5.6,0"
+          fill={color}
+          stroke="#450a0a"
+          strokeWidth={0.85}
+        />
       )}
     </g>
   );

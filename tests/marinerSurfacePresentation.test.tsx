@@ -22,6 +22,7 @@ import {
 import type { SorcererExternalPresence } from "../shared/domain";
 import MarinerSurface from "../src/MarinerSurface";
 import {
+  MARINER_ISLE_SELECTION_GLOW,
   marinerIsleGeometry,
   marinerRouteGeometry,
 } from "../src/mariner-map-geometry";
@@ -1003,6 +1004,39 @@ describe("Mariner desktop board hierarchy and overlay inspector", () => {
     container.remove();
   });
 
+  it("renders a compact Ship pictogram with hull, mast, and sail instead of the hull-only marker", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const marker = container.querySelector(`[data-route-occupancy-marker="ship"][data-route-id="${SHIP_ROUTE}"]`);
+    expect(marker).not.toBeNull();
+    expect(marker?.innerHTML).not.toContain("M-4.5 1.7 L-2.4 -1.5 L3.6 -1.5 L5.6 1.7 Z");
+    expect(marker?.querySelector('[data-ship-pictogram="hull-mast-sail"]')).not.toBeNull();
+    expect(marker?.querySelector('[data-ship-part="hull"]')).not.toBeNull();
+    expect(marker?.querySelector('[data-ship-part="mast"]')).not.toBeNull();
+    expect(marker?.querySelector('[data-ship-part="sail"]')).not.toBeNull();
+    expect(marker?.getAttribute("data-marker-from")).toBe("exact-source-path");
+    const oldAnchor = marinerRouteGeometry(SHIP_ROUTE)!.pieceAnchor;
+    expect(marker?.getAttribute("transform") ?? "").not.toContain(`translate(${oldAnchor.x} ${oldAnchor.y})`);
+    root.unmount();
+    container.remove();
+  });
+
+  it("renders a directional compact Raider marker instead of the ambiguous diamond", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const marker = container.querySelector(`[data-route-occupancy-marker="raider"][data-route-id="${RAID_ROUTE}"]`);
+    const shipMarker = container.querySelector(`[data-route-occupancy-marker="ship"][data-route-id="${SHIP_ROUTE}"]`);
+    expect(marker).not.toBeNull();
+    expect(marker?.innerHTML).not.toContain("0,-4.2 3.4,0 0,3.2 -2.2,0");
+    expect(marker?.querySelector('[data-raider-pictogram="directional"]')).not.toBeNull();
+    expect(marker?.getAttribute("data-raider-toward")).toBe("ishana");
+    expect(marker?.getAttribute("aria-label") ?? "").toContain("Raider toward");
+    expect(marker?.innerHTML).not.toBe(shipMarker?.innerHTML);
+    expect(marker?.getAttribute("data-marker-from")).toBe("exact-source-path");
+    const oldAnchor = marinerRouteGeometry(RAID_ROUTE)!.pieceAnchor;
+    expect(marker?.getAttribute("transform") ?? "").not.toContain(`translate(${oldAnchor.x} ${oldAnchor.y})`);
+    root.unmount();
+    container.remove();
+  });
+
   it("selects an Isle with a soft shoreline glow on exact source geometry", () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     clickIsle(container, "World ishana");
@@ -1018,6 +1052,21 @@ describe("Mariner desktop board hierarchy and overlay inspector", () => {
       return fill.includes("rgba") || fill.includes("0.38");
     });
     expect(translucentFills).toHaveLength(0);
+    root.unmount();
+    container.remove();
+  });
+
+  it("sources selected-Isle shoreline color from the Isle-local glow mapping, not a generic dark edge", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickIsle(container, "World ishana");
+    const halo = container.querySelector('[data-map-layer="isle"][data-isle-id="ishana"] [data-isle-shore-glow]') as SVGElement | null;
+    expect(halo).not.toBeNull();
+    expect(halo?.getAttribute("data-isle-shore-glow")).not.toBeNull();
+    expect(halo?.getAttribute("filter") ?? "").toContain("mariner-isle-shore-glow");
+    expect(halo?.getAttribute("color")).toBe(MARINER_ISLE_SELECTION_GLOW.ishana);
+    expect(halo?.getAttribute("color")).not.toBe("#0f172a");
+    expect(halo?.getAttribute("color")).not.toBe("#042f2e");
+    expect(halo?.getAttribute("color")).not.toBe("#c45c28");
     root.unmount();
     container.remove();
   });

@@ -146,21 +146,21 @@ export const MARINER_ISLE_FILLS: Record<MarinerBoardIsleId, string> = {
 
 /** Darker, slightly more saturated shoreline glow keyed by board Isle. Presentation only. */
 export const MARINER_ISLE_SELECTION_GLOW: Record<MarinerBoardIsleId, string> = {
-  ishana: "#c45c28",
-  scuttleport: "#9a3d62",
-  orrery: "#5c615c",
-  far_reach: "#2f6f2c",
-  halcyon_isles: "#c24a3c",
-  sage_atoll: "#b07a12",
-  graven_isle: "#6e6862",
-  tahv: "#c45c22",
-  izor: "#2a7a32",
-  yeraine: "#26742e",
-  koire: "#9a7a16",
-  thyras: "#9a7a12",
-  spyrholm: "#4f3f9a",
-  druntyr: "#9a3d28",
-  caravesse: "#3d5c66",
+  ishana: "#d4894a",
+  scuttleport: "#c45a7e",
+  orrery: "#8b9088",
+  far_reach: "#4f9a42",
+  halcyon_isles: "#d45c52",
+  sage_atoll: "#c9a022",
+  graven_isle: "#9a948c",
+  tahv: "#d48940",
+  izor: "#3f9a42",
+  yeraine: "#3a9140",
+  koire: "#c4a428",
+  thyras: "#c9ae22",
+  spyrholm: "#7a68c4",
+  druntyr: "#b85a3c",
+  caravesse: "#5a8490",
 };
 
 export function marinerIsleFill(boardIsleId: MarinerBoardIsleId): string {
