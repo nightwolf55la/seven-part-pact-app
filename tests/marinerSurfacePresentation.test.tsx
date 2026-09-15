@@ -23,6 +23,7 @@ import type { SorcererExternalPresence } from "../shared/domain";
 import MarinerSurface from "../src/MarinerSurface";
 import {
   MARINER_ISLE_SELECTION_GLOW,
+  mapEndpointPoint,
   marinerIsleGeometry,
   marinerRouteGeometry,
 } from "../src/mariner-map-geometry";
@@ -589,6 +590,31 @@ describe("Mariner source-map piece presentation", () => {
     root.unmount();
     container.remove();
   });
+
+  it("shows a Visions forecast from current Storms, Typhoons, threatened occupied Routes, and Ravaged Isles", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const forecast = container.querySelector("[data-mariner-visions-forecast]");
+    expect(forecast).not.toBeNull();
+    expect(forecast?.textContent ?? "").toMatch(/Storms/);
+    expect(forecast?.textContent ?? "").toMatch(/Typhoon/);
+    expect(container.querySelector("[data-mariner-prevailing-wind]")).toBeNull();
+    expect(container.querySelector("[data-isle-stability]")).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps Market, Ravage, Beast, and Storm pieces visible without selection", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    expect(container.querySelector("[data-board-overlay-inspector]")).toBeNull();
+    expect(container.querySelector('[data-piece="market"][data-isle-id="scuttleport"]')).not.toBeNull();
+    expect(container.querySelector('[data-piece="ravage"][data-isle-id="druntyr"]')).not.toBeNull();
+    expect(container.querySelector('[data-piece="beast"]')).not.toBeNull();
+    expect(container.querySelector('[data-piece="storm"][data-region-id="sidereal_sea"][data-typhoon="true"]')).not.toBeNull();
+    expect(container.querySelector('[data-storm-piece="typhoon"]')).not.toBeNull();
+    expect(container.querySelector('[data-storm-piece="storm"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
 });
 
 describe("Mariner Sorcerer presence on the map", () => {
@@ -1000,6 +1026,37 @@ describe("Mariner desktop board hierarchy and overlay inspector", () => {
     expect(marker?.innerHTML).not.toBe(shipMarker?.innerHTML);
     const oldAnchor = marinerRouteGeometry(RAID_ROUTE)!.pieceAnchor;
     expect(marker?.getAttribute("transform") ?? "").not.toContain(`translate(${oldAnchor.x} ${oldAnchor.y})`);
+    root.unmount();
+    container.remove();
+  });
+
+  it("places the Ship sail on the aft side of the mast relative to the bow", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const marker = container.querySelector(`[data-route-occupancy-marker="ship"][data-route-id="${SHIP_ROUTE}"]`);
+    const sail = marker?.querySelector('[data-ship-part="sail"]');
+    expect(marker?.querySelector('[data-ship-pictogram="hull-mast-sail"]')).not.toBeNull();
+    expect(sail?.getAttribute("data-ship-sail-side")).toBe("aft");
+    expect(sail?.getAttribute("d") ?? "").not.toContain("L4.3");
+    expect(sail?.getAttribute("d") ?? "").toMatch(/L-?\d/);
+    root.unmount();
+    container.remove();
+  });
+
+  it("points the Raider marker toward the authoritative raided endpoint, reversing path tangent when needed", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const marker = container.querySelector(`[data-route-occupancy-marker="raider"][data-route-id="${RAID_ROUTE}"]`);
+    expect(marker?.getAttribute("data-raider-aligned")).toBe("toward-destination");
+    expect(marker?.getAttribute("data-raider-toward")).toBe("ishana");
+    const transform = marker?.getAttribute("transform") ?? "";
+    const parsed = transform.match(/translate\(([-\d.]+) ([-\d.]+)\) rotate\(([-\d.]+)\)/);
+    expect(parsed).not.toBeNull();
+    const originX = Number(parsed?.[1]);
+    const originY = Number(parsed?.[2]);
+    const headingDeg = Number(parsed?.[3]);
+    const target = mapEndpointPoint({ kind: "board_isle", boardIsleId: "ishana" });
+    const rad = (headingDeg * Math.PI) / 180;
+    const towardDot = Math.cos(rad) * (target.x - originX) + Math.sin(rad) * (target.y - originY);
+    expect(towardDot).toBeGreaterThan(0);
     root.unmount();
     container.remove();
   });

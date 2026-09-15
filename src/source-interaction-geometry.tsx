@@ -1,8 +1,11 @@
 import { useLayoutEffect, useRef } from "react";
-import type { MarinerBoardIsleId } from "../shared/domain";
+import type { MarinerBoardIsleId, MarinerExternalLandId } from "../shared/domain";
+import { MARINER_BOARD_ISLE_IDS, MARINER_EXTERNAL_LAND_IDS } from "../shared/domain";
 import type { NecromancerBuiltinGateId, NecromancerBuiltinPathSpaceId } from "../shared/domain";
 import marinerInteractionGeometryRaw from "./assets/source-boards/mariner-interaction-geometry.svg?raw";
 import necromancerInteractionGeometryRaw from "./assets/source-boards/necromancer-interaction-geometry.svg?raw";
+import { mapEndpointPoint } from "./mariner-map-geometry";
+import { alignHeadingToward } from "./mariner-marker-orientation";
 
 /** Generated PowerPoint-native interaction sprites. Referenced by application IDs; never parsed for identity. */
 export const MARINER_INTERACTION_GEOMETRY_RAW = marinerInteractionGeometryRaw;
@@ -217,6 +220,17 @@ export function sourceRouteMarkerPose(symbolId: string, normalOffset = 6): Sourc
   };
 }
 
+function towardMapPoint(toward: string | undefined): { x: number; y: number } | null {
+  if (toward === undefined) return null;
+  if ((MARINER_BOARD_ISLE_IDS as readonly string[]).includes(toward)) {
+    return mapEndpointPoint({ kind: "board_isle", boardIsleId: toward as MarinerBoardIsleId });
+  }
+  if ((MARINER_EXTERNAL_LAND_IDS as readonly string[]).includes(toward)) {
+    return mapEndpointPoint({ kind: "external_land", externalLandId: toward as MarinerExternalLandId });
+  }
+  return null;
+}
+
 export function SourceRouteOccupancyMarker({
   href,
   kind,
@@ -224,6 +238,7 @@ export function SourceRouteOccupancyMarker({
   label,
   toward,
   color,
+  threatened,
   onSelect,
 }: {
   href: string;
@@ -232,6 +247,7 @@ export function SourceRouteOccupancyMarker({
   label: string;
   toward?: string;
   color: string;
+  threatened?: boolean;
   onSelect: () => void;
 }) {
   const hostRef = useRef<SVGGElement>(null);
@@ -243,11 +259,23 @@ export function SourceRouteOccupancyMarker({
     if (pose === null) {
       host.removeAttribute("transform");
       host.setAttribute("data-marker-from", "unresolved");
+      host.removeAttribute("data-raider-aligned");
+      host.removeAttribute("data-tangent-reversed");
       return;
     }
-    host.setAttribute("transform", `translate(${pose.x} ${pose.y}) rotate(${pose.tangentDeg})`);
+    let headingDeg = pose.tangentDeg;
+    if (kind === "raider") {
+      const target = towardMapPoint(toward);
+      if (target !== null) {
+        const aligned = alignHeadingToward(pose.tangentDeg, pose, target);
+        headingDeg = aligned.headingDeg;
+        host.setAttribute("data-raider-aligned", "toward-destination");
+        host.setAttribute("data-tangent-reversed", aligned.reversed ? "true" : "false");
+      }
+    }
+    host.setAttribute("transform", `translate(${pose.x} ${pose.y}) rotate(${headingDeg})`);
     host.setAttribute("data-marker-from", "exact-source-path");
-  }, [href]);
+  }, [href, kind, toward]);
   return (
     <g
       ref={hostRef}
@@ -255,6 +283,7 @@ export function SourceRouteOccupancyMarker({
       data-route-id={routeId}
       data-route-occupancy-marker={kind}
       data-raider-toward={toward}
+      data-route-threatened={threatened ? "true" : undefined}
       aria-label={label}
       onClick={(event) => {
         event.stopPropagation();
@@ -282,7 +311,8 @@ export function SourceRouteOccupancyMarker({
           />
           <path
             data-ship-part="sail"
-            d="M0.6 -5.2 L4.3 -3.3 L0.6 -1.5 Z"
+            data-ship-sail-side="aft"
+            d="M0.4 -5.2 L-3.3 -3.3 L0.4 -1.5 Z"
             fill={color}
             stroke="#042f2e"
             strokeWidth={0.7}

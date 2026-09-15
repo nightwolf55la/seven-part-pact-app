@@ -135,6 +135,7 @@ import {
   MARINER_SEA_GEOMETRY,
 } from "./mariner-map-geometry";
 import { MARINER_SOURCE_BOARD, marinerOverlayLengthToBoard, marinerOverlayPointToBoard } from "./source-board-assets";
+import { marinerRouteOperationalView, marinerVisionsForecast } from "./mariner-operational-view";
 import {
   MARINER_INTERACTION_GEOMETRY_RAW,
   SourceGeometrySprite,
@@ -320,6 +321,9 @@ export default function MarinerSurface({
           {error}
         </div>
       )}
+      <p data-mariner-visions-forecast className="text-xs text-slate-600 dark:text-slate-300">
+        Visions forecast: {marinerVisionsForecast(mariner).summary}
+      </p>
       <ShipSanctumSummary
         mariner={mariner}
         world={world}
@@ -1035,6 +1039,7 @@ function MarinerMap({
           const toward = occupancy.kind === "raider"
             ? (occupancy.toward.kind === "board_isle" ? occupancy.toward.boardIsleId : occupancy.toward.externalLandId)
             : undefined;
+          const operational = marinerRouteOperationalView(mariner, route.routeId);
           return (
             <SourceRouteOccupancyMarker
               key={`marker-${route.routeId}`}
@@ -1043,6 +1048,7 @@ function MarinerMap({
               routeId={route.routeId}
               label={occupancy.kind === "ship" ? "Ship" : `Raider toward ${towardLabel(occupancy.toward)}`}
               toward={toward}
+              threatened={operational.threatened}
               color={color}
               onSelect={() => onSelect({ kind: "route", routeId: route.routeId })}
             />
@@ -1144,6 +1150,7 @@ function MarinerMap({
                     data-piece="storm"
                     data-region-id={sea.regionId}
                     data-storm-count={stormCount}
+                    data-storm-piece={storms.typhoon ? "typhoon" : "storm"}
                     data-typhoon={storms.typhoon ? "true" : "false"}
                     aria-label={storms.accessibleCount}
                     onClick={(event) => {
@@ -1153,9 +1160,15 @@ function MarinerMap({
                   >
                     {Array.from({ length: storms.tokenCount }, (_, index) => (
                       <g key={index} transform={`translate(${sea.slots.storm.x + index * 7} ${sea.slots.storm.y - index * 6})`}>
-                        <path d="M -10 4 Q -4 -10 4 -6 Q 10 -2 8 6 Q 0 10 -10 4 Z" fill={storms.typhoon ? "#1e293b" : "#334155"} stroke="#0f172a" />
+                        <path
+                          d={storms.typhoon
+                            ? "M-14 3 C-16 -8 -4 -16 6 -10 C14 -5 14 4 6 8 C16 7 16 -4 8 -12 C-2 -18 -16 -10 -14 3 Z"
+                            : "M-10 4 Q -4 -10 4 -6 Q 10 -2 8 6 Q 0 10 -10 4 Z"}
+                          fill={storms.typhoon ? "#1e293b" : "#475569"}
+                          stroke="#0f172a"
+                        />
                         {storms.typhoon && index === 0 && (
-                          <text x={0} y={18} textAnchor="middle" fontSize={8} fill="#0f172a">Typhoon</text>
+                          <text x={0} y={20} textAnchor="middle" fontSize={8} fill="#0f172a">{stormCount}</text>
                         )}
                       </g>
                     ))}
