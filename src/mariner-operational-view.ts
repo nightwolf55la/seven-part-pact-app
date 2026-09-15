@@ -145,3 +145,41 @@ export function marinerVisionsForecast(mariner: MarinerState): MarinerVisionsFor
     nextStormDestination: null,
   };
 }
+
+export function marinerIsleContextCopy(view: MarinerIsleOperationalView, name: string): string {
+  return [
+    name,
+    `${view.adjacentOccupiedCount} adjacent occupied Route${view.adjacentOccupiedCount === 1 ? "" : "s"}`,
+    view.marketPresent ? (view.rarity ? `Market · Rarity ${view.rarity}` : "Market present") : "Market absent",
+    `Nesting Beast: ${view.nestingBeastCount === 0 ? "none" : String(view.nestingBeastCount)}`,
+    `Ravage: ${view.ravageStormCount === 0 ? "none" : String(view.ravageStormCount)}`,
+  ].join(" · ");
+}
+
+export function marinerRouteContextCopy(
+  view: MarinerRouteOperationalView,
+  endpointA: string,
+  endpointB: string,
+  occupancyLabel: string,
+): string {
+  const toward = view.raidToward === null
+    ? null
+    : view.raidToward.kind === "board_isle"
+      ? view.raidToward.boardIsleId
+      : view.raidToward.externalLandId;
+  return [
+    `${endpointA} — ${endpointB}`,
+    occupancyLabel,
+    toward === null ? null : `toward ${toward}`,
+    view.threatened ? "threatened" : null,
+  ].filter((part): part is string => part !== null).join(" · ");
+}
+
+export function marinerSeaContextCopy(view: MarinerSeaOperationalView, name: string): string {
+  return [
+    name,
+    `Storms ${view.stormCount}`,
+    view.typhoon ? "Typhoon" : null,
+    view.beastCount > 0 ? `Beast ${view.beastCount}` : "Beast none",
+  ].filter((part): part is string => part !== null).join(" · ");
+}
