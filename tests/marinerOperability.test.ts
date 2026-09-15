@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type {
+  CampaignEvent,
   CampaignStateV5,
   CreateMarinerBeastInput,
   DenizenId,
@@ -43,7 +44,9 @@ import {
   canonicalizeRecordMarinerRavageResultInput,
   createMarinerBeastFingerprint,
   createMarinerShipFingerprint,
+  describeActivityEntry,
   isLogicalStateCommandType,
+  mapEventToActivityEntry,
   marinerRouteId,
   moveMarinerBeastFingerprint,
   moveMarinerShipFingerprint,
@@ -52,6 +55,7 @@ import {
   recordMarinerRavageResultFingerprint,
   validateCampaignStateV5Candidate,
 } from "../shared/domain";
+import { campaignEventValidator } from "../convex/validators";
 import type { CreateMarinerShipInput, MoveMarinerBeastInput } from "../shared/domain/mariner-operability-transitions";
 import {
   applyCreateMarinerShip,
@@ -673,34 +677,29 @@ describe("move_mariner_storm", () => {
     });
   });
 
-  it("rejects a nonadjacent destination, an empty source, and missing Wind confirmation", () => {
+  it("rejects an empty source and still ignores Wind attestation", () => {
     const before = initializedQuiet();
-    expectCode(
-      () => applyMoveMarinerStorm(before, moveStormInput(before, { destinationRegionId: "southeast_horizon" })),
-      "INVALID_CAMPAIGN_STATE",
-      /adjacent/,
-    );
     expectCode(
       () => applyMoveMarinerStorm(before, moveStormInput(before, { sourceRegionId: "thyrian_sea" })),
       "INVALID_CAMPAIGN_STATE",
       /Storm/,
     );
-    expectCode(
-      () => applyMoveMarinerStorm(before, moveStormInput(before, { confirmedNotAgainstPrevailingWind: false })),
-      "INVALID_CAMPAIGN_STATE",
-      /Wind/,
+    const withFalseAttestation = applyMoveMarinerStorm(
+      before,
+      moveStormInput(before, { confirmedNotAgainstPrevailingWind: false }),
     );
+    expect(withFalseAttestation.nextState.mariner.seaRegions.find((region) => region.regionId === "thyrian_sea")?.stormCount).toBe(1);
   });
 
   it("does not infer actual Wind from season", () => {
     const lateMonth = { ...initializedQuiet(), calendar: { monthOrdinal: 8 as MonthOrdinal } };
     const result = applyMoveMarinerStorm(lateMonth, moveStormInput(lateMonth));
     expect(result.nextState.mariner.seaRegions.find((region) => region.regionId === "thyrian_sea")?.stormCount).toBe(1);
-    expectCode(
-      () => applyMoveMarinerStorm(lateMonth, moveStormInput(lateMonth, { confirmedNotAgainstPrevailingWind: false })),
-      "INVALID_CAMPAIGN_STATE",
-      /Wind/,
+    const unattested = applyMoveMarinerStorm(
+      lateMonth,
+      moveStormInput(lateMonth, { confirmedNotAgainstPrevailingWind: false }),
     );
+    expect(unattested.nextState.mariner.seaRegions.find((region) => region.regionId === "thyrian_sea")?.stormCount).toBe(1);
   });
 
   it("removes destination bounding shipping when the move creates 2+ Storms", () => {
@@ -797,7 +796,7 @@ describe("move_mariner_ship", () => {
     expect(occupancyOf(result.nextState, TAHV_YERAINE)).toEqual({ kind: "ship" });
     expect(result.events[0]).toEqual({
       type: "mariner_ship_moved",
-      version: 1,
+      version: 2,
       data: expect.objectContaining({
         sourceRouteId: THYRAS_NEBELHEIM,
         destinationRouteId: TAHV_YERAINE,
@@ -807,13 +806,8 @@ describe("move_mariner_ship", () => {
     });
   });
 
-  it("requires the source Route to border the selected Isle and the destination to be empty and different", () => {
+  it("rejects an occupied or identical destination Route", () => {
     const before = initializedQuiet();
-    expectCode(
-      () => applyMoveMarinerShip(before, moveShipInput(before, { sourceIsleId: "ishana" })),
-      "INVALID_CAMPAIGN_STATE",
-      /endpoint|Isle/,
-    );
     expectCode(
       () => applyMoveMarinerShip(before, moveShipInput(before, { destinationRouteId: THYRAS_NEBELHEIM })),
       "INVALID_CAMPAIGN_STATE",
@@ -1500,7 +1494,7 @@ describe("create_mariner_ship", () => {
     expect(occupancyOf(result.nextState, THYRIAN_DRUNTYR)).toEqual({ kind: "ship" });
     expect(result.events[0]).toEqual({
       type: "mariner_ship_created",
-      version: 1,
+      version: 2,
       data: expect.objectContaining({
         sourceIsleId: "thyras",
         targetRouteId: THYRIAN_DRUNTYR,
@@ -1510,13 +1504,8 @@ describe("create_mariner_ship", () => {
     });
   });
 
-  it("rejects a nonadjacent Route and an occupied target", () => {
+  it("rejects an occupied target", () => {
     const before = initializedQuiet();
-    expectCode(
-      () => applyCreateMarinerShip(before, createShipInput(before, { targetRouteId: TAHV_YERAINE })),
-      "INVALID_CAMPAIGN_STATE",
-      /endpoint|adjacent|Isle/,
-    );
     expectCode(
       () => applyCreateMarinerShip(before, createShipInput(before, {
         sourceIsleId: "thyras",
@@ -1880,5 +1869,444 @@ describe("move_mariner_beast", () => {
       "STALE_COMMAND_PRECONDITION",
       /occupancy/,
     );
+  });
+});
+
+function omitKey<T extends object, K extends keyof T>(value: T, key: K): Omit<T, K> {
+  const { [key]: _removed, ...rest } = value;
+  return rest;
+}
+
+function findValidatorMembers(
+  validator: { kind?: string; members?: unknown[]; fields?: Record<string, { kind?: string; value?: unknown }> },
+  type: string,
+  version: number,
+): unknown[] {
+  if (validator.kind === "union") {
+    return (validator.members as Array<{ kind?: string }>).flatMap((member) =>
+      findValidatorMembers(member as never, type, version),
+    );
+  }
+  if (validator.kind === "object") {
+    const typeField = validator.fields?.type;
+    const versionField = validator.fields?.version;
+    if (typeField?.kind === "literal" && typeField.value === type && versionField?.kind === "literal" && versionField.value === version) {
+      return [validator];
+    }
+  }
+  return [];
+}
+
+function matchesValidator(
+  validator: {
+    kind?: string;
+    value?: unknown;
+    members?: unknown[];
+    element?: unknown;
+    fields?: Record<string, unknown>;
+    inner?: unknown;
+  },
+  value: unknown,
+): boolean {
+  switch (validator.kind) {
+    case "string":
+      return typeof value === "string";
+    case "number":
+    case "float64":
+      return typeof value === "number";
+    case "boolean":
+      return typeof value === "boolean";
+    case "null":
+      return value === null;
+    case "literal":
+      return value === validator.value;
+    case "any":
+      return true;
+    case "union":
+      return (validator.members as Array<{ kind?: string }>).some((member) => matchesValidator(member, value));
+    case "array":
+      return Array.isArray(value) && value.every((item) => matchesValidator(validator.element as { kind?: string }, item));
+    case "optional":
+      return value === undefined || matchesValidator(validator.inner as { kind?: string }, value);
+    case "object": {
+      if (value === null || typeof value !== "object" || Array.isArray(value)) {
+        return false;
+      }
+      const obj = value as Record<string, unknown>;
+      for (const [key, field] of Object.entries(validator.fields ?? {})) {
+        const fieldValidator = field as { kind?: string; inner?: unknown; isOptional?: string };
+        const optional = fieldValidator.kind === "optional" || fieldValidator.isOptional === "optional";
+        const inner = fieldValidator.kind === "optional" ? fieldValidator.inner as { kind?: string } : fieldValidator;
+        if (!(key in obj) || obj[key] === undefined) {
+          if (optional) {
+            continue;
+          }
+          return false;
+        }
+        if (!matchesValidator(inner, obj[key])) {
+          return false;
+        }
+      }
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
+function activityText(event: CampaignEvent): string {
+  return describeActivityEntry(mapEventToActivityEntry("evt_1", 9, event));
+}
+
+const V1_SHIP_CREATED = {
+  type: "mariner_ship_created" as const,
+  version: 1 as const,
+  data: {
+    sourceIsleId: "thyras" as MarinerBoardIsleId,
+    targetRouteId: THYRIAN_DRUNTYR,
+    immediatelyDestroyed: false,
+    rampagedBeasts: [] as const,
+  },
+};
+
+const V1_SHIP_MOVED = {
+  type: "mariner_ship_moved" as const,
+  version: 1 as const,
+  data: {
+    sourceIsleId: "thyras" as MarinerBoardIsleId,
+    sourceRouteId: THYRAS_NEBELHEIM,
+    destinationRouteId: TAHV_YERAINE,
+    occupancyKind: "ship" as const,
+    toward: null,
+    immediatelyDestroyed: false,
+    rampagedBeasts: [] as const,
+  },
+};
+
+describe("M5.4 table-authoritative Mariner ship/storm contract", () => {
+  it.each([
+    { label: "create", sourceIsleId: undefined },
+    { label: "create", sourceIsleId: "thyras" as MarinerBoardIsleId },
+  ])("direct Create Ship sourceIsleId=$sourceIsleId succeeds when otherwise coherent", ({ sourceIsleId }) => {
+    const before = initializedQuiet();
+    const base = createShipInput(before, sourceIsleId === undefined ? {} : { sourceIsleId });
+    const input = sourceIsleId === undefined
+      ? omitKey(base, "sourceIsleId") as CreateMarinerShipInput
+      : base;
+    const result = applyCreateMarinerShip(before, input);
+    expect(occupancyOf(result.nextState, THYRIAN_DRUNTYR)).toEqual({ kind: "ship" });
+    const created = result.events[0];
+    expect(created?.type).toBe("mariner_ship_created");
+    if (created?.type === "mariner_ship_created") {
+      expect(created.version).toBe(2);
+      expect(created.data.targetRouteId).toBe(THYRIAN_DRUNTYR);
+      expect(created.data.immediatelyDestroyed).toBe(false);
+      if (sourceIsleId === undefined) {
+        expect(created.data).not.toHaveProperty("sourceIsleId");
+      } else {
+        expect(created.data.sourceIsleId).toBe(sourceIsleId);
+      }
+    }
+  });
+
+  it.each([
+    { label: "move", sourceIsleId: undefined },
+    { label: "move", sourceIsleId: "thyras" as MarinerBoardIsleId },
+  ])("direct Move Ship sourceIsleId=$sourceIsleId succeeds when otherwise coherent", ({ sourceIsleId }) => {
+    const before = initializedQuiet();
+    const base = moveShipInput(before, sourceIsleId === undefined ? {} : { sourceIsleId });
+    const input = sourceIsleId === undefined
+      ? omitKey(base, "sourceIsleId") as MoveMarinerShipInput
+      : base;
+    const result = applyMoveMarinerShip(before, input);
+    expect(occupancyOf(result.nextState, THYRAS_NEBELHEIM)).toEqual({ kind: "empty" });
+    expect(occupancyOf(result.nextState, TAHV_YERAINE)).toEqual({ kind: "ship" });
+    const moved = result.events[0];
+    expect(moved?.type).toBe("mariner_ship_moved");
+    if (moved?.type === "mariner_ship_moved") {
+      expect(moved.version).toBe(2);
+      expect(moved.data.sourceRouteId).toBe(THYRAS_NEBELHEIM);
+      expect(moved.data.destinationRouteId).toBe(TAHV_YERAINE);
+      if (sourceIsleId === undefined) {
+        expect(moved.data).not.toHaveProperty("sourceIsleId");
+      } else {
+        expect(moved.data.sourceIsleId).toBe(sourceIsleId);
+      }
+    }
+  });
+
+  it("retains a genuine supplied source Isle even when it is not a Route endpoint", () => {
+    const before = initializedQuiet();
+    const result = applyCreateMarinerShip(before, createShipInput(before, {
+      sourceIsleId: "thyras",
+      targetRouteId: TAHV_YERAINE,
+    }));
+    expect(occupancyOf(result.nextState, TAHV_YERAINE)).toEqual({ kind: "ship" });
+    const created = result.events[0];
+    expect(created?.type).toBe("mariner_ship_created");
+    if (created?.type === "mariner_ship_created") {
+      expect(created.version).toBe(2);
+      expect(created.data.sourceIsleId).toBe("thyras");
+      expect(created.data.targetRouteId).toBe(TAHV_YERAINE);
+    }
+  });
+
+  it("keeps immediate hazard and newly trapped Beast Rampage consequences unchanged", () => {
+    const typhoon = setStorms(initializedQuiet(), "thyrian_sea", 2);
+    const destroyed = applyCreateMarinerShip(typhoon, omitKey(createShipInput(typhoon), "sourceIsleId") as CreateMarinerShipInput);
+    expect(occupancyOf(destroyed.nextState, THYRIAN_DRUNTYR)).toEqual({ kind: "empty" });
+    const created = destroyed.events[0];
+    expect(created?.type).toBe("mariner_ship_created");
+    if (created?.type === "mariner_ship_created") {
+      expect(created.data.immediatelyDestroyed).toBe(true);
+      expect(created.data.rampagedBeasts).toEqual([]);
+    }
+
+    let trappedBoard = applyCreateMarinerBeast(initializedQuiet(), createBeastInput(initializedQuiet(), {
+      regionId: "sunken_fleet",
+    })).nextState;
+    trappedBoard = setOccupancy(trappedBoard, SUNKEN_ORRERY_FAR, { kind: "ship" });
+    trappedBoard = setOccupancy(trappedBoard, SUNKEN_CARAVESSE_FAR, { kind: "ship" });
+    const trapped = applyCreateMarinerShip(trappedBoard, createShipInput(trappedBoard, {
+      sourceIsleId: "orrery",
+      targetRouteId: SUNKEN_CARAVESSE_ORRERY,
+      rampageResolutions: [{
+        denizenId: NEW_DEN,
+        destinationSeatId: "hierophant",
+        rampagingMethodEntryId: METHOD_1,
+      }],
+    }));
+    expect(trapped.nextState.mariner.beasts.find((beast) => beast.denizenId === NEW_DEN)?.condition).toBe("rampaging");
+    const trappedEvent = trapped.events[0];
+    if (trappedEvent?.type === "mariner_ship_created") {
+      expect(trappedEvent.data.rampagedBeasts).toEqual([{
+        denizenId: NEW_DEN,
+        destinationSeatId: "hierophant",
+      }]);
+    }
+  });
+
+  it.each([
+    {
+      type: "mariner_ship_created" as const,
+      v1: V1_SHIP_CREATED,
+      v2With: { ...V1_SHIP_CREATED, version: 2 as const },
+      v2Without: {
+        type: "mariner_ship_created" as const,
+        version: 2 as const,
+        data: {
+          targetRouteId: THYRIAN_DRUNTYR,
+          immediatelyDestroyed: false,
+          rampagedBeasts: [] as const,
+        },
+      },
+    },
+    {
+      type: "mariner_ship_moved" as const,
+      v1: V1_SHIP_MOVED,
+      v2With: { ...V1_SHIP_MOVED, version: 2 as const },
+      v2Without: {
+        type: "mariner_ship_moved" as const,
+        version: 2 as const,
+        data: {
+          sourceRouteId: THYRAS_NEBELHEIM,
+          destinationRouteId: TAHV_YERAINE,
+          occupancyKind: "ship" as const,
+          toward: null,
+          immediatelyDestroyed: false,
+          rampagedBeasts: [] as const,
+        },
+      },
+    },
+  ])("keeps $type v1 valid and accepts v2 with or without sourceIsleId", ({ type, v1, v2With, v2Without }) => {
+    expect(findValidatorMembers(campaignEventValidator as never, type, 1)).toHaveLength(1);
+    expect(findValidatorMembers(campaignEventValidator as never, type, 2)).toHaveLength(1);
+    expect(matchesValidator(campaignEventValidator as never, v1)).toBe(true);
+    expect(matchesValidator(campaignEventValidator as never, v2With)).toBe(true);
+    expect(matchesValidator(campaignEventValidator as never, v2Without)).toBe(true);
+    expect(matchesValidator(campaignEventValidator as never, {
+      ...v1,
+      data: omitKey(v1.data, "sourceIsleId"),
+    })).toBe(false);
+  });
+
+  it.each([
+    {
+      label: "created with source",
+      event: { ...V1_SHIP_CREATED, version: 2 as const },
+      expected: "Revision 9 — Created a Ship from thyras",
+    },
+    {
+      label: "created without source",
+      event: {
+        type: "mariner_ship_created" as const,
+        version: 2 as const,
+        data: {
+          targetRouteId: THYRIAN_DRUNTYR,
+          immediatelyDestroyed: false,
+          rampagedBeasts: [] as const,
+        },
+      },
+      expected: "Revision 9 — Created a Ship",
+    },
+    {
+      label: "moved with source",
+      event: { ...V1_SHIP_MOVED, version: 2 as const },
+      expected: "Revision 9 — Recorded Ship move from thyras",
+    },
+    {
+      label: "moved without source",
+      event: {
+        type: "mariner_ship_moved" as const,
+        version: 2 as const,
+        data: {
+          sourceRouteId: THYRAS_NEBELHEIM,
+          destinationRouteId: TAHV_YERAINE,
+          occupancyKind: "ship" as const,
+          toward: null,
+          immediatelyDestroyed: false,
+          rampagedBeasts: [] as const,
+        },
+      },
+      expected: "Revision 9 — Recorded Ship move",
+    },
+  ])("Activity History is truthful for v2 $label", ({ event, expected }) => {
+    expect(activityText(event as unknown as CampaignEvent)).toBe(expected);
+  });
+
+  it("Move Storm no longer requires Wind attestation from a new caller", () => {
+    const before = initializedQuiet();
+    const result = applyMoveMarinerStorm(
+      before,
+      omitKey(moveStormInput(before), "confirmedNotAgainstPrevailingWind") as MoveMarinerStormInput,
+    );
+    expect(result.nextState.mariner.seaRegions.find((region) => region.regionId === "bay_of_ishana")?.stormCount).toBe(0);
+    expect(result.nextState.mariner.seaRegions.find((region) => region.regionId === "thyrian_sea")?.stormCount).toBe(1);
+  });
+
+  it("accepts a valid non-adjacent destination and still applies destination hazard consequences", () => {
+    const withDestStorm = setStorms(initializedQuiet(), "southeast_horizon", 1);
+    const occupied = occupancyOf(withDestStorm, IZOR_UR).kind === "empty"
+      ? setOccupancy(withDestStorm, IZOR_UR, { kind: "ship" })
+      : withDestStorm;
+    const result = applyMoveMarinerStorm(occupied, moveStormInput(occupied, {
+      sourceRegionId: "bay_of_ishana",
+      destinationRegionId: "southeast_horizon",
+    }));
+    expect(result.nextState.mariner.seaRegions.find((region) => region.regionId === "bay_of_ishana")?.stormCount).toBe(0);
+    expect(result.nextState.mariner.seaRegions.find((region) => region.regionId === "southeast_horizon")?.stormCount).toBe(2);
+    expect(occupancyOf(result.nextState, IZOR_UR)).toEqual({ kind: "empty" });
+    const moved = result.events[0];
+    if (moved?.type === "mariner_storm_moved") {
+      expect(moved.data.typhoonScaleAtDestination).toBe(true);
+      expect(moved.data.destroyedRouteIds).toContain(IZOR_UR);
+    }
+    expect(() => validateCampaignStateV5Candidate(result.nextState)).not.toThrow();
+  });
+
+  it("still rejects same-source destination, invalid IDs, empty source, and stale expected state", () => {
+    const before = initializedQuiet();
+    expectCode(
+      () => applyMoveMarinerStorm(before, moveStormInput(before, {
+        sourceRegionId: "bay_of_ishana",
+        destinationRegionId: "bay_of_ishana",
+      })),
+      "INVALID_CAMPAIGN_STATE",
+      /differ/,
+    );
+    expectCode(
+      () => applyMoveMarinerStorm(before, moveStormInput(before, {
+        sourceRegionId: "not_a_sea" as MarinerSeaRegionId,
+      })),
+      "INVALID_CAMPAIGN_STATE",
+      /source sea region/,
+    );
+    expectCode(
+      () => applyMoveMarinerStorm(before, moveStormInput(before, {
+        destinationRegionId: "not_a_sea" as MarinerSeaRegionId,
+      })),
+      "INVALID_CAMPAIGN_STATE",
+      /destination sea region/,
+    );
+    expectCode(
+      () => applyMoveMarinerStorm(before, moveStormInput(before, { sourceRegionId: "thyrian_sea" })),
+      "INVALID_CAMPAIGN_STATE",
+      /Storm/,
+    );
+    const stale = moveStormInput(before);
+    expectCode(
+      () => applyMoveMarinerStorm(setStorms(before, "bay_of_ishana", 2), stale),
+      "STALE_COMMAND_PRECONDITION",
+      /storm/i,
+    );
+  });
+
+  it("preserves old accepted-command replay for payloads that still carry prior fields", async () => {
+    const before = initializedQuiet();
+    const createInput = createShipInput(before, { sourceIsleId: "thyras" });
+    expect(createInput.sourceIsleId).toBe("thyras");
+    const createFingerprint = createMarinerShipFingerprint(CAMPAIGN_A, createInput);
+    expect(createFingerprint).toMatch(/^create_mariner_ship:v1:/);
+    const prepare: () => OrdinaryLogicalCommandPreparation = () => ({
+      commandType: "create_mariner_ship",
+      commandFingerprint: createFingerprint,
+      apply: (current) => applyCreateMarinerShip(current, createInput),
+    });
+    const first = recordingIo({ campaign: campaignOf(before) });
+    const receipt = await executeOrdinaryLogicalCommand(
+      first.io,
+      { commandId: COMMAND_1, expectedCampaignId: CAMPAIGN_A },
+      prepare,
+    );
+    expect(receipt).toEqual({ revision: 5 });
+    expect(first.commits[0]?.events[0]).toMatchObject({
+      type: "mariner_ship_created",
+      version: 2,
+      data: { sourceIsleId: "thyras" },
+    });
+    expect(() => validateEventCoherenceForTest(first.commits[0]!, 1)).not.toThrow();
+
+    const replay = recordingIo({
+      campaign: campaignOf(first.commits[0]!.nextState, 5),
+      accepted: { commandType: "create_mariner_ship", commandFingerprint: createFingerprint, campaignRevision: 5 },
+      snapshot: first.commits[0]!.nextState,
+    });
+    const replayReceipt = await executeOrdinaryLogicalCommand(
+      replay.io,
+      { commandId: COMMAND_1, expectedCampaignId: CAMPAIGN_A },
+      prepare,
+    );
+    expect(replayReceipt).toEqual({ revision: 5 });
+    expect(replay.commits).toHaveLength(0);
+
+    const stormInput = moveStormInput(before);
+    expect(stormInput.confirmedNotAgainstPrevailingWind).toBe(true);
+    const stormFingerprint = moveMarinerStormFingerprint(CAMPAIGN_A, stormInput);
+    expect(stormFingerprint).toMatch(/^move_mariner_storm:v1:/);
+    expect(stormFingerprint).toContain("confirmedNotAgainstPrevailingWind");
+    const stormPrepare: () => OrdinaryLogicalCommandPreparation = () => ({
+      commandType: "move_mariner_storm",
+      commandFingerprint: stormFingerprint,
+      apply: (current) => applyMoveMarinerStorm(current, stormInput),
+    });
+    const stormFirst = recordingIo({ campaign: campaignOf(before) });
+    await executeOrdinaryLogicalCommand(
+      stormFirst.io,
+      { commandId: COMMAND_1, expectedCampaignId: CAMPAIGN_A },
+      stormPrepare,
+    );
+    expect(stormFirst.commits).toHaveLength(1);
+    const stormReplay = recordingIo({
+      campaign: campaignOf(stormFirst.commits[0]!.nextState, 5),
+      accepted: { commandType: "move_mariner_storm", commandFingerprint: stormFingerprint, campaignRevision: 5 },
+      snapshot: stormFirst.commits[0]!.nextState,
+    });
+    const stormReplayReceipt = await executeOrdinaryLogicalCommand(
+      stormReplay.io,
+      { commandId: COMMAND_1, expectedCampaignId: CAMPAIGN_A },
+      stormPrepare,
+    );
+    expect(stormReplayReceipt).toEqual({ revision: 5 });
+    expect(stormReplay.commits).toHaveLength(0);
   });
 });

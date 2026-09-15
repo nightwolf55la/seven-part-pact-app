@@ -1222,7 +1222,7 @@ export function buildMoveMarinerStormPayload(args: {
   readonly expectedCampaignId: string;
   readonly sourceRegionId: MarinerSeaRegionId;
   readonly destinationRegionId: MarinerSeaRegionId;
-  readonly confirmedNotAgainstPrevailingWind: boolean;
+  readonly confirmedNotAgainstPrevailingWind?: boolean;
   readonly expectedStormCounts: ReturnType<typeof captureStormCounts>;
   readonly expectedRouteOccupancies: ReturnType<typeof captureRouteOccupancies>;
   readonly expectedRelevantBeasts: ReturnType<typeof captureRelevantBeasts>;
@@ -1233,7 +1233,7 @@ export function buildMoveMarinerStormPayload(args: {
 export function buildMoveMarinerShipPayload(args: {
   readonly commandId: string;
   readonly expectedCampaignId: string;
-  readonly sourceIsleId: MarinerBoardIsleId;
+  readonly sourceIsleId?: MarinerBoardIsleId;
   readonly sourceRouteId: string;
   readonly destinationRouteId: string;
   readonly destinationToward: MarinerRouteEndpoint | null;
@@ -1254,7 +1254,7 @@ export function buildMoveMarinerShipPayload(args: {
 export function buildCreateMarinerShipPayload(args: {
   readonly commandId: string;
   readonly expectedCampaignId: string;
-  readonly sourceIsleId: MarinerBoardIsleId;
+  readonly sourceIsleId?: MarinerBoardIsleId;
   readonly targetRouteId: string;
   readonly expectedTargetOccupancy: MarinerRouteOccupancy;
   readonly expectedStormCounts: ReturnType<typeof captureStormCounts>;

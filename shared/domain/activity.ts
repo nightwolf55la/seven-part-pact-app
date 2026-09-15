@@ -241,14 +241,18 @@ function describeConfigEvent(event: CampaignEvent): string {
       return `Created Mariner Beast "${event.data.denizenName}"`;
     case "mariner_storm_moved":
       return "Recorded guided Storm move";
-    case "mariner_ship_moved":
+    case "mariner_ship_moved": {
+      const from = event.data.sourceIsleId !== undefined ? ` from ${event.data.sourceIsleId}` : "";
       return event.data.immediatelyDestroyed
-        ? "Recorded Ship move that was immediately destroyed"
-        : "Recorded Ship move";
-    case "mariner_ship_created":
+        ? `Recorded Ship move${from} that was immediately destroyed`
+        : `Recorded Ship move${from}`;
+    }
+    case "mariner_ship_created": {
+      const from = event.data.sourceIsleId !== undefined ? ` from ${event.data.sourceIsleId}` : "";
       return event.data.immediatelyDestroyed
-        ? "Created a Ship that was immediately destroyed"
-        : "Created a Ship";
+        ? `Created a Ship${from} that was immediately destroyed`
+        : `Created a Ship${from}`;
+    }
     case "mariner_beast_moved":
       return event.data.rampaged
         ? "Moved a Distrusting Beast that then Rampaged"

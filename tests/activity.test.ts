@@ -134,4 +134,70 @@ describe("describeActivityEntry", () => {
     });
     expect(describeActivityEntry(entry)).toBe("Revision 10 \u2014 Updated wizard character");
   });
+
+  it.each([
+    {
+      label: "created with source Isle",
+      event: {
+        type: "mariner_ship_created" as const,
+        version: 2 as const,
+        data: {
+          sourceIsleId: "thyras",
+          targetRouteId: "board_isle:tahv__board_isle:yeraine",
+          immediatelyDestroyed: false,
+          rampagedBeasts: [],
+        },
+      },
+      expected: "Revision 9 — Created a Ship from thyras",
+    },
+    {
+      label: "created without source Isle",
+      event: {
+        type: "mariner_ship_created" as const,
+        version: 2 as const,
+        data: {
+          targetRouteId: "board_isle:tahv__board_isle:yeraine",
+          immediatelyDestroyed: false,
+          rampagedBeasts: [],
+        },
+      },
+      expected: "Revision 9 — Created a Ship",
+    },
+    {
+      label: "moved with source Isle",
+      event: {
+        type: "mariner_ship_moved" as const,
+        version: 2 as const,
+        data: {
+          sourceIsleId: "thyras",
+          sourceRouteId: "board_isle:thyras__external_land:nebelheim",
+          destinationRouteId: "board_isle:tahv__board_isle:yeraine",
+          occupancyKind: "ship" as const,
+          toward: null,
+          immediatelyDestroyed: false,
+          rampagedBeasts: [],
+        },
+      },
+      expected: "Revision 9 — Recorded Ship move from thyras",
+    },
+    {
+      label: "moved without source Isle",
+      event: {
+        type: "mariner_ship_moved" as const,
+        version: 2 as const,
+        data: {
+          sourceRouteId: "board_isle:thyras__external_land:nebelheim",
+          destinationRouteId: "board_isle:tahv__board_isle:yeraine",
+          occupancyKind: "ship" as const,
+          toward: null,
+          immediatelyDestroyed: false,
+          rampagedBeasts: [],
+        },
+      },
+      expected: "Revision 9 — Recorded Ship move",
+    },
+  ])("Activity History is truthful for Mariner ship v2 $label", ({ event, expected }) => {
+    const entry = mapEventToActivityEntry("evt_1", 9, event as unknown as CampaignEvent);
+    expect(describeActivityEntry(entry)).toBe(expected);
+  });
 });

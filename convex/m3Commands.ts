@@ -3164,7 +3164,7 @@ export const moveMarinerStorm = mutation({
     expectedCampaignId: v.string(),
     sourceRegionId: v.string(),
     destinationRegionId: v.string(),
-    confirmedNotAgainstPrevailingWind: v.boolean(),
+    confirmedNotAgainstPrevailingWind: v.optional(v.boolean()),
     expectedStormCounts: v.array(marinerExpectedStormArg),
     expectedRouteOccupancies: v.array(marinerExpectedRouteArg),
     expectedRelevantBeasts: v.array(marinerExpectedBeastArg),
@@ -3196,7 +3196,7 @@ export const moveMarinerShip = mutation({
   args: {
     commandId: v.string(),
     expectedCampaignId: v.string(),
-    sourceIsleId: v.string(),
+    sourceIsleId: v.optional(v.string()),
     sourceRouteId: v.string(),
     destinationRouteId: v.string(),
     destinationToward: v.union(marinerRouteEndpointArg, v.null()),
@@ -3238,7 +3238,7 @@ export const createMarinerShip = mutation({
   args: {
     commandId: v.string(),
     expectedCampaignId: v.string(),
-    sourceIsleId: v.string(),
+    sourceIsleId: v.optional(v.string()),
     targetRouteId: v.string(),
     expectedTargetOccupancy: marinerRouteOccupancyArg,
     expectedStormCounts: v.array(marinerExpectedStormArg),

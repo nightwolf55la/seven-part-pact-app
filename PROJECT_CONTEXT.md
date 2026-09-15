@@ -6,6 +6,35 @@ Build a shared web application supporting play of the tabletop RPG **Seven-Part 
 
 The application assists the tabletop game rather than replacing its creative, interpretive, or narrative play. It should make persistent campaign state, Domain boards, shared references, recurring procedures, and table-facing bookkeeping easier to manage while preserving the judgment and authority of the Celestial Audience.
 
+## Rules-aware assistance; table-authoritative legality
+
+The Seven-Part Pact application is a rules-aware play aid, not a tabletop
+rules-enforcement engine.
+
+Written rules should make normal play easier through source-shaped defaults,
+ordinary/legal-choice highlighting, known consequences, previews, bookkeeping,
+and reminders.
+
+The application generally should not refuse a gameplay action solely because it
+differs from the default written procedure when the requested result is
+representable and internally coherent.
+
+Hard server validation remains authoritative for state/referential integrity,
+stale writes, idempotency, unambiguous command meaning, deterministic command
+consequences, destructive safety, representability, and persistence/recovery
+correctness.
+
+Gameplay legality outside those properties should normally be guidance rather
+than mandatory attestations/blocking validation.
+
+Known context should reduce player effort.
+Do not require players to re-enter or certify context merely for provenance.
+Do not fabricate missing gameplay context for immutable audit.
+
+Apply prospectively / when concrete UX friction exposes a problematic
+validator.
+Do not perform a repository-wide validator relaxation.
+
 ## Sources of Truth
 
 For written game rules, the authoritative sources are the uploaded/current Rulebook, Grimoire, seven Codices, Cards, and Materials.

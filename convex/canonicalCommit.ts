@@ -314,6 +314,8 @@ const CURRENT_V5_EVENT_VERSION_REQUIREMENTS: Record<string, { type: string; vers
   set_engagement_target: { type: "engagement_target_changed", version: 2 },
   reschedule_engagement: { type: "engagement_rescheduled", version: 2 },
   blackmail_faustian_community: { type: "faustian_community_blackmailed", version: 2 },
+  create_mariner_ship: { type: "mariner_ship_created", version: 2 },
+  move_mariner_ship: { type: "mariner_ship_moved", version: 2 },
 };
 
 function validateM3EventCoherence(input: CanonicalCommitInput): void {

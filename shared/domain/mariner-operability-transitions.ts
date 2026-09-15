@@ -101,14 +101,14 @@ export interface CreateMarinerBeastInput {
 export interface MoveMarinerStormInput {
   readonly sourceRegionId: MarinerSeaRegionId;
   readonly destinationRegionId: MarinerSeaRegionId;
-  readonly confirmedNotAgainstPrevailingWind: boolean;
+  readonly confirmedNotAgainstPrevailingWind?: boolean;
   readonly expectedStormCounts: readonly ExpectedStormCount[];
   readonly expectedRouteOccupancies: readonly ExpectedRouteOccupancy[];
   readonly expectedRelevantBeasts: readonly ExpectedBeastLocation[];
 }
 
 export interface MoveMarinerShipInput {
-  readonly sourceIsleId: MarinerBoardIsleId;
+  readonly sourceIsleId?: MarinerBoardIsleId;
   readonly sourceRouteId: MarinerRouteId | string;
   readonly destinationRouteId: MarinerRouteId | string;
   readonly destinationToward: MarinerRouteEndpoint | null;
@@ -121,7 +121,7 @@ export interface MoveMarinerShipInput {
 }
 
 export interface CreateMarinerShipInput {
-  readonly sourceIsleId: MarinerBoardIsleId;
+  readonly sourceIsleId?: MarinerBoardIsleId;
   readonly targetRouteId: MarinerRouteId | string;
   readonly expectedTargetOccupancy: MarinerRouteOccupancy;
   readonly expectedStormCounts: readonly ExpectedStormCount[];
@@ -306,6 +306,18 @@ function ensureRampagingMethod(
     methodEntryId,
     definition: { kind: "standard", method: "rampaging" },
   }).nextState;
+}
+
+function optionalProvenanceBoardIsle(
+  sourceIsleId: MarinerBoardIsleId | undefined,
+): { readonly sourceIsleId?: MarinerBoardIsleId } {
+  if (sourceIsleId === undefined) {
+    return {};
+  }
+  if (!isValidMarinerBoardIsleId(sourceIsleId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown board Isle: ${sourceIsleId}`);
+  }
+  return { sourceIsleId };
 }
 
 function relevantSeaRegions(regionId: MarinerSeaRegionId): MarinerSeaRegionId[] {
@@ -498,13 +510,12 @@ export function canonicalizeMoveMarinerStormInput(input: MoveMarinerStormInput):
   if (!isValidMarinerSeaRegionId(input.destinationRegionId)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown destination sea region: ${input.destinationRegionId}`);
   }
-  if (typeof input.confirmedNotAgainstPrevailingWind !== "boolean") {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", "Wind legality confirmation is required");
-  }
   return {
     sourceRegionId: input.sourceRegionId,
     destinationRegionId: input.destinationRegionId,
-    confirmedNotAgainstPrevailingWind: input.confirmedNotAgainstPrevailingWind,
+    ...(typeof input.confirmedNotAgainstPrevailingWind === "boolean"
+      ? { confirmedNotAgainstPrevailingWind: input.confirmedNotAgainstPrevailingWind }
+      : {}),
     expectedStormCounts: input.expectedStormCounts.map((entry) => ({ ...entry })),
     expectedRouteOccupancies: input.expectedRouteOccupancies.map((entry) => ({ ...entry })),
     expectedRelevantBeasts: input.expectedRelevantBeasts.map((entry) => ({ ...entry })),
@@ -512,9 +523,6 @@ export function canonicalizeMoveMarinerStormInput(input: MoveMarinerStormInput):
 }
 
 export function canonicalizeMoveMarinerShipInput(input: MoveMarinerShipInput): MoveMarinerShipInput {
-  if (!isValidMarinerBoardIsleId(input.sourceIsleId)) {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown board Isle: ${input.sourceIsleId}`);
-  }
   if (!isValidMarinerRouteId(input.sourceRouteId)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown source Route: ${input.sourceRouteId}`);
   }
@@ -522,7 +530,7 @@ export function canonicalizeMoveMarinerShipInput(input: MoveMarinerShipInput): M
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown destination Route: ${input.destinationRouteId}`);
   }
   return {
-    sourceIsleId: input.sourceIsleId,
+    ...optionalProvenanceBoardIsle(input.sourceIsleId),
     sourceRouteId: input.sourceRouteId,
     destinationRouteId: input.destinationRouteId,
     destinationToward: input.destinationToward,
@@ -536,14 +544,11 @@ export function canonicalizeMoveMarinerShipInput(input: MoveMarinerShipInput): M
 }
 
 export function canonicalizeCreateMarinerShipInput(input: CreateMarinerShipInput): CreateMarinerShipInput {
-  if (!isValidMarinerBoardIsleId(input.sourceIsleId)) {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown board Isle: ${input.sourceIsleId}`);
-  }
   if (!isValidMarinerRouteId(input.targetRouteId)) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown target Route: ${input.targetRouteId}`);
   }
   return {
-    sourceIsleId: input.sourceIsleId,
+    ...optionalProvenanceBoardIsle(input.sourceIsleId),
     targetRouteId: input.targetRouteId,
     expectedTargetOccupancy: input.expectedTargetOccupancy,
     expectedStormCounts: input.expectedStormCounts.map((entry) => ({ ...entry })),
@@ -713,18 +718,8 @@ export function applyMoveMarinerStorm(
 ): MarinerOperabilityTransitionResult {
   const input = canonicalizeMoveMarinerStormInput(rawInput);
   const current = requireInitialized(state);
-  if (!input.confirmedNotAgainstPrevailingWind) {
-    throw new DomainError(
-      "INVALID_CAMPAIGN_STATE",
-      "Record Guided Storm Move requires confirmation that the move is not against the actual prevailing Wind",
-    );
-  }
   if (input.sourceRegionId === input.destinationRegionId) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Storm source and destination must differ");
-  }
-  const sourceDef = seaRegionDefinition(input.sourceRegionId);
-  if (sourceDef === undefined || !sourceDef.adjacentRegionIds.includes(input.destinationRegionId)) {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", "Destination is not an adjacent sea or Horizon region");
   }
   const requiredRegions = [
     ...new Set([input.sourceRegionId, ...relevantSeaRegions(input.destinationRegionId)]),
@@ -776,10 +771,6 @@ export function applyMoveMarinerShip(
   const destDef = marinerRouteDefinition(input.destinationRouteId);
   if (sourceDef === undefined || destDef === undefined) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Unknown Route");
-  }
-  const sourceIsleEndpoint: MarinerRouteEndpoint = { kind: "board_isle", boardIsleId: input.sourceIsleId };
-  if (!marinerRouteHasEndpoint(sourceDef, sourceIsleEndpoint)) {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", "Source Route must have the selected Isle as an endpoint");
   }
   if (input.sourceRouteId === input.destinationRouteId) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Source and destination Routes must be different");
@@ -869,9 +860,9 @@ export function applyMoveMarinerShip(
   );
   return commit(working, [{
     type: "mariner_ship_moved",
-    version: 1,
+    version: 2,
     data: {
-      sourceIsleId: input.sourceIsleId,
+      ...optionalProvenanceBoardIsle(input.sourceIsleId),
       sourceRouteId: input.sourceRouteId as MarinerRouteId,
       destinationRouteId: input.destinationRouteId as MarinerRouteId,
       occupancyKind: transferred.kind,
@@ -912,10 +903,6 @@ export function applyCreateMarinerShip(
   const targetDef = marinerRouteDefinition(input.targetRouteId);
   if (targetDef === undefined) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Unknown Route");
-  }
-  const sourceIsleEndpoint: MarinerRouteEndpoint = { kind: "board_isle", boardIsleId: input.sourceIsleId };
-  if (!marinerRouteHasEndpoint(targetDef, sourceIsleEndpoint)) {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", "Target Route must have the selected Isle as an endpoint");
   }
   const targetRoute = current.routes.find((route) => route.routeId === input.targetRouteId);
   if (targetRoute === undefined) {
@@ -964,9 +951,9 @@ export function applyCreateMarinerShip(
   );
   return commit(working, [{
     type: "mariner_ship_created",
-    version: 1,
+    version: 2,
     data: {
-      sourceIsleId: input.sourceIsleId,
+      ...optionalProvenanceBoardIsle(input.sourceIsleId),
       targetRouteId: input.targetRouteId as MarinerRouteId,
       immediatelyDestroyed,
       rampagedBeasts,
