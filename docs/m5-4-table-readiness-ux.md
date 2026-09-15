@@ -36,7 +36,7 @@ UX-004, UX-009, UX-010, UX-016, UX-017, UX-018, UX-022
 - **UX-011** shared Laws convention
 - **UX-020** general Save-button policy (UX-018 is a concrete Depth-only improvement and does not close this)
 - **UX-021** general cross-Domain shell convention
-- **UX-024** Storm/Typhoon spatial Sea pieces and drag movement
+- **UX-024** Storm drag/drop (spatial pieces and click-to-guide are in this operability pass; drag remains DEFERRED)
 - Warlock / Sage UI
 
 ### Product target for this run
@@ -304,7 +304,7 @@ Supports: UX-001, UX-019.
 - **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Strongly dependent on UX-004 and related to UX-009.
 - **Approved batch:** Batch 2
-- **Resolution / implementation note:** Batch 2 was later corrected to a PowerPoint-native exported SVG decorative base (`mariner-board.svg`) under live Isle/Route/Sea hit regions and state tokens. Human retest then found the exact source board substantially improved Mariner, but remaining visible interaction overlays still used approximate ellipse/path geometry. Visible Isle/Route overlays now reuse the same PowerPoint-native source objects via generated `mariner-interaction-geometry.svg` symbols (explicit Draft-4 shape mapping, not label parsing). A further human retest found occupied exact-source Routes filling connector wedges, compound Isle selection accumulating translucent overlap, and a redundant application "Archipelago of Isha" title colliding with source Druj-Lands framing. Occupied Routes are now stroke-only; Isle selection uses a composited SourceAlpha silhouette; Ravage uses the combined Isle mask; the duplicate app title was removed. A later human retest found exact board geometry good, but large Ship/Raider illustrations cluttered and drifted from Routes, and the selected-Isle hard ring was too thick/clipped. Occupancy is now route-first: exact source curve, thinner solid Ship/Raider stroke, plus a compact semantic marker positioned from exact Route path length/tangent. Isle selection is a soft source-shaped shoreline glow, with presentation-only per-Isle color and expanded filter bounds. A final human-retest micro-polish then gave the Ship marker a minimal sail so it still reads as a Ship at board scale, replaced the ambiguous Raider diamond with a compact directional marker aligned to the Route tangent, and tuned Isle shoreline glow/edge color into each Isle’s own fill family. Exact Sea highlighting bounded by Routes and the outer map rim is feasible but deferred; it would need explicit closed presentation polygons and is not attempted here. Approximate geometry remains only for Sea hits, token anchors, and invisible convenience hits. Overlay inspector does not resize the map. Status remains FIXED — NEEDS HUMAN RETEST.
+- **Resolution / implementation note:** Batch 2 was later corrected to a PowerPoint-native exported SVG decorative base (`mariner-board.svg`) under live Isle/Route/Sea hit regions and state tokens. Human retest then found the exact source board substantially improved Mariner, but remaining visible interaction overlays still used approximate ellipse/path geometry. Visible Isle/Route overlays now reuse the same PowerPoint-native source objects via generated `mariner-interaction-geometry.svg` symbols (explicit Draft-4 shape mapping, not label parsing). A further human retest found occupied exact-source Routes filling connector wedges, compound Isle selection accumulating translucent overlap, and a redundant application "Archipelago of Isha" title colliding with source Druj-Lands framing. Occupied Routes are now stroke-only; Isle selection uses a composited SourceAlpha silhouette; Ravage uses the combined Isle mask; the duplicate app title was removed. A later human retest found exact board geometry good, but large Ship/Raider illustrations cluttered and drifted from Routes, and the selected-Isle hard ring was too thick/clipped. Occupancy is now route-first: exact source curve, thinner solid Ship/Raider stroke, plus a compact semantic marker positioned from exact Route path length/tangent. Isle selection is a soft source-shaped shoreline glow, with presentation-only per-Isle color and expanded filter bounds. A final human-retest micro-polish then gave the Ship marker a minimal sail so it still reads as a Ship at board scale, replaced the ambiguous Raider diamond with a compact directional marker aligned to the Route tangent, and tuned Isle shoreline glow/edge color into each Isle’s own fill family. A later human retest found the sail sitting on the wrong side of the mast and the Raider pennant pointing away from the raided Isle. APPLICATION DESIGN: the Ship pictogram is now rotated as a whole along the exact Route tangent with the sail drawn on the pictogram aft side (bow remains +X). That rotation is presentation-only; ordinary Ships still have no gameplay travel direction. The Raider marker uses the same exact-path tangent, then reverses it when that tangent points away from the authoritative `toward` endpoint. Accessible Raider labels stay destination-based. Exact Sea highlighting bounded by Routes and the outer map rim is feasible but deferred; it would need explicit closed presentation polygons and is not attempted here. Approximate geometry remains only for Sea hits, token anchors, and invisible convenience hits. Overlay inspector does not resize the map. Status remains FIXED — NEEDS HUMAN RETEST.
 
 ### UX-011
 
@@ -523,10 +523,71 @@ Supports: UX-001, UX-019.
 - **Likely scope:** MARINER
 - **Source/rules relevance:** Storm/Typhoon counts and Guided Storm movement already exist. Exact route-bounded Sea polygons are not required merely to display or drag a Storm.
 - **Suggested direction:** Future interaction polish could use a Sea presentation anchor, a generous invisible Sea drop target, valid-Sea highlight during drag, the existing authoritative move command, and a keyboard/non-drag equivalent.
-- **Current status:** DEFERRED
+- **Current status:** PARTIALLY ADDRESSED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Related to UX-010. Does not require exact Sea polygons.
-- **Approved batch:** Not Batch 2
-- **Resolution / implementation note:** Recorded during Batch 2 Mariner occupancy/selection polish. Not implemented in this pass. No new move semantics and no Sea topology change.
+- **Approved batch:** Not Batch 2 originally; spatial pieces and click-to-guide included in the Batch 2 Mariner operability pass. Drag/drop remains DEFERRED.
+- **Resolution / implementation note:** Storms/Typhoons now render as spatial Sea pieces at presentation-only Sea anchors (compact swirl; stronger Typhoon swirl plus count). Click-to-guide uses existing `adjacentRegionIds` plus `moveMarinerStorm` / `buildMoveMarinerStormPayload` / `expectedForMoveStorm`. Legal destination Seas are highlighted on the existing broad Sea hit ellipses. Wind confirmation remains required because the software does not know actual prevailing Wind. Drag/drop is not implemented. No exact Sea polygons. No new write contract.
+
+### UX-025
+
+- **Surface / Domain:** Mariner
+- **Short title:** Critical Mariner operational state is not visible at a glance
+- **Human observation:** The map should allow the table to scan weather, shipping, Stability, Markets, Ravage, Beasts, and exceptional threats without opening each inspector.
+- **Reproduction / context:** Open Mariner with nothing selected. Important board state should be readable across the map.
+- **Category:** DISCOVERABILITY / USABILITY
+- **Severity:** P1
+- **Likely scope:** MARINER
+- **Source/rules relevance:** SOURCE: Storms, Typhoons (Storms ≥ 2 as current presentation), Route occupancy, Markets/Rarity, Ravage counts, and Beast locations are current Mariner state. Map Stability and prevailing Wind are not encoded in current domain/state. APPLICATION DESIGN: compact tokens, Visions forecast, and hover/focus copy; not new rules.
+- **Suggested direction:** Show encoded operational state on the map; keep explanations on hover/focus; keep mutations on selection.
+- **Current status:** FIXED — NEEDS HUMAN RETEST
+- **Dependencies / duplicates:** Related to UX-010, UX-024, UX-026.
+- **Approved batch:** Batch 2 operability pass
+- **Resolution / implementation note:** Always-visible: Route occupancy/markers, Storm/Typhoon pieces, Markets (with Rarity cue when present), Ravage silhouette plus compact count, Beast tokens, immediate-hazard rings on threatened occupied Routes, and a read-only Visions forecast. Omitted pending encoded derivation: Map Stability numbers and prevailing Wind. Hover/focus exposes derived operational copy. Nothing VERIFIED.
+
+### UX-026
+
+- **Surface / Domain:** Mariner
+- **Short title:** Mariner management actions are organized like generic CRUD instead of map context
+- **Human observation:** Selecting an Isle currently exposes operations such as Ship creation/movement that conceptually belong to Routes. The selected map object should determine the relevant information and actions.
+- **Reproduction / context:** Select an Isle, then a Route, then a Sea. Actions should match the selected object.
+- **Category:** WORKFLOW
+- **Severity:** P1
+- **Likely scope:** MARINER
+- **Source/rules relevance:** SOURCE: existing create/move Ship and Guide Storm commands already take Route or Sea identities. APPLICATION DESIGN: inspector information architecture only.
+- **Suggested direction:** Isle actions stay Isle-specific; Route owns Ship/Raider operations; Sea is weather-centric.
+- **Current status:** FIXED — NEEDS HUMAN RETEST
+- **Dependencies / duplicates:** Related to UX-025 and UX-024.
+- **Approved batch:** Batch 2 operability pass
+- **Resolution / implementation note:** Isle inspector keeps Market, Ravage, Record Ravage Result, Beast facts, and Lore. Normal Create Ship / Record Ship Move moved to the Route inspector using the selected Route as the fixed target/source. Sea inspector is weather-centric and starts click-to-guide Storm. Advanced/correct state remains available. Create/Move Ship `sourceIsleId` uses the Route catalog's board-isle endpoint A, or B if A is an external land.
+
+---
+
+## Mariner operability — SOURCE / INFERENCE / APPLICATION DESIGN
+
+**SOURCE (Draft-4 / current domain, not invented):**
+- Storms live on Seas; Guided Storm movement requires an adjacent Sea or Horizon and table confirmation that the move is not against the actual prevailing Wind.
+- Typhoon-scale shipping hazard uses existing helpers (`>= 2` storms, or `>= 1` storm plus a Beast in the same Sea).
+- Route occupancy is Empty / Ship / Raider; Raider `toward` is the authoritative raided endpoint.
+- Market is `{ present: false }` or `{ present: true, rarity: string | null }`.
+- Ravage is persisted `ravageStormCount`.
+- Beasts have Sea or Isle locations and encoded conditions.
+
+**INFERENCE (necessary consequences only):**
+- A Typhoon presentation label follows the existing `stormCount >= 2` helper.
+- Immediate hazard on an occupied Route is a read-only warning, not an automatic mutation.
+- Legal Guide Storm destinations are the catalog `adjacentRegionIds`.
+
+**APPLICATION DESIGN (not new game rules):**
+- Ship sail-aft pictogram and Raider destination-aligned heading.
+- Storm/Typhoon SVG pieces and Sea presentation anchors.
+- Stability badges omitted: Map Stability is not encoded; do not invent a formula.
+- Prevailing Wind chrome omitted: software does not know actual Wind; do not guess from calendar/season.
+- Next-Storm destination omitted from forecast: not deterministic from current state.
+- Visions forecast is a bookkeeping preview of current Storms, Typhoon seas, threatened occupied Routes, and Ravaged Isles.
+- Hover/focus operational copy and contextual inspectors.
+- Click-to-guide Storm; drag/drop deferred.
+
+Do not treat application-design forecasts as new game rules.
 
 ---
 
@@ -555,23 +616,32 @@ Batch 1 (merged PR #28):
 | 2 | `fb8a841394656e82a342bb3d2a5751b40d45574a` | M5.4 UX B1: make Gates setup source-shaped |
 | 3 | `8776ac8b85becfb9e63bba9ea7ffc90a8f1c06c7` | M5.4 UX B1: add representative review readiness |
 
-Batch 2:
+Batch 2 visual bodies:
 
 | Body | SHA | Subject |
 |---|---|---|
 | 1 | `c3eb8af5f71e160f702362d7c1fa63c2899a60d9` | M5.4 UX B2: expand desktop Mariner board |
 | 2 | `99e3bfd4d5ae396ad673cb8a426209fc272baa11` | M5.4 UX B2: reshape the Gates board |
-| 3 | *(this commit)* | M5.4 UX B2: finish desktop reading pass |
+| 3 | *(earlier commit)* | M5.4 UX B2: finish desktop reading pass |
+
+Batch 2 Mariner operability pass:
+
+| Body | SHA | Subject |
+|---|---|---|
+| A | `8db4b0fc1499b06e977a1bd20cd96f7f210aff62` | M5.4 UX B2: expose Mariner operational state |
+| B | `204db083c6dd0400ec500a5a4d92368e06816411` | M5.4 UX B2: make Mariner map actions contextual |
+| C | *(this commit)* | M5.4 UX B2: add Mariner weather interaction |
 
 ## Browser / desktop inspection (implementation worker)
 
-Inspected at **1600×1000** against disposable Development `academic-gazelle-299` via local Vite. No mutations were sent. `wry-boar-766` was not used. **No Production.** **No function sync.**
+Inspected at **1600×1000** against disposable Development `academic-gazelle-299` via local Vite (`http://localhost:5183/`). No mutations were sent. Guide Storm was entered and cancelled. `wry-boar-766` was not used. **No Production.** **No function sync.**
 
 Implementation-worker observations (not human verification):
 
-- Mariner: PowerPoint-native source SVG is the decorative map; live hits/tokens overlay it; compact Ship/Sanctum; overlay does not resize the SVG; no normal horizontal scrollbar.
-- Necromancer: PowerPoint-native source SVG is the decorative Gates board; live Gate/path overlays remain; Depth stepper; no raw owner UUID; overlay does not resize the board.
-- Compendium / Hierophant / Sorcerer / Faustian: inspected for shared-width regression only.
+- Mariner unselected: PowerPoint-native source SVG remains dominant; Visions forecast is compact; Storms, Ships, Raider, and Scuttleport Market are visible without clicking. No Stability numbers or prevailing Wind chrome (not encoded). This campaign had no Beasts and no Ravaged Isles. No horizontal overflow.
+- Hover/focus copy appears in the status strip when a map object is selected (and on keyboard focus in tests). Isle/Route/Sea inspectors match the selected object: Isle has no Ship CRUD; Route owns Record Ship Move; Sea is weather-centric with Guide Storm...
+- Guide Storm highlights only adjacent Sea hit ellipses; Cancel/Escape exits without write. Overlay inspector does not resize the map.
+- Necromancer / other Domains were not re-audited in this operability pass.
 
 ## New UX findings from this run
 

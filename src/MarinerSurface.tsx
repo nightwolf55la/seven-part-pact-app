@@ -72,6 +72,7 @@ import {
   expectedForRavageResult,
   CREATE_BEAST_LABEL,
   CREATE_SHIP_LABEL,
+  GUIDE_STORM_LABEL,
   distrustingBeastsInRegion,
   builtinBeastElement,
   builtinBeastName,
@@ -160,6 +161,12 @@ type Selection =
   | { readonly kind: "route"; readonly routeId: string }
   | { readonly kind: "region"; readonly regionId: MarinerSeaRegionId };
 
+type StormGuide = {
+  readonly sourceRegionId: MarinerSeaRegionId;
+  readonly destinationRegionId: MarinerSeaRegionId | null;
+  readonly snapshot: ReturnType<typeof captureOperabilityBoard>;
+};
+
 const fieldClass =
   "text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 w-full text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-300 dark:focus:ring-teal-800";
 const btnClass =
@@ -220,6 +227,7 @@ export default function MarinerSurface({
   const [setup, setSetup] = useState<MarinerSetupDraft>(emptyDraft);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [contextFocus, setContextFocus] = useState<Selection | null>(null);
+  const [stormGuide, setStormGuide] = useState<StormGuide | null>(null);
   const [lawDraft, setLawDraft] = useState<string[]>([...mariner.selectedLawOfSeaIds]);
   const [shipDraft, setShipDraft] = useState(mariner.shipPlaceId ?? "");
   const [confirmRemove, setConfirmRemove] = useState<MarinerBeastState | null>(null);
@@ -268,6 +276,36 @@ export default function MarinerSurface({
     } finally {
       setPending(false);
     }
+  }
+
+  function beginStormGuide(sourceRegionId: MarinerSeaRegionId): void {
+    const storms = mariner.seaRegions.find((region) => region.regionId === sourceRegionId)?.stormCount ?? 0;
+    if (storms < 1) return;
+    setSelection({ kind: "region", regionId: sourceRegionId });
+    setStormGuide({
+      sourceRegionId,
+      destinationRegionId: null,
+      snapshot: captureOperabilityBoard(mariner),
+    });
+  }
+
+  function cancelStormGuide(): void {
+    setStormGuide(null);
+  }
+
+  function dismissSelectionOrGuide(): void {
+    if (stormGuide !== null) {
+      cancelStormGuide();
+      return;
+    }
+    setSelection(null);
+  }
+
+  function pickStormGuideDestination(regionId: MarinerSeaRegionId): void {
+    if (stormGuide === null) return;
+    const legal = marinerSeaOperationalView(mariner, stormGuide.sourceRegionId).legalGuidedDestinations;
+    if (!legal.includes(regionId)) return;
+    setStormGuide({ ...stormGuide, destinationRegionId: regionId });
   }
 
   function toggleSetupLaw(id: string): void {
@@ -341,6 +379,37 @@ export default function MarinerSurface({
       >
         {selectionContextCopy(contextFocus ?? selection, mariner, world)}
       </p>
+      {stormGuide !== null && (
+        <div
+          data-storm-guide-mode
+          className="rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50/80 dark:bg-teal-950/40 px-3 py-2 space-y-2"
+        >
+          <p className="text-xs text-teal-900 dark:text-teal-100">
+            {stormGuide.destinationRegionId === null
+              ? `Guide Storm from ${seaRegionDisplayName(stormGuide.sourceRegionId)}. Click an adjacent Sea.`
+              : `Guide Storm to ${seaRegionDisplayName(stormGuide.destinationRegionId)}.`}
+          </p>
+          {stormGuide.destinationRegionId !== null && (
+            <MoveStormForm
+              sourceRegionId={stormGuide.sourceRegionId}
+              adjacentRegionIds={[stormGuide.destinationRegionId]}
+              fixedDestinationRegionId={stormGuide.destinationRegionId}
+              snapshot={stormGuide.snapshot}
+              campaignId={campaignId}
+              pending={pending}
+              onCancel={cancelStormGuide}
+              onSubmit={async (payload) => {
+                const ok = await run(async () => { await moveMarinerStorm(payload); });
+                if (ok) cancelStormGuide();
+                return ok;
+              }}
+            />
+          )}
+          {stormGuide.destinationRegionId === null && (
+            <button className={ghostBtn} onClick={cancelStormGuide}>Cancel</button>
+          )}
+        </div>
+      )}
       <ShipSanctumSummary
         mariner={mariner}
         world={world}
@@ -371,14 +440,25 @@ export default function MarinerSurface({
             mariner={mariner}
             world={world}
             selection={selection}
-            onSelect={setSelection}
+            stormGuide={stormGuide === null ? null : {
+              sourceRegionId: stormGuide.sourceRegionId,
+              destinationRegionId: stormGuide.destinationRegionId,
+              legalDestinationIds: marinerSeaOperationalView(mariner, stormGuide.sourceRegionId).legalGuidedDestinations,
+            }}
+            onSelect={(next) => {
+              if (stormGuide !== null && next.kind !== "region") {
+                cancelStormGuide();
+              }
+              setSelection(next);
+            }}
+            onPickGuideDestination={pickStormGuideDestination}
             onContextFocus={setContextFocus}
             sorcererPresence={sorcererPresence}
           />
         <BoardOverlayInspector
           open={selection !== null}
           title="Selection details"
-          onClose={() => setSelection(null)}
+          onClose={dismissSelectionOrGuide}
         >
           <Inspector
             selection={selection}
@@ -389,7 +469,8 @@ export default function MarinerSurface({
             loreCompendium={loreCompendium}
             pactSeatStatuses={pactSeatStatuses}
             onCreateBeast={(payload) => run(async () => { await createMarinerBeast(payload); })}
-            onMoveStorm={(payload) => run(async () => { await moveMarinerStorm(payload); })}
+            onBeginStormGuide={beginStormGuide}
+            stormGuideSourceId={stormGuide?.sourceRegionId ?? null}
             onMoveShip={(payload) => run(async () => { await moveMarinerShip(payload); })}
             onCreateShip={(payload) => run(async () => { await createMarinerShip(payload); })}
             onMoveBeast={(payload) => run(async () => { await moveMarinerBeast(payload); })}
@@ -877,14 +958,22 @@ function MarinerMap({
   mariner,
   world,
   selection,
+  stormGuide,
   onSelect,
+  onPickGuideDestination,
   onContextFocus,
   sorcererPresence,
 }: {
   mariner: MarinerState;
   world: WorldReference;
   selection: Selection | null;
+  stormGuide: {
+    sourceRegionId: MarinerSeaRegionId;
+    destinationRegionId: MarinerSeaRegionId | null;
+    legalDestinationIds: readonly MarinerSeaRegionId[];
+  } | null;
   onSelect: (selection: Selection) => void;
+  onPickGuideDestination: (regionId: MarinerSeaRegionId) => void;
   onContextFocus: (selection: Selection | null) => void;
   sorcererPresence: readonly SorcererExternalPresence[];
 }) {
@@ -957,28 +1046,69 @@ function MarinerMap({
           const selected = selection?.kind === "region" && selection.regionId === sea.regionId;
           const kind = definition?.kind === "horizon" ? "Horizon" : "Sea";
           const name = definition?.displayName ?? sea.regionId;
+          const guideDest = stormGuide === null
+            ? null
+            : sea.regionId === stormGuide.sourceRegionId
+              ? "source"
+              : stormGuide.legalDestinationIds.includes(sea.regionId)
+                ? (stormGuide.destinationRegionId === sea.regionId ? "chosen" : "legal")
+                : "inactive";
+          const guiding = stormGuide !== null;
+          const guideActive = guideDest === "legal" || guideDest === "chosen" || guideDest === "source";
+          const fill = guideDest === "legal"
+            ? "#0f766e"
+            : guideDest === "chosen"
+              ? "#0f766e"
+              : selected
+                ? MARINER_MAP_PALETTE.seaRim
+                : "transparent";
+          const fillOpacity = guideDest === "legal"
+            ? 0.16
+            : guideDest === "chosen"
+              ? 0.28
+              : selected
+                ? 0.12
+                : 0;
           return (
             <g
               key={sea.regionId}
               data-map-layer="sea-hit"
               data-region-id={sea.regionId}
+              data-storm-guide-dest={guideDest ?? undefined}
               role="button"
-              tabIndex={0}
+              tabIndex={guiding && !guideActive ? -1 : 0}
               aria-pressed={selected}
+              aria-disabled={guideDest === "inactive" ? true : undefined}
               aria-label={`${kind} ${name}: ${seaRegionStateLabel(stormCount)}`}
               aria-describedby="mariner-context-detail"
               className={INTERACTIVE_FOCUS_CLASS}
               style={{ outline: "none" }}
-              onClick={() => onSelect({ kind: "region", regionId: sea.regionId })}
-              onKeyDown={(event) => activate(event, () => onSelect({ kind: "region", regionId: sea.regionId }))}
+              onClick={() => {
+                if (stormGuide !== null) {
+                  if (guideDest === "legal" || guideDest === "chosen") {
+                    onPickGuideDestination(sea.regionId);
+                  }
+                  return;
+                }
+                onSelect({ kind: "region", regionId: sea.regionId });
+              }}
+              onKeyDown={(event) => activate(event, () => {
+                if (stormGuide !== null) {
+                  if (guideDest === "legal" || guideDest === "chosen") {
+                    onPickGuideDestination(sea.regionId);
+                  }
+                  return;
+                }
+                onSelect({ kind: "region", regionId: sea.regionId });
+              })}
               {...contextPointerHandlers({ kind: "region", regionId: sea.regionId }, onContextFocus)}
             >
               <path
                 d={sea.hitPath}
-                fill={selected ? MARINER_MAP_PALETTE.seaRim : "transparent"}
-                fillOpacity={selected ? 0.12 : 0}
-                stroke={selected ? MARINER_MAP_PALETTE.seaRim : "transparent"}
-                strokeWidth={selected ? 2.5 : 0}
+                fill={fill}
+                fillOpacity={fillOpacity}
+                stroke={guideDest === "legal" || guideDest === "chosen" || selected ? MARINER_MAP_PALETTE.seaRim : "transparent"}
+                strokeWidth={guideDest === "chosen" ? 3 : selected || guideDest === "legal" ? 2.5 : 0}
               />
               {selected && (
                 <path
@@ -1385,7 +1515,8 @@ function Inspector({
   loreCompendium,
   pactSeatStatuses,
   onCreateBeast,
-  onMoveStorm,
+  onBeginStormGuide,
+  stormGuideSourceId,
   onMoveShip,
   onCreateShip,
   onMoveBeast,
@@ -1404,7 +1535,8 @@ function Inspector({
   loreCompendium: LoreCompendiumUiState;
   pactSeatStatuses: Partial<Record<PactSeatId, PactSeatStatus | null>>;
   onCreateBeast: (payload: ReturnType<typeof buildCreateMarinerBeastPayload>) => Promise<boolean>;
-  onMoveStorm: (payload: ReturnType<typeof buildMoveMarinerStormPayload>) => Promise<boolean>;
+  onBeginStormGuide: (regionId: MarinerSeaRegionId) => void;
+  stormGuideSourceId: MarinerSeaRegionId | null;
   onMoveShip: (payload: ReturnType<typeof buildMoveMarinerShipPayload>) => Promise<boolean>;
   onCreateShip: (payload: ReturnType<typeof buildCreateMarinerShipPayload>) => Promise<boolean>;
   onMoveBeast: (payload: ReturnType<typeof buildMoveMarinerBeastPayload>) => Promise<boolean>;
@@ -1442,7 +1574,8 @@ function Inspector({
         campaignId={campaignId}
         onSubmit={onSubmitStorm}
         onCreateBeast={onCreateBeast}
-        onMoveStorm={onMoveStorm}
+        onBeginStormGuide={onBeginStormGuide}
+        stormGuideSourceId={stormGuideSourceId}
         onMoveBeast={onMoveBeast}
         onNestBeast={onNestBeast}
       />
@@ -1617,7 +1750,8 @@ function RegionInspector({
   campaignId,
   onSubmit,
   onCreateBeast,
-  onMoveStorm,
+  onBeginStormGuide,
+  stormGuideSourceId,
   onMoveBeast,
   onNestBeast,
 }: {
@@ -1628,7 +1762,8 @@ function RegionInspector({
   campaignId: string;
   onSubmit: (regionId: MarinerSeaRegionId, stormCount: number) => void;
   onCreateBeast: (payload: ReturnType<typeof buildCreateMarinerBeastPayload>) => Promise<boolean>;
-  onMoveStorm: (payload: ReturnType<typeof buildMoveMarinerStormPayload>) => Promise<boolean>;
+  onBeginStormGuide: (regionId: MarinerSeaRegionId) => void;
+  stormGuideSourceId: MarinerSeaRegionId | null;
   onMoveBeast: (payload: ReturnType<typeof buildMoveMarinerBeastPayload>) => Promise<boolean>;
   onNestBeast: (payload: ReturnType<typeof buildNestMarinerBeastPayload>) => Promise<boolean>;
 }) {
@@ -1636,7 +1771,6 @@ function RegionInspector({
   const current = mariner.seaRegions.find((region) => region.regionId === regionId);
   const [storms, setStorms] = useState(String(current?.stormCount ?? 0));
   const [createOpen, setCreateOpen] = useState(false);
-  const [stormMoveOpen, setStormMoveOpen] = useState(false);
   const [nestDraft, setNestDraft] = useState<MarinerBeastState | null>(null);
   const [moveDraft, setMoveDraft] = useState<MarinerBeastState | null>(null);
   useEffect(() => {
@@ -1644,7 +1778,6 @@ function RegionInspector({
   }, [regionId, current?.stormCount]);
   useEffect(() => {
     setCreateOpen(false);
-    setStormMoveOpen(false);
     setNestDraft(null);
     setMoveDraft(null);
   }, [regionId]);
@@ -1700,21 +1833,13 @@ function RegionInspector({
           onSubmit={onCreateBeast}
         />
       )}
-      {!stormMoveOpen && (
-        <button className={btnClass} disabled={pending} onClick={() => setStormMoveOpen(true)}>
-          {MOVE_STORM_LABEL}
+      {stormGuideSourceId !== regionId && (
+        <button className={btnClass} disabled={pending || current.stormCount < 1} onClick={() => onBeginStormGuide(regionId)}>
+          {GUIDE_STORM_LABEL}
         </button>
       )}
-      {stormMoveOpen && (
-        <MoveStormForm
-          sourceRegionId={regionId}
-          adjacentRegionIds={definition.adjacentRegionIds}
-          mariner={mariner}
-          campaignId={campaignId}
-          pending={pending}
-          onCancel={() => setStormMoveOpen(false)}
-          onSubmit={onMoveStorm}
-        />
+      {stormGuideSourceId === regionId && (
+        <p className="text-xs text-slate-500">Click an adjacent Sea on the map. The software does not know the actual prevailing Wind.</p>
       )}
       {nestable.filter((beast) => beast.denizenId !== nestDraft?.denizenId).map((beast) => (
         <button
@@ -2144,7 +2269,8 @@ function CreateBeastForm({
 function MoveStormForm({
   sourceRegionId,
   adjacentRegionIds,
-  mariner,
+  fixedDestinationRegionId,
+  snapshot,
   campaignId,
   pending,
   onCancel,
@@ -2152,19 +2278,26 @@ function MoveStormForm({
 }: {
   sourceRegionId: MarinerSeaRegionId;
   adjacentRegionIds: readonly MarinerSeaRegionId[];
-  mariner: MarinerState;
+  fixedDestinationRegionId?: MarinerSeaRegionId;
+  snapshot: ReturnType<typeof captureOperabilityBoard>;
   campaignId: string;
   pending: boolean;
   onCancel: () => void;
   onSubmit: (payload: ReturnType<typeof buildMoveMarinerStormPayload>) => Promise<boolean>;
 }) {
-  const [snapshot] = useState(() => captureOperabilityBoard(mariner));
-  const [destinationRegionId, setDestinationRegionId] = useState("");
+  const [destinationRegionId, setDestinationRegionId] = useState(fixedDestinationRegionId ?? "");
   const [confirmed, setConfirmed] = useState(false);
+  useEffect(() => {
+    if (fixedDestinationRegionId !== undefined) {
+      setDestinationRegionId(fixedDestinationRegionId);
+      setConfirmed(false);
+    }
+  }, [fixedDestinationRegionId]);
   return (
     <div className="rounded-lg border border-teal-200 dark:border-teal-900 p-3 space-y-2">
       <h4 className="text-sm font-medium">{MOVE_STORM_LABEL}</h4>
       <p className="text-xs text-slate-500">Records a table-confirmed legal Storm move. The software does not know the actual prevailing Wind.</p>
+      {fixedDestinationRegionId === undefined && (
       <label className="text-sm block">
         Destination
         <select aria-label="Storm destination" className={`${fieldClass} mt-1`} value={destinationRegionId} onChange={(e) => setDestinationRegionId(e.target.value)}>
@@ -2174,6 +2307,10 @@ function MoveStormForm({
           ))}
         </select>
       </label>
+      )}
+      {fixedDestinationRegionId !== undefined && (
+        <p className="text-sm">Destination: {seaRegionDisplayName(fixedDestinationRegionId)}</p>
+      )}
       <label className="text-sm flex items-start gap-2">
         <input
           type="checkbox"

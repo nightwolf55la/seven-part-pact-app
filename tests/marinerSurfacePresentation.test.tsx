@@ -34,6 +34,7 @@ import {
   CREATE_SHIP_LABEL,
   MOVE_BEAST_LABEL,
   MOVE_SHIP_LABEL,
+  GUIDE_STORM_LABEL,
   MOVE_STORM_LABEL,
   NEST_BEAST_LABEL,
   NO_LORE_CONTEXT_COPY,
@@ -762,7 +763,7 @@ describe("Mariner map interaction and narrow treatment", () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     clickSea(container, "The Sidereal Sea");
     expect(container.innerHTML).toContain("Sea inspector");
-    expect(button(container, MOVE_STORM_LABEL)).toBeDefined();
+    expect(button(container, GUIDE_STORM_LABEL)).toBeDefined();
     expect(container.innerHTML).toMatch(/Storms 2/);
     expect(container.innerHTML).toMatch(/Typhoon/);
     expect(container.innerHTML).not.toContain(CREATE_SHIP_LABEL);
@@ -1223,13 +1224,16 @@ describe("Mariner desktop board hierarchy and overlay inspector", () => {
 });
 
 describe("M5.4 UX register continuation", () => {
-  it("records deferred UX-024 Storm spatial-piece movement", async () => {
+  it("records UX-024 Storm pieces and click-to-guide while drag/drop stays deferred", async () => {
     const { readFileSync } = await import("node:fs");
     const register = readFileSync("docs/m5-4-table-readiness-ux.md", "utf8");
     expect(register).toMatch(/### UX-024/);
     expect(register).toMatch(/Storms should read as spatial Sea pieces/);
-    const section = register.slice(register.indexOf("### UX-024"));
-    expect(section).toMatch(/\*\*Current status:\*\* DEFERRED/);
+    const section = register.slice(register.indexOf("### UX-024"), register.indexOf("### UX-025"));
+    expect(section).toMatch(/\*\*Current status:\*\* PARTIALLY ADDRESSED — NEEDS HUMAN RETEST/);
+    expect(section).toMatch(/Drag\/drop remains DEFERRED/);
+    expect(register).toMatch(/### UX-025/);
+    expect(register).toMatch(/### UX-026/);
   });
 });
 
@@ -1251,6 +1255,12 @@ function clickRoute(container: HTMLElement, routeId: string): void {
   const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${routeId}"]`) as SVGElement | null;
   if (route === null) throw new Error(`Missing route: ${routeId}`);
   flushSync(() => { route.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+}
+
+function clickSeaHit(container: HTMLElement, regionId: string): void {
+  const region = container.querySelector(`[data-map-layer="sea-hit"][data-region-id="${regionId}"]`) as SVGElement | null;
+  if (region === null) throw new Error(`Missing sea hit: ${regionId}`);
+  flushSync(() => { region.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
 }
 
 function clickIsle(container: HTMLElement, name: string): void {
@@ -1352,7 +1362,7 @@ describe("Mariner semantic operability actions", () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     clickSea(container, "The Sunken Fleet");
     expect(button(container, CREATE_BEAST_LABEL)).toBeDefined();
-    expect(button(container, MOVE_STORM_LABEL)).toBeDefined();
+    expect(button(container, GUIDE_STORM_LABEL)).toBeDefined();
     expect(button(container, NEST_BEAST_LABEL)).toBeDefined();
     root.unmount();
     container.remove();
@@ -1421,10 +1431,11 @@ describe("Mariner semantic operability actions", () => {
   it("requires Wind confirmation for a Guided Storm move and does not infer season", () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     clickSea(container, "The Sidereal Sea");
-    flushSync(() => { button(container, MOVE_STORM_LABEL).click(); });
+    flushSync(() => { button(container, GUIDE_STORM_LABEL).click(); });
+    expect(container.querySelector("[data-storm-guide-mode]")).not.toBeNull();
+    clickSeaHit(container, "wizard_strait");
     expect(container.innerHTML).toContain(WIND_CONFIRMATION_LABEL);
     expect(container.innerHTML).not.toContain("season");
-    setSelect(select(container, "Storm destination"), "wizard_strait");
     expect(button(container, MOVE_STORM_LABEL).disabled).toBe(true);
     flushSync(() => {
       (container.querySelector('input[aria-label="Wind confirmation"]') as HTMLInputElement).click();
@@ -1602,6 +1613,67 @@ describe("Mariner semantic operability actions", () => {
     expect(container.querySelector('[aria-label="Lore context panel"]')).toBeNull();
     expect(container.innerHTML).not.toContain("Owner Scuttleport lore context");
     expect(container.innerHTML).not.toContain("Delegated Scuttleport lore context");
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("Mariner click-to-guide Storm", () => {
+  it("highlights only adjacent Seas and leaves illegal Seas inactive", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickSea(container, "The Sidereal Sea");
+    flushSync(() => { button(container, GUIDE_STORM_LABEL).click(); });
+    const legal = container.querySelectorAll('[data-map-layer="sea-hit"][data-storm-guide-dest="legal"]');
+    const legalIds = [...legal].map((node) => node.getAttribute("data-region-id"));
+    expect(legalIds).toEqual(expect.arrayContaining(["wizard_strait", "kings_gulf", "wainways", "southwest_horizon"]));
+    expect(legalIds).not.toContain("thyrian_sea");
+    expect(legalIds).not.toContain("sidereal_sea");
+    const illegal = container.querySelector('[data-map-layer="sea-hit"][data-region-id="thyrian_sea"]');
+    expect(illegal?.getAttribute("data-storm-guide-dest")).toBe("inactive");
+    expect(illegal?.getAttribute("tabindex")).toBe("-1");
+    clickSeaHit(container, "thyrian_sea");
+    expect(container.querySelector('[data-storm-guide-dest="chosen"]')).toBeNull();
+    expect(mockMutations["m3Commands.moveMarinerStorm"]).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-sea-polygon]")).toBeNull();
+    const hitPath = container.querySelector('[data-map-layer="sea-hit"][data-region-id="wizard_strait"] path')?.getAttribute("d") ?? "";
+    expect(hitPath).toContain(" A ");
+    root.unmount();
+    container.remove();
+  });
+
+  it("cancels Guide Storm with Escape without writing", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickSea(container, "The Sidereal Sea");
+    flushSync(() => { button(container, GUIDE_STORM_LABEL).click(); });
+    expect(container.querySelector("[data-storm-guide-mode]")).not.toBeNull();
+    flushSync(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(container.querySelector("[data-storm-guide-mode]")).toBeNull();
+    expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
+    expect(mockMutations["m3Commands.moveMarinerStorm"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("uses the existing moveMarinerStorm command after a legal destination and Wind confirmation", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickSea(container, "The Sidereal Sea");
+    flushSync(() => { button(container, GUIDE_STORM_LABEL).click(); });
+    clickSeaHit(container, "wizard_strait");
+    expect(container.querySelector('[data-storm-guide-dest="chosen"][data-region-id="wizard_strait"]')).not.toBeNull();
+    flushSync(() => {
+      (container.querySelector('input[aria-label="Wind confirmation"]') as HTMLInputElement).click();
+    });
+    await act(async () => {
+      button(container, MOVE_STORM_LABEL).click();
+    });
+    expect(mockMutations["m3Commands.moveMarinerStorm"].mock.calls[0][0]).toMatchObject({
+      sourceRegionId: "sidereal_sea",
+      destinationRegionId: "wizard_strait",
+      confirmedNotAgainstPrevailingWind: true,
+    });
+    expect(container.querySelector("[data-storm-guide-mode]")).toBeNull();
     root.unmount();
     container.remove();
   });

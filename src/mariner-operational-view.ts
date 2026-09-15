@@ -170,7 +170,7 @@ export function marinerRouteContextCopy(
   return [
     `${endpointA} — ${endpointB}`,
     occupancyLabel,
-    toward === null ? null : `toward ${toward}`,
+    toward === null || /toward/i.test(occupancyLabel) ? null : `toward ${toward}`,
     view.threatened ? "threatened" : null,
   ].filter((part): part is string => part !== null).join(" · ");
 }

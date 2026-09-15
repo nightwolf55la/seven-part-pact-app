@@ -814,6 +814,7 @@ export const MARINER_POWERFUL_STATUSES = ["companion", "reliable", "disruptive",
 
 export const CREATE_BEAST_LABEL = "Create Beast";
 export const CREATE_SHIP_LABEL = "Create Ship";
+export const GUIDE_STORM_LABEL = "Guide Storm...";
 export const MOVE_STORM_LABEL = "Record Guided Storm Move";
 export const MOVE_SHIP_LABEL = "Record Ship Move";
 export const MOVE_BEAST_LABEL = "Move Distrusting Beast";
