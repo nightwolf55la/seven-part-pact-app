@@ -526,7 +526,7 @@ Supports: UX-001, UX-019.
 - **Current status:** PARTIALLY ADDRESSED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Related to UX-010. Does not require exact Sea polygons.
 - **Approved batch:** Not Batch 2 originally; spatial pieces and click-to-guide included in the Batch 2 Mariner operability pass. Drag/drop remains DEFERRED.
-- **Resolution / implementation note:** Storms/Typhoons now render as spatial Sea pieces at presentation-only Sea anchors (compact swirl; stronger Typhoon swirl plus count). Click-to-guide uses existing `adjacentRegionIds` plus `moveMarinerStorm` / `buildMoveMarinerStormPayload` / `expectedForMoveStorm`. Legal destination Seas are highlighted on the existing broad Sea hit ellipses. Wind confirmation remains required because the software does not know actual prevailing Wind. Drag/drop is not implemented. No exact Sea polygons. No new write contract.
+- **Resolution / implementation note:** Storms/Typhoons now render as spatial Sea pieces at presentation-only Sea anchors (compact swirl; stronger Typhoon swirl plus count). Click-to-guide uses existing `adjacentRegionIds` plus `moveMarinerStorm` / `buildMoveMarinerStormPayload` / `expectedForMoveStorm`. Adjacent/default destination Seas are highlighted on the existing broad Sea hit ellipses; other representable Seas/Horizons remain selectable. No Wind attestation or confirmation form. Drag/drop is not implemented. No exact Sea polygons. No new write contract.
 
 ### UX-025
 
@@ -539,10 +539,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** MARINER
 - **Source/rules relevance:** SOURCE: Storms, Typhoons (Storms ≥ 2 as current presentation), Route occupancy, Markets/Rarity, Ravage counts, and Beast locations are current Mariner state. Map Stability and prevailing Wind are not encoded in current domain/state. APPLICATION DESIGN: compact tokens, Visions forecast, and hover/focus copy; not new rules.
 - **Suggested direction:** Show encoded operational state on the map; keep explanations on hover/focus; keep mutations on selection.
-- **Current status:** FIXED — NEEDS HUMAN RETEST
+- **Current status:** PARTIALLY ADDRESSED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Related to UX-010, UX-024, UX-026.
 - **Approved batch:** Batch 2 operability pass
-- **Resolution / implementation note:** Always-visible: Route occupancy/markers, Storm/Typhoon pieces, Markets (with Rarity cue when present), Ravage silhouette plus compact count, Beast tokens, immediate-hazard rings on threatened occupied Routes, and a read-only Visions forecast. Omitted pending encoded derivation: Map Stability numbers and prevailing Wind. Hover/focus exposes derived operational copy. Nothing VERIFIED.
+- **Resolution / implementation note:** Always-visible: Route occupancy/markers, Storm/Typhoon pieces, Markets (with Rarity cue when present), Ravage silhouette plus compact count, Beast tokens, and immediate-hazard rings on threatened occupied Routes. Map Stability numbers and authoritative prevailing Wind are not encoded in current domain/state and are not implemented. The hollow Visions forecast strip was removed. Nothing VERIFIED.
 
 ### UX-026
 
@@ -558,7 +558,7 @@ Supports: UX-001, UX-019.
 - **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Related to UX-025 and UX-024.
 - **Approved batch:** Batch 2 operability pass
-- **Resolution / implementation note:** Isle inspector keeps Market, Ravage, Record Ravage Result, Beast facts, and Lore. Normal Create Ship / Record Ship Move moved to the Route inspector using the selected Route as the fixed target/source. Sea inspector is weather-centric and starts click-to-guide Storm. Advanced/correct state remains available. Create/Move Ship `sourceIsleId` uses the Route catalog's board-isle endpoint A, or B if A is an external land.
+- **Resolution / implementation note:** Isle inspector keeps Market, Ravage, Record Ravage Result, Beast facts, and Lore. Route inspector owns Add Ship / Move Ship (or Move Raider) using the selected Route as target or source without fabricating `sourceIsleId`. Sea inspector is weather-centric and starts click-to-guide Storm; raw Storm-count correction lives under Advanced / Correct — Weather. Generic Route occupancy correction lives under Advanced / Correct — Route. Nothing VERIFIED.
 
 ---
 

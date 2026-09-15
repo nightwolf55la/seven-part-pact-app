@@ -1,7 +1,6 @@
 import {
   MARINER_ROUTE_DEFINITIONS,
   MARINER_SEA_REGION_DEFINITIONS,
-  immediateHazardRouteIds,
   isRouteUnderImmediateHazard,
   type MarinerBoardIsleId,
   type MarinerRouteEndpoint,
@@ -18,8 +17,6 @@ import {
 
 export interface MarinerIsleOperationalView {
   readonly boardIsleId: MarinerBoardIsleId;
-  readonly stability: null;
-  readonly stabilityExplanation: null;
   readonly marketPresent: boolean;
   readonly rarity: string | null;
   readonly ravageStormCount: number;
@@ -31,7 +28,6 @@ export interface MarinerRouteOperationalView {
   readonly routeId: string;
   readonly occupancyKind: MarinerRouteOccupancy["kind"];
   readonly raidToward: MarinerRouteEndpoint | null;
-  readonly travelDirection: null;
   readonly threatened: boolean;
   readonly endpointA: MarinerRouteEndpoint | null;
   readonly endpointB: MarinerRouteEndpoint | null;
@@ -43,17 +39,7 @@ export interface MarinerSeaOperationalView {
   readonly stormCount: number;
   readonly typhoon: boolean;
   readonly beastCount: number;
-  readonly legalGuidedDestinations: readonly MarinerSeaRegionId[];
-}
-
-export interface MarinerVisionsForecast {
-  readonly stormTotal: number;
-  readonly typhoonSeaCount: number;
-  readonly threatenedOccupiedCount: number;
-  readonly ravagedIsleCount: number;
-  readonly summary: string;
-  readonly prevailingWind: null;
-  readonly nextStormDestination: null;
+  readonly adjacentRegionIds: readonly MarinerSeaRegionId[];
 }
 
 function hazardBoard(mariner: MarinerState) {
@@ -78,8 +64,6 @@ export function marinerIsleOperationalView(
   const market = isle?.market;
   return {
     boardIsleId,
-    stability: null,
-    stabilityExplanation: null,
     marketPresent: market?.present === true,
     rarity: market?.present === true ? market.rarity : null,
     ravageStormCount: isle?.ravageStormCount ?? 0,
@@ -98,7 +82,6 @@ export function marinerRouteOperationalView(
     routeId,
     occupancyKind: occupancy.kind,
     raidToward: occupancy.kind === "raider" ? occupancy.toward : null,
-    travelDirection: null,
     threatened: occupancy.kind !== "empty" && isRouteUnderImmediateHazard(routeId as never, hazardBoard(mariner)),
     endpointA: definition?.endpointA ?? null,
     endpointB: definition?.endpointB ?? null,
@@ -117,69 +100,6 @@ export function marinerSeaOperationalView(
     stormCount,
     typhoon: isTyphoon(stormCount),
     beastCount: beastsInRegion(mariner.beasts, regionId).length,
-    legalGuidedDestinations: definition?.adjacentRegionIds ?? [],
+    adjacentRegionIds: definition?.adjacentRegionIds ?? [],
   };
-}
-
-export function marinerVisionsForecast(mariner: MarinerState): MarinerVisionsForecast {
-  const stormTotal = mariner.seaRegions.reduce((sum, region) => sum + region.stormCount, 0);
-  const typhoonSeaCount = mariner.seaRegions.filter((region) => isTyphoon(region.stormCount)).length;
-  const hazards = immediateHazardRouteIds(hazardBoard(mariner));
-  const threatenedOccupiedCount = mariner.routes.filter(
-    (route) => route.occupancy.kind !== "empty" && hazards.has(route.routeId),
-  ).length;
-  const ravagedIsleCount = mariner.boardIsles.filter((isle) => isle.ravageStormCount > 0).length;
-  const parts = [
-    `${stormTotal} Storm${stormTotal === 1 ? "" : "s"}`,
-    `${typhoonSeaCount} Typhoon${typhoonSeaCount === 1 ? "" : "s"}`,
-    `${threatenedOccupiedCount} threatened ${threatenedOccupiedCount === 1 ? "Ship" : "Ships"}`,
-    `${ravagedIsleCount} Ravaged Isle${ravagedIsleCount === 1 ? "" : "s"}`,
-  ];
-  return {
-    stormTotal,
-    typhoonSeaCount,
-    threatenedOccupiedCount,
-    ravagedIsleCount,
-    summary: parts.join(" · "),
-    prevailingWind: null,
-    nextStormDestination: null,
-  };
-}
-
-export function marinerIsleContextCopy(view: MarinerIsleOperationalView, name: string): string {
-  return [
-    name,
-    `${view.adjacentOccupiedCount} adjacent occupied Route${view.adjacentOccupiedCount === 1 ? "" : "s"}`,
-    view.marketPresent ? (view.rarity ? `Market · Rarity ${view.rarity}` : "Market present") : "Market absent",
-    `Nesting Beast: ${view.nestingBeastCount === 0 ? "none" : String(view.nestingBeastCount)}`,
-    `Ravage: ${view.ravageStormCount === 0 ? "none" : String(view.ravageStormCount)}`,
-  ].join(" · ");
-}
-
-export function marinerRouteContextCopy(
-  view: MarinerRouteOperationalView,
-  endpointA: string,
-  endpointB: string,
-  occupancyLabel: string,
-): string {
-  const toward = view.raidToward === null
-    ? null
-    : view.raidToward.kind === "board_isle"
-      ? view.raidToward.boardIsleId
-      : view.raidToward.externalLandId;
-  return [
-    `${endpointA} — ${endpointB}`,
-    occupancyLabel,
-    toward === null || /toward/i.test(occupancyLabel) ? null : `toward ${toward}`,
-    view.threatened ? "threatened" : null,
-  ].filter((part): part is string => part !== null).join(" · ");
-}
-
-export function marinerSeaContextCopy(view: MarinerSeaOperationalView, name: string): string {
-  return [
-    name,
-    `Storms ${view.stormCount}`,
-    view.typhoon ? "Typhoon" : null,
-    view.beastCount > 0 ? `Beast ${view.beastCount}` : "Beast none",
-  ].filter((part): part is string => part !== null).join(" · ");
 }

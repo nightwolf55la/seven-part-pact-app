@@ -62,7 +62,6 @@ import {
   buildUpdateMarinerBeastPayload,
   captureOperabilityBoard,
   createBeastWouldRampage,
-  emptyRoutesBorderingIsle,
   expectedForCreateBeast,
   expectedForCreateShip,
   expectedForMoveBeast,
@@ -95,7 +94,6 @@ import {
   newDenizenId,
   newMethodEntryId,
   NO_LORE_CONTEXT_COPY,
-  occupiedRoutesBorderingIsle,
   otherDomainSeatOptions,
   RAVAGE_INCOMPLETE_COPY,
   RAVAGE_LOCATION_FOLLOW_THROUGH,
@@ -103,12 +101,11 @@ import {
   RAVAGE_MARKET_ABSORBED_COPY,
   RAVAGE_RESULT_LABEL,
   MOVE_BEAST_LABEL,
+  MOVE_RAIDER_LABEL,
   MOVE_SHIP_LABEL,
-  MOVE_STORM_LABEL,
   NEST_BEAST_LABEL,
   predictedMovedBeastWouldRampage,
   predictedNewlyTrappedBeastIdsAfterShipPlacement,
-  WIND_CONFIRMATION_LABEL,
   parseNonNegInt,
   placeName,
   researcherOperationalLabel,
@@ -137,13 +134,9 @@ import {
 } from "./mariner-map-geometry";
 import { MARINER_SOURCE_BOARD, marinerOverlayLengthToBoard, marinerOverlayPointToBoard } from "./source-board-assets";
 import {
-  marinerIsleContextCopy,
   marinerIsleOperationalView,
-  marinerRouteContextCopy,
   marinerRouteOperationalView,
-  marinerSeaContextCopy,
   marinerSeaOperationalView,
-  marinerVisionsForecast,
 } from "./mariner-operational-view";
 import {
   MARINER_INTERACTION_GEOMETRY_RAW,
@@ -163,7 +156,6 @@ type Selection =
 
 type StormGuide = {
   readonly sourceRegionId: MarinerSeaRegionId;
-  readonly destinationRegionId: MarinerSeaRegionId | null;
   readonly snapshot: ReturnType<typeof captureOperabilityBoard>;
 };
 
@@ -226,7 +218,6 @@ export default function MarinerSurface({
   const [pending, setPending] = useState(false);
   const [setup, setSetup] = useState<MarinerSetupDraft>(emptyDraft);
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [contextFocus, setContextFocus] = useState<Selection | null>(null);
   const [stormGuide, setStormGuide] = useState<StormGuide | null>(null);
   const [lawDraft, setLawDraft] = useState<string[]>([...mariner.selectedLawOfSeaIds]);
   const [shipDraft, setShipDraft] = useState(mariner.shipPlaceId ?? "");
@@ -284,7 +275,6 @@ export default function MarinerSurface({
     setSelection({ kind: "region", regionId: sourceRegionId });
     setStormGuide({
       sourceRegionId,
-      destinationRegionId: null,
       snapshot: captureOperabilityBoard(mariner),
     });
   }
@@ -301,11 +291,18 @@ export default function MarinerSurface({
     setSelection(null);
   }
 
-  function pickStormGuideDestination(regionId: MarinerSeaRegionId): void {
-    if (stormGuide === null) return;
-    const legal = marinerSeaOperationalView(mariner, stormGuide.sourceRegionId).legalGuidedDestinations;
-    if (!legal.includes(regionId)) return;
-    setStormGuide({ ...stormGuide, destinationRegionId: regionId });
+  async function pickStormGuideDestination(regionId: MarinerSeaRegionId): Promise<void> {
+    if (stormGuide === null || pending) return;
+    if (regionId === stormGuide.sourceRegionId) return;
+    const payload = buildMoveMarinerStormPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      sourceRegionId: stormGuide.sourceRegionId,
+      destinationRegionId: regionId,
+      ...expectedForMoveStorm(stormGuide.snapshot, stormGuide.sourceRegionId, regionId),
+    });
+    const ok = await run(async () => { await moveMarinerStorm(payload); });
+    if (ok) cancelStormGuide();
   }
 
   function toggleSetupLaw(id: string): void {
@@ -368,46 +365,15 @@ export default function MarinerSurface({
           {error}
         </div>
       )}
-      <p data-mariner-visions-forecast className="text-xs text-slate-600 dark:text-slate-300">
-        Visions forecast: {marinerVisionsForecast(mariner).summary}
-      </p>
-      <p
-        id="mariner-context-detail"
-        data-mariner-context-detail
-        role="status"
-        className="text-xs text-slate-600 dark:text-slate-300 min-h-[1.25rem]"
-      >
-        {selectionContextCopy(contextFocus ?? selection, mariner, world)}
-      </p>
       {stormGuide !== null && (
         <div
           data-storm-guide-mode
           className="rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50/80 dark:bg-teal-950/40 px-3 py-2 space-y-2"
         >
           <p className="text-xs text-teal-900 dark:text-teal-100">
-            {stormGuide.destinationRegionId === null
-              ? `Guide Storm from ${seaRegionDisplayName(stormGuide.sourceRegionId)}. Click an adjacent Sea.`
-              : `Guide Storm to ${seaRegionDisplayName(stormGuide.destinationRegionId)}.`}
+            Choose a destination. Adjacent regions are highlighted.
           </p>
-          {stormGuide.destinationRegionId !== null && (
-            <MoveStormForm
-              sourceRegionId={stormGuide.sourceRegionId}
-              adjacentRegionIds={[stormGuide.destinationRegionId]}
-              fixedDestinationRegionId={stormGuide.destinationRegionId}
-              snapshot={stormGuide.snapshot}
-              campaignId={campaignId}
-              pending={pending}
-              onCancel={cancelStormGuide}
-              onSubmit={async (payload) => {
-                const ok = await run(async () => { await moveMarinerStorm(payload); });
-                if (ok) cancelStormGuide();
-                return ok;
-              }}
-            />
-          )}
-          {stormGuide.destinationRegionId === null && (
-            <button className={ghostBtn} onClick={cancelStormGuide}>Cancel</button>
-          )}
+          <button className={ghostBtn} onClick={cancelStormGuide}>Cancel</button>
         </div>
       )}
       <ShipSanctumSummary
@@ -442,8 +408,7 @@ export default function MarinerSurface({
             selection={selection}
             stormGuide={stormGuide === null ? null : {
               sourceRegionId: stormGuide.sourceRegionId,
-              destinationRegionId: stormGuide.destinationRegionId,
-              legalDestinationIds: marinerSeaOperationalView(mariner, stormGuide.sourceRegionId).legalGuidedDestinations,
+              recommendedDestinationIds: marinerSeaOperationalView(mariner, stormGuide.sourceRegionId).adjacentRegionIds,
             }}
             onSelect={(next) => {
               if (stormGuide !== null && next.kind !== "region") {
@@ -451,8 +416,7 @@ export default function MarinerSurface({
               }
               setSelection(next);
             }}
-            onPickGuideDestination={pickStormGuideDestination}
-            onContextFocus={setContextFocus}
+            onPickGuideDestination={(regionId) => { void pickStormGuideDestination(regionId); }}
             sorcererPresence={sorcererPresence}
           />
         <BoardOverlayInspector
@@ -914,46 +878,6 @@ function towardLabel(toward: MarinerRouteEndpoint): string {
     : externalLandDisplayName(toward.externalLandId);
 }
 
-function selectionContextCopy(
-  selection: Selection | null,
-  mariner: MarinerState,
-  world: WorldReference,
-): string {
-  if (selection === null) return "";
-  if (selection.kind === "isle") {
-    return marinerIsleContextCopy(
-      marinerIsleOperationalView(mariner, selection.boardIsleId),
-      boardIsleDisplayName(selection.boardIsleId),
-    );
-  }
-  if (selection.kind === "route") {
-    const view = marinerRouteOperationalView(mariner, selection.routeId);
-    const occupancy = mariner.routes.find((route) => route.routeId === selection.routeId)?.occupancy ?? { kind: "empty" as const };
-    return marinerRouteContextCopy(
-      view,
-      view.endpointA === null ? "—" : routeEndpointLabel(view.endpointA, mariner, world.isles),
-      view.endpointB === null ? "—" : routeEndpointLabel(view.endpointB, mariner, world.isles),
-      routeOccupancyLabel(occupancy, mariner, world.isles),
-    );
-  }
-  return marinerSeaContextCopy(
-    marinerSeaOperationalView(mariner, selection.regionId),
-    seaRegionDisplayName(selection.regionId),
-  );
-}
-
-function contextPointerHandlers(
-  target: Selection,
-  onContextFocus: (selection: Selection | null) => void,
-) {
-  return {
-    onMouseEnter: () => onContextFocus(target),
-    onMouseLeave: () => onContextFocus(null),
-    onFocus: () => onContextFocus(target),
-    onBlur: () => onContextFocus(null),
-  };
-}
-
 function MarinerMap({
   mariner,
   world,
@@ -961,7 +885,6 @@ function MarinerMap({
   stormGuide,
   onSelect,
   onPickGuideDestination,
-  onContextFocus,
   sorcererPresence,
 }: {
   mariner: MarinerState;
@@ -969,12 +892,10 @@ function MarinerMap({
   selection: Selection | null;
   stormGuide: {
     sourceRegionId: MarinerSeaRegionId;
-    destinationRegionId: MarinerSeaRegionId | null;
-    legalDestinationIds: readonly MarinerSeaRegionId[];
+    recommendedDestinationIds: readonly MarinerSeaRegionId[];
   } | null;
   onSelect: (selection: Selection) => void;
   onPickGuideDestination: (regionId: MarinerSeaRegionId) => void;
-  onContextFocus: (selection: Selection | null) => void;
   sorcererPresence: readonly SorcererExternalPresence[];
 }) {
   const disruptive = marinerDomainDisruptiveArcanists(sorcererPresence);
@@ -1050,25 +971,19 @@ function MarinerMap({
             ? null
             : sea.regionId === stormGuide.sourceRegionId
               ? "source"
-              : stormGuide.legalDestinationIds.includes(sea.regionId)
-                ? (stormGuide.destinationRegionId === sea.regionId ? "chosen" : "legal")
-                : "inactive";
-          const guiding = stormGuide !== null;
-          const guideActive = guideDest === "legal" || guideDest === "chosen" || guideDest === "source";
-          const fill = guideDest === "legal"
+              : stormGuide.recommendedDestinationIds.includes(sea.regionId)
+                ? "recommended"
+                : "available";
+          const fill = guideDest === "recommended"
             ? "#0f766e"
-            : guideDest === "chosen"
-              ? "#0f766e"
-              : selected
-                ? MARINER_MAP_PALETTE.seaRim
-                : "transparent";
-          const fillOpacity = guideDest === "legal"
+            : selected
+              ? MARINER_MAP_PALETTE.seaRim
+              : "transparent";
+          const fillOpacity = guideDest === "recommended"
             ? 0.16
-            : guideDest === "chosen"
-              ? 0.28
-              : selected
-                ? 0.12
-                : 0;
+            : selected
+              ? 0.12
+              : 0;
           return (
             <g
               key={sea.regionId}
@@ -1076,39 +991,32 @@ function MarinerMap({
               data-region-id={sea.regionId}
               data-storm-guide-dest={guideDest ?? undefined}
               role="button"
-              tabIndex={guiding && !guideActive ? -1 : 0}
+              tabIndex={0}
               aria-pressed={selected}
-              aria-disabled={guideDest === "inactive" ? true : undefined}
               aria-label={`${kind} ${name}: ${seaRegionStateLabel(stormCount)}`}
-              aria-describedby="mariner-context-detail"
               className={INTERACTIVE_FOCUS_CLASS}
               style={{ outline: "none" }}
               onClick={() => {
                 if (stormGuide !== null) {
-                  if (guideDest === "legal" || guideDest === "chosen") {
-                    onPickGuideDestination(sea.regionId);
-                  }
+                  onPickGuideDestination(sea.regionId);
                   return;
                 }
                 onSelect({ kind: "region", regionId: sea.regionId });
               }}
               onKeyDown={(event) => activate(event, () => {
                 if (stormGuide !== null) {
-                  if (guideDest === "legal" || guideDest === "chosen") {
-                    onPickGuideDestination(sea.regionId);
-                  }
+                  onPickGuideDestination(sea.regionId);
                   return;
                 }
                 onSelect({ kind: "region", regionId: sea.regionId });
               })}
-              {...contextPointerHandlers({ kind: "region", regionId: sea.regionId }, onContextFocus)}
             >
               <path
                 d={sea.hitPath}
                 fill={fill}
                 fillOpacity={fillOpacity}
-                stroke={guideDest === "legal" || guideDest === "chosen" || selected ? MARINER_MAP_PALETTE.seaRim : "transparent"}
-                strokeWidth={guideDest === "chosen" ? 3 : selected || guideDest === "legal" ? 2.5 : 0}
+                stroke={guideDest === "recommended" || selected ? MARINER_MAP_PALETTE.seaRim : "transparent"}
+                strokeWidth={selected || guideDest === "recommended" ? 2.5 : 0}
               />
               {selected && (
                 <path
@@ -1175,12 +1083,10 @@ function MarinerMap({
               tabIndex={0}
               aria-pressed={selected}
               aria-label={`Route ${aName} to ${bName}: ${label}`}
-              aria-describedby="mariner-context-detail"
               className={INTERACTIVE_FOCUS_CLASS}
               style={{ outline: "none" }}
               onClick={() => onSelect({ kind: "route", routeId: route.routeId })}
               onKeyDown={(event) => activate(event, () => onSelect({ kind: "route", routeId: route.routeId }))}
-              {...contextPointerHandlers({ kind: "route", routeId: route.routeId }, onContextFocus)}
             >
               <use
                 href={href}
@@ -1275,12 +1181,10 @@ function MarinerMap({
               tabIndex={0}
               aria-pressed={selected}
               aria-label={`Isle ${worldName}${bits.length > 0 ? `: ${bits.join(", ")}` : ""}`}
-              aria-describedby="mariner-context-detail"
               className={INTERACTIVE_FOCUS_CLASS}
               style={{ outline: "none" }}
               onClick={() => onSelect({ kind: "isle", boardIsleId: isle.boardIsleId })}
               onKeyDown={(event) => activate(event, () => onSelect({ kind: "isle", boardIsleId: isle.boardIsleId }))}
-              {...contextPointerHandlers({ kind: "isle", boardIsleId: isle.boardIsleId }, onContextFocus)}
             >
               <use href={href} fill="transparent" stroke="transparent" />
               {convenience && (
@@ -1639,12 +1543,24 @@ function RouteInspector({
     return <div className="text-sm text-slate-500">Unknown Route.</div>;
   }
   const endpoints = [definition.endpointA, definition.endpointB];
-  const sourceIsleId = definition.endpointA.kind === "board_isle"
-    ? definition.endpointA.boardIsleId
-    : definition.endpointB.kind === "board_isle"
-      ? definition.endpointB.boardIsleId
-      : null;
   const operational = marinerRouteOperationalView(mariner, routeId);
+  const predictedCreateRampage = predictedNewlyTrappedBeastIdsAfterShipPlacement(mariner, routeId, { kind: "ship" });
+  function submitCreateShip(rampageResolutions: {
+    denizenId: string;
+    destinationSeatId: string;
+    rampagingMethodEntryId: string | null;
+  }[]): void {
+    const snapshot = captureOperabilityBoard(mariner);
+    void onCreateShip(buildCreateMarinerShipPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      targetRouteId: routeId,
+      ...expectedForCreateShip(snapshot, routeId),
+      rampageResolutions,
+    })).then((ok) => {
+      if (ok) setCreateShipOpen(false);
+    });
+  }
   return (
     <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
       <h3 className="text-sm font-semibold">Route inspector</h3>
@@ -1652,71 +1568,52 @@ function RouteInspector({
         {routeEndpointLabel(definition.endpointA, mariner, world.isles)} — {routeEndpointLabel(definition.endpointB, mariner, world.isles)}
       </p>
       <p className="text-xs text-slate-500">Current: {routeOccupancyLabel(current.occupancy, mariner, world.isles)}</p>
+      {current.occupancy.kind === "raider" && (
+        <p className="text-sm">Raids toward {towardLabel(current.occupancy.toward)}</p>
+      )}
       {operational.adjacentSeaIds.length > 0 && (
         <p className="text-xs text-slate-500">
           Adjacent Seas: {operational.adjacentSeaIds.map((id) => seaRegionDisplayName(id)).join(", ")}
         </p>
       )}
       {operational.threatened && <p className="text-xs text-amber-800 dark:text-amber-200">Threatened by current Storm/Typhoon-scale conditions.</p>}
-      <label className="text-sm block">
-        Occupancy
-        <select aria-label="Route occupancy" className={`${fieldClass} mt-1`} value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
-          <option value="empty">Empty</option>
-          <option value="ship">Ship</option>
-          <option value="raider">Raider</option>
-        </select>
-      </label>
-      {kind === "raider" && (
-        <label className="text-sm block">
-          Raids toward
-          <select aria-label="Raider toward" className={`${fieldClass} mt-1`} value={towardKey} onChange={(e) => setTowardKey(e.target.value)}>
-            {endpoints.map((endpoint) => (
-              <option key={endpointKey(endpoint)} value={endpointKey(endpoint)}>
-                {routeEndpointLabel(endpoint, mariner, world.isles)}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      <button
-        className={btnClass}
-        disabled={pending}
-        onClick={() => {
-          const occupancy: MarinerRouteOccupancy = kind === "empty"
-            ? { kind: "empty" }
-            : kind === "ship"
-              ? { kind: "ship" }
-              : { kind: "raider", toward: endpoints.find((endpoint) => endpointKey(endpoint) === towardKey) ?? definition.endpointA };
-          onSubmit(routeId, occupancy);
-        }}
-      >
-        Set Route occupancy
-      </button>
-      {current.occupancy.kind === "empty" && sourceIsleId !== null && !createShipOpen && (
-        <button className={btnClass} disabled={pending} onClick={() => setCreateShipOpen(true)}>
+      {current.occupancy.kind === "empty" && !createShipOpen && (
+        <button
+          className={btnClass}
+          disabled={pending}
+          onClick={() => {
+            if (predictedCreateRampage.length === 0) {
+              submitCreateShip([]);
+              return;
+            }
+            setCreateShipOpen(true);
+          }}
+        >
           {CREATE_SHIP_LABEL}
         </button>
       )}
-      {createShipOpen && sourceIsleId !== null && (
+      {createShipOpen && (
         <CreateShipForm
-          boardIsleId={sourceIsleId}
           fixedTargetRouteId={routeId}
           mariner={mariner}
-          world={world}
           campaignId={campaignId}
           pending={pending}
           onCancel={() => setCreateShipOpen(false)}
           onSubmit={onCreateShip}
         />
       )}
-      {(current.occupancy.kind === "ship" || current.occupancy.kind === "raider") && sourceIsleId !== null && !shipOpen && (
+      {current.occupancy.kind === "ship" && !shipOpen && (
         <button className={btnClass} disabled={pending} onClick={() => setShipOpen(true)}>
           {MOVE_SHIP_LABEL}
         </button>
       )}
-      {shipOpen && sourceIsleId !== null && (
+      {current.occupancy.kind === "raider" && !shipOpen && (
+        <button className={btnClass} disabled={pending} onClick={() => setShipOpen(true)}>
+          {MOVE_RAIDER_LABEL}
+        </button>
+      )}
+      {shipOpen && (
         <MoveShipForm
-          boardIsleId={sourceIsleId}
           fixedSourceRouteId={routeId}
           mariner={mariner}
           world={world}
@@ -1726,6 +1623,47 @@ function RouteInspector({
           onSubmit={onMoveShip}
         />
       )}
+      <details>
+        <summary className="text-xs font-medium cursor-pointer text-slate-600 dark:text-slate-300">
+          Advanced / Correct — Route
+        </summary>
+        <div className="mt-3 space-y-3">
+          <label className="text-sm block">
+            Occupancy
+            <select aria-label="Route occupancy" className={`${fieldClass} mt-1`} value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
+              <option value="empty">Empty</option>
+              <option value="ship">Ship</option>
+              <option value="raider">Raider</option>
+            </select>
+          </label>
+          {kind === "raider" && (
+            <label className="text-sm block">
+              Raids toward
+              <select aria-label="Raider toward" className={`${fieldClass} mt-1`} value={towardKey} onChange={(e) => setTowardKey(e.target.value)}>
+                {endpoints.map((endpoint) => (
+                  <option key={endpointKey(endpoint)} value={endpointKey(endpoint)}>
+                    {routeEndpointLabel(endpoint, mariner, world.isles)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <button
+            className={btnClass}
+            disabled={pending}
+            onClick={() => {
+              const occupancy: MarinerRouteOccupancy = kind === "empty"
+                ? { kind: "empty" }
+                : kind === "ship"
+                  ? { kind: "ship" }
+                  : { kind: "raider", toward: endpoints.find((endpoint) => endpointKey(endpoint) === towardKey) ?? definition.endpointA };
+              onSubmit(routeId, occupancy);
+            }}
+          >
+            Set Route occupancy
+          </button>
+        </div>
+      </details>
     </section>
   );
 }
@@ -1799,25 +1737,6 @@ function RegionInspector({
       <p className="text-xs text-slate-500">
         Adjacent regions: {definition.adjacentRegionIds.map((id) => seaRegionDisplayName(id)).join(", ") || "none"}
       </p>
-      <label className="text-sm block">
-        Storm count
-        <input
-          aria-label="Storm count"
-          className={`${fieldClass} mt-1`}
-          value={storms}
-          onChange={(e) => setStorms(e.target.value)}
-        />
-      </label>
-      <button
-        className={btnClass}
-        disabled={pending || parsed === null}
-        onClick={() => {
-          if (parsed === null) return;
-          onSubmit(regionId, parsed);
-        }}
-      >
-        Set Storm count
-      </button>
       {!createOpen && (
         <button className={btnClass} disabled={pending} onClick={() => setCreateOpen(true)}>
           {CREATE_BEAST_LABEL}
@@ -1839,7 +1758,7 @@ function RegionInspector({
         </button>
       )}
       {stormGuideSourceId === regionId && (
-        <p className="text-xs text-slate-500">Click an adjacent Sea on the map. The software does not know the actual prevailing Wind.</p>
+        <p className="text-xs text-slate-500">Choose a destination on the map. Adjacent regions are highlighted.</p>
       )}
       {nestable.filter((beast) => beast.denizenId !== nestDraft?.denizenId).map((beast) => (
         <button
@@ -1886,6 +1805,32 @@ function RegionInspector({
           onSubmit={onMoveBeast}
         />
       )}
+      <details>
+        <summary className="text-xs font-medium cursor-pointer text-slate-600 dark:text-slate-300">
+          Advanced / Correct — Weather
+        </summary>
+        <div className="mt-3 space-y-3">
+          <label className="text-sm block">
+            Storm count
+            <input
+              aria-label="Storm count"
+              className={`${fieldClass} mt-1`}
+              value={storms}
+              onChange={(e) => setStorms(e.target.value)}
+            />
+          </label>
+          <button
+            className={btnClass}
+            disabled={pending || parsed === null}
+            onClick={() => {
+              if (parsed === null) return;
+              onSubmit(regionId, parsed);
+            }}
+          >
+            Set Storm count
+          </button>
+        </div>
+      </details>
     </section>
   );
 }
@@ -2027,19 +1972,15 @@ function IsleInspector({
 }
 
 function CreateShipForm({
-  boardIsleId,
   fixedTargetRouteId,
   mariner,
-  world,
   campaignId,
   pending,
   onCancel,
   onSubmit,
 }: {
-  boardIsleId: MarinerBoardIsleId;
-  fixedTargetRouteId?: string;
+  fixedTargetRouteId: string;
   mariner: MarinerState;
-  world: WorldReference;
   campaignId: string;
   pending: boolean;
   onCancel: () => void;
@@ -2047,36 +1988,15 @@ function CreateShipForm({
 }) {
   const [snapshot] = useState(() => captureOperabilityBoard(mariner));
   const [methodIds] = useState(() => new Map<string, string>());
-  const empty = emptyRoutesBorderingIsle(snapshot, boardIsleId);
-  const [targetRouteId, setTargetRouteId] = useState(fixedTargetRouteId ?? "");
   const [rampageSeats, setRampageSeats] = useState<Record<string, string>>({});
-  const predictedBeastIds = targetRouteId === ""
-    ? []
-    : predictedNewlyTrappedBeastIdsAfterShipPlacement(snapshot, targetRouteId, { kind: "ship" });
+  const predictedBeastIds = predictedNewlyTrappedBeastIdsAfterShipPlacement(
+    snapshot,
+    fixedTargetRouteId,
+    { kind: "ship" },
+  );
   return (
     <div className="rounded-lg border border-teal-200 dark:border-teal-900 p-3 space-y-2">
       <h4 className="text-sm font-medium">{CREATE_SHIP_LABEL}</h4>
-      {fixedTargetRouteId === undefined && (
-      <label className="text-sm block">
-        Target Route
-        <select
-          aria-label="Create Ship target Route"
-          className={`${fieldClass} mt-1`}
-          value={targetRouteId}
-          onChange={(e) => {
-            setTargetRouteId(e.target.value);
-            setRampageSeats({});
-          }}
-        >
-          <option value="">Select empty adjacent Route…</option>
-          {empty.map((route) => (
-            <option key={route.routeId} value={route.routeId}>
-              {routeEndpointLabel(route.endpointA, mariner, world.isles)} — {routeEndpointLabel(route.endpointB, mariner, world.isles)}
-            </option>
-          ))}
-        </select>
-      </label>
-      )}
       {predictedBeastIds.map((denizenId) => (
         <label key={denizenId} className="text-sm block">
           Rampage destination
@@ -2098,16 +2018,14 @@ function CreateShipForm({
           className={btnClass}
           disabled={
             pending
-            || targetRouteId === ""
             || predictedBeastIds.some((denizenId) => (rampageSeats[denizenId] ?? "") === "")
           }
           onClick={() => {
-            const expected = expectedForCreateShip(snapshot, targetRouteId);
+            const expected = expectedForCreateShip(snapshot, fixedTargetRouteId);
             void onSubmit(buildCreateMarinerShipPayload({
               commandId: newCommandId(),
               expectedCampaignId: campaignId,
-              sourceIsleId: boardIsleId,
-              targetRouteId,
+              targetRouteId: fixedTargetRouteId,
               ...expected,
               rampageResolutions: predictedBeastIds.map((denizenId) => ({
                 denizenId,
@@ -2259,86 +2177,6 @@ function CreateBeastForm({
           }}
         >
           {CREATE_BEAST_LABEL}
-        </button>
-        <button className={ghostBtn} onClick={onCancel}>Cancel</button>
-      </div>
-    </div>
-  );
-}
-
-function MoveStormForm({
-  sourceRegionId,
-  adjacentRegionIds,
-  fixedDestinationRegionId,
-  snapshot,
-  campaignId,
-  pending,
-  onCancel,
-  onSubmit,
-}: {
-  sourceRegionId: MarinerSeaRegionId;
-  adjacentRegionIds: readonly MarinerSeaRegionId[];
-  fixedDestinationRegionId?: MarinerSeaRegionId;
-  snapshot: ReturnType<typeof captureOperabilityBoard>;
-  campaignId: string;
-  pending: boolean;
-  onCancel: () => void;
-  onSubmit: (payload: ReturnType<typeof buildMoveMarinerStormPayload>) => Promise<boolean>;
-}) {
-  const [destinationRegionId, setDestinationRegionId] = useState(fixedDestinationRegionId ?? "");
-  const [confirmed, setConfirmed] = useState(false);
-  useEffect(() => {
-    if (fixedDestinationRegionId !== undefined) {
-      setDestinationRegionId(fixedDestinationRegionId);
-      setConfirmed(false);
-    }
-  }, [fixedDestinationRegionId]);
-  return (
-    <div className="rounded-lg border border-teal-200 dark:border-teal-900 p-3 space-y-2">
-      <h4 className="text-sm font-medium">{MOVE_STORM_LABEL}</h4>
-      <p className="text-xs text-slate-500">Records a table-confirmed legal Storm move. The software does not know the actual prevailing Wind.</p>
-      {fixedDestinationRegionId === undefined && (
-      <label className="text-sm block">
-        Destination
-        <select aria-label="Storm destination" className={`${fieldClass} mt-1`} value={destinationRegionId} onChange={(e) => setDestinationRegionId(e.target.value)}>
-          <option value="">Select adjacent region…</option>
-          {adjacentRegionIds.map((id) => (
-            <option key={id} value={id}>{seaRegionDisplayName(id)}</option>
-          ))}
-        </select>
-      </label>
-      )}
-      {fixedDestinationRegionId !== undefined && (
-        <p className="text-sm">Destination: {seaRegionDisplayName(fixedDestinationRegionId)}</p>
-      )}
-      <label className="text-sm flex items-start gap-2">
-        <input
-          type="checkbox"
-          aria-label="Wind confirmation"
-          checked={confirmed}
-          onChange={(e) => setConfirmed(e.target.checked)}
-        />
-        <span>{WIND_CONFIRMATION_LABEL}</span>
-      </label>
-      <div className="flex gap-2">
-        <button
-          className={btnClass}
-          disabled={pending || destinationRegionId === "" || !confirmed}
-          onClick={() => {
-            const dest = destinationRegionId as MarinerSeaRegionId;
-            void onSubmit(buildMoveMarinerStormPayload({
-              commandId: newCommandId(),
-              expectedCampaignId: campaignId,
-              sourceRegionId,
-              destinationRegionId: dest,
-              confirmedNotAgainstPrevailingWind: confirmed,
-              ...expectedForMoveStorm(snapshot, sourceRegionId, dest),
-            })).then((ok) => {
-              if (ok) onCancel();
-            });
-          }}
-        >
-          {MOVE_STORM_LABEL}
         </button>
         <button className={ghostBtn} onClick={onCancel}>Cancel</button>
       </div>
@@ -2500,7 +2338,6 @@ function NestBeastForm({
 }
 
 function MoveShipForm({
-  boardIsleId,
   fixedSourceRouteId,
   mariner,
   world,
@@ -2509,8 +2346,7 @@ function MoveShipForm({
   onCancel,
   onSubmit,
 }: {
-  boardIsleId: MarinerBoardIsleId;
-  fixedSourceRouteId?: string;
+  fixedSourceRouteId: string;
   mariner: MarinerState;
   world: WorldReference;
   campaignId: string;
@@ -2520,13 +2356,17 @@ function MoveShipForm({
 }) {
   const [snapshot] = useState(() => captureOperabilityBoard(mariner));
   const [methodIds] = useState(() => new Map<string, string>());
-  const occupied = occupiedRoutesBorderingIsle(snapshot, boardIsleId);
-  const [sourceRouteId, setSourceRouteId] = useState<string>(fixedSourceRouteId ?? occupied[0]?.routeId ?? "");
+  const sourceRouteId = fixedSourceRouteId;
   const [destinationRouteId, setDestinationRouteId] = useState("");
   const [towardKey, setTowardKey] = useState("");
   const [rampageSeats, setRampageSeats] = useState<Record<string, string>>({});
   const sourceOccupancy = snapshot.routes.find((route) => route.routeId === sourceRouteId)?.occupancy;
   const isRaider = sourceOccupancy?.kind === "raider";
+  const emptyDestinations = MARINER_ROUTE_CATALOG.filter((route) => {
+    if (route.routeId === sourceRouteId) return false;
+    const occupancy = snapshot.routes.find((entry) => entry.routeId === route.routeId)?.occupancy;
+    return occupancy?.kind === "empty";
+  });
   const destDefinition = MARINER_ROUTE_CATALOG.find((route) => route.routeId === destinationRouteId);
   const destEndpoints = destDefinition === undefined ? [] : [destDefinition.endpointA, destDefinition.endpointB];
   const toward = destEndpoints.find((endpoint) => endpointKey(endpoint) === towardKey) ?? destEndpoints[0];
@@ -2546,20 +2386,7 @@ function MoveShipForm({
       );
   return (
     <div className="rounded-lg border border-teal-200 dark:border-teal-900 p-3 space-y-2">
-      <h4 className="text-sm font-medium">{MOVE_SHIP_LABEL}</h4>
-      {fixedSourceRouteId === undefined && (
-      <label className="text-sm block">
-        Source Route
-        <select aria-label="Ship source Route" className={`${fieldClass} mt-1`} value={sourceRouteId} onChange={(e) => setSourceRouteId(e.target.value)}>
-          {occupied.length === 0 && <option value="">No occupied Route borders this Isle</option>}
-          {occupied.map((route) => (
-            <option key={route.routeId} value={route.routeId}>
-              {routeEndpointLabel(route.endpointA, mariner, world.isles)} — {routeEndpointLabel(route.endpointB, mariner, world.isles)}
-            </option>
-          ))}
-        </select>
-      </label>
-      )}
+      <h4 className="text-sm font-medium">{isRaider ? MOVE_RAIDER_LABEL : MOVE_SHIP_LABEL}</h4>
       <label className="text-sm block">
         Destination Route
         <select aria-label="Ship destination Route" className={`${fieldClass} mt-1`} value={destinationRouteId} onChange={(e) => {
@@ -2567,8 +2394,8 @@ function MoveShipForm({
           setTowardKey("");
           setRampageSeats({});
         }}>
-          <option value="">Select any other Route…</option>
-          {MARINER_ROUTE_CATALOG.filter((route) => route.routeId !== sourceRouteId).map((route) => (
+          <option value="">Select empty Route…</option>
+          {emptyDestinations.map((route) => (
             <option key={route.routeId} value={route.routeId}>
               {routeEndpointLabel(route.endpointA, mariner, world.isles)} — {routeEndpointLabel(route.endpointB, mariner, world.isles)}
             </option>
@@ -2620,7 +2447,6 @@ function MoveShipForm({
             void onSubmit(buildMoveMarinerShipPayload({
               commandId: newCommandId(),
               expectedCampaignId: campaignId,
-              sourceIsleId: boardIsleId,
               sourceRouteId,
               destinationRouteId,
               destinationToward: isRaider ? chosenToward : null,
@@ -2635,7 +2461,7 @@ function MoveShipForm({
             });
           }}
         >
-          {MOVE_SHIP_LABEL}
+          {isRaider ? MOVE_RAIDER_LABEL : MOVE_SHIP_LABEL}
         </button>
         <button className={ghostBtn} onClick={onCancel}>Cancel</button>
       </div>

@@ -12,7 +12,6 @@ import {
   marinerIsleOperationalView,
   marinerRouteOperationalView,
   marinerSeaOperationalView,
-  marinerVisionsForecast,
 } from "../src/mariner-operational-view";
 import { isRouteUnderImmediateHazard } from "../shared/domain";
 
@@ -67,10 +66,16 @@ function board() {
 }
 
 describe("Mariner operational view (encoded facts only)", () => {
-  it("does not invent a Map Stability number", () => {
-    const view = marinerIsleOperationalView(board(), "ishana");
-    expect(view.stability).toBeNull();
-    expect(view.stabilityExplanation).toBeNull();
+  it("does not carry speculative always-null Stability, Wind, or forecast fields", () => {
+    const isle = marinerIsleOperationalView(board(), "ishana");
+    const route = marinerRouteOperationalView(board(), SHIP_ROUTE);
+    const sea = marinerSeaOperationalView(board(), "bay_of_ishana");
+    expect(isle).not.toHaveProperty("stability");
+    expect(isle).not.toHaveProperty("stabilityExplanation");
+    expect(route).not.toHaveProperty("travelDirection");
+    expect(sea).not.toHaveProperty("legalGuidedDestinations");
+    expect(sea).not.toHaveProperty("prevailingWind");
+    expect(sea).not.toHaveProperty("nextStormDestination");
   });
 
   it("summarizes Market, Ravage, adjacent occupancy, and nesting from current state", () => {
@@ -82,7 +87,7 @@ describe("Mariner operational view (encoded facts only)", () => {
     expect(druntyr.ravageStormCount).toBe(3);
   });
 
-  it("marks a Raider Route toward its authoritative destination and a Ship Route as undirected", () => {
+  it("marks a Raider Route toward its authoritative destination", () => {
     const raider = marinerRouteOperationalView(board(), RAID_ROUTE);
     expect(raider.occupancyKind).toBe("raider");
     expect(raider.raidToward?.kind).toBe("board_isle");
@@ -92,7 +97,6 @@ describe("Mariner operational view (encoded facts only)", () => {
     const ship = marinerRouteOperationalView(board(), SHIP_ROUTE);
     expect(ship.occupancyKind).toBe("ship");
     expect(ship.raidToward).toBeNull();
-    expect(ship.travelDirection).toBeNull();
   });
 
   it("uses existing immediate-hazard helpers for threatened occupied Routes", () => {
@@ -105,25 +109,13 @@ describe("Mariner operational view (encoded facts only)", () => {
     expect(quiet.threatened).toBe(false);
   });
 
-  it("labels Typhoon from the existing Storms ≥ 2 presentation rule", () => {
+  it("exposes adjacent/default Storm destinations without calling them legal", () => {
     const typhoon = marinerSeaOperationalView(board(), "sidereal_sea");
     expect(typhoon.stormCount).toBe(2);
     expect(typhoon.typhoon).toBe(true);
     const storm = marinerSeaOperationalView(board(), "bay_of_ishana");
     expect(storm.stormCount).toBe(1);
     expect(storm.typhoon).toBe(false);
-    expect(storm.legalGuidedDestinations.length).toBeGreaterThan(0);
-  });
-
-  it("builds a Visions forecast from current Storms, Typhoons, threatened occupied Routes, and Ravaged Isles", () => {
-    const forecast = marinerVisionsForecast(board());
-    expect(forecast.stormTotal).toBe(3);
-    expect(forecast.typhoonSeaCount).toBe(1);
-    expect(forecast.threatenedOccupiedCount).toBeGreaterThan(0);
-    expect(forecast.ravagedIsleCount).toBe(1);
-    expect(forecast.summary).toContain("Storms");
-    expect(forecast.summary).toContain("Typhoon");
-    expect(forecast.prevailingWind).toBeNull();
-    expect(forecast.nextStormDestination).toBeNull();
+    expect(storm.adjacentRegionIds.length).toBeGreaterThan(0);
   });
 });

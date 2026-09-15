@@ -813,14 +813,14 @@ export const MARINER_ELEMENTS: readonly ElementId[] = ["air", "fire", "earth", "
 export const MARINER_POWERFUL_STATUSES = ["companion", "reliable", "disruptive", "malignant"] as const;
 
 export const CREATE_BEAST_LABEL = "Create Beast";
-export const CREATE_SHIP_LABEL = "Create Ship";
-export const GUIDE_STORM_LABEL = "Guide Storm...";
-export const MOVE_STORM_LABEL = "Record Guided Storm Move";
-export const MOVE_SHIP_LABEL = "Record Ship Move";
+export const CREATE_SHIP_LABEL = "Add Ship";
+export const GUIDE_STORM_LABEL = "Guide Storm";
+export const MOVE_STORM_LABEL = "Move Storm";
+export const MOVE_SHIP_LABEL = "Move Ship";
+export const MOVE_RAIDER_LABEL = "Move Raider";
 export const MOVE_BEAST_LABEL = "Move Distrusting Beast";
 export const NEST_BEAST_LABEL = "Help Beast Nest";
 export const RAVAGE_RESULT_LABEL = "Record Ravage Result";
-export const WIND_CONFIRMATION_LABEL = "I confirm this move is not against the actual prevailing Wind.";
 export const RAVAGE_INCOMPLETE_COPY =
   "Board result recorded. The source Ravage procedure is not complete.";
 export const RAVAGE_LORE_FOLLOW_THROUGH =

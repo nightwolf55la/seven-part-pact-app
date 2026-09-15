@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
@@ -31,11 +33,8 @@ import type { WorldReference } from "../src/WorldSurface";
 import type { LoreCompendiumUiState } from "../src/lore-view-model";
 import {
   CREATE_BEAST_LABEL,
-  CREATE_SHIP_LABEL,
   MOVE_BEAST_LABEL,
-  MOVE_SHIP_LABEL,
   GUIDE_STORM_LABEL,
-  MOVE_STORM_LABEL,
   NEST_BEAST_LABEL,
   NO_LORE_CONTEXT_COPY,
   RAVAGE_INCOMPLETE_COPY,
@@ -43,8 +42,10 @@ import {
   RAVAGE_LORE_FOLLOW_THROUGH,
   RAVAGE_MARKET_ABSORBED_COPY,
   RAVAGE_RESULT_LABEL,
-  WIND_CONFIRMATION_LABEL,
 } from "../src/mariner-view-model";
+
+const ADD_SHIP_LABEL = "Add Ship";
+const MOVE_RAIDER_LABEL = "Move Raider";
 
 const CAMPAIGN_ID = "cmp_00000000-0000-0000-0000-000000000001";
 const SHIP = "plc_00000000-0000-0000-0000-0000000000aa";
@@ -592,12 +593,10 @@ describe("Mariner source-map piece presentation", () => {
     container.remove();
   });
 
-  it("shows a Visions forecast from current Storms, Typhoons, threatened occupied Routes, and Ravaged Isles", () => {
+  it("does not keep a Visions forecast shell", () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    const forecast = container.querySelector("[data-mariner-visions-forecast]");
-    expect(forecast).not.toBeNull();
-    expect(forecast?.textContent ?? "").toMatch(/Storms/);
-    expect(forecast?.textContent ?? "").toMatch(/Typhoon/);
+    expect(container.querySelector("[data-mariner-visions-forecast]")).toBeNull();
+    expect(container.innerHTML).not.toContain("Visions forecast");
     expect(container.querySelector("[data-mariner-prevailing-wind]")).toBeNull();
     expect(container.querySelector("[data-isle-stability]")).toBeNull();
     root.unmount();
@@ -617,20 +616,11 @@ describe("Mariner source-map piece presentation", () => {
     container.remove();
   });
 
-  it("exposes Isle, Route, and Sea operational detail on hover and keyboard focus", () => {
+  it("does not keep a global hover/focus context strip", () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    const detail = () => container.querySelector("[data-mariner-context-detail]");
-    const isle = container.querySelector('[data-map-layer="isle"][data-isle-id="scuttleport"]') as SVGElement;
-    flushSync(() => { isle.dispatchEvent(new FocusEvent("focusin", { bubbles: true })); });
-    expect(detail()?.textContent ?? "").toMatch(/Market/);
-    expect(detail()?.textContent ?? "").toMatch(/adjacent occupied Route/);
-    const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${RAID_ROUTE}"]`) as SVGElement;
-    flushSync(() => { route.dispatchEvent(new FocusEvent("focusin", { bubbles: true })); });
-    expect(detail()?.textContent ?? "").toMatch(/Raider toward|toward ishana/i);
-    const sea = container.querySelector('[data-map-layer="sea-hit"][data-region-id="sidereal_sea"]') as SVGElement;
-    flushSync(() => { sea.dispatchEvent(new FocusEvent("focusin", { bubbles: true })); });
-    expect(detail()?.textContent ?? "").toMatch(/Storms 2/);
-    expect(detail()?.textContent ?? "").toMatch(/Typhoon/);
+    expect(container.querySelector("[data-mariner-context-detail]")).toBeNull();
+    expect(container.querySelector('[aria-label^="Isle World scuttleport"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label^="Sea The Sidereal Sea"]')).not.toBeNull();
     root.unmount();
     container.remove();
   });
@@ -739,8 +729,9 @@ describe("Mariner map interaction and narrow treatment", () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     clickIsle(container, "World orrery");
     expect(container.innerHTML).toContain("Isle inspector");
-    expect(container.innerHTML).not.toContain(CREATE_SHIP_LABEL);
-    expect(container.innerHTML).not.toContain(MOVE_SHIP_LABEL);
+    expect(container.innerHTML).not.toContain(ADD_SHIP_LABEL);
+    expect(container.innerHTML).not.toContain("Move Ship");
+    expect(container.innerHTML).not.toContain(MOVE_RAIDER_LABEL);
     root.unmount();
     container.remove();
   });
@@ -749,12 +740,12 @@ describe("Mariner map interaction and narrow treatment", () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     clickRoute(container, SUNKEN_ORRERY_FAR);
     expect(container.innerHTML).toContain("Route inspector");
-    expect(button(container, CREATE_SHIP_LABEL)).toBeDefined();
+    expect(button(container, ADD_SHIP_LABEL)).toBeDefined();
     root.unmount();
     container.remove();
     const occupied = renderSurface(initializedMariner(), WIZARD);
     clickRoute(occupied.container, SHIP_ROUTE);
-    expect(button(occupied.container, MOVE_SHIP_LABEL)).toBeDefined();
+    expect(button(occupied.container, "Move Ship")).toBeDefined();
     occupied.root.unmount();
     occupied.container.remove();
   });
@@ -766,8 +757,9 @@ describe("Mariner map interaction and narrow treatment", () => {
     expect(button(container, GUIDE_STORM_LABEL)).toBeDefined();
     expect(container.innerHTML).toMatch(/Storms 2/);
     expect(container.innerHTML).toMatch(/Typhoon/);
-    expect(container.innerHTML).not.toContain(CREATE_SHIP_LABEL);
-    expect(container.innerHTML).not.toContain(MOVE_SHIP_LABEL);
+    expect(container.innerHTML).not.toContain(ADD_SHIP_LABEL);
+    expect(container.innerHTML).not.toContain("Move Ship");
+    expect(container.innerHTML).not.toContain(MOVE_RAIDER_LABEL);
     root.unmount();
     container.remove();
   });
@@ -1428,25 +1420,22 @@ describe("Mariner semantic operability actions", () => {
     container.remove();
   });
 
-  it("requires Wind confirmation for a Guided Storm move and does not infer season", () => {
+  it("does not require Wind confirmation for a Guided Storm move", async () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     clickSea(container, "The Sidereal Sea");
     flushSync(() => { button(container, GUIDE_STORM_LABEL).click(); });
     expect(container.querySelector("[data-storm-guide-mode]")).not.toBeNull();
-    clickSeaHit(container, "wizard_strait");
-    expect(container.innerHTML).toContain(WIND_CONFIRMATION_LABEL);
-    expect(container.innerHTML).not.toContain("season");
-    expect(button(container, MOVE_STORM_LABEL).disabled).toBe(true);
-    flushSync(() => {
-      (container.querySelector('input[aria-label="Wind confirmation"]') as HTMLInputElement).click();
+    expect(container.innerHTML).not.toMatch(/Wind confirmation|prevailing Wind/i);
+    expect(container.querySelector('input[aria-label="Wind confirmation"]')).toBeNull();
+    await act(async () => {
+      clickSeaHit(container, "wizard_strait");
     });
-    expect(button(container, MOVE_STORM_LABEL).disabled).toBe(false);
-    flushSync(() => { button(container, MOVE_STORM_LABEL).click(); });
-    expect(mockMutations["m3Commands.moveMarinerStorm"].mock.calls[0][0]).toMatchObject({
+    const payload = mockMutations["m3Commands.moveMarinerStorm"].mock.calls[0][0];
+    expect(payload).toMatchObject({
       sourceRegionId: "sidereal_sea",
       destinationRegionId: "wizard_strait",
-      confirmedNotAgainstPrevailingWind: true,
     });
+    expect(payload).not.toHaveProperty("confirmedNotAgainstPrevailingWind");
     root.unmount();
     container.remove();
   });
@@ -1454,13 +1443,13 @@ describe("Mariner semantic operability actions", () => {
   it("shows Raider toward only for a Raider ship move", () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     clickRoute(container, RAID_ROUTE);
-    flushSync(() => { button(container, MOVE_SHIP_LABEL).click(); });
+    flushSync(() => { button(container, MOVE_RAIDER_LABEL).click(); });
     expect(container.querySelector('[aria-label="Ship Raider toward"]')).not.toBeNull();
     root.unmount();
     container.remove();
     const again = renderSurface(initializedMariner(), WIZARD);
     clickRoute(again.container, SHIP_ROUTE);
-    flushSync(() => { button(again.container, MOVE_SHIP_LABEL).click(); });
+    flushSync(() => { button(again.container, "Move Ship").click(); });
     expect(again.container.querySelector('[aria-label="Ship Raider toward"]')).toBeNull();
     again.root.unmount();
     again.container.remove();
@@ -1523,17 +1512,16 @@ describe("Mariner semantic operability actions", () => {
     container.remove();
   });
 
-  it("reaches Create Ship and Move Distrusting Beast and submits their semantic payloads", () => {
+  it("reaches Add Ship and Move Distrusting Beast and submits their semantic payloads", async () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     clickRoute(container, SUNKEN_ORRERY_FAR);
-    expect(button(container, CREATE_SHIP_LABEL)).toBeDefined();
-    flushSync(() => { button(container, CREATE_SHIP_LABEL).click(); });
-    flushSync(() => { button(container, CREATE_SHIP_LABEL).click(); });
+    expect(button(container, ADD_SHIP_LABEL)).toBeDefined();
+    await act(async () => { button(container, ADD_SHIP_LABEL).click(); });
     expect(mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0]).toMatchObject({
-      sourceIsleId: "far_reach",
       targetRouteId: SUNKEN_ORRERY_FAR,
       rampageResolutions: [],
     });
+    expect(mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0]).not.toHaveProperty("sourceIsleId");
     root.unmount();
     container.remove();
 
@@ -1564,11 +1552,11 @@ describe("Mariner semantic operability actions", () => {
     };
     const { container, root } = renderSurface(almost, WIZARD);
     clickRoute(container, SHIP_ROUTE);
-    flushSync(() => { button(container, MOVE_SHIP_LABEL).click(); });
+    flushSync(() => { button(container, "Move Ship").click(); });
     setSelect(select(container, "Ship destination Route"), SUNKEN_CARAVESSE_ORRERY);
     expect(container.querySelector('[aria-label^="Rampage destination"]')).not.toBeNull();
     setSelect(select(container, "Rampage destination"), "hierophant");
-    flushSync(() => { button(container, MOVE_SHIP_LABEL).click(); });
+    flushSync(() => { button(container, "Move Ship").click(); });
     const payload = mockMutations["m3Commands.moveMarinerShip"].mock.calls[0][0];
     expect(payload.destinationRouteId).toBe(SUNKEN_CARAVESSE_ORRERY);
     expect(payload.rampageResolutions).toEqual([expect.objectContaining({
@@ -1619,21 +1607,28 @@ describe("Mariner semantic operability actions", () => {
 });
 
 describe("Mariner click-to-guide Storm", () => {
-  it("highlights only adjacent Seas and leaves illegal Seas inactive", () => {
+  it("recommends adjacent Seas and still allows a non-adjacent destination", async () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     clickSea(container, "The Sidereal Sea");
     flushSync(() => { button(container, GUIDE_STORM_LABEL).click(); });
-    const legal = container.querySelectorAll('[data-map-layer="sea-hit"][data-storm-guide-dest="legal"]');
-    const legalIds = [...legal].map((node) => node.getAttribute("data-region-id"));
-    expect(legalIds).toEqual(expect.arrayContaining(["wizard_strait", "kings_gulf", "wainways", "southwest_horizon"]));
-    expect(legalIds).not.toContain("thyrian_sea");
-    expect(legalIds).not.toContain("sidereal_sea");
-    const illegal = container.querySelector('[data-map-layer="sea-hit"][data-region-id="thyrian_sea"]');
-    expect(illegal?.getAttribute("data-storm-guide-dest")).toBe("inactive");
-    expect(illegal?.getAttribute("tabindex")).toBe("-1");
-    clickSeaHit(container, "thyrian_sea");
-    expect(container.querySelector('[data-storm-guide-dest="chosen"]')).toBeNull();
-    expect(mockMutations["m3Commands.moveMarinerStorm"]).not.toHaveBeenCalled();
+    const recommended = container.querySelectorAll('[data-map-layer="sea-hit"][data-storm-guide-dest="recommended"]');
+    const recommendedIds = [...recommended].map((node) => node.getAttribute("data-region-id"));
+    expect(recommendedIds).toEqual(expect.arrayContaining(["wizard_strait", "kings_gulf", "wainways", "southwest_horizon"]));
+    expect(recommendedIds).not.toContain("thyrian_sea");
+    expect(recommendedIds).not.toContain("sidereal_sea");
+    const other = container.querySelector('[data-map-layer="sea-hit"][data-region-id="thyrian_sea"]');
+    expect(other?.getAttribute("data-storm-guide-dest")).toBe("available");
+    expect(other?.getAttribute("tabindex")).not.toBe("-1");
+    expect(other?.getAttribute("aria-disabled")).toBeNull();
+    expect(container.innerHTML).not.toMatch(/illegal/i);
+    await act(async () => {
+      clickSeaHit(container, "thyrian_sea");
+    });
+    expect(mockMutations["m3Commands.moveMarinerStorm"].mock.calls[0][0]).toMatchObject({
+      sourceRegionId: "sidereal_sea",
+      destinationRegionId: "thyrian_sea",
+    });
+    expect(mockMutations["m3Commands.moveMarinerStorm"].mock.calls[0][0]).not.toHaveProperty("confirmedNotAgainstPrevailingWind");
     expect(container.querySelector("[data-sea-polygon]")).toBeNull();
     const hitPath = container.querySelector('[data-map-layer="sea-hit"][data-region-id="wizard_strait"] path')?.getAttribute("d") ?? "";
     expect(hitPath).toContain(" A ");
@@ -1656,25 +1651,93 @@ describe("Mariner click-to-guide Storm", () => {
     container.remove();
   });
 
-  it("uses the existing moveMarinerStorm command after a legal destination and Wind confirmation", async () => {
+  it("uses the existing moveMarinerStorm command as soon as a destination Sea is clicked", async () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     clickSea(container, "The Sidereal Sea");
     flushSync(() => { button(container, GUIDE_STORM_LABEL).click(); });
-    clickSeaHit(container, "wizard_strait");
-    expect(container.querySelector('[data-storm-guide-dest="chosen"][data-region-id="wizard_strait"]')).not.toBeNull();
-    flushSync(() => {
-      (container.querySelector('input[aria-label="Wind confirmation"]') as HTMLInputElement).click();
-    });
     await act(async () => {
-      button(container, MOVE_STORM_LABEL).click();
+      clickSeaHit(container, "wizard_strait");
     });
     expect(mockMutations["m3Commands.moveMarinerStorm"].mock.calls[0][0]).toMatchObject({
       sourceRegionId: "sidereal_sea",
       destinationRegionId: "wizard_strait",
-      confirmedNotAgainstPrevailingWind: true,
     });
+    expect(mockMutations["m3Commands.moveMarinerStorm"].mock.calls[0][0]).not.toHaveProperty("confirmedNotAgainstPrevailingWind");
     expect(container.querySelector("[data-storm-guide-mode]")).toBeNull();
+    expect(container.querySelector("h4")?.textContent).not.toBe("Record Guided Storm Move");
     root.unmount();
     container.remove();
+  });
+});
+
+describe("M5.4 table-authoritative Mariner board actions", () => {
+  it("submits Add Ship from an empty Route without sourceIsleId or an extra form", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickRoute(container, SUNKEN_ORRERY_FAR);
+    expect(container.querySelector("select[aria-label='Create Ship target Route']")).toBeNull();
+    await act(async () => { button(container, ADD_SHIP_LABEL).click(); });
+    const payload = mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0];
+    expect(payload.targetRouteId).toBe(SUNKEN_ORRERY_FAR);
+    expect(payload).not.toHaveProperty("sourceIsleId");
+    expect(container.querySelector("h4")?.textContent).not.toBe(ADD_SHIP_LABEL);
+    root.unmount();
+    container.remove();
+  });
+
+  it("omits sourceIsleId from Move Ship and does not offer occupied destinations", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickRoute(container, SHIP_ROUTE);
+    flushSync(() => { button(container, "Move Ship").click(); });
+    const dest = select(container, "Ship destination Route");
+    const values = [...dest.options].map((option) => option.value).filter((value) => value !== "");
+    expect(values).not.toContain(SHIP_ROUTE);
+    expect(values).not.toContain(RAID_ROUTE);
+    expect(values).toContain(SUNKEN_ORRERY_FAR);
+    setSelect(dest, SUNKEN_ORRERY_FAR);
+    flushSync(() => { button(container, "Move Ship").click(); });
+    const payload = mockMutations["m3Commands.moveMarinerShip"].mock.calls[0][0];
+    expect(payload).toMatchObject({
+      sourceRouteId: SHIP_ROUTE,
+      destinationRouteId: SUNKEN_ORRERY_FAR,
+    });
+    expect(payload).not.toHaveProperty("sourceIsleId");
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps generic Route occupancy and Storm-count editors under Advanced / Correct", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    clickRoute(container, SUNKEN_ORRERY_FAR);
+    const routeAdvanced = [...container.querySelectorAll("details")].find((node) =>
+      (node.querySelector("summary")?.textContent ?? "").includes("Advanced / Correct — Route"),
+    );
+    expect(routeAdvanced).toBeDefined();
+    expect(routeAdvanced?.hasAttribute("open")).toBe(false);
+    expect(routeAdvanced?.querySelector('select[aria-label="Route occupancy"]')).not.toBeNull();
+    expect(button(routeAdvanced as HTMLElement, "Set Route occupancy")).toBeDefined();
+    expect(button(container, ADD_SHIP_LABEL).closest("details")).toBeNull();
+    root.unmount();
+    container.remove();
+
+    const sea = renderSurface(initializedMariner(), WIZARD);
+    clickSea(sea.container, "The Sidereal Sea");
+    const weatherAdvanced = [...sea.container.querySelectorAll("details")].find((node) =>
+      (node.querySelector("summary")?.textContent ?? "").includes("Advanced / Correct — Weather"),
+    );
+    expect(weatherAdvanced).toBeDefined();
+    expect(weatherAdvanced?.hasAttribute("open")).toBe(false);
+    expect(weatherAdvanced?.querySelector('input[aria-label="Storm count"]')).not.toBeNull();
+    expect(button(weatherAdvanced as HTMLElement, "Set Storm count")).toBeDefined();
+    expect(button(sea.container, GUIDE_STORM_LABEL).closest("details")).toBeNull();
+    sea.root.unmount();
+    sea.container.remove();
+  });
+
+  it("records UX-025 as partially addressed pending Stability and Wind", () => {
+    const docs = readFileSync(resolve("docs/m5-4-table-readiness-ux.md"), "utf8");
+    const ux025 = docs.slice(docs.indexOf("### UX-025"), docs.indexOf("### UX-026"));
+    expect(ux025).toContain("PARTIALLY ADDRESSED — NEEDS HUMAN RETEST");
+    expect(ux025).toMatch(/Stability/);
+    expect(ux025).not.toContain("FIXED — NEEDS HUMAN RETEST");
   });
 });
