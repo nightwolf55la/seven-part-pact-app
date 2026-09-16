@@ -10,6 +10,7 @@ import {
   buildMoveMarinerShipPayload,
   buildMoveMarinerStormPayload,
   buildSetMarinerRouteOccupancyPayload,
+  buildSetMarinerSeaStormCountPayload,
   captureOperabilityBoard,
   expectedForCreateShip,
   expectedForMoveShip,
@@ -31,6 +32,7 @@ import {
   pointerMovementExceedsDragThreshold,
   raiderTowardAppliesOnRoute,
   relatedTargetOwnsRouteHover,
+  relatedTargetOwnsSeaHover,
   representableRaiderEndpoints,
   routesShareBoardIsleEndpoint,
 } from "./mariner-board-pointer";
@@ -87,6 +89,7 @@ export function useMarinerBoardInteractions(args: {
   readonly moveMarinerShip: (payload: ReturnType<typeof buildMoveMarinerShipPayload>) => Promise<unknown>;
   readonly createMarinerShip: (payload: ReturnType<typeof buildCreateMarinerShipPayload>) => Promise<unknown>;
   readonly setMarinerRouteOccupancy: (payload: ReturnType<typeof buildSetMarinerRouteOccupancyPayload>) => Promise<unknown>;
+  readonly setMarinerSeaStormCount: (payload: ReturnType<typeof buildSetMarinerSeaStormCountPayload>) => Promise<unknown>;
   readonly onSelectRegion: (regionId: MarinerSeaRegionId) => void;
   readonly onSelectRoute: (routeId: string) => void;
 }) {
@@ -100,6 +103,7 @@ export function useMarinerBoardInteractions(args: {
     moveMarinerShip,
     createMarinerShip,
     setMarinerRouteOccupancy,
+    setMarinerSeaStormCount,
     onSelectRegion,
     onSelectRoute,
   } = args;
@@ -115,6 +119,8 @@ export function useMarinerBoardInteractions(args: {
   hoveredSeaRef.current = hoveredSeaId;
   hoveredRouteRef.current = hoveredRouteDropId;
   const [focusedRouteId, setFocusedRouteId] = useState<string | null>(null);
+  const [focusedSeaRegionId, setFocusedSeaRegionId] = useState<MarinerSeaRegionId | null>(null);
+  const [focusedStormRegionId, setFocusedStormRegionId] = useState<MarinerSeaRegionId | null>(null);
   const [pendingRaiderDirection, setPendingRaiderDirection] = useState<PendingRaiderDirection | null>(null);
   const [pendingShipRampage, setPendingShipRampage] = useState<PendingShipRampage | null>(null);
   const hasPendingDirectIntent = pendingRaiderDirection !== null || pendingShipRampage !== null;
@@ -447,6 +453,33 @@ export function useMarinerBoardInteractions(args: {
     await run(async () => { await setMarinerRouteOccupancy(payload); });
   }, [campaignId, hasPendingDirectIntent, mariner.routes, pending, run, setMarinerRouteOccupancy]);
 
+  const addStormToRegion = useCallback(async (regionId: MarinerSeaRegionId) => {
+    if (pending || hasPendingDirectIntent) return;
+    const current = mariner.seaRegions.find((region) => region.regionId === regionId)?.stormCount ?? 0;
+    const payload = buildSetMarinerSeaStormCountPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      regionId,
+      expectedStormCount: current,
+      stormCount: current + 1,
+    });
+    await run(async () => { await setMarinerSeaStormCount(payload); });
+  }, [campaignId, hasPendingDirectIntent, mariner.seaRegions, pending, run, setMarinerSeaStormCount]);
+
+  const removeStormFromRegion = useCallback(async (regionId: MarinerSeaRegionId) => {
+    if (pending || hasPendingDirectIntent) return;
+    const current = mariner.seaRegions.find((region) => region.regionId === regionId)?.stormCount ?? 0;
+    if (current < 1) return;
+    const payload = buildSetMarinerSeaStormCountPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      regionId,
+      expectedStormCount: current,
+      stormCount: current - 1,
+    });
+    await run(async () => { await setMarinerSeaStormCount(payload); });
+  }, [campaignId, hasPendingDirectIntent, mariner.seaRegions, pending, run, setMarinerSeaStormCount]);
+
   const chooseRaiderDirection = useCallback(async (toward: MarinerRouteEndpoint) => {
     if (pendingRaiderDirection === null) return;
     await commitShipMove(
@@ -529,6 +562,24 @@ export function useMarinerBoardInteractions(args: {
     setFocusedRouteId((current) => current === routeId ? null : current);
   }, []);
 
+  const onSeaHoverEnter = useCallback((regionId: MarinerSeaRegionId) => {
+    setFocusedSeaRegionId(regionId);
+  }, []);
+
+  const onSeaHoverLeave = useCallback((regionId: MarinerSeaRegionId, relatedTarget: EventTarget | null) => {
+    if (relatedTargetOwnsSeaHover(relatedTarget, regionId)) return;
+    setFocusedSeaRegionId((current) => current === regionId ? null : current);
+  }, []);
+
+  const onStormHoverEnter = useCallback((regionId: MarinerSeaRegionId) => {
+    setFocusedStormRegionId(regionId);
+  }, []);
+
+  const onStormHoverLeave = useCallback((regionId: MarinerSeaRegionId, relatedTarget: EventTarget | null) => {
+    if (relatedTargetOwnsSeaHover(relatedTarget, regionId)) return;
+    setFocusedStormRegionId((current) => current === regionId ? null : current);
+  }, []);
+
   return {
     dragVisual,
     stormDragSourceId,
@@ -542,6 +593,14 @@ export function useMarinerBoardInteractions(args: {
     cancelPendingShipRampage,
     onRouteHoverEnter,
     onRouteHoverLeave,
+    focusedSeaRegionId,
+    onSeaHoverEnter,
+    onSeaHoverLeave,
+    focusedStormRegionId,
+    onStormHoverEnter,
+    onStormHoverLeave,
+    addStormToRegion,
+    removeStormFromRegion,
     beginStormPointer,
     beginRoutePiecePointer,
     addShipToRoute,
@@ -587,6 +646,9 @@ export function BoardDragGhost({ visual }: { visual: BoardDragVisual | null }) {
   );
 }
 
+const ROUTE_MENU_BTN =
+  "block w-full text-left rounded px-2 py-1 text-[11px] leading-tight cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 whitespace-nowrap";
+
 export function RouteQuickActions({
   routeId,
   mariner,
@@ -594,8 +656,6 @@ export function RouteQuickActions({
   visible,
   onAddShip,
   onAddRaider,
-  onRemove,
-  occupied,
   onHoverEnter,
   onHoverLeave,
 }: {
@@ -605,8 +665,6 @@ export function RouteQuickActions({
   visible: boolean;
   onAddShip: () => void;
   onAddRaider: (toward: MarinerRouteEndpoint) => void;
-  onRemove: () => void;
-  occupied: MarinerRouteOccupancy;
   onHoverEnter: () => void;
   onHoverLeave: (relatedTarget: EventTarget | null) => void;
 }) {
@@ -618,96 +676,161 @@ export function RouteQuickActions({
   const routeLabel = routeDef === undefined
     ? routeId
     : `${routeEndpointLabel(routeDef.endpointA, mariner, world.isles)} — ${routeEndpointLabel(routeDef.endpointB, mariner, world.isles)}`;
-
-  if (occupied.kind === "empty") {
-    return (
-      <g
-        data-route-quick-actions
-        data-route-id={routeId}
-        data-route-hover-owner={routeId}
-        transform={`translate(${anchor.x} ${anchor.y})`}
-        pointerEvents="all"
-        onMouseOver={onHoverEnter}
-        onMouseOut={(event) => onHoverLeave(event.relatedTarget)}
-      >
-        <circle r={22} fill="#ffffff" fillOpacity={0.92} stroke="#0f766e" strokeWidth={1} />
-        <g transform="translate(-18 -4)">
-          <circle
-            r={7}
-            cx={18}
-            cy={0}
-            fill="#0f766e"
-            data-quick-action="add-ship"
-            role="button"
-            aria-label={`Add Ship on route ${routeLabel}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              onAddShip();
-            }}
-          >
-            <title>Add Ship</title>
-          </circle>
-          <text x={18} y={2} textAnchor="middle" fontSize={9} fill="#fff" pointerEvents="none">+S</text>
-        </g>
-        {endpoints.map((endpoint, index) => {
-          const x = index === 0 ? -10 : 46;
-          const label = routeEndpointLabel(endpoint, mariner, world.isles);
-          return (
-            <g key={endpointKey(endpoint)} transform={`translate(${x} -4)`}>
-              <circle
-                r={7}
-                cx={0}
-                cy={0}
-                fill="#7c2d12"
-                data-quick-action="add-raider"
-                data-raider-toward={endpointKey(endpoint)}
-                role="button"
-                aria-label={`Add Raider toward ${label}`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onAddRaider(endpoint);
-                }}
-              >
-                <title>{`Add Raider toward ${label}`}</title>
-              </circle>
-              <text x={0} y={2} textAnchor="middle" fontSize={7} fill="#fff" pointerEvents="none">+R</text>
-            </g>
-          );
-        })}
-      </g>
-    );
-  }
-
-  const removeLabel = occupied.kind === "ship"
-    ? `Remove Ship from route ${routeId}`
-    : `Remove Raider from route ${routeId}`;
+  const menuHeight = 28 + endpoints.length * 24;
 
   return (
     <g
       data-route-quick-actions
       data-route-id={routeId}
       data-route-hover-owner={routeId}
-      transform={`translate(${anchor.x + 14} ${anchor.y - 14})`}
+      transform={`translate(${anchor.x + 12} ${anchor.y})`}
       pointerEvents="all"
       onMouseOver={onHoverEnter}
       onMouseOut={(event) => onHoverLeave(event.relatedTarget)}
     >
-      <circle
-        r={8}
-        fill="#fef2f2"
-        stroke="#b91c1c"
-        strokeWidth={1}
-        data-quick-action="remove"
-        role="button"
-        aria-label={removeLabel}
-        onClick={(event) => {
-          event.stopPropagation();
-          onRemove();
-        }}
-      >
-        <title>Remove</title>
-      </circle>
-      <text x={0} y={2} textAnchor="middle" fontSize={8} fill="#b91c1c" pointerEvents="none">×</text>
+      <foreignObject x={0} y={-menuHeight / 2} width={220} height={menuHeight}>
+        <div
+          data-route-action-menu
+          className="rounded-md border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-sm py-0.5"
+        >
+          <button
+            type="button"
+            className={ROUTE_MENU_BTN}
+            data-quick-action="add-ship"
+            aria-label={`Add Ship on route ${routeLabel}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onAddShip();
+            }}
+          >
+            + Ship
+          </button>
+          {endpoints.map((endpoint) => {
+            const label = routeEndpointLabel(endpoint, mariner, world.isles);
+            return (
+              <button
+                key={endpointKey(endpoint)}
+                type="button"
+                className={ROUTE_MENU_BTN}
+                data-quick-action="add-raider"
+                data-raider-toward={endpointKey(endpoint)}
+                aria-label={`Add Raider toward ${label}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onAddRaider(endpoint);
+                }}
+              >
+                {`Raider -> ${label}`}
+              </button>
+            );
+          })}
+        </div>
+      </foreignObject>
+    </g>
+  );
+}
+
+const SEA_MENU_BTN =
+  "block w-full text-left rounded px-2 py-1 text-[11px] leading-tight cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 whitespace-nowrap";
+
+export function SeaStormQuickActions({
+  regionId,
+  anchorX,
+  anchorY,
+  visible,
+  onAddStorm,
+  onHoverEnter,
+  onHoverLeave,
+}: {
+  regionId: MarinerSeaRegionId;
+  anchorX: number;
+  anchorY: number;
+  visible: boolean;
+  onAddStorm: () => void;
+  onHoverEnter: () => void;
+  onHoverLeave: (relatedTarget: EventTarget | null) => void;
+}) {
+  if (!visible) return null;
+  return (
+    <g
+      data-sea-quick-actions
+      data-region-id={regionId}
+      data-sea-hover-owner={regionId}
+      transform={`translate(${anchorX + 14} ${anchorY})`}
+      pointerEvents="all"
+      onMouseOver={onHoverEnter}
+      onMouseOut={(event) => onHoverLeave(event.relatedTarget)}
+    >
+      <foreignObject x={0} y={-8} width={140} height={28}>
+        <div
+          data-sea-action-menu
+          className="rounded-md border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-sm py-0.5"
+        >
+          <button
+            type="button"
+            className={SEA_MENU_BTN}
+            data-quick-action="add-storm"
+            aria-label="Add Storm"
+            onClick={(event) => {
+              event.stopPropagation();
+              onAddStorm();
+            }}
+          >
+            + Storm
+          </button>
+        </div>
+      </foreignObject>
+    </g>
+  );
+}
+
+export function StormRemoveQuickAction({
+  regionId,
+  anchorX,
+  anchorY,
+  visible,
+  onRemoveStorm,
+  onHoverEnter,
+  onHoverLeave,
+}: {
+  regionId: MarinerSeaRegionId;
+  anchorX: number;
+  anchorY: number;
+  visible: boolean;
+  onRemoveStorm: () => void;
+  onHoverEnter: () => void;
+  onHoverLeave: (relatedTarget: EventTarget | null) => void;
+}) {
+  if (!visible) return null;
+  return (
+    <g
+      data-storm-remove-quick-action
+      data-region-id={regionId}
+      data-sea-hover-owner={regionId}
+      transform={`translate(${anchorX + 16} ${anchorY - 10})`}
+      pointerEvents="all"
+      onMouseOver={onHoverEnter}
+      onMouseOut={(event) => onHoverLeave(event.relatedTarget)}
+    >
+      <foreignObject x={0} y={-8} width={150} height={28}>
+        <div
+          data-storm-remove-menu
+          className="rounded-md border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-sm py-0.5 px-0.5"
+        >
+          <button
+            type="button"
+            className={`${SEA_MENU_BTN} text-red-700 dark:text-red-400 py-1.5 px-2`}
+            data-quick-action="remove-storm"
+            aria-label="Remove Storm"
+            onClick={(event) => {
+              event.stopPropagation();
+              onRemoveStorm();
+            }}
+          >
+            × Remove
+          </button>
+        </div>
+      </foreignObject>
     </g>
   );
 }

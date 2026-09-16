@@ -80,3 +80,10 @@ export function relatedTargetOwnsRouteHover(relatedTarget: EventTarget | null, r
   const owner = relatedTarget.closest("[data-route-hover-owner]");
   return owner?.getAttribute("data-route-hover-owner") === routeId;
 }
+
+/** True when the pointer remains inside the Sea hit, Storm piece, or that region's quick actions. */
+export function relatedTargetOwnsSeaHover(relatedTarget: EventTarget | null, regionId: string): boolean {
+  if (!(relatedTarget instanceof Element)) return false;
+  const owner = relatedTarget.closest("[data-sea-hover-owner]");
+  return owner?.getAttribute("data-sea-hover-owner") === regionId;
+}

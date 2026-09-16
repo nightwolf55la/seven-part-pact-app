@@ -141,6 +141,8 @@ import {
 import {
   BoardDragGhost,
   RouteQuickActions,
+  SeaStormQuickActions,
+  StormRemoveQuickAction,
   useMarinerBoardInteractions,
   type PendingShipRampage,
 } from "./mariner-board-interactions";
@@ -285,6 +287,7 @@ export default function MarinerSurface({
     moveMarinerShip,
     createMarinerShip,
     setMarinerRouteOccupancy,
+    setMarinerSeaStormCount,
     onSelectRegion: (regionId) => setSelection({ kind: "region", regionId }),
     onSelectRoute: (routeId) => setSelection({ kind: "route", routeId }),
   });
@@ -1051,6 +1054,7 @@ function MarinerMap({
               key={sea.regionId}
               data-map-layer="sea-hit"
               data-region-id={sea.regionId}
+              data-sea-hover-owner={sea.regionId}
               data-storm-guide-dest={guideDest ?? undefined}
               role="button"
               tabIndex={0}
@@ -1058,6 +1062,10 @@ function MarinerMap({
               aria-label={`${kind} ${name}: ${seaRegionStateLabel(stormCount)}`}
               className={INTERACTIVE_FOCUS_CLASS}
               style={{ outline: "none" }}
+              onMouseOver={() => board.onSeaHoverEnter(sea.regionId)}
+              onMouseOut={(event) => board.onSeaHoverLeave(sea.regionId, event.relatedTarget)}
+              onFocus={() => board.onSeaHoverEnter(sea.regionId)}
+              onBlur={(event) => board.onSeaHoverLeave(sea.regionId, event.relatedTarget)}
               onClick={() => {
                 if (board.stormDragSourceId !== null) return;
                 if (stormGuide !== null) {
@@ -1220,6 +1228,8 @@ function MarinerMap({
               toward={toward}
               threatened={operational.threatened}
               color={color}
+              showRemove={board.focusedRouteId === route.routeId && board.routeDragSourceId === null}
+              onRemove={() => { void board.removeRouteOccupancy(route.routeId); }}
               onSelect={() => onSelect({ kind: "route", routeId: route.routeId })}
               onPointerDown={(event) => board.beginRoutePiecePointer(route.routeId, occupancy, event)}
               onMouseEnter={() => board.onRouteHoverEnter(route.routeId)}
@@ -1229,6 +1239,7 @@ function MarinerMap({
         })}
         {MARINER_ROUTE_CATALOG.map((route) => {
           const occupancy = mariner.routes.find((entry) => entry.routeId === route.routeId)?.occupancy ?? { kind: "empty" as const };
+          if (occupancy.kind !== "empty") return null;
           const visible = board.focusedRouteId === route.routeId && board.routeDragSourceId === null;
           return (
             <RouteQuickActions
@@ -1237,10 +1248,8 @@ function MarinerMap({
               mariner={mariner}
               world={world}
               visible={visible}
-              occupied={occupancy}
               onAddShip={() => { void board.addShipToRoute(route.routeId); }}
               onAddRaider={(toward) => { void board.addRaiderToRoute(route.routeId, toward); }}
-              onRemove={() => { void board.removeRouteOccupancy(route.routeId); }}
               onHoverEnter={() => board.onRouteHoverEnter(route.routeId)}
               onHoverLeave={(relatedTarget) => board.onRouteHoverLeave(route.routeId, relatedTarget)}
             />
@@ -1343,6 +1352,7 @@ function MarinerMap({
                     data-piece="storm"
                     data-draggable-storm="true"
                     data-region-id={sea.regionId}
+                    data-sea-hover-owner={sea.regionId}
                     data-storm-count={stormCount}
                     data-storm-piece={storms.typhoon ? "typhoon" : "storm"}
                     data-typhoon={storms.typhoon ? "true" : "false"}
@@ -1351,6 +1361,11 @@ function MarinerMap({
                       : `Move one Storm from ${seaName}`}
                     style={{ cursor: "grab", opacity: board.stormDragSourceId === sea.regionId ? 0.35 : 1 }}
                     onPointerDown={(event) => board.beginStormPointer(sea.regionId, event)}
+                    onMouseOver={() => board.onStormHoverEnter(sea.regionId)}
+                    onMouseOut={(event) => board.onStormHoverLeave(sea.regionId, event.relatedTarget)}
+                    onFocus={() => board.onStormHoverEnter(sea.regionId)}
+                    onBlur={(event) => board.onStormHoverLeave(sea.regionId, event.relatedTarget)}
+                    tabIndex={0}
                   >
                     {Array.from({ length: storms.tokenCount }, (_, index) => (
                       <g key={index} transform={`translate(${sea.slots.storm.x + index * 7} ${sea.slots.storm.y - index * 6})`}>
@@ -1416,6 +1431,38 @@ function MarinerMap({
                     </text>
                   </g>
                 ))}
+              </g>
+            );
+          })}
+          {MARINER_SEA_GEOMETRY.map((sea) => {
+            const stormCount = mariner.seaRegions.find((entry) => entry.regionId === sea.regionId)?.stormCount ?? 0;
+            const storms = stormPiecePresentation(stormCount);
+            const snapAnchor = marinerOverlayPointToBoard(sea.slots.storm.x, sea.slots.storm.y);
+            const pieceAnchor = marinerOverlayPointToBoard(
+              sea.slots.storm.x + Math.max(0, storms.tokenCount - 1) * 7,
+              sea.slots.storm.y - Math.max(0, storms.tokenCount - 1) * 6,
+            );
+            const dragIdle = board.stormDragSourceId === null;
+            return (
+              <g key={`sea-quick-${sea.regionId}`}>
+                <SeaStormQuickActions
+                  regionId={sea.regionId}
+                  anchorX={snapAnchor.x}
+                  anchorY={snapAnchor.y}
+                  visible={board.focusedSeaRegionId === sea.regionId && dragIdle}
+                  onAddStorm={() => { void board.addStormToRegion(sea.regionId); }}
+                  onHoverEnter={() => board.onSeaHoverEnter(sea.regionId)}
+                  onHoverLeave={(relatedTarget) => board.onSeaHoverLeave(sea.regionId, relatedTarget)}
+                />
+                <StormRemoveQuickAction
+                  regionId={sea.regionId}
+                  anchorX={pieceAnchor.x}
+                  anchorY={pieceAnchor.y}
+                  visible={board.focusedStormRegionId === sea.regionId && stormCount > 0 && dragIdle}
+                  onRemoveStorm={() => { void board.removeStormFromRegion(sea.regionId); }}
+                  onHoverEnter={() => board.onStormHoverEnter(sea.regionId)}
+                  onHoverLeave={(relatedTarget) => board.onStormHoverLeave(sea.regionId, relatedTarget)}
+                />
               </g>
             );
           })}

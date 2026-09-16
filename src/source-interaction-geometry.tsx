@@ -243,6 +243,8 @@ export function SourceRouteOccupancyMarker({
   onPointerDown,
   onMouseEnter,
   onMouseLeave,
+  showRemove,
+  onRemove,
 }: {
   href: string;
   kind: "ship" | "raider";
@@ -255,6 +257,8 @@ export function SourceRouteOccupancyMarker({
   onPointerDown?: (event: ReactPointerEvent) => void;
   onMouseEnter?: (event: ReactMouseEvent<SVGGElement>) => void;
   onMouseLeave?: (event: ReactMouseEvent<SVGGElement>) => void;
+  showRemove?: boolean;
+  onRemove?: () => void;
 }) {
   const hostRef = useRef<SVGGElement>(null);
   useLayoutEffect(() => {
@@ -338,6 +342,27 @@ export function SourceRouteOccupancyMarker({
           stroke="#450a0a"
           strokeWidth={0.85}
         />
+      )}
+      {showRemove === true && onRemove !== undefined && (
+        <foreignObject x={8} y={-14} width={120} height={32}>
+          <div
+            data-route-occupancy-remove
+            className="rounded-md border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-sm py-0.5"
+          >
+            <button
+              type="button"
+              className="block w-full text-left rounded px-2 py-1.5 text-[11px] leading-tight cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 text-red-700 dark:text-red-400 whitespace-nowrap"
+              data-quick-action="remove"
+              aria-label={kind === "ship" ? `Remove Ship from route ${routeId}` : `Remove Raider from route ${routeId}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onRemove();
+              }}
+            >
+              × Remove
+            </button>
+          </div>
+        </foreignObject>
       )}
     </g>
   );
