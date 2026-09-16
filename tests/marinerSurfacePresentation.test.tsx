@@ -1518,6 +1518,7 @@ describe("Mariner semantic operability actions", () => {
     await act(async () => { button(container, ADD_SHIP_LABEL).click(); });
     expect(mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0]).toMatchObject({
       targetRouteId: SUNKEN_ORRERY_FAR,
+      destinationToward: null,
       rampageResolutions: [],
     });
     expect(mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0]).not.toHaveProperty("sourceIsleId");
@@ -1677,6 +1678,7 @@ describe("M5.4 table-authoritative Mariner board actions", () => {
     await act(async () => { button(container, ADD_SHIP_LABEL).click(); });
     const payload = mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0];
     expect(payload.targetRouteId).toBe(SUNKEN_ORRERY_FAR);
+    expect(payload.destinationToward).toBeNull();
     expect(payload).not.toHaveProperty("sourceIsleId");
     expect(container.querySelector("h4")?.textContent).not.toBe(ADD_SHIP_LABEL);
     root.unmount();
@@ -1800,6 +1802,26 @@ describe("M5.4 Mariner direct board manipulation", () => {
     await act(async () => { addShip.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     const payload = mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0];
     expect(payload.targetRouteId).toBe(SUNKEN_ORRERY_FAR);
+    expect(payload.destinationToward).toBeNull();
+    expect(payload).not.toHaveProperty("sourceIsleId");
+    root.unmount();
+    container.remove();
+  });
+
+  it("Add Raider submits semantic createMarinerShip with destinationToward", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SUNKEN_ORRERY_FAR}"]`) as SVGElement;
+    flushSync(() => { route.focus(); });
+    const addRaider = container.querySelector(
+      `[data-route-quick-actions][data-route-id="${SUNKEN_ORRERY_FAR}"] [data-quick-action="add-raider"][data-raider-toward="board:orrery"]`,
+    ) as SVGCircleElement;
+    expect(addRaider).not.toBeNull();
+    expect(addRaider.getAttribute("aria-label")).toMatch(/Add Raider toward/i);
+    await act(async () => { addRaider.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"]).not.toHaveBeenCalled();
+    const payload = mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0];
+    expect(payload.targetRouteId).toBe(SUNKEN_ORRERY_FAR);
+    expect(payload.destinationToward).toEqual({ kind: "board_isle", boardIsleId: "orrery" });
     expect(payload).not.toHaveProperty("sourceIsleId");
     root.unmount();
     container.remove();

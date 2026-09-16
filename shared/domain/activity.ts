@@ -248,10 +248,11 @@ function describeConfigEvent(event: CampaignEvent): string {
         : `Recorded Ship move${from}`;
     }
     case "mariner_ship_created": {
+      const piece = event.version === 3 && event.data.occupancyKind === "raider" ? "Raider" : "Ship";
       const from = event.data.sourceIsleId !== undefined ? ` from ${event.data.sourceIsleId}` : "";
       return event.data.immediatelyDestroyed
-        ? `Created a Ship${from} that was immediately destroyed`
-        : `Created a Ship${from}`;
+        ? `Created a ${piece}${from} that was immediately destroyed`
+        : `Created a ${piece}${from}`;
     }
     case "mariner_beast_moved":
       return event.data.rampaged

@@ -1644,6 +1644,7 @@ function RouteInspector({
       commandId: newCommandId(),
       expectedCampaignId: campaignId,
       targetRouteId: routeId,
+      destinationToward: null,
       ...expectedForCreateShip(snapshot, routeId),
       rampageResolutions,
     })).then((ok) => {
@@ -2115,6 +2116,7 @@ function CreateShipForm({
               commandId: newCommandId(),
               expectedCampaignId: campaignId,
               targetRouteId: fixedTargetRouteId,
+              destinationToward: null,
               ...expected,
               rampageResolutions: predictedBeastIds.map((denizenId) => ({
                 denizenId,

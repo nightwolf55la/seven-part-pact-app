@@ -3240,6 +3240,7 @@ export const createMarinerShip = mutation({
     expectedCampaignId: v.string(),
     sourceIsleId: v.optional(v.string()),
     targetRouteId: v.string(),
+    destinationToward: v.union(marinerRouteEndpointArg, v.null()),
     expectedTargetOccupancy: marinerRouteOccupancyArg,
     expectedStormCounts: v.array(marinerExpectedStormArg),
     expectedRouteOccupancies: v.array(marinerExpectedRouteArg),
@@ -3254,6 +3255,7 @@ export const createMarinerShip = mutation({
         const input = canonicalizeCreateMarinerShipInput({
           sourceIsleId: args.sourceIsleId,
           targetRouteId: args.targetRouteId,
+          destinationToward: args.destinationToward,
           expectedTargetOccupancy: args.expectedTargetOccupancy,
           expectedStormCounts: args.expectedStormCounts,
           expectedRouteOccupancies: args.expectedRouteOccupancies,

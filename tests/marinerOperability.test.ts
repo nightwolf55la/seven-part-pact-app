@@ -1478,6 +1478,7 @@ function createShipInput(
   return canonicalizeCreateMarinerShipInput({
     sourceIsleId,
     targetRouteId,
+    destinationToward: null,
     expectedTargetOccupancy: occupancyOf(state, targetRouteId),
     expectedStormCounts: captureStorms(state, regions),
     expectedRouteOccupancies: captureRoutes(state, boundingRoutesFor([targetRouteId])),
@@ -1494,10 +1495,12 @@ describe("create_mariner_ship", () => {
     expect(occupancyOf(result.nextState, THYRIAN_DRUNTYR)).toEqual({ kind: "ship" });
     expect(result.events[0]).toEqual({
       type: "mariner_ship_created",
-      version: 2,
+      version: 3,
       data: expect.objectContaining({
         sourceIsleId: "thyras",
         targetRouteId: THYRIAN_DRUNTYR,
+        occupancyKind: "ship",
+        toward: null,
         immediatelyDestroyed: false,
         rampagedBeasts: [],
       }),
@@ -1683,6 +1686,235 @@ describe("create_mariner_ship", () => {
     );
     expect(moveIo.commits[0]?.events[0]?.type).toBe("mariner_beast_moved");
     expect(() => validateEventCoherenceForTest(moveIo.commits[0]!, 1)).not.toThrow();
+  });
+});
+
+const TOWARD_DRUNTYR = { kind: "board_isle" as const, boardIsleId: "druntyr" as MarinerBoardIsleId };
+const TOWARD_ISHANA = { kind: "board_isle" as const, boardIsleId: "ishana" as MarinerBoardIsleId };
+
+function createShipInputToward(
+  state: CampaignStateV5,
+  destinationToward: { kind: "board_isle"; boardIsleId: MarinerBoardIsleId } | null,
+  overrides: Partial<CreateMarinerShipInput> = {},
+): CreateMarinerShipInput {
+  return {
+    ...createShipInput(state, overrides),
+    destinationToward,
+  } as CreateMarinerShipInput;
+}
+
+function shipCreatedCoherenceInput(event: CampaignEvent): CanonicalCommitInput {
+  const before = initializedQuiet();
+  return {
+    campaignDocId: "dummy" as CanonicalCommitInput["campaignDocId"],
+    campaignId: CAMPAIGN_A,
+    currentRevision: 4,
+    currentState: before,
+    commandId: COMMAND_1,
+    commandType: "create_mariner_ship",
+    commandFingerprint: "create_mariner_ship:v1:test",
+    nextState: before,
+    events: [event],
+    historyControlUpdate: { kind: "logical_state_append" },
+  };
+}
+
+describe("semantic CreateMarinerShip occupancy", () => {
+  it("creates an ordinary Ship when destinationToward is null", () => {
+    const before = initializedQuiet();
+    const result = applyCreateMarinerShip(before, createShipInputToward(before, null));
+    expect(occupancyOf(result.nextState, THYRIAN_DRUNTYR)).toEqual({ kind: "ship" });
+    const created = result.events[0];
+    expect(created).toMatchObject({
+      type: "mariner_ship_created",
+      version: 3,
+      data: {
+        targetRouteId: THYRIAN_DRUNTYR,
+        occupancyKind: "ship",
+        toward: null,
+        immediatelyDestroyed: false,
+        rampagedBeasts: [],
+      },
+    });
+  });
+
+  it("creates a directional Raider toward a valid target-Route endpoint", () => {
+    const before = initializedQuiet();
+    const result = applyCreateMarinerShip(before, createShipInputToward(before, TOWARD_DRUNTYR));
+    expect(occupancyOf(result.nextState, THYRIAN_DRUNTYR)).toEqual({
+      kind: "raider",
+      toward: TOWARD_DRUNTYR,
+    });
+    const created = result.events[0];
+    expect(created).toMatchObject({
+      type: "mariner_ship_created",
+      version: 3,
+      data: {
+        targetRouteId: THYRIAN_DRUNTYR,
+        occupancyKind: "raider",
+        toward: TOWARD_DRUNTYR,
+      },
+    });
+  });
+
+  it("rejects a Raider direction that is not an endpoint of targetRouteId", () => {
+    const before = initializedQuiet();
+    expectCode(
+      () => applyCreateMarinerShip(before, createShipInputToward(before, TOWARD_ISHANA)),
+      "INVALID_CAMPAIGN_STATE",
+      /toward|endpoint/,
+    );
+  });
+
+  it("destroys a created Raider on the same immediate shipping hazard as a Ship", () => {
+    const typhoon = setStorms(initializedQuiet(), "thyrian_sea", 2);
+    const result = applyCreateMarinerShip(typhoon, createShipInputToward(typhoon, TOWARD_DRUNTYR));
+    expect(occupancyOf(result.nextState, THYRIAN_DRUNTYR)).toEqual({ kind: "empty" });
+    const created = result.events[0];
+    expect(created?.type).toBe("mariner_ship_created");
+    if (created?.type === "mariner_ship_created") {
+      expect(created.version).toBe(3);
+      expect(created.data.immediatelyDestroyed).toBe(true);
+      expect(created.data.rampagedBeasts).toEqual([]);
+      if (created.version === 3) {
+        expect(created.data.occupancyKind).toBe("raider");
+        expect(created.data.toward).toEqual(TOWARD_DRUNTYR);
+      }
+    }
+  });
+
+  it("Rampages newly trapped Beasts when creating a Raider", () => {
+    let one = applyCreateMarinerBeast(initializedQuiet(), createBeastInput(initializedQuiet(), {
+      regionId: "sunken_fleet",
+    })).nextState;
+    one = setOccupancy(one, SUNKEN_ORRERY_FAR, { kind: "ship" });
+    one = setOccupancy(one, SUNKEN_CARAVESSE_FAR, { kind: "ship" });
+    expectCode(
+      () => applyCreateMarinerShip(one, createShipInputToward(one, { kind: "board_isle", boardIsleId: "caravesse" }, {
+        sourceIsleId: "orrery",
+        targetRouteId: SUNKEN_CARAVESSE_ORRERY,
+      })),
+      "INVALID_CAMPAIGN_STATE",
+      /resolution|trapped|Rampage/,
+    );
+    const trapped = applyCreateMarinerShip(one, createShipInputToward(one, { kind: "board_isle", boardIsleId: "caravesse" }, {
+      sourceIsleId: "orrery",
+      targetRouteId: SUNKEN_CARAVESSE_ORRERY,
+      rampageResolutions: [{
+        denizenId: NEW_DEN,
+        destinationSeatId: "hierophant",
+        rampagingMethodEntryId: METHOD_1,
+      }],
+    }));
+    expect(occupancyOf(trapped.nextState, SUNKEN_CARAVESSE_ORRERY)).toEqual({
+      kind: "raider",
+      toward: { kind: "board_isle", boardIsleId: "caravesse" },
+    });
+    expect(trapped.nextState.mariner.beasts.find((beast) => beast.denizenId === NEW_DEN)?.condition).toBe("rampaging");
+    const created = trapped.events[0];
+    expect(created?.type).toBe("mariner_ship_created");
+    if (created?.type === "mariner_ship_created" && created.version === 3) {
+      expect(created.data.occupancyKind).toBe("raider");
+      expect(created.data.rampagedBeasts).toEqual([{
+        denizenId: NEW_DEN,
+        destinationSeatId: "hierophant",
+      }]);
+    }
+  });
+
+  it("preserves optional genuine sourceIsleId on v3 create audit", () => {
+    const before = initializedQuiet();
+    const withSource = applyCreateMarinerShip(before, createShipInputToward(before, null, { sourceIsleId: "thyras" }));
+    const createdWith = withSource.events[0];
+    expect(createdWith?.type).toBe("mariner_ship_created");
+    if (createdWith?.type === "mariner_ship_created") {
+      expect(createdWith.version).toBe(3);
+      expect(createdWith.data.sourceIsleId).toBe("thyras");
+    }
+    const omitted = applyCreateMarinerShip(
+      before,
+      omitKey(createShipInputToward(before, null), "sourceIsleId") as CreateMarinerShipInput,
+    );
+    const createdWithout = omitted.events[0];
+    expect(createdWithout?.type).toBe("mariner_ship_created");
+    if (createdWithout?.type === "mariner_ship_created") {
+      expect(createdWithout.version).toBe(3);
+      expect(createdWithout.data).not.toHaveProperty("sourceIsleId");
+    }
+  });
+
+  it("keeps historical mariner_ship_created v1/v2 valid and accepts v3", () => {
+    expect(findValidatorMembers(campaignEventValidator as never, "mariner_ship_created", 1)).toHaveLength(1);
+    expect(findValidatorMembers(campaignEventValidator as never, "mariner_ship_created", 2)).toHaveLength(1);
+    expect(findValidatorMembers(campaignEventValidator as never, "mariner_ship_created", 3)).toHaveLength(1);
+    expect(matchesValidator(campaignEventValidator as never, V1_SHIP_CREATED)).toBe(true);
+    expect(matchesValidator(campaignEventValidator as never, { ...V1_SHIP_CREATED, version: 2 as const })).toBe(true);
+    expect(matchesValidator(campaignEventValidator as never, {
+      type: "mariner_ship_created",
+      version: 3,
+      data: {
+        targetRouteId: THYRIAN_DRUNTYR,
+        occupancyKind: "ship",
+        toward: null,
+        immediatelyDestroyed: false,
+        rampagedBeasts: [],
+      },
+    })).toBe(true);
+    expect(matchesValidator(campaignEventValidator as never, {
+      type: "mariner_ship_created",
+      version: 3,
+      data: {
+        sourceIsleId: "thyras",
+        targetRouteId: THYRIAN_DRUNTYR,
+        occupancyKind: "raider",
+        toward: TOWARD_DRUNTYR,
+        immediatelyDestroyed: false,
+        rampagedBeasts: [],
+      },
+    })).toBe(true);
+  });
+
+  it("command/event coherence accepts v3 occupancy and rejects incoherent toward combinations", () => {
+    const shipEvent = {
+      type: "mariner_ship_created" as const,
+      version: 3 as const,
+      data: {
+        targetRouteId: THYRIAN_DRUNTYR,
+        occupancyKind: "ship" as const,
+        toward: null,
+        immediatelyDestroyed: false,
+        rampagedBeasts: [] as const,
+      },
+    };
+    const raiderEvent = {
+      type: "mariner_ship_created" as const,
+      version: 3 as const,
+      data: {
+        targetRouteId: THYRIAN_DRUNTYR,
+        occupancyKind: "raider" as const,
+        toward: TOWARD_DRUNTYR,
+        immediatelyDestroyed: false,
+        rampagedBeasts: [] as const,
+      },
+    };
+    expect(() => validateEventCoherenceForTest(shipCreatedCoherenceInput(shipEvent), 5)).not.toThrow();
+    expect(() => validateEventCoherenceForTest(shipCreatedCoherenceInput(raiderEvent), 5)).not.toThrow();
+    expectCode(
+      () => validateEventCoherenceForTest(shipCreatedCoherenceInput({
+        ...shipEvent,
+        data: { ...shipEvent.data, toward: TOWARD_DRUNTYR },
+      }), 5),
+      "INVALID_CAMPAIGN_STATE",
+      /toward|occupancy/,
+    );
+    expectCode(
+      () => validateEventCoherenceForTest(shipCreatedCoherenceInput({
+        ...raiderEvent,
+        data: { ...raiderEvent.data, toward: null },
+      }), 5),
+      "INVALID_CAMPAIGN_STATE",
+      /toward|occupancy/,
+    );
   });
 });
 
@@ -1998,7 +2230,7 @@ describe("M5.4 table-authoritative Mariner ship/storm contract", () => {
     const created = result.events[0];
     expect(created?.type).toBe("mariner_ship_created");
     if (created?.type === "mariner_ship_created") {
-      expect(created.version).toBe(2);
+      expect(created.version).toBe(3);
       expect(created.data.targetRouteId).toBe(THYRIAN_DRUNTYR);
       expect(created.data.immediatelyDestroyed).toBe(false);
       if (sourceIsleId === undefined) {
@@ -2045,7 +2277,7 @@ describe("M5.4 table-authoritative Mariner ship/storm contract", () => {
     const created = result.events[0];
     expect(created?.type).toBe("mariner_ship_created");
     if (created?.type === "mariner_ship_created") {
-      expect(created.version).toBe(2);
+      expect(created.version).toBe(3);
       expect(created.data.sourceIsleId).toBe("thyras");
       expect(created.data.targetRouteId).toBe(TAHV_YERAINE);
     }
@@ -2261,7 +2493,7 @@ describe("M5.4 table-authoritative Mariner ship/storm contract", () => {
     expect(receipt).toEqual({ revision: 5 });
     expect(first.commits[0]?.events[0]).toMatchObject({
       type: "mariner_ship_created",
-      version: 2,
+      version: 3,
       data: { sourceIsleId: "thyras" },
     });
     expect(() => validateEventCoherenceForTest(first.commits[0]!, 1)).not.toThrow();

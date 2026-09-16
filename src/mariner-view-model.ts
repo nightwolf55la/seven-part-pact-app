@@ -1256,6 +1256,7 @@ export function buildCreateMarinerShipPayload(args: {
   readonly expectedCampaignId: string;
   readonly sourceIsleId?: MarinerBoardIsleId;
   readonly targetRouteId: string;
+  readonly destinationToward: MarinerRouteEndpoint | null;
   readonly expectedTargetOccupancy: MarinerRouteOccupancy;
   readonly expectedStormCounts: ReturnType<typeof captureStormCounts>;
   readonly expectedRouteOccupancies: ReturnType<typeof captureRouteOccupancies>;

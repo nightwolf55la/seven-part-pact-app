@@ -123,6 +123,7 @@ export interface MoveMarinerShipInput {
 export interface CreateMarinerShipInput {
   readonly sourceIsleId?: MarinerBoardIsleId;
   readonly targetRouteId: MarinerRouteId | string;
+  readonly destinationToward: MarinerRouteEndpoint | null;
   readonly expectedTargetOccupancy: MarinerRouteOccupancy;
   readonly expectedStormCounts: readonly ExpectedStormCount[];
   readonly expectedRouteOccupancies: readonly ExpectedRouteOccupancy[];
@@ -550,6 +551,7 @@ export function canonicalizeCreateMarinerShipInput(input: CreateMarinerShipInput
   return {
     ...optionalProvenanceBoardIsle(input.sourceIsleId),
     targetRouteId: input.targetRouteId,
+    destinationToward: input.destinationToward,
     expectedTargetOccupancy: input.expectedTargetOccupancy,
     expectedStormCounts: input.expectedStormCounts.map((entry) => ({ ...entry })),
     expectedRouteOccupancies: input.expectedRouteOccupancies.map((entry) => ({ ...entry })),
@@ -873,6 +875,19 @@ export function applyMoveMarinerShip(
   }]);
 }
 
+function occupancyFromCreateDestination(
+  routeDef: NonNullable<ReturnType<typeof marinerRouteDefinition>>,
+  destinationToward: MarinerRouteEndpoint | null,
+): Extract<MarinerRouteOccupancy, { kind: "ship" } | { kind: "raider" }> {
+  if (destinationToward === null) {
+    return { kind: "ship" };
+  }
+  if (!marinerRouteHasEndpoint(routeDef, destinationToward)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Raider toward is not an endpoint of the target Route");
+  }
+  return { kind: "raider", toward: destinationToward };
+}
+
 function resolveShipCausedRampages(
   state: CampaignStateV5,
   preAction: MarinerState,
@@ -929,8 +944,9 @@ export function applyCreateMarinerShip(
   checkExpectedRoutes(state, input.expectedRouteOccupancies, requiredRoutes);
   checkExpectedBeastStates(state, input.expectedRelevantBeasts, requiredRegions);
 
+  const placed = occupancyFromCreateDestination(targetDef, input.destinationToward);
   let routes = current.routes.map((route) => (
-    route.routeId === input.targetRouteId ? { ...route, occupancy: { kind: "ship" as const } } : route
+    route.routeId === input.targetRouteId ? { ...route, occupancy: placed } : route
   ));
   const placedBoard: MarinerState = { ...current, routes };
   let immediatelyDestroyed = false;
@@ -951,10 +967,12 @@ export function applyCreateMarinerShip(
   );
   return commit(working, [{
     type: "mariner_ship_created",
-    version: 2,
+    version: 3,
     data: {
       ...optionalProvenanceBoardIsle(input.sourceIsleId),
       targetRouteId: input.targetRouteId as MarinerRouteId,
+      occupancyKind: placed.kind,
+      toward: placed.kind === "raider" ? placed.toward : null,
       immediatelyDestroyed,
       rampagedBeasts,
     },

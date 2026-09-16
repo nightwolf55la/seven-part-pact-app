@@ -196,7 +196,38 @@ describe("describeActivityEntry", () => {
       },
       expected: "Revision 9 — Recorded Ship move",
     },
-  ])("Activity History is truthful for Mariner ship v2 $label", ({ event, expected }) => {
+    {
+      label: "created v3 ordinary Ship",
+      event: {
+        type: "mariner_ship_created" as const,
+        version: 3 as const,
+        data: {
+          targetRouteId: "board_isle:tahv__board_isle:yeraine",
+          occupancyKind: "ship" as const,
+          toward: null,
+          immediatelyDestroyed: false,
+          rampagedBeasts: [],
+        },
+      },
+      expected: "Revision 9 — Created a Ship",
+    },
+    {
+      label: "created v3 Raider",
+      event: {
+        type: "mariner_ship_created" as const,
+        version: 3 as const,
+        data: {
+          sourceIsleId: "thyras",
+          targetRouteId: "board_isle:tahv__board_isle:yeraine",
+          occupancyKind: "raider" as const,
+          toward: { kind: "board_isle" as const, boardIsleId: "tahv" },
+          immediatelyDestroyed: false,
+          rampagedBeasts: [],
+        },
+      },
+      expected: "Revision 9 — Created a Raider from thyras",
+    },
+  ])("Activity History is truthful for Mariner ship $label", ({ event, expected }) => {
     const entry = mapEventToActivityEntry("evt_1", 9, event as unknown as CampaignEvent);
     expect(describeActivityEntry(entry)).toBe(expected);
   });

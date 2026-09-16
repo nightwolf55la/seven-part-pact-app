@@ -1,6 +1,6 @@
 import type { MutationCtx } from "./_generated/server";
 import type { CampaignCommandType, CurrentCampaignState, CampaignEvent, InfrastructureEvent } from "../shared/domain";
-import { validateCampaignState, validateAnyCampaignState, DomainError, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION, validateHistoryControlStructure, statesDeepEqual, isValidCheckpointId, validateCheckpointLabel, normalizeCheckpointLabel, checkpointRestoreFingerprint, CURRENT_CHECKPOINT_VERSION, isValidCampaignId, backupImportFingerprint, fullyValidateBackup, isValidPlayerId, isValidWizardId } from "../shared/domain";
+import { validateCampaignState, validateAnyCampaignState, DomainError, isLogicalStateCommandType, CURRENT_HISTORY_CONTROL_VERSION, validateHistoryControlStructure, statesDeepEqual, isValidCheckpointId, validateCheckpointLabel, normalizeCheckpointLabel, checkpointRestoreFingerprint, CURRENT_CHECKPOINT_VERSION, isValidCampaignId, backupImportFingerprint, fullyValidateBackup, isValidPlayerId, isValidWizardId, marinerRouteDefinition, marinerRouteHasEndpoint } from "../shared/domain";
 import { migrateToCurrentVersion } from "../shared/domain/state-migration";
 import { assertPortableCampaignState } from "../shared/domain/state-equality";
 import { validateUndoTransactionCoherence, validateRedoTransactionCoherence } from "../shared/domain/undo-redo";
@@ -314,7 +314,7 @@ const CURRENT_V5_EVENT_VERSION_REQUIREMENTS: Record<string, { type: string; vers
   set_engagement_target: { type: "engagement_target_changed", version: 2 },
   reschedule_engagement: { type: "engagement_rescheduled", version: 2 },
   blackmail_faustian_community: { type: "faustian_community_blackmailed", version: 2 },
-  create_mariner_ship: { type: "mariner_ship_created", version: 2 },
+  create_mariner_ship: { type: "mariner_ship_created", version: 3 },
   move_mariner_ship: { type: "mariner_ship_moved", version: 2 },
 };
 
@@ -427,6 +427,23 @@ function validateM3EventPayload(evt: CampaignEvent): void {
     case "wizard_character_updated":
       if (typeof evt.data.wizardId !== "string" || !isValidWizardId(evt.data.wizardId)) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", "wizard_character_updated has invalid wizardId");
+      }
+      break;
+    case "mariner_ship_created":
+      if (evt.version === 3) {
+        if (evt.data.occupancyKind === "ship") {
+          if (evt.data.toward !== null) {
+            throw new DomainError("INVALID_CAMPAIGN_STATE", "mariner_ship_created ship occupancy must not include a toward");
+          }
+        } else if (evt.data.occupancyKind === "raider") {
+          if (evt.data.toward === null) {
+            throw new DomainError("INVALID_CAMPAIGN_STATE", "mariner_ship_created raider occupancy requires a toward");
+          }
+          const routeDef = marinerRouteDefinition(evt.data.targetRouteId);
+          if (routeDef === undefined || !marinerRouteHasEndpoint(routeDef, evt.data.toward)) {
+            throw new DomainError("INVALID_CAMPAIGN_STATE", "mariner_ship_created raider toward is not an endpoint of the target Route");
+          }
+        }
       }
       break;
     case "hierophant_initialized":

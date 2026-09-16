@@ -1784,6 +1784,19 @@ const marinerShipCreatedEventV2Validator = v.object({
   }),
 });
 
+const marinerShipCreatedEventV3Validator = v.object({
+  type: v.literal("mariner_ship_created"),
+  version: v.literal(3),
+  data: v.object({
+    sourceIsleId: v.optional(v.string()),
+    targetRouteId: v.string(),
+    occupancyKind: v.union(v.literal("ship"), v.literal("raider")),
+    toward: v.union(marinerRouteEndpointValidator, v.null()),
+    immediatelyDestroyed: v.boolean(),
+    rampagedBeasts: v.array(marinerRampagedBeastAuditValidator),
+  }),
+});
+
 const marinerBeastMovedEventV1Validator = v.object({
   type: v.literal("mariner_beast_moved"),
   version: v.literal(1),
@@ -3458,6 +3471,7 @@ export const campaignEventValidator = v.union(
   marinerShipMovedEventV2Validator,
   marinerShipCreatedEventV1Validator,
   marinerShipCreatedEventV2Validator,
+  marinerShipCreatedEventV3Validator,
   marinerBeastMovedEventV1Validator,
   marinerBeastNestedEventV1Validator,
   marinerRavageResultRecordedEventV1Validator,

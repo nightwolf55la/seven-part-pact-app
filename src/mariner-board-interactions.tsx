@@ -362,6 +362,7 @@ export function useMarinerBoardInteractions(args: {
       commandId: newCommandId(),
       expectedCampaignId: campaignId,
       targetRouteId: routeId,
+      destinationToward: null,
       ...expectedForCreateShip(snapshot, routeId),
       rampageResolutions: [],
     });
@@ -370,17 +371,23 @@ export function useMarinerBoardInteractions(args: {
 
   const addRaiderToRoute = useCallback(async (routeId: string, toward: MarinerRouteEndpoint) => {
     if (pending || !isEmptyRoute(mariner.routes, routeId)) return;
-    const route = mariner.routes.find((entry) => entry.routeId === routeId);
-    if (route === undefined) return;
-    const payload = buildSetMarinerRouteOccupancyPayload({
+    const snapshot = captureOperabilityBoard(mariner);
+    const occupancy = { kind: "raider" as const, toward };
+    const predicted = predictedNewlyTrappedBeastIdsAfterShipPlacement(snapshot, routeId, occupancy);
+    if (predicted.length > 0) {
+      setPendingShipRampage({ targetRouteId: routeId, occupancy });
+      return;
+    }
+    const payload = buildCreateMarinerShipPayload({
       commandId: newCommandId(),
       expectedCampaignId: campaignId,
-      routeId,
-      expectedOccupancy: route.occupancy,
-      occupancy: { kind: "raider", toward },
+      targetRouteId: routeId,
+      destinationToward: toward,
+      ...expectedForCreateShip(snapshot, routeId),
+      rampageResolutions: [],
     });
-    await run(async () => { await setMarinerRouteOccupancy(payload); });
-  }, [campaignId, mariner.routes, pending, run, setMarinerRouteOccupancy]);
+    await run(async () => { await createMarinerShip(payload); });
+  }, [campaignId, createMarinerShip, mariner, pending, run]);
 
   const removeRouteOccupancy = useCallback(async (routeId: string) => {
     if (pending) return;
