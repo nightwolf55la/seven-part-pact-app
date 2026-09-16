@@ -73,3 +73,10 @@ export function representableRaiderEndpoints(routeId: string): MarinerRouteEndpo
   if (route === undefined) return [];
   return [route.endpointA, route.endpointB];
 }
+
+/** True when the pointer remains inside the Route hit, occupancy marker, or that Route's quick actions. */
+export function relatedTargetOwnsRouteHover(relatedTarget: EventTarget | null, routeId: string): boolean {
+  if (!(relatedTarget instanceof Element)) return false;
+  const owner = relatedTarget.closest("[data-route-hover-owner]");
+  return owner?.getAttribute("data-route-hover-owner") === routeId;
+}

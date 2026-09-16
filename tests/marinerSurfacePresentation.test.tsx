@@ -42,6 +42,9 @@ import {
   RAVAGE_LORE_FOLLOW_THROUGH,
   RAVAGE_MARKET_ABSORBED_COPY,
   RAVAGE_RESULT_LABEL,
+  captureOperabilityBoard,
+  expectedForCreateShip,
+  expectedForMoveShip,
 } from "../src/mariner-view-model";
 
 const ADD_SHIP_LABEL = "Add Ship";
@@ -117,6 +120,10 @@ const SUNKEN_CARAVESSE_FAR = marinerRouteId(
 const SUNKEN_CARAVESSE_ORRERY = marinerRouteId(
   { kind: "board_isle", boardIsleId: "caravesse" },
   { kind: "board_isle", boardIsleId: "orrery" },
+);
+const ISHANA_DRUNTYR = marinerRouteId(
+  { kind: "board_isle", boardIsleId: "ishana" },
+  { kind: "board_isle", boardIsleId: "druntyr" },
 );
 
 function initializedMariner() {
@@ -269,6 +276,66 @@ function withStormCount(mariner: MarinerState, stormCount: number): MarinerState
       region.regionId === "sidereal_sea" ? { ...region, stormCount } : region,
     ),
   };
+}
+
+const ORRERY_SPYRHOLM = marinerRouteId(
+  { kind: "board_isle", boardIsleId: "orrery" },
+  { kind: "board_isle", boardIsleId: "spyrholm" },
+);
+
+/** Occupy a relevant but non-trapping Route so expected occupancy drifts without changing Rampage. */
+function withRealtimeOccupancyDrift(mariner: MarinerState): MarinerState {
+  return {
+    ...mariner,
+    routes: mariner.routes.map((route) =>
+      route.routeId === ORRERY_SPYRHOLM ? { ...route, occupancy: { kind: "ship" as const } } : route
+    ),
+  };
+}
+
+/** Occupy the other Sunken Fleet bounding Routes so placing on Orrery–Far Reach newly traps DEN_A. */
+function withSunkenFleetTrapReady(mariner: MarinerState): MarinerState {
+  return {
+    ...mariner,
+    routes: mariner.routes.map((route) => (
+      route.routeId === SUNKEN_CARAVESSE_FAR || route.routeId === SUNKEN_CARAVESSE_ORRERY
+        ? { ...route, occupancy: { kind: "ship" as const } }
+        : route
+    )),
+  };
+}
+
+function focusRoute(container: HTMLElement, routeId: string): SVGElement {
+  const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${routeId}"]`) as SVGElement;
+  flushSync(() => { route.focus(); });
+  return route;
+}
+
+async function dragRoutePiece(
+  container: HTMLElement,
+  sourceRouteId: string,
+  destRouteId: string,
+  pointerId = 21,
+): Promise<void> {
+  const piece = container.querySelector(`[data-draggable-route-piece="true"][data-route-id="${sourceRouteId}"]`) as Element;
+  const dest = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${destRouteId}"]`) as Element;
+  (piece as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+  Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => dest });
+  await act(async () => {
+    piece.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: 15, clientY: 15, pointerId, isPrimary: true }));
+    window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 30, clientY: 15, pointerId }));
+    window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 210, clientY: 210, pointerId }));
+    window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: 210, clientY: 210, pointerId }));
+  });
+}
+
+async function confirmRampageDestination(container: HTMLElement, seatId = "hierophant"): Promise<void> {
+  const chooser = container.querySelector("[data-ship-rampage-chooser]") as HTMLElement | null;
+  if (chooser === null) throw new Error("Missing Rampage chooser");
+  const dest = chooser.querySelector('select[aria-label="Rampage destination"]') as HTMLSelectElement | null;
+  if (dest === null) throw new Error("Missing Rampage destination select");
+  setSelect(dest, seatId);
+  await act(async () => { button(chooser, "Confirm Rampage").click(); });
 }
 
 function withBeast(mariner: MarinerState, beast: MarinerBeastState): MarinerState {
@@ -1835,6 +1902,237 @@ describe("M5.4 Mariner direct board manipulation", () => {
     const occupied = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`) as SVGElement;
     flushSync(() => { occupied.focus(); });
     expect(container.querySelector(`[data-route-quick-actions][data-route-id="${SHIP_ROUTE}"] [data-quick-action="remove"]`)).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("defers quick +Ship that traps a Beast until Rampage destinations are chosen", async () => {
+    const start = withSunkenFleetTrapReady(initializedMariner());
+    const expected = expectedForCreateShip(captureOperabilityBoard(start), SUNKEN_ORRERY_FAR);
+    const { container, root } = renderSurface(start, WIZARD);
+    focusRoute(container, SUNKEN_ORRERY_FAR);
+    const addShip = container.querySelector(
+      `[data-route-quick-actions][data-route-id="${SUNKEN_ORRERY_FAR}"] [data-quick-action="add-ship"]`,
+    ) as SVGCircleElement;
+    await act(async () => { addShip.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(mockMutations["m3Commands.createMarinerShip"]).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-ship-rampage-chooser]")).not.toBeNull();
+    await confirmRampageDestination(container);
+    const payload = mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0];
+    expect(payload).toMatchObject({
+      expectedCampaignId: CAMPAIGN_ID,
+      targetRouteId: SUNKEN_ORRERY_FAR,
+      destinationToward: null,
+      expectedTargetOccupancy: expected.expectedTargetOccupancy,
+      expectedStormCounts: expected.expectedStormCounts,
+      expectedRouteOccupancies: expected.expectedRouteOccupancies,
+      expectedRelevantBeasts: expected.expectedRelevantBeasts,
+    });
+    expect(payload.rampageResolutions).toEqual([
+      expect.objectContaining({ denizenId: DEN_A, destinationSeatId: "hierophant" }),
+    ]);
+    expect(payload.rampageResolutions[0].rampagingMethodEntryId).toEqual(expect.any(String));
+    expect(payload).not.toHaveProperty("sourceIsleId");
+    expect(container.querySelector("[data-ship-rampage-chooser]")).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("defers quick +Raider that traps a Beast and keeps destinationToward on semantic create", async () => {
+    const start = withSunkenFleetTrapReady(initializedMariner());
+    const expected = expectedForCreateShip(captureOperabilityBoard(start), SUNKEN_ORRERY_FAR);
+    const { container, root } = renderSurface(start, WIZARD);
+    focusRoute(container, SUNKEN_ORRERY_FAR);
+    const addRaider = container.querySelector(
+      `[data-route-quick-actions][data-route-id="${SUNKEN_ORRERY_FAR}"] [data-quick-action="add-raider"][data-raider-toward="board:orrery"]`,
+    ) as SVGCircleElement;
+    await act(async () => { addRaider.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(mockMutations["m3Commands.createMarinerShip"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"]).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-ship-rampage-chooser]")).not.toBeNull();
+    await confirmRampageDestination(container);
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"]).not.toHaveBeenCalled();
+    const payload = mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0];
+    expect(payload).toMatchObject({
+      targetRouteId: SUNKEN_ORRERY_FAR,
+      destinationToward: { kind: "board_isle", boardIsleId: "orrery" },
+      expectedTargetOccupancy: expected.expectedTargetOccupancy,
+      expectedStormCounts: expected.expectedStormCounts,
+      expectedRelevantBeasts: expected.expectedRelevantBeasts,
+    });
+    expect(payload.rampageResolutions).toEqual([
+      expect.objectContaining({ denizenId: DEN_A, destinationSeatId: "hierophant" }),
+    ]);
+    expect(payload).not.toHaveProperty("sourceIsleId");
+    root.unmount();
+    container.remove();
+  });
+
+  it("defers a dragged Ship that traps a Beast and moves with the drag-start snapshot", async () => {
+    const start = withSunkenFleetTrapReady(initializedMariner());
+    const expected = expectedForMoveShip(captureOperabilityBoard(start), SHIP_ROUTE, SUNKEN_ORRERY_FAR);
+    const { container, root } = renderSurface(start, WIZARD);
+    await dragRoutePiece(container, SHIP_ROUTE, SUNKEN_ORRERY_FAR, 31);
+    expect(mockMutations["m3Commands.moveMarinerShip"]).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-ship-rampage-chooser]")).not.toBeNull();
+    await confirmRampageDestination(container);
+    const payload = mockMutations["m3Commands.moveMarinerShip"].mock.calls[0][0];
+    expect(payload).toMatchObject({
+      sourceRouteId: SHIP_ROUTE,
+      destinationRouteId: SUNKEN_ORRERY_FAR,
+      destinationToward: null,
+      expectedSourceOccupancy: expected.expectedSourceOccupancy,
+      expectedDestinationOccupancy: expected.expectedDestinationOccupancy,
+      expectedStormCounts: expected.expectedStormCounts,
+      expectedRouteOccupancies: expected.expectedRouteOccupancies,
+      expectedRelevantBeasts: expected.expectedRelevantBeasts,
+    });
+    expect(payload.rampageResolutions).toEqual([
+      expect.objectContaining({ denizenId: DEN_A, destinationSeatId: "hierophant" }),
+    ]);
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps the action-start snapshot after realtime Mariner state changes in the Rampage chooser", async () => {
+    const start = withSunkenFleetTrapReady(initializedMariner());
+    const expected = expectedForCreateShip(captureOperabilityBoard(start), SUNKEN_ORRERY_FAR);
+    const { container, root } = renderSurface(start, WIZARD);
+    focusRoute(container, SUNKEN_ORRERY_FAR);
+    const addShip = container.querySelector(
+      `[data-route-quick-actions][data-route-id="${SUNKEN_ORRERY_FAR}"] [data-quick-action="add-ship"]`,
+    ) as SVGCircleElement;
+    await act(async () => { addShip.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(container.querySelector("[data-ship-rampage-chooser]")).not.toBeNull();
+    rerenderSurface(root, withRealtimeOccupancyDrift(start));
+    expect(container.querySelector("[data-ship-rampage-chooser]")).not.toBeNull();
+    await confirmRampageDestination(container);
+    const payload = mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0];
+    expect(payload.expectedRouteOccupancies).toEqual(expected.expectedRouteOccupancies);
+    expect(payload.expectedRelevantBeasts).toEqual(expected.expectedRelevantBeasts);
+    expect(payload.expectedRouteOccupancies).not.toEqual(
+      expectedForCreateShip(captureOperabilityBoard(withRealtimeOccupancyDrift(start)), SUNKEN_ORRERY_FAR)
+        .expectedRouteOccupancies,
+    );
+    root.unmount();
+    container.remove();
+  });
+
+  it("builds a Raider direction-choice move from the drag-start snapshot, not a later board", async () => {
+    const start = initializedMariner();
+    const expected = expectedForMoveShip(captureOperabilityBoard(start), RAID_ROUTE, SUNKEN_ORRERY_FAR);
+    const { container, root } = renderSurface(start, WIZARD);
+    await dragRoutePiece(container, RAID_ROUTE, SUNKEN_ORRERY_FAR, 32);
+    expect(mockMutations["m3Commands.moveMarinerShip"]).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-raider-direction-chooser]")).not.toBeNull();
+    rerenderSurface(root, withRealtimeOccupancyDrift(start));
+    await act(async () => { button(container, "World orrery").click(); });
+    const payload = mockMutations["m3Commands.moveMarinerShip"].mock.calls[0][0];
+    expect(payload).toMatchObject({
+      sourceRouteId: RAID_ROUTE,
+      destinationRouteId: SUNKEN_ORRERY_FAR,
+      destinationToward: { kind: "board_isle", boardIsleId: "orrery" },
+      expectedSourceOccupancy: expected.expectedSourceOccupancy,
+      expectedRouteOccupancies: expected.expectedRouteOccupancies,
+      expectedRelevantBeasts: expected.expectedRelevantBeasts,
+    });
+    expect(payload.expectedRouteOccupancies).not.toEqual(
+      expectedForMoveShip(
+        captureOperabilityBoard(withRealtimeOccupancyDrift(start)),
+        RAID_ROUTE,
+        SUNKEN_ORRERY_FAR,
+      ).expectedRouteOccupancies,
+    );
+    root.unmount();
+    container.remove();
+  });
+
+  it("carries the original drag snapshot from Raider direction choice into the Rampage chooser", async () => {
+    const start = withSunkenFleetTrapReady(initializedMariner());
+    const expected = expectedForMoveShip(captureOperabilityBoard(start), RAID_ROUTE, SUNKEN_ORRERY_FAR);
+    const { container, root } = renderSurface(start, WIZARD);
+    await dragRoutePiece(container, RAID_ROUTE, SUNKEN_ORRERY_FAR, 33);
+    expect(container.querySelector("[data-raider-direction-chooser]")).not.toBeNull();
+    rerenderSurface(root, withRealtimeOccupancyDrift(start));
+    await act(async () => { button(container, "World orrery").click(); });
+    expect(mockMutations["m3Commands.moveMarinerShip"]).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-ship-rampage-chooser]")).not.toBeNull();
+    await confirmRampageDestination(container);
+    const payload = mockMutations["m3Commands.moveMarinerShip"].mock.calls[0][0];
+    expect(payload).toMatchObject({
+      sourceRouteId: RAID_ROUTE,
+      destinationRouteId: SUNKEN_ORRERY_FAR,
+      destinationToward: { kind: "board_isle", boardIsleId: "orrery" },
+      expectedStormCounts: expected.expectedStormCounts,
+      expectedRelevantBeasts: expected.expectedRelevantBeasts,
+    });
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps empty-Route quick actions mounted across pointer travel onto the control group", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SUNKEN_ORRERY_FAR}"]`) as SVGElement;
+    await act(async () => {
+      route.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
+    });
+    const quick = container.querySelector(`[data-route-quick-actions][data-route-id="${SUNKEN_ORRERY_FAR}"]`) as SVGGElement | null;
+    expect(quick).not.toBeNull();
+    await act(async () => {
+      route.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, composed: true, relatedTarget: quick }));
+      quick?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true, relatedTarget: route }));
+    });
+    const stillQuick = container.querySelector(`[data-route-quick-actions][data-route-id="${SUNKEN_ORRERY_FAR}"]`);
+    expect(stillQuick).not.toBeNull();
+    const addShip = stillQuick?.querySelector('[data-quick-action="add-ship"]') as SVGCircleElement;
+    await act(async () => { addShip.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0]).toMatchObject({
+      targetRouteId: SUNKEN_ORRERY_FAR,
+      destinationToward: null,
+    });
+    root.unmount();
+    container.remove();
+  });
+
+  it("Remove on an occupied Route submits empty occupancy against the captured occupancy", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    focusRoute(container, SHIP_ROUTE);
+    const remove = container.querySelector(
+      `[data-route-quick-actions][data-route-id="${SHIP_ROUTE}"] [data-quick-action="remove"]`,
+    ) as SVGCircleElement;
+    await act(async () => { remove.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"].mock.calls[0][0]).toMatchObject({
+      expectedCampaignId: CAMPAIGN_ID,
+      routeId: SHIP_ROUTE,
+      expectedOccupancy: { kind: "ship" },
+      occupancy: { kind: "empty" },
+    });
+    root.unmount();
+    container.remove();
+  });
+
+  it("drags an ordinary Ship onto an empty Route with moveMarinerShip", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    await dragRoutePiece(container, SHIP_ROUTE, SUNKEN_ORRERY_FAR, 34);
+    expect(mockMutations["m3Commands.moveMarinerShip"].mock.calls[0][0]).toMatchObject({
+      sourceRouteId: SHIP_ROUTE,
+      destinationRouteId: SUNKEN_ORRERY_FAR,
+      destinationToward: null,
+    });
+    expect(container.querySelector("[data-ship-rampage-chooser]")).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("preserves an existing Raider toward when it remains valid on the destination Route", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    await dragRoutePiece(container, RAID_ROUTE, ISHANA_DRUNTYR, 35);
+    expect(container.querySelector("[data-raider-direction-chooser]")).toBeNull();
+    expect(mockMutations["m3Commands.moveMarinerShip"].mock.calls[0][0]).toMatchObject({
+      sourceRouteId: RAID_ROUTE,
+      destinationRouteId: ISHANA_DRUNTYR,
+      destinationToward: { kind: "board_isle", boardIsleId: "ishana" },
+    });
     root.unmount();
     container.remove();
   });

@@ -142,6 +142,7 @@ import {
   BoardDragGhost,
   RouteQuickActions,
   useMarinerBoardInteractions,
+  type PendingShipRampage,
 } from "./mariner-board-interactions";
 import {
   MARINER_INTERACTION_GEOMETRY_RAW,
@@ -441,7 +442,15 @@ export default function MarinerSurface({
             sorcererPresence={sorcererPresence}
           />
           <BoardDragGhost visual={board.dragVisual} />
-          {board.pendingRaiderDirection !== null && (
+          {board.pendingShipRampage !== null && (
+            <ShipRampageChooser
+              pendingIntent={board.pendingShipRampage}
+              pending={pending}
+              onCancel={board.cancelPendingShipRampage}
+              onSubmit={(resolutions) => { void board.submitPendingShipRampage(resolutions); }}
+            />
+          )}
+          {board.pendingShipRampage === null && board.pendingRaiderDirection !== null && (
             <div
               data-raider-direction-chooser
               className="absolute bottom-3 left-3 z-20 rounded-lg border border-teal-200 dark:border-teal-800 bg-white/95 dark:bg-slate-900/95 p-2 space-y-1 shadow-md"
@@ -1128,13 +1137,12 @@ function MarinerMap({
           const href = `#${marinerRouteSymbolId(route.routeId)}`;
           const symbolId = marinerRouteSymbolId(route.routeId);
           const dropHint = board.routeDropHighlight(route.routeId);
-          const quickVisible = board.focusedRouteId === route.routeId
-            || (board.routeDragSourceId !== null && dropHint !== null && dropHint !== "blocked");
           return (
             <g
               key={`hit-${route.routeId}`}
               data-map-layer="route-hit"
               data-route-id={route.routeId}
+              data-route-hover-owner={route.routeId}
               data-route-drop={dropHint ?? undefined}
               role="button"
               tabIndex={0}
@@ -1142,14 +1150,10 @@ function MarinerMap({
               aria-label={`Route ${aName} to ${bName}: ${label}`}
               className={INTERACTIVE_FOCUS_CLASS}
               style={{ outline: "none" }}
-              onMouseEnter={() => board.setFocusedRouteId(route.routeId)}
-              onMouseLeave={() => {
-                if (board.focusedRouteId === route.routeId) board.setFocusedRouteId(null);
-              }}
-              onFocus={() => board.setFocusedRouteId(route.routeId)}
-              onBlur={() => {
-                if (board.focusedRouteId === route.routeId) board.setFocusedRouteId(null);
-              }}
+              onMouseOver={() => board.onRouteHoverEnter(route.routeId)}
+              onMouseOut={(event) => board.onRouteHoverLeave(route.routeId, event.relatedTarget)}
+              onFocus={() => board.onRouteHoverEnter(route.routeId)}
+              onBlur={(event) => board.onRouteHoverLeave(route.routeId, event.relatedTarget)}
               onClick={() => onSelect({ kind: "route", routeId: route.routeId })}
               onKeyDown={(event) => activate(event, () => onSelect({ kind: "route", routeId: route.routeId }))}
             >
@@ -1217,10 +1221,8 @@ function MarinerMap({
               color={color}
               onSelect={() => onSelect({ kind: "route", routeId: route.routeId })}
               onPointerDown={(event) => board.beginRoutePiecePointer(route.routeId, occupancy, event)}
-              onMouseEnter={() => board.setFocusedRouteId(route.routeId)}
-              onMouseLeave={() => {
-                if (board.focusedRouteId === route.routeId) board.setFocusedRouteId(null);
-              }}
+              onMouseEnter={() => board.onRouteHoverEnter(route.routeId)}
+              onMouseLeave={(event) => board.onRouteHoverLeave(route.routeId, event.relatedTarget)}
             />
           );
         })}
@@ -1238,6 +1240,8 @@ function MarinerMap({
               onAddShip={() => { void board.addShipToRoute(route.routeId); }}
               onAddRaider={(toward) => { void board.addRaiderToRoute(route.routeId, toward); }}
               onRemove={() => { void board.removeRouteOccupancy(route.routeId); }}
+              onHoverEnter={() => board.onRouteHoverEnter(route.routeId)}
+              onHoverLeave={(relatedTarget) => board.onRouteHoverLeave(route.routeId, relatedTarget)}
             />
           );
         })}
@@ -2058,6 +2062,69 @@ function IsleInspector({
         campaignId={campaignId}
       />
     </section>
+  );
+}
+
+function ShipRampageChooser({
+  pendingIntent,
+  pending,
+  onCancel,
+  onSubmit,
+}: {
+  pendingIntent: PendingShipRampage;
+  pending: boolean;
+  onCancel: () => void;
+  onSubmit: (resolutions: {
+    denizenId: string;
+    destinationSeatId: string;
+    rampagingMethodEntryId: string | null;
+  }[]) => void;
+}) {
+  const [methodIds] = useState(() => new Map<string, string>());
+  const [rampageSeats, setRampageSeats] = useState<Record<string, string>>({});
+  const predictedBeastIds = pendingIntent.predictedBeastIds;
+  return (
+    <div
+      data-ship-rampage-chooser
+      className="absolute bottom-3 left-3 z-20 rounded-lg border border-teal-200 dark:border-teal-800 bg-white/95 dark:bg-slate-900/95 p-2 space-y-2 shadow-md max-w-xs"
+    >
+      <p className="text-xs text-slate-600 dark:text-slate-300">
+        This placement causes a Beast Rampage. Choose one destination Domain per Beast.
+      </p>
+      {predictedBeastIds.map((denizenId) => (
+        <label key={denizenId} className="text-xs block">
+          Rampage destination
+          <select
+            aria-label={predictedBeastIds.length === 1 ? "Rampage destination" : `Rampage destination for ${denizenId}`}
+            className={`${fieldClass} mt-1`}
+            value={rampageSeats[denizenId] ?? ""}
+            onChange={(e) => setRampageSeats((current) => ({ ...current, [denizenId]: e.target.value }))}
+          >
+            <option value="">Select destination Domain…</option>
+            {otherDomainSeatOptions().map((seatId) => (
+              <option key={seatId} value={seatId}>{pactSeatDisplayName(seatId)}</option>
+            ))}
+          </select>
+        </label>
+      ))}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          className={btnClass}
+          disabled={pending || predictedBeastIds.some((denizenId) => (rampageSeats[denizenId] ?? "") === "")}
+          onClick={() => {
+            onSubmit(predictedBeastIds.map((denizenId) => ({
+              denizenId,
+              destinationSeatId: rampageSeats[denizenId],
+              rampagingMethodEntryId: stableMethodId(methodIds, denizenId),
+            })));
+          }}
+        >
+          Confirm Rampage
+        </button>
+        <button type="button" className={ghostBtn} onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
   );
 }
 

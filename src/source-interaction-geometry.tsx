@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import { useLayoutEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
 import type { MarinerBoardIsleId, MarinerExternalLandId } from "../shared/domain";
 import { MARINER_BOARD_ISLE_IDS, MARINER_EXTERNAL_LAND_IDS } from "../shared/domain";
 import type { NecromancerBuiltinGateId, NecromancerBuiltinPathSpaceId } from "../shared/domain";
@@ -253,8 +253,8 @@ export function SourceRouteOccupancyMarker({
   threatened?: boolean;
   onSelect: () => void;
   onPointerDown?: (event: ReactPointerEvent) => void;
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
+  onMouseEnter?: (event: ReactMouseEvent<SVGGElement>) => void;
+  onMouseLeave?: (event: ReactMouseEvent<SVGGElement>) => void;
 }) {
   const hostRef = useRef<SVGGElement>(null);
   useLayoutEffect(() => {
@@ -287,6 +287,7 @@ export function SourceRouteOccupancyMarker({
       ref={hostRef}
       data-piece={kind}
       data-route-id={routeId}
+      data-route-hover-owner={routeId}
       data-route-occupancy-marker={kind}
       data-raider-toward={toward}
       data-route-threatened={threatened ? "true" : undefined}
@@ -294,8 +295,8 @@ export function SourceRouteOccupancyMarker({
       aria-label={label}
       style={{ cursor: onPointerDown === undefined ? undefined : "grab" }}
       onPointerDown={onPointerDown}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
+      onMouseOver={onMouseEnter}
+      onMouseOut={onMouseLeave}
       onClick={(event) => {
         event.stopPropagation();
         onSelect();

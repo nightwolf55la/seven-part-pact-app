@@ -30,6 +30,7 @@ import {
   isEmptyRoute,
   pointerMovementExceedsDragThreshold,
   raiderTowardAppliesOnRoute,
+  relatedTargetOwnsRouteHover,
   representableRaiderEndpoints,
   routesShareBoardIsleEndpoint,
 } from "./mariner-board-pointer";
@@ -52,7 +53,21 @@ export type PendingRaiderDirection = {
   readonly sourceRouteId: string;
   readonly destinationRouteId: string;
   readonly choices: readonly MarinerRouteEndpoint[];
+  readonly snapshot: ReturnType<typeof captureOperabilityBoard>;
 };
+
+type PendingPlacementOccupancy =
+  | { readonly kind: "ship" }
+  | { readonly kind: "raider"; readonly toward: MarinerRouteEndpoint };
+
+export type PendingShipRampage = {
+  readonly snapshot: ReturnType<typeof captureOperabilityBoard>;
+  readonly predictedBeastIds: readonly string[];
+  readonly occupancy: PendingPlacementOccupancy;
+} & (
+  | { readonly action: "create"; readonly targetRouteId: string }
+  | { readonly action: "move"; readonly sourceRouteId: string; readonly destinationRouteId: string }
+);
 
 export type BoardDragVisual = {
   readonly kind: DragKind;
@@ -101,11 +116,8 @@ export function useMarinerBoardInteractions(args: {
   hoveredRouteRef.current = hoveredRouteDropId;
   const [focusedRouteId, setFocusedRouteId] = useState<string | null>(null);
   const [pendingRaiderDirection, setPendingRaiderDirection] = useState<PendingRaiderDirection | null>(null);
-  const [pendingShipRampage, setPendingShipRampage] = useState<{
-    targetRouteId: string;
-    sourceRouteId?: string;
-    occupancy: MarinerRouteOccupancy;
-  } | null>(null);
+  const [pendingShipRampage, setPendingShipRampage] = useState<PendingShipRampage | null>(null);
+  const hasPendingDirectIntent = pendingRaiderDirection !== null || pendingShipRampage !== null;
 
   const stormDragSourceId = draggingActive && sessionRef.current?.kind === "storm"
     ? sessionRef.current.sourceRegionId ?? null
@@ -166,9 +178,12 @@ export function useMarinerBoardInteractions(args: {
     );
     if (predicted.length > 0) {
       setPendingShipRampage({
-        targetRouteId: destinationRouteId,
+        action: "move",
         sourceRouteId,
+        destinationRouteId,
         occupancy: destinationToward === null ? { kind: "ship" } : { kind: "raider", toward: destinationToward },
+        snapshot,
+        predictedBeastIds: predicted,
       });
       cancelDrag();
       return;
@@ -209,6 +224,7 @@ export function useMarinerBoardInteractions(args: {
         sourceRouteId: session.sourceRouteId,
         destinationRouteId,
         choices,
+        snapshot: session.snapshot,
       });
       cancelDrag();
     }
@@ -316,7 +332,7 @@ export function useMarinerBoardInteractions(args: {
   ]);
 
   const beginStormPointer = useCallback((regionId: MarinerSeaRegionId, event: ReactPointerEvent) => {
-    if (pending) return;
+    if (pending || hasPendingDirectIntent) return;
     const storms = mariner.seaRegions.find((region) => region.regionId === regionId)?.stormCount ?? 0;
     if (storms < 1) return;
     event.preventDefault();
@@ -331,10 +347,10 @@ export function useMarinerBoardInteractions(args: {
       snapshot: captureOperabilityBoard(mariner),
       sourceRegionId: regionId,
     };
-  }, [mariner, pending]);
+  }, [hasPendingDirectIntent, mariner, pending]);
 
   const beginRoutePiecePointer = useCallback((routeId: string, occupancy: MarinerRouteOccupancy, event: ReactPointerEvent) => {
-    if (pending || occupancy.kind === "empty") return;
+    if (pending || hasPendingDirectIntent || occupancy.kind === "empty") return;
     event.preventDefault();
     event.stopPropagation();
     (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
@@ -348,14 +364,20 @@ export function useMarinerBoardInteractions(args: {
       sourceRouteId: routeId,
       sourceOccupancy: occupancy,
     };
-  }, [mariner, pending]);
+  }, [hasPendingDirectIntent, mariner, pending]);
 
   const addShipToRoute = useCallback(async (routeId: string) => {
-    if (pending || !isEmptyRoute(mariner.routes, routeId)) return;
+    if (pending || hasPendingDirectIntent || !isEmptyRoute(mariner.routes, routeId)) return;
     const snapshot = captureOperabilityBoard(mariner);
     const predicted = predictedNewlyTrappedBeastIdsAfterShipPlacement(snapshot, routeId, { kind: "ship" });
     if (predicted.length > 0) {
-      setPendingShipRampage({ targetRouteId: routeId, occupancy: { kind: "ship" } });
+      setPendingShipRampage({
+        action: "create",
+        targetRouteId: routeId,
+        occupancy: { kind: "ship" },
+        snapshot,
+        predictedBeastIds: predicted,
+      });
       return;
     }
     const payload = buildCreateMarinerShipPayload({
@@ -367,15 +389,21 @@ export function useMarinerBoardInteractions(args: {
       rampageResolutions: [],
     });
     await run(async () => { await createMarinerShip(payload); });
-  }, [campaignId, createMarinerShip, mariner, pending, run]);
+  }, [campaignId, createMarinerShip, hasPendingDirectIntent, mariner, pending, run]);
 
   const addRaiderToRoute = useCallback(async (routeId: string, toward: MarinerRouteEndpoint) => {
-    if (pending || !isEmptyRoute(mariner.routes, routeId)) return;
+    if (pending || hasPendingDirectIntent || !isEmptyRoute(mariner.routes, routeId)) return;
     const snapshot = captureOperabilityBoard(mariner);
     const occupancy = { kind: "raider" as const, toward };
     const predicted = predictedNewlyTrappedBeastIdsAfterShipPlacement(snapshot, routeId, occupancy);
     if (predicted.length > 0) {
-      setPendingShipRampage({ targetRouteId: routeId, occupancy });
+      setPendingShipRampage({
+        action: "create",
+        targetRouteId: routeId,
+        occupancy,
+        snapshot,
+        predictedBeastIds: predicted,
+      });
       return;
     }
     const payload = buildCreateMarinerShipPayload({
@@ -387,10 +415,10 @@ export function useMarinerBoardInteractions(args: {
       rampageResolutions: [],
     });
     await run(async () => { await createMarinerShip(payload); });
-  }, [campaignId, createMarinerShip, mariner, pending, run]);
+  }, [campaignId, createMarinerShip, hasPendingDirectIntent, mariner, pending, run]);
 
   const removeRouteOccupancy = useCallback(async (routeId: string) => {
-    if (pending) return;
+    if (pending || hasPendingDirectIntent) return;
     const route = mariner.routes.find((entry) => entry.routeId === routeId);
     if (route === undefined || route.occupancy.kind === "empty") return;
     const payload = buildSetMarinerRouteOccupancyPayload({
@@ -401,19 +429,18 @@ export function useMarinerBoardInteractions(args: {
       occupancy: { kind: "empty" },
     });
     await run(async () => { await setMarinerRouteOccupancy(payload); });
-  }, [campaignId, mariner.routes, pending, run, setMarinerRouteOccupancy]);
+  }, [campaignId, hasPendingDirectIntent, mariner.routes, pending, run, setMarinerRouteOccupancy]);
 
   const chooseRaiderDirection = useCallback(async (toward: MarinerRouteEndpoint) => {
     if (pendingRaiderDirection === null) return;
-    const snapshot = captureOperabilityBoard(mariner);
     await commitShipMove(
       pendingRaiderDirection.sourceRouteId,
       pendingRaiderDirection.destinationRouteId,
       toward,
-      snapshot,
+      pendingRaiderDirection.snapshot,
     );
     setPendingRaiderDirection(null);
-  }, [commitShipMove, mariner, pendingRaiderDirection, pending]);
+  }, [commitShipMove, pendingRaiderDirection]);
 
   const consumeSuppressClick = useCallback(() => {
     if (!suppressClickRef.current) return false;
@@ -437,6 +464,55 @@ export function useMarinerBoardInteractions(args: {
     return "available";
   }, [hoveredSeaId, recommendedSeaIds, stormDragSourceId]);
 
+  const submitPendingShipRampage = useCallback(async (
+    rampageResolutions: {
+      denizenId: string;
+      destinationSeatId: string;
+      rampagingMethodEntryId: string | null;
+    }[],
+  ) => {
+    if (pendingShipRampage === null) return;
+    const intent = pendingShipRampage;
+    const destinationToward = intent.occupancy.kind === "raider" ? intent.occupancy.toward : null;
+    if (intent.action === "move") {
+      const payload = buildMoveMarinerShipPayload({
+        commandId: newCommandId(),
+        expectedCampaignId: campaignId,
+        sourceRouteId: intent.sourceRouteId,
+        destinationRouteId: intent.destinationRouteId,
+        destinationToward,
+        ...expectedForMoveShip(intent.snapshot, intent.sourceRouteId, intent.destinationRouteId),
+        rampageResolutions,
+      });
+      const ok = await run(async () => { await moveMarinerShip(payload); });
+      if (ok) setPendingShipRampage(null);
+      return;
+    }
+    const payload = buildCreateMarinerShipPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      targetRouteId: intent.targetRouteId,
+      destinationToward,
+      ...expectedForCreateShip(intent.snapshot, intent.targetRouteId),
+      rampageResolutions,
+    });
+    const ok = await run(async () => { await createMarinerShip(payload); });
+    if (ok) setPendingShipRampage(null);
+  }, [campaignId, createMarinerShip, moveMarinerShip, pendingShipRampage, run]);
+
+  const cancelPendingShipRampage = useCallback(() => {
+    setPendingShipRampage(null);
+  }, []);
+
+  const onRouteHoverEnter = useCallback((routeId: string) => {
+    setFocusedRouteId(routeId);
+  }, []);
+
+  const onRouteHoverLeave = useCallback((routeId: string, relatedTarget: EventTarget | null) => {
+    if (relatedTargetOwnsRouteHover(relatedTarget, routeId)) return;
+    setFocusedRouteId((current) => current === routeId ? null : current);
+  }, []);
+
   return {
     dragVisual,
     stormDragSourceId,
@@ -446,7 +522,10 @@ export function useMarinerBoardInteractions(args: {
     pendingRaiderDirection,
     setPendingRaiderDirection,
     pendingShipRampage,
-    setPendingShipRampage,
+    submitPendingShipRampage,
+    cancelPendingShipRampage,
+    onRouteHoverEnter,
+    onRouteHoverLeave,
     beginStormPointer,
     beginRoutePiecePointer,
     addShipToRoute,
@@ -501,6 +580,8 @@ export function RouteQuickActions({
   onAddRaider,
   onRemove,
   occupied,
+  onHoverEnter,
+  onHoverLeave,
 }: {
   routeId: string;
   mariner: MarinerState;
@@ -510,6 +591,8 @@ export function RouteQuickActions({
   onAddRaider: (toward: MarinerRouteEndpoint) => void;
   onRemove: () => void;
   occupied: MarinerRouteOccupancy;
+  onHoverEnter: () => void;
+  onHoverLeave: (relatedTarget: EventTarget | null) => void;
 }) {
   const geometry = marinerRouteGeometry(routeId);
   if (!visible || geometry === null) return null;
@@ -525,8 +608,11 @@ export function RouteQuickActions({
       <g
         data-route-quick-actions
         data-route-id={routeId}
+        data-route-hover-owner={routeId}
         transform={`translate(${anchor.x} ${anchor.y})`}
         pointerEvents="all"
+        onMouseOver={onHoverEnter}
+        onMouseOut={(event) => onHoverLeave(event.relatedTarget)}
       >
         <circle r={22} fill="#ffffff" fillOpacity={0.92} stroke="#0f766e" strokeWidth={1} />
         <g transform="translate(-18 -4)">
@@ -584,8 +670,11 @@ export function RouteQuickActions({
     <g
       data-route-quick-actions
       data-route-id={routeId}
+      data-route-hover-owner={routeId}
       transform={`translate(${anchor.x + 14} ${anchor.y - 14})`}
       pointerEvents="all"
+      onMouseOver={onHoverEnter}
+      onMouseOut={(event) => onHoverLeave(event.relatedTarget)}
     >
       <circle
         r={8}
