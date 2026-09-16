@@ -139,10 +139,20 @@ export function useMarinerBoardInteractions(args: {
     setHoveredRouteDropId(null);
   }, []);
 
+  const finishNoOpDrag = useCallback(() => {
+    cancelDrag();
+    window.setTimeout(() => {
+      suppressClickRef.current = false;
+    }, 0);
+  }, [cancelDrag]);
+
   const commitStormDrop = useCallback(async (destinationRegionId: MarinerSeaRegionId) => {
     const session = sessionRef.current;
     if (session?.kind !== "storm" || session.sourceRegionId === undefined) return;
-    if (destinationRegionId === session.sourceRegionId) return;
+    if (destinationRegionId === session.sourceRegionId) {
+      finishNoOpDrag();
+      return;
+    }
     const payload = buildMoveMarinerStormPayload({
       commandId: newCommandId(),
       expectedCampaignId: campaignId,
@@ -153,7 +163,7 @@ export function useMarinerBoardInteractions(args: {
     const ok = await run(async () => { await moveMarinerStorm(payload); });
     cancelDrag();
     if (!ok) suppressClickRef.current = false;
-  }, [campaignId, cancelDrag, moveMarinerStorm, run]);
+  }, [campaignId, cancelDrag, finishNoOpDrag, moveMarinerStorm, run]);
 
   const commitShipMove = useCallback(async (
     sourceRouteId: string,
@@ -198,8 +208,14 @@ export function useMarinerBoardInteractions(args: {
     if (session?.kind !== "route-piece" || session.sourceRouteId === undefined || session.sourceOccupancy === undefined) {
       return;
     }
-    if (destinationRouteId === session.sourceRouteId) return;
-    if (!isEmptyRoute(session.snapshot.routes, destinationRouteId)) return;
+    if (destinationRouteId === session.sourceRouteId) {
+      finishNoOpDrag();
+      return;
+    }
+    if (!isEmptyRoute(session.snapshot.routes, destinationRouteId)) {
+      finishNoOpDrag();
+      return;
+    }
 
     if (session.sourceOccupancy.kind === "ship") {
       await commitShipMove(session.sourceRouteId, destinationRouteId, null, session.snapshot);
@@ -228,7 +244,7 @@ export function useMarinerBoardInteractions(args: {
       });
       cancelDrag();
     }
-  }, [cancelDrag, commitShipMove]);
+  }, [cancelDrag, commitShipMove, finishNoOpDrag]);
 
   useEffect(() => {
     const onPointerMove = (event: PointerEvent) => {

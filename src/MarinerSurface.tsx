@@ -445,6 +445,7 @@ export default function MarinerSurface({
           {board.pendingShipRampage !== null && (
             <ShipRampageChooser
               pendingIntent={board.pendingShipRampage}
+              world={world}
               pending={pending}
               onCancel={board.cancelPendingShipRampage}
               onSubmit={(resolutions) => { void board.submitPendingShipRampage(resolutions); }}
@@ -2067,11 +2068,13 @@ function IsleInspector({
 
 function ShipRampageChooser({
   pendingIntent,
+  world,
   pending,
   onCancel,
   onSubmit,
 }: {
   pendingIntent: PendingShipRampage;
+  world: WorldReference;
   pending: boolean;
   onCancel: () => void;
   onSubmit: (resolutions: {
@@ -2091,11 +2094,13 @@ function ShipRampageChooser({
       <p className="text-xs text-slate-600 dark:text-slate-300">
         This placement causes a Beast Rampage. Choose one destination Domain per Beast.
       </p>
-      {predictedBeastIds.map((denizenId) => (
+      {predictedBeastIds.map((denizenId) => {
+        const beastLabel = denizenName(world.denizens, denizenId);
+        return (
         <label key={denizenId} className="text-xs block">
-          Rampage destination
+          {`Rampage destination — ${beastLabel}`}
           <select
-            aria-label={predictedBeastIds.length === 1 ? "Rampage destination" : `Rampage destination for ${denizenId}`}
+            aria-label={`Rampage destination for ${beastLabel}`}
             className={`${fieldClass} mt-1`}
             value={rampageSeats[denizenId] ?? ""}
             onChange={(e) => setRampageSeats((current) => ({ ...current, [denizenId]: e.target.value }))}
@@ -2106,7 +2111,8 @@ function ShipRampageChooser({
             ))}
           </select>
         </label>
-      ))}
+        );
+      })}
       <div className="flex gap-2">
         <button
           type="button"

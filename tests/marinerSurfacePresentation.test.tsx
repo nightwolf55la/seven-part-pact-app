@@ -311,6 +311,23 @@ function focusRoute(container: HTMLElement, routeId: string): SVGElement {
   return route;
 }
 
+async function dragStormPiece(
+  container: HTMLElement,
+  sourceRegionId: string,
+  dropTarget: Element,
+  pointerId = 41,
+): Promise<void> {
+  const storm = container.querySelector(`[data-draggable-storm="true"][data-region-id="${sourceRegionId}"]`) as Element;
+  (storm as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+  Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => dropTarget });
+  await act(async () => {
+    storm.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: 15, clientY: 15, pointerId, isPrimary: true }));
+    window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 30, clientY: 15, pointerId }));
+    window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 210, clientY: 210, pointerId }));
+    window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: 210, clientY: 210, pointerId }));
+  });
+}
+
 async function dragRoutePiece(
   container: HTMLElement,
   sourceRouteId: string,
@@ -332,10 +349,34 @@ async function dragRoutePiece(
 async function confirmRampageDestination(container: HTMLElement, seatId = "hierophant"): Promise<void> {
   const chooser = container.querySelector("[data-ship-rampage-chooser]") as HTMLElement | null;
   if (chooser === null) throw new Error("Missing Rampage chooser");
-  const dest = chooser.querySelector('select[aria-label="Rampage destination"]') as HTMLSelectElement | null;
+  const dest = chooser.querySelector('select[aria-label="Rampage destination"]') as HTMLSelectElement | null
+    ?? chooser.querySelector('select[aria-label^="Rampage destination for"]') as HTMLSelectElement | null;
   if (dest === null) throw new Error("Missing Rampage destination select");
   setSelect(dest, seatId);
   await act(async () => { button(chooser, "Confirm Rampage").click(); });
+}
+
+async function flushScheduledClickSuppressionReset(): Promise<void> {
+  await act(async () => {
+    await new Promise<void>((resolve) => { window.setTimeout(resolve, 0); });
+  });
+}
+
+function withTwoSunkenFleetBeastsTrapReady(mariner: MarinerState): MarinerState {
+  const withSecondBeast: MarinerState = {
+    ...mariner,
+    beasts: [
+      ...mariner.beasts,
+      {
+        denizenId: DEN_B as DenizenId,
+        element: "water",
+        definitionId: "kraken",
+        condition: "distrusting",
+        location: { kind: "sea_region", regionId: "sunken_fleet" },
+      },
+    ],
+  };
+  return withSunkenFleetTrapReady(withSecondBeast);
 }
 
 function withBeast(mariner: MarinerState, beast: MarinerBeastState): MarinerState {
@@ -1820,6 +1861,45 @@ describe("M5.4 Mariner direct board manipulation", () => {
     container.remove();
   });
 
+  it("cleans up after a Storm is dragged and released back on its source Sea", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]') as Element;
+    const sourceSea = container.querySelector('[data-map-layer="sea-hit"][data-region-id="sidereal_sea"]') as Element;
+    await dragStormPiece(container, "sidereal_sea", sourceSea, 40);
+    expect(mockMutations["m3Commands.moveMarinerStorm"]).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-drag-ghost]")).toBeNull();
+    expect(container.querySelector('[data-map-layer="route-hit"][data-route-drop]')).toBeNull();
+    await flushScheduledClickSuppressionReset();
+    flushSync(() => { sourceSea.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("cleans up after a Ship is dragged and released back on its source Route", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const sourceRoute = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`) as Element;
+    await dragRoutePiece(container, SHIP_ROUTE, SHIP_ROUTE, 42);
+    expect(mockMutations["m3Commands.moveMarinerShip"]).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-drag-ghost]")).toBeNull();
+    expect(container.querySelector('[data-map-layer="route-hit"][data-route-drop]')).toBeNull();
+    await flushScheduledClickSuppressionReset();
+    flushSync(() => { sourceRoute.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("cleans up after a Ship is dropped onto a Route occupied at drag start", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    await dragRoutePiece(container, SHIP_ROUTE, RAID_ROUTE, 43);
+    expect(mockMutations["m3Commands.moveMarinerShip"]).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-drag-ghost]")).toBeNull();
+    expect(container.querySelector('[data-map-layer="route-hit"][data-route-drop]')).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
   it("invokes moveMarinerStorm when a Storm is dragged to another Sea", async () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]') as Element;
@@ -2120,6 +2200,33 @@ describe("M5.4 Mariner direct board manipulation", () => {
       destinationToward: null,
     });
     expect(container.querySelector("[data-ship-rampage-chooser]")).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("shows distinct Beast names in the board Rampage chooser and maps each destination to the correct denizenId", async () => {
+    const start = withTwoSunkenFleetBeastsTrapReady(initializedMariner());
+    const { container, root } = renderSurface(start, WIZARD);
+    focusRoute(container, SUNKEN_ORRERY_FAR);
+    const addShip = container.querySelector(
+      `[data-route-quick-actions][data-route-id="${SUNKEN_ORRERY_FAR}"] [data-quick-action="add-ship"]`,
+    ) as SVGCircleElement;
+    await act(async () => { addShip.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    const chooser = container.querySelector("[data-ship-rampage-chooser]") as HTMLElement;
+    expect(chooser.textContent).toContain("Kraken-kin");
+    expect(chooser.textContent).toContain("Spare Leviathan");
+    const krakenSelect = chooser.querySelector('select[aria-label="Rampage destination for Kraken-kin"]') as HTMLSelectElement;
+    const leviathanSelect = chooser.querySelector('select[aria-label="Rampage destination for Spare Leviathan"]') as HTMLSelectElement;
+    expect(krakenSelect).not.toBeNull();
+    expect(leviathanSelect).not.toBeNull();
+    setSelect(krakenSelect, "hierophant");
+    setSelect(leviathanSelect, "necromancer");
+    await act(async () => { button(chooser, "Confirm Rampage").click(); });
+    const payload = mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0];
+    expect(payload.rampageResolutions).toEqual([
+      expect.objectContaining({ denizenId: DEN_A, destinationSeatId: "hierophant" }),
+      expect.objectContaining({ denizenId: DEN_B, destinationSeatId: "necromancer" }),
+    ]);
     root.unmount();
     container.remove();
   });
