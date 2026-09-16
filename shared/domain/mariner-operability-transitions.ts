@@ -1,5 +1,6 @@
 import type { CampaignStateV5 } from "./campaign-state";
 import { DomainError } from "./errors";
+import { createMarinerShipFingerprint } from "./command-ids";
 import type { DenizenId } from "./ids";
 import { isValidDenizenId, isValidPowerfulDenizenMethodEntryId } from "./ids";
 import type { PowerfulDenizenMethodEntryId } from "./ids";
@@ -558,6 +559,40 @@ export function canonicalizeCreateMarinerShipInput(input: CreateMarinerShipInput
     expectedRelevantBeasts: input.expectedRelevantBeasts.map((entry) => ({ ...entry })),
     rampageResolutions: input.rampageResolutions.map((entry) => ({ ...entry })),
   };
+}
+
+export type CreateMarinerShipCommandArgs = Omit<CreateMarinerShipInput, "destinationToward"> & {
+  readonly destinationToward?: MarinerRouteEndpoint | null;
+};
+
+export function prepareCreateMarinerShipCommand(
+  expectedCampaignId: string,
+  rawInput: CreateMarinerShipCommandArgs,
+): {
+  readonly commandType: "create_mariner_ship";
+  readonly commandFingerprint: string;
+  readonly apply: (state: CampaignStateV5) => MarinerOperabilityTransitionResult;
+} {
+  const destinationTowardProvided = rawInput.destinationToward !== undefined;
+  const applyInput = canonicalizeCreateMarinerShipInput({
+    ...rawInput,
+    destinationToward: rawInput.destinationToward ?? null,
+  });
+  const fingerprintInput = destinationTowardProvided
+    ? applyInput
+    : omitCreateMarinerShipDestinationToward(applyInput);
+  return {
+    commandType: "create_mariner_ship",
+    commandFingerprint: createMarinerShipFingerprint(expectedCampaignId, fingerprintInput),
+    apply: (state) => applyCreateMarinerShip(state, applyInput),
+  };
+}
+
+function omitCreateMarinerShipDestinationToward(
+  input: CreateMarinerShipInput,
+): Omit<CreateMarinerShipInput, "destinationToward"> {
+  const { destinationToward: _omitted, ...legacy } = input;
+  return legacy;
 }
 
 export function canonicalizeMoveMarinerBeastInput(input: MoveMarinerBeastInput): MoveMarinerBeastInput {

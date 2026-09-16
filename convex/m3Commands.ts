@@ -120,7 +120,6 @@ import {
   createMarinerBeastFingerprint,
   moveMarinerStormFingerprint,
   moveMarinerShipFingerprint,
-  createMarinerShipFingerprint,
   moveMarinerBeastFingerprint,
   nestMarinerBeastFingerprint,
   recordMarinerRavageResultFingerprint,
@@ -177,7 +176,7 @@ import {
   canonicalizeCreateMarinerBeastInput,
   canonicalizeMoveMarinerStormInput,
   canonicalizeMoveMarinerShipInput,
-  canonicalizeCreateMarinerShipInput,
+  prepareCreateMarinerShipCommand,
   canonicalizeMoveMarinerBeastInput,
   canonicalizeNestMarinerBeastInput,
   canonicalizeRecordMarinerRavageResultInput,
@@ -453,7 +452,7 @@ import type {
   CreateMarinerBeastInput,
   MoveMarinerStormInput,
   MoveMarinerShipInput,
-  CreateMarinerShipInput,
+  CreateMarinerShipCommandArgs,
   MoveMarinerBeastInput,
   NestMarinerBeastInput,
   RecordMarinerRavageResultInput,
@@ -3240,7 +3239,7 @@ export const createMarinerShip = mutation({
     expectedCampaignId: v.string(),
     sourceIsleId: v.optional(v.string()),
     targetRouteId: v.string(),
-    destinationToward: v.union(marinerRouteEndpointArg, v.null()),
+    destinationToward: v.optional(v.union(marinerRouteEndpointArg, v.null())),
     expectedTargetOccupancy: marinerRouteOccupancyArg,
     expectedStormCounts: v.array(marinerExpectedStormArg),
     expectedRouteOccupancies: v.array(marinerExpectedRouteArg),
@@ -3251,23 +3250,16 @@ export const createMarinerShip = mutation({
     return executeConvexOrdinaryLogicalCommand(
       ctx,
       { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
-      () => {
-        const input = canonicalizeCreateMarinerShipInput({
-          sourceIsleId: args.sourceIsleId,
-          targetRouteId: args.targetRouteId,
-          destinationToward: args.destinationToward,
-          expectedTargetOccupancy: args.expectedTargetOccupancy,
-          expectedStormCounts: args.expectedStormCounts,
-          expectedRouteOccupancies: args.expectedRouteOccupancies,
-          expectedRelevantBeasts: args.expectedRelevantBeasts,
-          rampageResolutions: args.rampageResolutions,
-        } as unknown as CreateMarinerShipInput);
-        return {
-          commandType: "create_mariner_ship",
-          commandFingerprint: createMarinerShipFingerprint(args.expectedCampaignId, input),
-          apply: (state) => applyCreateMarinerShip(state, input),
-        };
-      },
+      () => prepareCreateMarinerShipCommand(args.expectedCampaignId, {
+        sourceIsleId: args.sourceIsleId,
+        targetRouteId: args.targetRouteId,
+        destinationToward: args.destinationToward,
+        expectedTargetOccupancy: args.expectedTargetOccupancy,
+        expectedStormCounts: args.expectedStormCounts,
+        expectedRouteOccupancies: args.expectedRouteOccupancies,
+        expectedRelevantBeasts: args.expectedRelevantBeasts,
+        rampageResolutions: args.rampageResolutions,
+      } as unknown as CreateMarinerShipCommandArgs),
     );
   },
 });

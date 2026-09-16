@@ -1971,12 +1971,14 @@ export type {
   ExpectedBeastLocation,
   ExpectedBeastState,
   MarinerRampageResolution,
+  CreateMarinerShipCommandArgs,
 } from "./mariner-operability-transitions";
 export {
   canonicalizeCreateMarinerBeastInput,
   canonicalizeMoveMarinerStormInput,
   canonicalizeMoveMarinerShipInput,
   canonicalizeCreateMarinerShipInput,
+  prepareCreateMarinerShipCommand,
   canonicalizeMoveMarinerBeastInput,
   canonicalizeNestMarinerBeastInput,
   canonicalizeRecordMarinerRavageResultInput,

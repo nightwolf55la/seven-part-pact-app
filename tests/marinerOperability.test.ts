@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type {
   CampaignEvent,
   CampaignStateV5,
@@ -62,6 +64,7 @@ import {
   applyMoveMarinerBeast,
   canonicalizeCreateMarinerShipInput,
   canonicalizeMoveMarinerBeastInput,
+  prepareCreateMarinerShipCommand,
 } from "../shared/domain/mariner-operability-transitions";
 import {
   newlyTrappedDistrustingBeastIds,
@@ -2540,5 +2543,83 @@ describe("M5.4 table-authoritative Mariner ship/storm contract", () => {
     );
     expect(stormReplayReceipt).toEqual({ revision: 5 });
     expect(stormReplay.commits).toHaveLength(0);
+  });
+});
+
+describe("create_mariner_ship legacy destinationToward transport", () => {
+  it("omitted destinationToward keeps the pre-33dc fingerprint and replays the original revision", async () => {
+    const before = initializedQuiet();
+    const current = createShipInput(before, { sourceIsleId: "thyras" });
+    expect(current.destinationToward).toBeNull();
+    const legacyRequest = omitKey(current, "destinationToward");
+    expect(legacyRequest).not.toHaveProperty("destinationToward");
+    const storedLegacyFingerprint = createMarinerShipFingerprint(CAMPAIGN_A, legacyRequest);
+    expect(storedLegacyFingerprint).toMatch(/^create_mariner_ship:v1:/);
+    expect(storedLegacyFingerprint).not.toContain("destinationToward");
+    expect(createMarinerShipFingerprint(CAMPAIGN_A, current)).not.toBe(storedLegacyFingerprint);
+
+    const prepared = prepareCreateMarinerShipCommand(CAMPAIGN_A, legacyRequest);
+    expect(prepared.commandFingerprint).toBe(storedLegacyFingerprint);
+
+    const accepted = recordingIo({ campaign: campaignOf(before) });
+    const first = await executeOrdinaryLogicalCommand(
+      accepted.io,
+      { commandId: COMMAND_1, expectedCampaignId: CAMPAIGN_A },
+      () => prepareCreateMarinerShipCommand(CAMPAIGN_A, legacyRequest),
+    );
+    expect(first).toEqual({ revision: 5 });
+    expect(accepted.commits).toHaveLength(1);
+    expect(accepted.commits[0]?.commandFingerprint).toBe(storedLegacyFingerprint);
+    expect(accepted.commits[0]?.events[0]).toMatchObject({
+      type: "mariner_ship_created",
+      version: 3,
+      data: { occupancyKind: "ship", toward: null, sourceIsleId: "thyras" },
+    });
+
+    const replay = recordingIo({
+      campaign: campaignOf(accepted.commits[0]!.nextState, 5),
+      accepted: {
+        commandType: "create_mariner_ship",
+        commandFingerprint: storedLegacyFingerprint,
+        campaignRevision: 5,
+      },
+      snapshot: accepted.commits[0]!.nextState,
+    });
+    const replayReceipt = await executeOrdinaryLogicalCommand(
+      replay.io,
+      { commandId: COMMAND_1, expectedCampaignId: CAMPAIGN_A },
+      () => prepareCreateMarinerShipCommand(CAMPAIGN_A, legacyRequest),
+    );
+    expect(replayReceipt).toEqual({ revision: 5 });
+    expect(replay.commits).toHaveLength(0);
+  });
+
+  it("explicit null and Raider endpoint keep distinct current fingerprints", () => {
+    const before = initializedQuiet();
+    const explicitNull = prepareCreateMarinerShipCommand(CAMPAIGN_A, createShipInput(before));
+    const raider = prepareCreateMarinerShipCommand(CAMPAIGN_A, createShipInputToward(before, TOWARD_DRUNTYR));
+    const omitted = prepareCreateMarinerShipCommand(
+      CAMPAIGN_A,
+      omitKey(createShipInput(before), "destinationToward"),
+    );
+    expect(explicitNull.commandFingerprint).toContain("destinationToward");
+    expect(raider.commandFingerprint).toContain("destinationToward");
+    expect(omitted.commandFingerprint).not.toContain("destinationToward");
+    expect(explicitNull.commandFingerprint).not.toBe(omitted.commandFingerprint);
+    expect(raider.commandFingerprint).not.toBe(explicitNull.commandFingerprint);
+    expect(occupancyOf(raider.apply(before).nextState, THYRIAN_DRUNTYR)).toEqual({
+      kind: "raider",
+      toward: TOWARD_DRUNTYR,
+    });
+    expect(occupancyOf(explicitNull.apply(before).nextState, THYRIAN_DRUNTYR)).toEqual({ kind: "ship" });
+  });
+
+  it("createMarinerShip mutation accepts omitted destinationToward via the shared prepare path", () => {
+    const source = readFileSync(resolve("convex/m3Commands.ts"), "utf8");
+    const start = source.indexOf("export const createMarinerShip = mutation");
+    const end = source.indexOf("export const moveMarinerBeast = mutation");
+    const block = source.slice(start, end);
+    expect(block).toContain("destinationToward: v.optional(");
+    expect(block).toContain("prepareCreateMarinerShipCommand");
   });
 });
