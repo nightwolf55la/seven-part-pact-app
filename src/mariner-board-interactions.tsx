@@ -32,10 +32,28 @@ import {
   pointerMovementExceedsDragThreshold,
   raiderTowardAppliesOnRoute,
   relatedTargetOwnsRouteHover,
-  relatedTargetOwnsSeaHover,
   representableRaiderEndpoints,
   routesShareBoardIsleEndpoint,
 } from "./mariner-board-pointer";
+
+function relatedTargetOwnsEmptySeaHover(relatedTarget: EventTarget | null, regionId: string): boolean {
+  if (!(relatedTarget instanceof Element)) return false;
+  const owner = relatedTarget.closest("[data-empty-sea-hover-owner]");
+  return owner?.getAttribute("data-empty-sea-hover-owner") === regionId;
+}
+
+function relatedTargetOwnsStormPieceHover(relatedTarget: EventTarget | null, regionId: string): boolean {
+  if (!(relatedTarget instanceof Element)) return false;
+  const owner = relatedTarget.closest("[data-storm-piece-hover-owner]");
+  return owner?.getAttribute("data-storm-piece-hover-owner") === regionId;
+}
+
+function seaRegionStormCount(
+  seaRegions: readonly { regionId: MarinerSeaRegionId; stormCount: number }[],
+  regionId: MarinerSeaRegionId,
+): number {
+  return seaRegions.find((region) => region.regionId === regionId)?.stormCount ?? 0;
+}
 
 type DragKind = "storm" | "route-piece";
 
@@ -563,20 +581,22 @@ export function useMarinerBoardInteractions(args: {
   }, []);
 
   const onSeaHoverEnter = useCallback((regionId: MarinerSeaRegionId) => {
+    if (seaRegionStormCount(mariner.seaRegions, regionId) > 0) return;
     setFocusedSeaRegionId(regionId);
-  }, []);
+  }, [mariner.seaRegions]);
 
   const onSeaHoverLeave = useCallback((regionId: MarinerSeaRegionId, relatedTarget: EventTarget | null) => {
-    if (relatedTargetOwnsSeaHover(relatedTarget, regionId)) return;
+    if (relatedTargetOwnsEmptySeaHover(relatedTarget, regionId)) return;
     setFocusedSeaRegionId((current) => current === regionId ? null : current);
   }, []);
 
   const onStormHoverEnter = useCallback((regionId: MarinerSeaRegionId) => {
+    setFocusedSeaRegionId((current) => current === regionId ? null : current);
     setFocusedStormRegionId(regionId);
   }, []);
 
   const onStormHoverLeave = useCallback((regionId: MarinerSeaRegionId, relatedTarget: EventTarget | null) => {
-    if (relatedTargetOwnsSeaHover(relatedTarget, regionId)) return;
+    if (relatedTargetOwnsStormPieceHover(relatedTarget, regionId)) return;
     setFocusedStormRegionId((current) => current === regionId ? null : current);
   }, []);
 
@@ -755,7 +775,7 @@ export function SeaStormQuickActions({
     <g
       data-sea-quick-actions
       data-region-id={regionId}
-      data-sea-hover-owner={regionId}
+      data-empty-sea-hover-owner={regionId}
       transform={`translate(${anchorX + 14} ${anchorY})`}
       pointerEvents="all"
       onMouseOver={onHoverEnter}
@@ -784,11 +804,12 @@ export function SeaStormQuickActions({
   );
 }
 
-export function StormRemoveQuickAction({
+export function StormPieceQuickActions({
   regionId,
   anchorX,
   anchorY,
   visible,
+  onAddStorm,
   onRemoveStorm,
   onHoverEnter,
   onHoverLeave,
@@ -797,6 +818,7 @@ export function StormRemoveQuickAction({
   anchorX: number;
   anchorY: number;
   visible: boolean;
+  onAddStorm: () => void;
   onRemoveStorm: () => void;
   onHoverEnter: () => void;
   onHoverLeave: (relatedTarget: EventTarget | null) => void;
@@ -804,22 +826,34 @@ export function StormRemoveQuickAction({
   if (!visible) return null;
   return (
     <g
-      data-storm-remove-quick-action
+      data-storm-piece-quick-actions
       data-region-id={regionId}
-      data-sea-hover-owner={regionId}
+      data-storm-piece-hover-owner={regionId}
       transform={`translate(${anchorX + 16} ${anchorY - 10})`}
       pointerEvents="all"
       onMouseOver={onHoverEnter}
       onMouseOut={(event) => onHoverLeave(event.relatedTarget)}
     >
-      <foreignObject x={0} y={-8} width={150} height={28}>
+      <foreignObject x={0} y={-8} width={150} height={52}>
         <div
-          data-storm-remove-menu
-          className="rounded-md border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-sm py-0.5 px-0.5"
+          data-storm-piece-action-menu
+          className="rounded-md border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-sm py-0.5"
         >
           <button
             type="button"
-            className={`${SEA_MENU_BTN} text-red-700 dark:text-red-400 py-1.5 px-2`}
+            className={SEA_MENU_BTN}
+            data-quick-action="add-storm"
+            aria-label="Add Storm"
+            onClick={(event) => {
+              event.stopPropagation();
+              onAddStorm();
+            }}
+          >
+            + Storm
+          </button>
+          <button
+            type="button"
+            className={`${SEA_MENU_BTN} text-red-700 dark:text-red-400`}
             data-quick-action="remove-storm"
             aria-label="Remove Storm"
             onClick={(event) => {

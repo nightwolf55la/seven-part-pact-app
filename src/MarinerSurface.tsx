@@ -142,7 +142,7 @@ import {
   BoardDragGhost,
   RouteQuickActions,
   SeaStormQuickActions,
-  StormRemoveQuickAction,
+  StormPieceQuickActions,
   useMarinerBoardInteractions,
   type PendingShipRampage,
 } from "./mariner-board-interactions";
@@ -1054,7 +1054,7 @@ function MarinerMap({
               key={sea.regionId}
               data-map-layer="sea-hit"
               data-region-id={sea.regionId}
-              data-sea-hover-owner={sea.regionId}
+              data-empty-sea-hover-owner={stormCount === 0 ? sea.regionId : undefined}
               data-storm-guide-dest={guideDest ?? undefined}
               role="button"
               tabIndex={0}
@@ -1352,7 +1352,7 @@ function MarinerMap({
                     data-piece="storm"
                     data-draggable-storm="true"
                     data-region-id={sea.regionId}
-                    data-sea-hover-owner={sea.regionId}
+                    data-storm-piece-hover-owner={sea.regionId}
                     data-storm-count={stormCount}
                     data-storm-piece={storms.typhoon ? "typhoon" : "storm"}
                     data-typhoon={storms.typhoon ? "true" : "false"}
@@ -1449,16 +1449,17 @@ function MarinerMap({
                   regionId={sea.regionId}
                   anchorX={snapAnchor.x}
                   anchorY={snapAnchor.y}
-                  visible={board.focusedSeaRegionId === sea.regionId && dragIdle}
+                  visible={stormCount === 0 && board.focusedSeaRegionId === sea.regionId && dragIdle}
                   onAddStorm={() => { void board.addStormToRegion(sea.regionId); }}
                   onHoverEnter={() => board.onSeaHoverEnter(sea.regionId)}
                   onHoverLeave={(relatedTarget) => board.onSeaHoverLeave(sea.regionId, relatedTarget)}
                 />
-                <StormRemoveQuickAction
+                <StormPieceQuickActions
                   regionId={sea.regionId}
                   anchorX={pieceAnchor.x}
                   anchorY={pieceAnchor.y}
                   visible={board.focusedStormRegionId === sea.regionId && stormCount > 0 && dragIdle}
+                  onAddStorm={() => { void board.addStormToRegion(sea.regionId); }}
                   onRemoveStorm={() => { void board.removeStormFromRegion(sea.regionId); }}
                   onHoverEnter={() => board.onStormHoverEnter(sea.regionId)}
                   onHoverLeave={(relatedTarget) => board.onStormHoverLeave(sea.regionId, relatedTarget)}

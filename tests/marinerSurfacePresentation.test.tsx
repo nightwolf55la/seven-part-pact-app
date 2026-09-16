@@ -2283,35 +2283,93 @@ describe("M5.4 Mariner direct board manipulation", () => {
     container.remove();
   });
 
-  it("submits + Storm from the Sea hover menu with expected count only", async () => {
+  it("shows + Storm only on empty Sea hover and never Remove", async () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    const sea = container.querySelector('[data-map-layer="sea-hit"][data-region-id="sidereal_sea"]') as SVGGElement;
+    const sea = container.querySelector('[data-map-layer="sea-hit"][data-region-id="wizard_strait"]') as SVGGElement;
+    await act(async () => {
+      sea.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
+    });
+    const emptyMenu = container.querySelector(
+      '[data-sea-quick-actions][data-region-id="wizard_strait"] [data-sea-action-menu]',
+    ) as HTMLElement;
+    expect(emptyMenu?.textContent).toContain("+ Storm");
+    expect(container.querySelector('[data-quick-action="remove-storm"]')).toBeNull();
+    expect(container.querySelector('[data-storm-piece-quick-actions]')).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("submits + Storm from empty Sea hover with expected count only", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const sea = container.querySelector('[data-map-layer="sea-hit"][data-region-id="wizard_strait"]') as SVGGElement;
     await act(async () => {
       sea.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
     });
     const addStorm = container.querySelector(
-      '[data-sea-quick-actions][data-region-id="sidereal_sea"] [data-quick-action="add-storm"]',
+      '[data-sea-quick-actions][data-region-id="wizard_strait"] [data-quick-action="add-storm"]',
     ) as HTMLButtonElement;
-    expect(addStorm).not.toBeNull();
     await act(async () => { addStorm.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     expect(mockMutations["m3Commands.moveMarinerStorm"]).not.toHaveBeenCalled();
     expect(mockMutations["m3Commands.setMarinerSeaStormCount"].mock.calls[0][0]).toMatchObject({
-      regionId: "sidereal_sea",
-      expectedStormCount: 2,
-      stormCount: 3,
+      regionId: "wizard_strait",
+      expectedStormCount: 0,
+      stormCount: 1,
     });
     root.unmount();
     container.remove();
   });
 
-  it("decrements Storm count by one from the Storm piece Remove control", async () => {
+  it("does not show occupied Storm menus on broad Sea hover alone", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const sea = container.querySelector('[data-map-layer="sea-hit"][data-region-id="sidereal_sea"]') as SVGGElement;
+    await act(async () => {
+      sea.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
+    });
+    expect(container.querySelector('[data-storm-piece-quick-actions][data-region-id="sidereal_sea"]')).toBeNull();
+    expect(container.querySelector('[data-sea-quick-actions][data-region-id="sidereal_sea"]')).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("shows one combined Storm piece menu with + Storm and Remove for a single Storm", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="bay_of_ishana"]') as SVGGElement;
+    await act(async () => {
+      storm.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
+    });
+    const menu = container.querySelector(
+      '[data-storm-piece-quick-actions][data-region-id="bay_of_ishana"] [data-storm-piece-action-menu]',
+    ) as HTMLElement;
+    expect(menu?.textContent).toContain("+ Storm");
+    expect(menu?.textContent).toMatch(/Remove/);
+    expect(container.querySelectorAll('[data-quick-action="add-storm"]').length).toBe(1);
+    root.unmount();
+    container.remove();
+  });
+
+  it("shows one combined Storm piece menu for Typhoon without duplicate + Storm controls", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]') as SVGGElement;
+    await act(async () => {
+      storm.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
+    });
+    expect(container.querySelector('[data-sea-quick-actions][data-region-id="sidereal_sea"]')).toBeNull();
+    expect(container.querySelectorAll('[data-quick-action="add-storm"]').length).toBe(1);
+    expect(
+      container.querySelector('[data-storm-piece-quick-actions][data-region-id="sidereal_sea"] [data-quick-action="remove-storm"]'),
+    ).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("decrements Storm count by one from the Storm piece combined menu", async () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]') as SVGGElement;
     await act(async () => {
       storm.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
     });
     const remove = container.querySelector(
-      '[data-storm-remove-quick-action][data-region-id="sidereal_sea"] [data-quick-action="remove-storm"]',
+      '[data-storm-piece-quick-actions][data-region-id="sidereal_sea"] [data-quick-action="remove-storm"]',
     ) as HTMLButtonElement;
     await act(async () => { remove.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     expect(mockMutations["m3Commands.moveMarinerStorm"]).not.toHaveBeenCalled();
@@ -2324,6 +2382,25 @@ describe("M5.4 Mariner direct board manipulation", () => {
     container.remove();
   });
 
+  it("increments Storm count from the occupied Storm piece combined menu", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]') as SVGGElement;
+    await act(async () => {
+      storm.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
+    });
+    const addStorm = container.querySelector(
+      '[data-storm-piece-quick-actions][data-region-id="sidereal_sea"] [data-quick-action="add-storm"]',
+    ) as HTMLButtonElement;
+    await act(async () => { addStorm.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(mockMutations["m3Commands.setMarinerSeaStormCount"].mock.calls[0][0]).toMatchObject({
+      regionId: "sidereal_sea",
+      expectedStormCount: 2,
+      stormCount: 3,
+    });
+    root.unmount();
+    container.remove();
+  });
+
   it("removes the last Storm token from a single-Storm region", async () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="bay_of_ishana"]') as SVGGElement;
@@ -2331,7 +2408,7 @@ describe("M5.4 Mariner direct board manipulation", () => {
       storm.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
     });
     const remove = container.querySelector(
-      '[data-storm-remove-quick-action][data-region-id="bay_of_ishana"] [data-quick-action="remove-storm"]',
+      '[data-storm-piece-quick-actions][data-region-id="bay_of_ishana"] [data-quick-action="remove-storm"]',
     ) as HTMLButtonElement;
     await act(async () => { remove.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     expect(mockMutations["m3Commands.setMarinerSeaStormCount"].mock.calls[0][0]).toMatchObject({
@@ -2343,23 +2420,39 @@ describe("M5.4 Mariner direct board manipulation", () => {
     container.remove();
   });
 
-  it("keeps Storm quick actions mounted across pointer travel from the Storm piece onto Remove", async () => {
+  it("keeps the Storm piece combined menu mounted across pointer travel from piece onto menu", async () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]') as SVGGElement;
     await act(async () => {
       storm.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
     });
-    const removeHost = container.querySelector(
-      '[data-storm-remove-quick-action][data-region-id="sidereal_sea"]',
+    const menuHost = container.querySelector(
+      '[data-storm-piece-quick-actions][data-region-id="sidereal_sea"]',
     ) as SVGGElement;
-    expect(removeHost).not.toBeNull();
+    expect(menuHost).not.toBeNull();
     await act(async () => {
-      storm.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, composed: true, relatedTarget: removeHost }));
-      removeHost.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true, relatedTarget: storm }));
+      storm.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, composed: true, relatedTarget: menuHost }));
+      menuHost.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true, relatedTarget: storm }));
     });
     expect(
-      container.querySelector('[data-storm-remove-quick-action][data-region-id="sidereal_sea"] [data-quick-action="remove-storm"]'),
+      container.querySelector('[data-storm-piece-quick-actions][data-region-id="sidereal_sea"] [data-quick-action="remove-storm"]'),
     ).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("closes the Storm piece menu when the pointer moves onto ordinary Sea background", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]') as SVGGElement;
+    const sea = container.querySelector('[data-map-layer="sea-hit"][data-region-id="sidereal_sea"]') as SVGGElement;
+    await act(async () => {
+      storm.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
+    });
+    expect(container.querySelector('[data-storm-piece-quick-actions][data-region-id="sidereal_sea"]')).not.toBeNull();
+    await act(async () => {
+      storm.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, composed: true, relatedTarget: sea }));
+    });
+    expect(container.querySelector('[data-storm-piece-quick-actions][data-region-id="sidereal_sea"]')).toBeNull();
     root.unmount();
     container.remove();
   });
