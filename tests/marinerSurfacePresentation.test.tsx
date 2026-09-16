@@ -555,7 +555,7 @@ describe("Mariner source-map piece presentation", () => {
   it("renders Storms as physical tokens, with Typhoon cluster and accessible exact count", () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     expect(container.querySelector('[data-piece="storm"][data-region-id="sidereal_sea"]')?.getAttribute("data-typhoon")).toBe("true");
-    expect(container.querySelector('[data-piece="storm"][data-region-id="sidereal_sea"]')?.getAttribute("aria-label")).toContain("Storms 2");
+    expect(container.querySelector('[data-piece="storm"][data-region-id="sidereal_sea"]')?.getAttribute("aria-label")).toMatch(/2 Storms|Typhoon/i);
     expect(container.querySelector('[data-piece="storm"][data-region-id="bay_of_ishana"]')?.getAttribute("data-typhoon")).toBe("false");
     expect(container.querySelector('[data-piece="storm"][data-region-id="sunken_fleet"]')).toBeNull();
     root.unmount();
@@ -1216,14 +1216,13 @@ describe("Mariner desktop board hierarchy and overlay inspector", () => {
 });
 
 describe("M5.4 UX register continuation", () => {
-  it("records UX-024 Storm pieces and click-to-guide while drag/drop stays deferred", async () => {
+  it("records UX-024 Storm pieces and direct manipulation in the register", async () => {
     const { readFileSync } = await import("node:fs");
     const register = readFileSync("docs/m5-4-table-readiness-ux.md", "utf8");
     expect(register).toMatch(/### UX-024/);
     expect(register).toMatch(/Storms should read as spatial Sea pieces/);
     const section = register.slice(register.indexOf("### UX-024"), register.indexOf("### UX-025"));
-    expect(section).toMatch(/\*\*Current status:\*\* PARTIALLY ADDRESSED — NEEDS HUMAN RETEST/);
-    expect(section).toMatch(/Drag\/drop remains DEFERRED/);
+    expect(section).toMatch(/\*\*Current status:\*\* FIXED — NEEDS HUMAN RETEST/);
     expect(register).toMatch(/### UX-025/);
     expect(register).toMatch(/### UX-026/);
   });
@@ -1739,5 +1738,90 @@ describe("M5.4 table-authoritative Mariner board actions", () => {
     expect(ux025).toContain("PARTIALLY ADDRESSED — NEEDS HUMAN RETEST");
     expect(ux025).toMatch(/Stability/);
     expect(ux025).not.toContain("FIXED — NEEDS HUMAN RETEST");
+  });
+});
+
+describe("M5.4 Mariner direct board manipulation", () => {
+  it("marks Storm pieces as draggable with move-one-Storm labeling", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]');
+    expect(storm).not.toBeNull();
+    expect(storm?.getAttribute("aria-label")).toMatch(/Move one Storm from/i);
+    root.unmount();
+    container.remove();
+  });
+
+  it("invokes moveMarinerStorm when a Storm is dragged to another Sea", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]') as Element;
+    const dest = container.querySelector('[data-map-layer="sea-hit"][data-region-id="wizard_strait"]') as Element;
+    const rect = (el: Element) => ({
+      left: 10, top: 10, width: 20, height: 20, right: 30, bottom: 30, x: 10, y: 10, toJSON: () => ({}),
+    });
+    vi.spyOn(storm, "getBoundingClientRect").mockReturnValue(rect(storm) as DOMRect);
+    vi.spyOn(dest, "getBoundingClientRect").mockReturnValue({ left: 200, top: 200, width: 40, height: 40, right: 240, bottom: 240, x: 200, y: 200, toJSON: () => ({}) } as DOMRect);
+    storm.setPointerCapture = vi.fn();
+    const fromPoint = vi.fn(() => dest);
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: fromPoint });
+    await act(async () => {
+      storm.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: 15, clientY: 15, pointerId: 1, isPrimary: true }));
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 30, clientY: 15, pointerId: 1 }));
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 210, clientY: 210, pointerId: 1 }));
+      window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: 210, clientY: 210, pointerId: 1 }));
+    });
+    const payload = mockMutations["m3Commands.moveMarinerStorm"].mock.calls[0]?.[0];
+    expect(payload).toMatchObject({ sourceRegionId: "sidereal_sea", destinationRegionId: "wizard_strait" });
+    expect(payload).not.toHaveProperty("confirmedNotAgainstPrevailingWind");
+    root.unmount();
+    container.remove();
+  });
+
+  it("selects the Sea on Storm click without crossing the drag threshold", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]') as Element;
+    flushSync(() => {
+      storm.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: 15, clientY: 15, pointerId: 2, isPrimary: true }));
+      window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: 16, clientY: 16, pointerId: 2 }));
+    });
+    expect(container.querySelector('[data-board-overlay-inspector]')).not.toBeNull();
+    expect(mockMutations["m3Commands.moveMarinerStorm"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("shows empty Route quick actions on focus and Add Ship submits without sourceIsleId", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SUNKEN_ORRERY_FAR}"]`) as SVGElement;
+    flushSync(() => { route.focus(); });
+    const quick = container.querySelector(`[data-route-quick-actions][data-route-id="${SUNKEN_ORRERY_FAR}"]`);
+    expect(quick).not.toBeNull();
+    const addShip = quick?.querySelector('[data-quick-action="add-ship"]') as SVGCircleElement;
+    expect(addShip?.getAttribute("aria-label")).toMatch(/Add Ship/i);
+    await act(async () => { addShip.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    const payload = mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0];
+    expect(payload.targetRouteId).toBe(SUNKEN_ORRERY_FAR);
+    expect(payload).not.toHaveProperty("sourceIsleId");
+    root.unmount();
+    container.remove();
+  });
+
+  it("exposes Remove only for occupied Routes", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const emptyRoute = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SUNKEN_ORRERY_FAR}"]`) as SVGElement;
+    flushSync(() => { emptyRoute.focus(); });
+    expect(emptyRoute.parentElement?.querySelector('[data-quick-action="remove"]')).toBeNull();
+    const occupied = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`) as SVGElement;
+    flushSync(() => { occupied.focus(); });
+    expect(container.querySelector(`[data-route-quick-actions][data-route-id="${SHIP_ROUTE}"] [data-quick-action="remove"]`)).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("records UX-024 drag/drop as fixed pending human retest", () => {
+    const docs = readFileSync(resolve("docs/m5-4-table-readiness-ux.md"), "utf8");
+    const section = docs.slice(docs.indexOf("### UX-024"), docs.indexOf("### UX-025"));
+    expect(section).toContain("FIXED — NEEDS HUMAN RETEST");
+    expect(section).toMatch(/direct Storm piece drag/i);
+    expect(section).not.toMatch(/Drag\/drop remains DEFERRED/i);
   });
 });

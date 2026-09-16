@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import type { MarinerBoardIsleId, MarinerExternalLandId } from "../shared/domain";
 import { MARINER_BOARD_ISLE_IDS, MARINER_EXTERNAL_LAND_IDS } from "../shared/domain";
 import type { NecromancerBuiltinGateId, NecromancerBuiltinPathSpaceId } from "../shared/domain";
@@ -240,6 +240,9 @@ export function SourceRouteOccupancyMarker({
   color,
   threatened,
   onSelect,
+  onPointerDown,
+  onMouseEnter,
+  onMouseLeave,
 }: {
   href: string;
   kind: "ship" | "raider";
@@ -249,6 +252,9 @@ export function SourceRouteOccupancyMarker({
   color: string;
   threatened?: boolean;
   onSelect: () => void;
+  onPointerDown?: (event: ReactPointerEvent) => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }) {
   const hostRef = useRef<SVGGElement>(null);
   useLayoutEffect(() => {
@@ -284,7 +290,12 @@ export function SourceRouteOccupancyMarker({
       data-route-occupancy-marker={kind}
       data-raider-toward={toward}
       data-route-threatened={threatened ? "true" : undefined}
+      data-draggable-route-piece="true"
       aria-label={label}
+      style={{ cursor: onPointerDown === undefined ? undefined : "grab" }}
+      onPointerDown={onPointerDown}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       onClick={(event) => {
         event.stopPropagation();
         onSelect();

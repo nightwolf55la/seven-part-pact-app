@@ -523,10 +523,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** MARINER
 - **Source/rules relevance:** Storm/Typhoon counts and Guided Storm movement already exist. Exact route-bounded Sea polygons are not required merely to display or drag a Storm.
 - **Suggested direction:** Future interaction polish could use a Sea presentation anchor, a generous invisible Sea drop target, valid-Sea highlight during drag, the existing authoritative move command, and a keyboard/non-drag equivalent.
-- **Current status:** PARTIALLY ADDRESSED — NEEDS HUMAN RETEST
+- **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Related to UX-010. Does not require exact Sea polygons.
-- **Approved batch:** Not Batch 2 originally; spatial pieces and click-to-guide included in the Batch 2 Mariner operability pass. Drag/drop remains DEFERRED.
-- **Resolution / implementation note:** Storms/Typhoons now render as spatial Sea pieces at presentation-only Sea anchors (compact swirl; stronger Typhoon swirl plus count). Click-to-guide uses existing `adjacentRegionIds` plus `moveMarinerStorm` / `buildMoveMarinerStormPayload` / `expectedForMoveStorm`. Adjacent/default destination Seas are highlighted on the existing broad Sea hit ellipses; other representable Seas/Horizons remain selectable. No Wind attestation or confirmation form. Drag/drop is not implemented. No exact Sea polygons. No new write contract.
+- **Approved batch:** Not Batch 2 originally; spatial pieces and click-to-guide included in the Batch 2 Mariner operability pass.
+- **Resolution / implementation note:** Storms/Typhoons render as spatial Sea pieces at presentation-only anchors. **Direct Storm piece drag** drops anywhere inside the existing broad Sea/Horizon hit geometry and submits `moveMarinerStorm` (one Storm token per drag, including from Typhoon stacks); pieces snap back to the destination anchor with no persisted drop coordinates. Adjacent/default Seas receive recommended highlight during drag; other representable destinations stay available. Click-to-guide and inspector controls remain keyboard/non-drag fallbacks. No Wind attestation. No exact Sea polygons. No new write contract.
 
 ### UX-025
 
@@ -558,7 +558,7 @@ Supports: UX-001, UX-019.
 - **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Related to UX-025 and UX-024.
 - **Approved batch:** Batch 2 operability pass
-- **Resolution / implementation note:** Isle inspector keeps Market, Ravage, Record Ravage Result, Beast facts, and Lore. Route inspector owns Add Ship / Move Ship (or Move Raider) using the selected Route as target or source without fabricating `sourceIsleId`. Sea inspector is weather-centric and starts click-to-guide Storm; raw Storm-count correction lives under Advanced / Correct — Weather. Generic Route occupancy correction lives under Advanced / Correct — Route. Nothing VERIFIED.
+- **Resolution / implementation note:** Isle inspector keeps Market, Ravage, Record Ravage Result, Beast facts, and Lore. Route inspector owns Add Ship / Move Ship (or Move Raider) using the selected Route as target or source without fabricating `sourceIsleId`. **Direct board manipulation:** empty Routes expose hover/focus quick actions (+ Ship, directional + Raider); occupied Routes expose draggable Ship/Raider markers, one-click Remove, and drag-to-empty-Route moves. Sea inspector remains weather-centric with click-to-guide fallback; raw Storm-count correction lives under Advanced / Correct — Weather. Generic Route occupancy correction lives under Advanced / Correct — Route. Nothing VERIFIED.
 
 ---
 
