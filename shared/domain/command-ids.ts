@@ -541,6 +541,10 @@ export function setMarinerIsleMarketFingerprint(
   })}`;
 }
 
+export function moveMarinerMarketFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `move_mariner_market:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
 export function setMarinerIsleRavageFingerprint(
   expectedCampaignId: string,
   boardIsleId: string,

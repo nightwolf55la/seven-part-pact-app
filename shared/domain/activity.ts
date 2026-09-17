@@ -4,6 +4,12 @@ import type {
   MonthChangedEventV1,
 } from "./events";
 import { displayNameFromOrdinal } from "./calendar";
+import { MARINER_BOARD_ISLE_DEFINITIONS } from "./mariner-catalogs";
+
+function marinerBoardIsleLabel(boardIsleId: string): string {
+  return MARINER_BOARD_ISLE_DEFINITIONS.find((definition) => definition.boardIsleId === boardIsleId)?.displayName
+    ?? boardIsleId;
+}
 
 export type ActivityEntry =
   | {
@@ -229,6 +235,10 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Changed Mariner sea Storm count";
     case "mariner_isle_market_changed":
       return "Changed Mariner Isle Market";
+    case "mariner_market_moved": {
+      const rare = event.data.rarity !== null ? "Rare " : "";
+      return `Moved ${rare}Market from ${marinerBoardIsleLabel(event.data.sourceBoardIsleId)} to ${marinerBoardIsleLabel(event.data.destinationBoardIsleId)}`;
+    }
     case "mariner_isle_ravage_changed":
       return "Changed Mariner Isle Ravage";
     case "mariner_beast_added":
@@ -605,6 +615,7 @@ export function mapEventToActivityEntry(
     case "mariner_route_occupancy_changed":
     case "mariner_sea_storm_count_changed":
     case "mariner_isle_market_changed":
+    case "mariner_market_moved":
     case "mariner_isle_ravage_changed":
     case "mariner_beast_added":
     case "mariner_beast_updated":

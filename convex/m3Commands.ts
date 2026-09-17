@@ -113,6 +113,7 @@ import {
   setMarinerRouteOccupancyFingerprint,
   setMarinerSeaStormCountFingerprint,
   setMarinerIsleMarketFingerprint,
+  moveMarinerMarketFingerprint,
   setMarinerIsleRavageFingerprint,
   addMarinerBeastFingerprint,
   updateMarinerBeastFingerprint,
@@ -179,6 +180,7 @@ import {
   prepareCreateMarinerShipCommand,
   canonicalizeMoveMarinerBeastInput,
   canonicalizeNestMarinerBeastInput,
+  canonicalizeMoveMarinerMarketInput,
   canonicalizeRecordMarinerRavageResultInput,
   applyCreateMarinerBeast,
   applyMoveMarinerStorm,
@@ -186,6 +188,7 @@ import {
   applyCreateMarinerShip,
   applyMoveMarinerBeast,
   applyNestMarinerBeast,
+  applyMoveMarinerMarket,
   applyRecordMarinerRavageResult,
   initializeNecromancerFingerprint,
   initializeNecromancerSourceSetupFingerprint,
@@ -455,6 +458,7 @@ import type {
   CreateMarinerShipCommandArgs,
   MoveMarinerBeastInput,
   NestMarinerBeastInput,
+  MoveMarinerMarketInput,
   RecordMarinerRavageResultInput,
   ArrangeFaustianTableInput,
   ArrangeFaustianCalamityAntagonistInput,
@@ -3332,6 +3336,38 @@ export const nestMarinerBeast = mutation({
           commandType: "nest_mariner_beast",
           commandFingerprint: nestMarinerBeastFingerprint(args.expectedCampaignId, input),
           apply: (state) => applyNestMarinerBeast(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const moveMarinerMarket = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    sourceBoardIsleId: v.string(),
+    destinationBoardIsleId: v.string(),
+    expectedSourceMarket: marinerIsleMarketArg,
+    expectedDestinationMarket: marinerIsleMarketArg,
+    expectedDestinationNestingBeastDenizenId: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeMoveMarinerMarketInput({
+          sourceBoardIsleId: args.sourceBoardIsleId,
+          destinationBoardIsleId: args.destinationBoardIsleId,
+          expectedSourceMarket: args.expectedSourceMarket,
+          expectedDestinationMarket: args.expectedDestinationMarket,
+          expectedDestinationNestingBeastDenizenId: args.expectedDestinationNestingBeastDenizenId,
+        } as unknown as MoveMarinerMarketInput);
+        return {
+          commandType: "move_mariner_market",
+          commandFingerprint: moveMarinerMarketFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyMoveMarinerMarket(state, input),
         };
       },
     );

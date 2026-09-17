@@ -1669,6 +1669,16 @@ const marinerIsleMarketChangedEventV1Validator = v.object({
   }),
 });
 
+const marinerMarketMovedEventV1Validator = v.object({
+  type: v.literal("mariner_market_moved"),
+  version: v.literal(1),
+  data: v.object({
+    sourceBoardIsleId: v.string(),
+    destinationBoardIsleId: v.string(),
+    rarity: v.union(v.string(), v.null()),
+  }),
+});
+
 const marinerIsleRavageChangedEventV1Validator = v.object({
   type: v.literal("mariner_isle_ravage_changed"),
   version: v.literal(1),
@@ -3461,6 +3471,7 @@ export const campaignEventValidator = v.union(
   marinerRouteOccupancyChangedEventV1Validator,
   marinerSeaStormCountChangedEventV1Validator,
   marinerIsleMarketChangedEventV1Validator,
+  marinerMarketMovedEventV1Validator,
   marinerIsleRavageChangedEventV1Validator,
   marinerBeastAddedEventV1Validator,
   marinerBeastUpdatedEventV1Validator,

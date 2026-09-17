@@ -10,6 +10,7 @@ import type {
   MarinerBeastLocation,
   MarinerBeastState,
   MarinerBoardIsleId,
+  MarinerIsleMarket,
   MarinerRouteOccupancy,
   MarinerSeaRegionId,
   MonthOrdinal,
@@ -51,6 +52,7 @@ import {
   mapEventToActivityEntry,
   marinerRouteId,
   moveMarinerBeastFingerprint,
+  moveMarinerMarketFingerprint,
   moveMarinerShipFingerprint,
   moveMarinerStormFingerprint,
   nestMarinerBeastFingerprint,
@@ -58,12 +60,18 @@ import {
   validateCampaignStateV5Candidate,
 } from "../shared/domain";
 import { campaignEventValidator } from "../convex/validators";
-import type { CreateMarinerShipInput, MoveMarinerBeastInput } from "../shared/domain/mariner-operability-transitions";
+import type {
+  CreateMarinerShipInput,
+  MoveMarinerBeastInput,
+  MoveMarinerMarketInput,
+} from "../shared/domain/mariner-operability-transitions";
 import {
   applyCreateMarinerShip,
   applyMoveMarinerBeast,
+  applyMoveMarinerMarket,
   canonicalizeCreateMarinerShipInput,
   canonicalizeMoveMarinerBeastInput,
+  canonicalizeMoveMarinerMarketInput,
   prepareCreateMarinerShipCommand,
 } from "../shared/domain/mariner-operability-transitions";
 import {
@@ -140,6 +148,28 @@ const THYRIAN_FAR_REACH = marinerRouteId(
   { kind: "board_isle", boardIsleId: "far_reach" },
   { kind: "board_isle", boardIsleId: "thyras" },
 );
+const GRAVEN_ISHANA = marinerRouteId(
+  { kind: "board_isle", boardIsleId: "graven_isle" },
+  { kind: "board_isle", boardIsleId: "ishana" },
+);
+
+function assertGenuinelyNonadjacentRegions(
+  sourceRegionId: MarinerSeaRegionId,
+  destinationRegionId: MarinerSeaRegionId,
+): void {
+  const source = regionDef(sourceRegionId);
+  expect(source).toBeDefined();
+  expect(source!.adjacentRegionIds).not.toContain(destinationRegionId);
+}
+
+function assertGenuinelyNonadjacentIsle(
+  regionId: MarinerSeaRegionId,
+  boardIsleId: MarinerBoardIsleId,
+): void {
+  const region = regionDef(regionId);
+  expect(region).toBeDefined();
+  expect(region!.adjacentBoardIsleIds).not.toContain(boardIsleId);
+}
 
 function expectCode(run: () => unknown, code: DomainError["code"], pattern?: RegExp): void {
   expect(run).toThrow(DomainError);
@@ -1149,13 +1179,59 @@ describe("nest_mariner_beast", () => {
     expect(result.events[0]?.type).toBe("mariner_beast_nested");
   });
 
-  it("rejects a nonadjacent Isle, Market, Ravaged Isle, existing Nest, and non-Distrusting Beast", () => {
+  it("nests a Distrusting Beast on a genuinely nonadjacent representable Isle", () => {
+    assertGenuinelyNonadjacentIsle("sunken_fleet", "ishana");
     const created = applyCreateMarinerBeast(initializedQuiet(), createBeastInput(initializedQuiet())).nextState;
+    const result = applyNestMarinerBeast(created, nestInput(created, { boardIsleId: "ishana" }));
+    expect(result.nextState.mariner.beasts[0]).toEqual({
+      denizenId: NEW_DEN,
+      element: "water",
+      definitionId: "kraken",
+      condition: "friendly_nesting",
+      location: { kind: "board_isle", boardIsleId: "ishana" },
+    });
+    expect(result.events[0]).toEqual({
+      type: "mariner_beast_nested",
+      version: 1,
+      data: {
+        denizenId: NEW_DEN,
+        boardIsleId: "ishana",
+        previousLocation: { kind: "sea_region", regionId: "sunken_fleet" },
+      },
+    });
+  });
+
+  it("still rejects Market, existing Nest, and Ravaged nest targets after adjacency is advisory", () => {
+    const created = applyCreateMarinerBeast(initializedQuiet(), createBeastInput(initializedQuiet())).nextState;
+    const nearMarket = applyCreateMarinerBeast(initializedQuiet(), createBeastInput(initializedQuiet(), {
+      regionId: "scuttle_channel",
+    })).nextState;
     expectCode(
-      () => applyNestMarinerBeast(created, nestInput(created, { boardIsleId: "ishana" })),
+      () => applyNestMarinerBeast(nearMarket, nestInput(nearMarket, { boardIsleId: "scuttleport" })),
       "INVALID_CAMPAIGN_STATE",
-      /adjacent/,
+      /Market/,
     );
+    const ravaged = applySetMarinerIsleRavage(created, "orrery", 0, 6).nextState;
+    expectCode(
+      () => applyNestMarinerBeast(ravaged, nestInput(ravaged)),
+      "INVALID_CAMPAIGN_STATE",
+      /Ravage/,
+    );
+    const nested = applyNestMarinerBeast(created, nestInput(created)).nextState;
+    const second = applyCreateMarinerBeast(nested, createBeastInput(nested, {
+      denizenId: NEW_DEN_2,
+      name: "Second",
+      regionId: "sunken_fleet",
+    })).nextState;
+    expectCode(
+      () => applyNestMarinerBeast(second, nestInput(second, { denizenId: NEW_DEN_2 })),
+      "INVALID_CAMPAIGN_STATE",
+      /Nest/,
+    );
+  });
+
+  it("rejects a Market, Ravaged Isle, existing Nest, and non-Distrusting Beast", () => {
+    const created = applyCreateMarinerBeast(initializedQuiet(), createBeastInput(initializedQuiet())).nextState;
     const nearMarket = applyCreateMarinerBeast(initializedQuiet(), createBeastInput(initializedQuiet(), {
       regionId: "scuttle_channel",
     })).nextState;
@@ -1975,13 +2051,58 @@ describe("move_mariner_beast", () => {
     });
   });
 
-  it("rejects a nonadjacent destination, a wrong source, a non-Distrusting Beast, and any off-map destination", () => {
+  it("moves a Distrusting Beast to a genuinely nonadjacent representable Sea", () => {
+    assertGenuinelyNonadjacentRegions("sunken_fleet", "chalk_cliffs");
     const created = applyCreateMarinerBeast(initializedQuiet(), createBeastInput(initializedQuiet())).nextState;
-    expectCode(
-      () => applyMoveMarinerBeast(created, moveBeastInput(created, { destinationRegionId: "chalk_cliffs" })),
-      "INVALID_CAMPAIGN_STATE",
-      /adjacent/,
-    );
+    const result = applyMoveMarinerBeast(created, moveBeastInput(created, {
+      sourceRegionId: "sunken_fleet",
+      destinationRegionId: "chalk_cliffs",
+    }));
+    expect(result.nextState.mariner.beasts[0]?.location).toEqual({
+      kind: "sea_region",
+      regionId: "chalk_cliffs",
+    });
+    expect(result.nextState.mariner.beasts[0]?.condition).toBe("distrusting");
+    expect(result.events[0]).toEqual({
+      type: "mariner_beast_moved",
+      version: 1,
+      data: {
+        denizenId: NEW_DEN,
+        sourceRegionId: "sunken_fleet",
+        destinationRegionId: "chalk_cliffs",
+        destroyedRouteIds: [],
+        rampaged: false,
+        rampageDestinationSeatId: null,
+      },
+    });
+  });
+
+  it("still applies immediate shipping hazards after a nonadjacent Beast move", () => {
+    assertGenuinelyNonadjacentRegions("sunken_fleet", "chalk_cliffs");
+    const created = applyCreateMarinerBeast(initializedQuiet(), createBeastInput(initializedQuiet())).nextState;
+    expect(occupancyOf(created, GRAVEN_ISHANA)).toEqual({ kind: "ship" });
+    const withStorm = setStorms(created, "chalk_cliffs", 1);
+    const result = applyMoveMarinerBeast(withStorm, moveBeastInput(withStorm, {
+      sourceRegionId: "sunken_fleet",
+      destinationRegionId: "chalk_cliffs",
+    }));
+    expect(result.nextState.mariner.beasts[0]?.location).toEqual({
+      kind: "sea_region",
+      regionId: "chalk_cliffs",
+    });
+    expect(occupancyOf(result.nextState, GRAVEN_ISHANA)).toEqual({ kind: "empty" });
+    const moved = result.events[0];
+    expect(moved?.type).toBe("mariner_beast_moved");
+    if (moved?.type === "mariner_beast_moved") {
+      expect(moved.version).toBe(1);
+      expect(moved.data.sourceRegionId).toBe("sunken_fleet");
+      expect(moved.data.destinationRegionId).toBe("chalk_cliffs");
+      expect(moved.data.destroyedRouteIds).toContain(GRAVEN_ISHANA);
+    }
+  });
+
+  it("rejects a wrong source, a non-Distrusting Beast, and any off-map destination", () => {
+    const created = applyCreateMarinerBeast(initializedQuiet(), createBeastInput(initializedQuiet())).nextState;
     expectCode(
       () => applyMoveMarinerBeast(created, moveBeastInput(created, { sourceRegionId: "thyrian_sea" })),
       "INVALID_CAMPAIGN_STATE",
@@ -2104,6 +2225,227 @@ describe("move_mariner_beast", () => {
       "STALE_COMMAND_PRECONDITION",
       /occupancy/,
     );
+  });
+});
+
+function nestingBeastDenizenOnIsle(
+  state: CampaignStateV5,
+  boardIsleId: MarinerBoardIsleId,
+): DenizenId | null {
+  return state.mariner.beasts.find((beast) =>
+    beast.condition === "friendly_nesting"
+    && beast.location.kind === "board_isle"
+    && beast.location.boardIsleId === boardIsleId,
+  )?.denizenId ?? null;
+}
+
+function marketOf(state: CampaignStateV5, boardIsleId: MarinerBoardIsleId): MarinerIsleMarket {
+  return state.mariner.boardIsles.find((isle) => isle.boardIsleId === boardIsleId)?.market
+    ?? { present: false };
+}
+
+function moveMarketInput(
+  state: CampaignStateV5,
+  overrides: Partial<MoveMarinerMarketInput> = {},
+): MoveMarinerMarketInput {
+  const sourceBoardIsleId = (overrides.sourceBoardIsleId ?? "scuttleport") as MarinerBoardIsleId;
+  const destinationBoardIsleId = (overrides.destinationBoardIsleId ?? "orrery") as MarinerBoardIsleId;
+  return canonicalizeMoveMarinerMarketInput({
+    sourceBoardIsleId,
+    destinationBoardIsleId,
+    expectedSourceMarket: marketOf(state, sourceBoardIsleId),
+    expectedDestinationMarket: marketOf(state, destinationBoardIsleId),
+    expectedDestinationNestingBeastDenizenId: nestingBeastDenizenOnIsle(state, destinationBoardIsleId),
+    ...overrides,
+  });
+}
+
+describe("move_mariner_market", () => {
+  it("moves an ordinary Market atomically and records mariner_market_moved v1", () => {
+    const before = initializedQuiet();
+    expect(marketOf(before, "scuttleport")).toEqual({ present: true, rarity: null });
+    expect(marketOf(before, "orrery")).toEqual({ present: false });
+    const result = applyMoveMarinerMarket(before, moveMarketInput(before));
+    expect(marketOf(result.nextState, "scuttleport")).toEqual({ present: false });
+    expect(marketOf(result.nextState, "orrery")).toEqual({ present: true, rarity: null });
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0]).toEqual({
+      type: "mariner_market_moved",
+      version: 1,
+      data: {
+        sourceBoardIsleId: "scuttleport",
+        destinationBoardIsleId: "orrery",
+        rarity: null,
+      },
+    });
+    expect(() => validateCampaignStateV5Candidate(result.nextState)).not.toThrow();
+  });
+
+  it("preserves an exact Rare Market rarity string across one relocation", () => {
+    const before = initializedQuiet();
+    const rareText = "Pearl-glass of the Sunken Fleet";
+    const rare = applySetMarinerIsleMarket(
+      before,
+      "scuttleport",
+      { present: true, rarity: null },
+      { present: true, rarity: rareText },
+    ).nextState;
+    const result = applyMoveMarinerMarket(rare, moveMarketInput(rare));
+    expect(marketOf(result.nextState, "scuttleport")).toEqual({ present: false });
+    expect(marketOf(result.nextState, "orrery")).toEqual({ present: true, rarity: rareText });
+    expect(result.events[0]).toEqual({
+      type: "mariner_market_moved",
+      version: 1,
+      data: {
+        sourceBoardIsleId: "scuttleport",
+        destinationBoardIsleId: "orrery",
+        rarity: rareText,
+      },
+    });
+  });
+
+  it("rejects same source/destination, absent source, and destination Market already present", () => {
+    const before = initializedQuiet();
+    expectCode(
+      () => applyMoveMarinerMarket(before, moveMarketInput(before, {
+        sourceBoardIsleId: "scuttleport",
+        destinationBoardIsleId: "scuttleport",
+      })),
+      "INVALID_CAMPAIGN_STATE",
+      /differ/,
+    );
+    expectCode(
+      () => applyMoveMarinerMarket(before, moveMarketInput(before, {
+        sourceBoardIsleId: "orrery",
+        destinationBoardIsleId: "tahv",
+      })),
+      "INVALID_CAMPAIGN_STATE",
+      /source|Market/,
+    );
+    const destPresent = applySetMarinerIsleMarket(
+      before,
+      "tahv",
+      { present: false },
+      { present: true, rarity: null },
+    ).nextState;
+    expectCode(
+      () => applyMoveMarinerMarket(destPresent, moveMarketInput(destPresent, {
+        destinationBoardIsleId: "tahv",
+      })),
+      "INVALID_CAMPAIGN_STATE",
+      /destination|already|present/i,
+    );
+  });
+
+  it("rejects a destination that already has a Nesting Beast", () => {
+    const created = applyCreateMarinerBeast(initializedQuiet(), createBeastInput(initializedQuiet())).nextState;
+    const nested = applyNestMarinerBeast(created, nestInput(created)).nextState;
+    expectCode(
+      () => applyMoveMarinerMarket(nested, moveMarketInput(nested)),
+      "INVALID_CAMPAIGN_STATE",
+      /Nest|Market/,
+    );
+  });
+
+  it("rejects stale source Market, destination Market, and destination Nest identity", () => {
+    const before = initializedQuiet();
+    const input = moveMarketInput(before);
+    const sourceChanged = applySetMarinerIsleMarket(
+      before,
+      "scuttleport",
+      { present: true, rarity: null },
+      { present: true, rarity: "drifted rarity" },
+    ).nextState;
+    expectCode(
+      () => applyMoveMarinerMarket(sourceChanged, input),
+      "STALE_COMMAND_PRECONDITION",
+      /source|market/i,
+    );
+    const destChanged = applySetMarinerIsleMarket(
+      before,
+      "orrery",
+      { present: false },
+      { present: true, rarity: null },
+    ).nextState;
+    expectCode(
+      () => applyMoveMarinerMarket(destChanged, input),
+      "STALE_COMMAND_PRECONDITION",
+      /destination|market/i,
+    );
+    const created = applyCreateMarinerBeast(before, createBeastInput(before)).nextState;
+    const nested = applyNestMarinerBeast(created, nestInput(created)).nextState;
+    expectCode(
+      () => applyMoveMarinerMarket(nested, input),
+      "STALE_COMMAND_PRECONDITION",
+      /Nest/,
+    );
+  });
+
+  it("fingerprints bind campaign and semantic inputs; ordinary retry is canonical", async () => {
+    const before = initializedQuiet();
+    const input = moveMarketInput(before);
+    const fingerprint = moveMarinerMarketFingerprint(CAMPAIGN_A, input);
+    expect(fingerprint).toMatch(/^move_mariner_market:v1:/);
+    expect(moveMarinerMarketFingerprint(CAMPAIGN_B, input)).not.toBe(fingerprint);
+    expect(moveMarinerMarketFingerprint(CAMPAIGN_A, moveMarketInput(before, {
+      destinationBoardIsleId: "tahv",
+    }))).not.toBe(fingerprint);
+    expect(isLogicalStateCommandType("move_mariner_market")).toBe(true);
+    expect(CAMPAIGN_COMMAND_TYPES as readonly string[]).toContain("move_mariner_market");
+
+    const prepare: () => OrdinaryLogicalCommandPreparation = () => ({
+      commandType: "move_mariner_market",
+      commandFingerprint: fingerprint,
+      apply: (current) => applyMoveMarinerMarket(current, input),
+    });
+    const first = recordingIo({ campaign: campaignOf(before) });
+    const receipt = await executeOrdinaryLogicalCommand(
+      first.io,
+      { commandId: COMMAND_1, expectedCampaignId: CAMPAIGN_A },
+      prepare,
+    );
+    expect(receipt).toEqual({ revision: 5 });
+    expect(first.commits).toHaveLength(1);
+    expect(first.commits[0]?.events).toHaveLength(1);
+    expect(first.commits[0]?.events[0]?.type).toBe("mariner_market_moved");
+    expect(first.commits[0]?.events).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "mariner_isle_market_changed" })]),
+    );
+    expect(() => validateEventCoherenceForTest(first.commits[0]!, 1)).not.toThrow();
+
+    const replay = recordingIo({
+      campaign: campaignOf(first.commits[0]!.nextState, 5),
+      accepted: { commandType: "move_mariner_market", commandFingerprint: fingerprint, campaignRevision: 5 },
+      snapshot: first.commits[0]!.nextState,
+    });
+    const replayReceipt = await executeOrdinaryLogicalCommand(
+      replay.io,
+      { commandId: COMMAND_1, expectedCampaignId: CAMPAIGN_A },
+      prepare,
+    );
+    expect(replayReceipt).toEqual({ revision: 5 });
+    expect(replay.commits).toHaveLength(0);
+  });
+
+  it("registers mariner_market_moved v1 on the persisted event validator and Activity History", () => {
+    const event = {
+      type: "mariner_market_moved" as const,
+      version: 1 as const,
+      data: {
+        sourceBoardIsleId: "scuttleport" as MarinerBoardIsleId,
+        destinationBoardIsleId: "orrery" as MarinerBoardIsleId,
+        rarity: null,
+      },
+    };
+    const rareEvent = {
+      ...event,
+      data: { ...event.data, rarity: "Pearl-glass of the Sunken Fleet" },
+    };
+    expect(findValidatorMembers(campaignEventValidator as never, "mariner_market_moved", 1)).toHaveLength(1);
+    expect(matchesValidator(campaignEventValidator as never, event)).toBe(true);
+    expect(matchesValidator(campaignEventValidator as never, rareEvent)).toBe(true);
+    expect(activityText(event)).toBe("Revision 9 — Moved Market from Scuttleport to Orrery");
+    expect(activityText(rareEvent)).toBe("Revision 9 — Moved Rare Market from Scuttleport to Orrery");
   });
 });
 

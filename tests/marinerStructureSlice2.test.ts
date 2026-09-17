@@ -89,6 +89,7 @@ const MARINER_COMMAND_TYPES = [
   "create_mariner_ship",
   "move_mariner_beast",
   "nest_mariner_beast",
+  "move_mariner_market",
   "record_mariner_ravage_result",
 ] as const;
 

@@ -1280,6 +1280,17 @@ export interface MarinerIsleMarketChangedEventV1 {
   readonly data: MarinerIsleMarketChangedDataV1;
 }
 
+export interface MarinerMarketMovedDataV1 {
+  readonly sourceBoardIsleId: MarinerBoardIsleId;
+  readonly destinationBoardIsleId: MarinerBoardIsleId;
+  readonly rarity: string | null;
+}
+export interface MarinerMarketMovedEventV1 {
+  readonly type: "mariner_market_moved";
+  readonly version: 1;
+  readonly data: MarinerMarketMovedDataV1;
+}
+
 export interface MarinerIsleRavageChangedDataV1 {
   readonly boardIsleId: MarinerBoardIsleId;
   readonly previousRavageStormCount: number;
@@ -1465,6 +1476,7 @@ export type MarinerEvent =
   | MarinerRouteOccupancyChangedEventV1
   | MarinerSeaStormCountChangedEventV1
   | MarinerIsleMarketChangedEventV1
+  | MarinerMarketMovedEventV1
   | MarinerIsleRavageChangedEventV1
   | MarinerBeastAddedEventV1
   | MarinerBeastUpdatedEventV1

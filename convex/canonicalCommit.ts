@@ -208,6 +208,7 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   create_mariner_ship: { required: ["mariner_ship_created"] },
   move_mariner_beast: { required: ["mariner_beast_moved"] },
   nest_mariner_beast: { required: ["mariner_beast_nested"] },
+  move_mariner_market: { required: ["mariner_market_moved"] },
   record_mariner_ravage_result: { required: ["mariner_ravage_result_recorded"] },
   initialize_necromancer: { required: ["necromancer_initialized"] },
   initialize_necromancer_source_setup: { required: ["necromancer_initialized"] },

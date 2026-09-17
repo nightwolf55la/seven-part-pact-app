@@ -153,6 +153,14 @@ export interface NestMarinerBeastInput {
   readonly expectedNestingBeastDenizenId: DenizenId | null;
 }
 
+export interface MoveMarinerMarketInput {
+  readonly sourceBoardIsleId: MarinerBoardIsleId;
+  readonly destinationBoardIsleId: MarinerBoardIsleId;
+  readonly expectedSourceMarket: MarinerIsleMarket;
+  readonly expectedDestinationMarket: MarinerIsleMarket;
+  readonly expectedDestinationNestingBeastDenizenId: DenizenId | null;
+}
+
 export interface RecordMarinerRavageResultInput {
   readonly boardIsleId: MarinerBoardIsleId;
   readonly expectedMarket: MarinerIsleMarket;
@@ -645,6 +653,37 @@ export function canonicalizeNestMarinerBeastInput(input: NestMarinerBeastInput):
   };
 }
 
+function canonicalizeExpectedMarket(market: MarinerIsleMarket): MarinerIsleMarket {
+  return market.present
+    ? { present: true, rarity: market.rarity }
+    : { present: false };
+}
+
+export function canonicalizeMoveMarinerMarketInput(input: MoveMarinerMarketInput): MoveMarinerMarketInput {
+  if (!isValidMarinerBoardIsleId(input.sourceBoardIsleId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown source board Isle: ${input.sourceBoardIsleId}`);
+  }
+  if (!isValidMarinerBoardIsleId(input.destinationBoardIsleId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown destination board Isle: ${input.destinationBoardIsleId}`);
+  }
+  if (
+    input.expectedDestinationNestingBeastDenizenId !== null
+    && !isValidDenizenId(input.expectedDestinationNestingBeastDenizenId)
+  ) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Invalid expected destination Nesting Beast: ${input.expectedDestinationNestingBeastDenizenId}`,
+    );
+  }
+  return {
+    sourceBoardIsleId: input.sourceBoardIsleId,
+    destinationBoardIsleId: input.destinationBoardIsleId,
+    expectedSourceMarket: canonicalizeExpectedMarket(input.expectedSourceMarket),
+    expectedDestinationMarket: canonicalizeExpectedMarket(input.expectedDestinationMarket),
+    expectedDestinationNestingBeastDenizenId: input.expectedDestinationNestingBeastDenizenId,
+  };
+}
+
 export function canonicalizeRecordMarinerRavageResultInput(
   input: RecordMarinerRavageResultInput,
 ): RecordMarinerRavageResultInput {
@@ -1051,10 +1090,6 @@ export function applyMoveMarinerBeast(
   if (input.sourceRegionId === input.destinationRegionId) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Beast source and destination must differ");
   }
-  const sourceDef = seaRegionDefinition(input.sourceRegionId);
-  if (sourceDef === undefined || !sourceDef.adjacentRegionIds.includes(input.destinationRegionId)) {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", "Destination is not an adjacent sea or Horizon region");
-  }
 
   const moved: MarinerBeastState = {
     ...beast,
@@ -1146,10 +1181,6 @@ export function applyNestMarinerBeast(
   }
   if (beast.location.kind !== "sea_region") {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Help Beast Nest requires a Beast currently in a Sea or Horizon region");
-  }
-  const region = seaRegionDefinition(beast.location.regionId);
-  if (region === undefined || !region.adjacentBoardIsleIds.includes(input.boardIsleId)) {
-    throw new DomainError("INVALID_CAMPAIGN_STATE", "Chosen Isle is not adjacent to the Beast's current region");
   }
   if (isle.market.present) {
     throw new DomainError(
@@ -1287,6 +1318,76 @@ export function applyRecordMarinerRavageResult(
       isleBecameRavaged,
       destroyedNestingBeastDenizenId,
       rampageDestinationSeatId,
+    },
+  }]);
+}
+
+export function applyMoveMarinerMarket(
+  state: CampaignStateV5,
+  rawInput: MoveMarinerMarketInput,
+): MarinerOperabilityTransitionResult {
+  const input = canonicalizeMoveMarinerMarketInput(rawInput);
+  const current = requireInitialized(state);
+  const sourceIsle = current.boardIsles.find((candidate) => candidate.boardIsleId === input.sourceBoardIsleId);
+  if (sourceIsle === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown source board Isle: ${input.sourceBoardIsleId}`);
+  }
+  const destinationIsle = current.boardIsles.find((candidate) => candidate.boardIsleId === input.destinationBoardIsleId);
+  if (destinationIsle === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown destination board Isle: ${input.destinationBoardIsleId}`);
+  }
+  if (input.sourceBoardIsleId === input.destinationBoardIsleId) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Market source and destination must differ");
+  }
+  if (!marketEqual(sourceIsle.market, input.expectedSourceMarket)) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      `source market for ${input.sourceBoardIsleId} does not match the expected current value`,
+    );
+  }
+  if (!marketEqual(destinationIsle.market, input.expectedDestinationMarket)) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      `destination market for ${input.destinationBoardIsleId} does not match the expected current value`,
+    );
+  }
+  if (!sourceIsle.market.present) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Source Isle does not currently have a Market to move");
+  }
+  if (destinationIsle.market.present) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Destination Isle already has a Market");
+  }
+  const destinationNest = nestingBeastOnIsle(current, input.destinationBoardIsleId);
+  if ((destinationNest?.denizenId ?? null) !== input.expectedDestinationNestingBeastDenizenId) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      `Nesting Beast on ${input.destinationBoardIsleId} does not match the expected current identity`,
+    );
+  }
+  if (destinationNest !== undefined) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Board Isle ${input.destinationBoardIsleId} cannot have both a Market and a Friendly/Nesting Beast`,
+    );
+  }
+
+  const relocated: MarinerIsleMarket = { present: true, rarity: sourceIsle.market.rarity };
+  const boardIsles = current.boardIsles.map((isle) => {
+    if (isle.boardIsleId === input.sourceBoardIsleId) {
+      return { ...isle, market: { present: false as const } };
+    }
+    if (isle.boardIsleId === input.destinationBoardIsleId) {
+      return { ...isle, market: relocated };
+    }
+    return isle;
+  });
+  return commit({ ...state, mariner: { ...current, boardIsles } }, [{
+    type: "mariner_market_moved",
+    version: 1,
+    data: {
+      sourceBoardIsleId: input.sourceBoardIsleId,
+      destinationBoardIsleId: input.destinationBoardIsleId,
+      rarity: relocated.rarity,
     },
   }]);
 }
