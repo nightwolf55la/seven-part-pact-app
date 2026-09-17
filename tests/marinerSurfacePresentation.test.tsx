@@ -400,6 +400,57 @@ function contextAction(container: HTMLElement, action: string, toward?: string):
   return found;
 }
 
+async function hoverTrayDragOverRoute(
+  container: HTMLElement,
+  piece: "ship" | "raider",
+  hoverRouteId: string,
+  pointerId = 61,
+): Promise<void> {
+  const tray = container.querySelector(`[data-tray-piece="${piece}"]`) as Element;
+  const dest = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${hoverRouteId}"]`) as Element;
+  (tray as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+  Object.defineProperty(document, "elementFromPoint", {
+    configurable: true,
+    value: () => dest,
+  });
+  await act(async () => {
+    tray.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      clientX: 15,
+      clientY: 15,
+      pointerId,
+      isPrimary: true,
+      button: 0,
+    }));
+    window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 30, clientY: 15, pointerId }));
+    window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 210, clientY: 210, pointerId }));
+  });
+}
+
+async function hoverRoutePieceDragOverRoute(
+  container: HTMLElement,
+  sourceRouteId: string,
+  hoverRouteId: string,
+  pointerId = 21,
+): Promise<void> {
+  const piece = container.querySelector(`[data-draggable-route-piece="true"][data-route-id="${sourceRouteId}"]`) as Element;
+  const dest = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${hoverRouteId}"]`) as Element;
+  (piece as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+  Object.defineProperty(document, "elementFromPoint", {
+    configurable: true,
+    value: () => dest,
+  });
+  await act(async () => {
+    piece.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: 15, clientY: 15, pointerId, isPrimary: true }));
+    window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 30, clientY: 15, pointerId }));
+    window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 210, clientY: 210, pointerId }));
+  });
+}
+
+function routeDropState(container: HTMLElement, routeId: string): string | null {
+  return container.querySelector(`[data-map-layer="route-hit"][data-route-id="${routeId}"]`)?.getAttribute("data-route-drop") ?? null;
+}
+
 async function dragTrayPiece(
   container: HTMLElement,
   piece: "ship" | "raider" | "storm",
@@ -2702,6 +2753,41 @@ describe("M5.4 Mariner direct board manipulation", () => {
     container.remove();
   });
 
+  it("classifies tray Ship drag drop targets: Raider valid, Ship blocked", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    await hoverTrayDragOverRoute(container, "ship", RAID_ROUTE, 710);
+    expect(routeDropState(container, RAID_ROUTE)).toMatch(/^(available|hover|recommended)$/);
+    expect(routeDropState(container, SHIP_ROUTE)).toBe("blocked");
+    root.unmount();
+    container.remove();
+  });
+
+  it("classifies tray Raider drag drop targets: Ship valid, Raider blocked", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    await hoverTrayDragOverRoute(container, "raider", SHIP_ROUTE, 711);
+    expect(routeDropState(container, SHIP_ROUTE)).toMatch(/^(available|hover|recommended)$/);
+    expect(routeDropState(container, RAID_ROUTE)).toBe("blocked");
+    root.unmount();
+    container.remove();
+  });
+
+  it("classifies on-board piece drag drop targets on occupied Routes as blocked during drag", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    await hoverRoutePieceDragOverRoute(container, SHIP_ROUTE, RAID_ROUTE, 712);
+    expect(routeDropState(container, RAID_ROUTE)).toBe("blocked");
+    root.unmount();
+    container.remove();
+  });
+
+  it("renders a positive drop halo on a valid occupied replacement Route during tray Ship drag", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    await hoverTrayDragOverRoute(container, "ship", RAID_ROUTE, 713);
+    const raiderHit = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${RAID_ROUTE}"]`) as HTMLElement;
+    expect(raiderHit.querySelector("[data-drop-halo]")).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
   it("right-click Raider offers reverse and change-to-ship with menu-open snapshots", async () => {
     const start = initializedMariner();
     const { container, root } = renderSurface(start, WIZARD);
@@ -2769,6 +2855,22 @@ describe("M5.4 Mariner direct board manipulation", () => {
     container.remove();
   });
 
+  it("does not move focus to the board stage on initial Mariner mount", () => {
+    const external = document.createElement("button");
+    external.type = "button";
+    external.textContent = "External control";
+    document.body.appendChild(external);
+    external.focus();
+    expect(document.activeElement).toBe(external);
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const stage = container.querySelector("[data-mariner-board-stage]") as HTMLElement;
+    expect(document.activeElement).toBe(external);
+    expect(document.activeElement).not.toBe(stage);
+    root.unmount();
+    container.remove();
+    external.remove();
+  });
+
   it("Escape dismisses selection and moves focus to the board stage instead of the Route hit target", () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`) as HTMLElement;
@@ -2778,6 +2880,40 @@ describe("M5.4 Mariner direct board manipulation", () => {
     expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
     act(() => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(container.querySelector("[data-board-overlay-inspector]")).toBeNull();
+    const stage = container.querySelector("[data-mariner-board-stage]") as HTMLElement;
+    expect(document.activeElement).toBe(stage);
+    expect(document.activeElement).not.toBe(route);
+    root.unmount();
+    container.remove();
+  });
+
+  it("inspector Close dismisses selection and moves focus to the board stage instead of the Route hit target", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`) as HTMLElement;
+    flushSync(() => { route.focus(); });
+    flushSync(() => { route.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(document.activeElement).toBe(route);
+    act(() => {
+      button(container, "Close").click();
+    });
+    expect(container.querySelector("[data-board-overlay-inspector]")).toBeNull();
+    const stage = container.querySelector("[data-mariner-board-stage]") as HTMLElement;
+    expect(document.activeElement).toBe(stage);
+    expect(document.activeElement).not.toBe(route);
+    root.unmount();
+    container.remove();
+  });
+
+  it("inspector Close dismisses selection and moves focus to the board stage instead of the Route hit target", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`) as HTMLElement;
+    flushSync(() => { route.focus(); });
+    flushSync(() => { route.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(document.activeElement).toBe(route);
+    act(() => {
+      button(container, "Close").click();
     });
     expect(container.querySelector("[data-board-overlay-inspector]")).toBeNull();
     const stage = container.querySelector("[data-mariner-board-stage]") as HTMLElement;

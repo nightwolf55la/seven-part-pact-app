@@ -310,18 +310,19 @@ export default function MarinerSurface({
     setStormGuide(null);
   }
 
+  function restoreBoardStageFocusAfterDismissal(): void {
+    boardStageFocusRef.current?.focus({ preventScroll: true });
+  }
+
   function dismissSelectionOrGuide(): void {
     if (stormGuide !== null) {
       cancelStormGuide();
       return;
     }
+    if (selection === null) return;
     setSelection(null);
+    restoreBoardStageFocusAfterDismissal();
   }
-
-  useLayoutEffect(() => {
-    if (selection !== null || stormGuide !== null) return;
-    boardStageFocusRef.current?.focus({ preventScroll: true });
-  }, [selection, stormGuide]);
 
   async function pickStormGuideDestination(regionId: MarinerSeaRegionId): Promise<void> {
     if (stormGuide === null || pending) return;
@@ -1187,6 +1188,7 @@ function MarinerMap({
           const href = `#${marinerRouteSymbolId(route.routeId)}`;
           const symbolId = marinerRouteSymbolId(route.routeId);
           const dropHint = board.routeDropHighlight(route.routeId);
+          const showRouteDropHalo = dropHint === "hover" || dropHint === "available" || dropHint === "recommended";
           return (
             <g
               key={`hit-${route.routeId}`}
@@ -1210,10 +1212,10 @@ function MarinerMap({
                 stroke="transparent"
                 strokeWidth={MARINER_ROUTE_HIT_STROKE_WIDTH}
               />
-              {(selected || dropHint === "hover" || dropHint === "recommended" || dropHint === "available") && occupancy.kind === "empty" && (
+              {showRouteDropHalo && (
                 <use
                   href={href}
-                  data-selection-halo
+                  data-drop-halo
                   data-source-geometry={symbolId}
                   fill="none"
                   stroke={dropHint === "recommended" ? "#0f766e" : dropHint === "available" ? "#5eead4" : "#0f766e"}
@@ -1222,7 +1224,19 @@ function MarinerMap({
                   pointerEvents="none"
                 />
               )}
-              {selected && occupancy.kind !== "empty" && (
+              {selected && !showRouteDropHalo && occupancy.kind === "empty" && (
+                <use
+                  href={href}
+                  data-selection-halo
+                  data-source-geometry={symbolId}
+                  fill="none"
+                  stroke="#0f766e"
+                  strokeWidth={8}
+                  opacity={0.28}
+                  pointerEvents="none"
+                />
+              )}
+              {selected && !showRouteDropHalo && occupancy.kind !== "empty" && (
                 <use
                   href={href}
                   data-selection-halo

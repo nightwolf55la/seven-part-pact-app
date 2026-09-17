@@ -908,15 +908,35 @@ export function useMarinerBoardInteractions(args: {
   }, []);
 
   const routeDropHighlight = useCallback((routeId: string): "recommended" | "available" | "hover" | "blocked" | null => {
-    if (routeDragSourceId === null && !trayRouteDragActive) return null;
-    if (routeDragSourceId !== null && routeId === routeDragSourceId) return "blocked";
-    if (!isEmptyRoute(mariner.routes, routeId)) return "blocked";
-    if (hoveredRouteDropId === routeId) return "hover";
-    if (routeDragSourceId !== null) {
-      return routesShareBoardIsleEndpoint(routeDragSourceId, routeId) ? "recommended" : "available";
+    if (!draggingActive) return null;
+    const session = sessionRef.current;
+    if (session === null) return null;
+    if (session.kind !== "route-piece" && session.kind !== "tray-ship" && session.kind !== "tray-raider") return null;
+
+    const snapshotRoutes = session.snapshot.routes;
+
+    if (session.kind === "route-piece") {
+      if (session.sourceRouteId !== undefined && routeId === session.sourceRouteId) return "blocked";
+      if (!isEmptyRoute(snapshotRoutes, routeId)) return "blocked";
+      if (hoveredRouteDropId === routeId) return "hover";
+      if (session.sourceRouteId !== undefined) {
+        return routesShareBoardIsleEndpoint(session.sourceRouteId, routeId) ? "recommended" : "available";
+      }
+      return "available";
     }
+
+    if (session.kind === "tray-ship") {
+      const destinationOccupancy = routeOccupancyAt(snapshotRoutes, routeId);
+      if (destinationOccupancy.kind === "ship") return "blocked";
+      if (hoveredRouteDropId === routeId) return "hover";
+      return "available";
+    }
+
+    const destinationOccupancy = routeOccupancyAt(snapshotRoutes, routeId);
+    if (destinationOccupancy.kind === "raider") return "blocked";
+    if (hoveredRouteDropId === routeId) return "hover";
     return "available";
-  }, [hoveredRouteDropId, mariner.routes, routeDragSourceId, trayRouteDragActive]);
+  }, [draggingActive, hoveredRouteDropId]);
 
   const seaDropHighlight = useCallback((regionId: MarinerSeaRegionId): "source" | "recommended" | "available" | "hover" | null => {
     if (stormDragSourceId === null && !trayStormDragActive) return null;
