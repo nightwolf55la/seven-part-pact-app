@@ -215,6 +215,10 @@ export function useMarinerBoardInteractions(args: {
     setContextMenu(null);
   }, []);
 
+  const isBusy = useCallback((): boolean => (
+    pendingRef.current || hasPendingDirectIntentRef.current || sessionRef.current !== null
+  ), []);
+
   const commitStormDrop = useCallback(async (destinationRegionId: MarinerSeaRegionId) => {
     const session = sessionRef.current;
     if (session?.kind !== "storm" || session.sourceRegionId === undefined) return;
@@ -646,6 +650,7 @@ export function useMarinerBoardInteractions(args: {
   const openRouteContextMenu = useCallback((routeId: string, event: ReactMouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
+    if (isBusy()) return;
     const occupancy = mariner.routes.find((entry) => entry.routeId === routeId)?.occupancy ?? { kind: "empty" as const };
     setContextMenu({
       kind: "route",
@@ -655,11 +660,12 @@ export function useMarinerBoardInteractions(args: {
       clientY: event.clientY,
       snapshot: captureOperabilityBoard(mariner),
     });
-  }, [mariner]);
+  }, [isBusy, mariner]);
 
   const openSeaContextMenu = useCallback((regionId: MarinerSeaRegionId, event: ReactMouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
+    if (isBusy()) return;
     const stormCount = mariner.seaRegions.find((region) => region.regionId === regionId)?.stormCount ?? 0;
     setContextMenu({
       kind: "sea",
@@ -669,23 +675,35 @@ export function useMarinerBoardInteractions(args: {
       clientY: event.clientY,
       snapshot: captureOperabilityBoard(mariner),
     });
-  }, [mariner]);
+  }, [isBusy, mariner]);
 
   const contextAddShip = useCallback(async () => {
+    if (isBusy()) {
+      setContextMenu(null);
+      return;
+    }
     const menu = contextMenuRef.current;
     if (menu?.kind !== "route") return;
     setContextMenu(null);
     await commitCreateShip(menu.routeId, null, menu.snapshot);
-  }, [commitCreateShip]);
+  }, [commitCreateShip, isBusy]);
 
   const contextAddRaider = useCallback(async (toward: MarinerRouteEndpoint) => {
+    if (isBusy()) {
+      setContextMenu(null);
+      return;
+    }
     const menu = contextMenuRef.current;
     if (menu?.kind !== "route") return;
     setContextMenu(null);
     await commitCreateShip(menu.routeId, toward, menu.snapshot);
-  }, [commitCreateShip]);
+  }, [commitCreateShip, isBusy]);
 
   const contextRemoveOccupancy = useCallback(async () => {
+    if (isBusy()) {
+      setContextMenu(null);
+      return;
+    }
     const menu = contextMenuRef.current;
     if (menu?.kind !== "route" || menu.occupancy.kind === "empty") return;
     setContextMenu(null);
@@ -697,9 +715,13 @@ export function useMarinerBoardInteractions(args: {
       occupancy: { kind: "empty" },
     });
     await run(async () => { await setMarinerRouteOccupancy(payload); });
-  }, [campaignId, run, setMarinerRouteOccupancy]);
+  }, [campaignId, isBusy, run, setMarinerRouteOccupancy]);
 
   const contextAddStorm = useCallback(async () => {
+    if (isBusy()) {
+      setContextMenu(null);
+      return;
+    }
     const menu = contextMenuRef.current;
     if (menu?.kind !== "sea") return;
     setContextMenu(null);
@@ -711,9 +733,13 @@ export function useMarinerBoardInteractions(args: {
       stormCount: menu.stormCount + 1,
     });
     await run(async () => { await setMarinerSeaStormCount(payload); });
-  }, [campaignId, run, setMarinerSeaStormCount]);
+  }, [campaignId, isBusy, run, setMarinerSeaStormCount]);
 
   const contextRemoveStorm = useCallback(async () => {
+    if (isBusy()) {
+      setContextMenu(null);
+      return;
+    }
     const menu = contextMenuRef.current;
     if (menu?.kind !== "sea" || menu.stormCount < 1) return;
     setContextMenu(null);
@@ -725,7 +751,7 @@ export function useMarinerBoardInteractions(args: {
       stormCount: menu.stormCount - 1,
     });
     await run(async () => { await setMarinerSeaStormCount(payload); });
-  }, [campaignId, run, setMarinerSeaStormCount]);
+  }, [campaignId, isBusy, run, setMarinerSeaStormCount]);
 
   const chooseRaiderDirection = useCallback(async (toward: MarinerRouteEndpoint) => {
     if (pendingRaiderDirection === null) return;

@@ -201,6 +201,7 @@ function renderSurface(
   extras: {
     loreCompendium?: LoreCompendiumUiState;
     pactSeatStatuses?: Partial<Record<PactSeatId, PactSeatStatus | null>>;
+    pending?: boolean;
   } = {},
 ) {
   const container = document.createElement("div");
@@ -215,6 +216,7 @@ function renderSurface(
       sorcererPresence,
       loreCompendium: extras.loreCompendium,
       pactSeatStatuses: extras.pactSeatStatuses,
+      pending: extras.pending,
     }));
   });
   return { container, root };
@@ -246,6 +248,7 @@ function rerenderSurface(
   extras: {
     loreCompendium?: LoreCompendiumUiState;
     pactSeatStatuses?: Partial<Record<PactSeatId, PactSeatStatus | null>>;
+    pending?: boolean;
   } = {},
 ): void {
   flushSync(() => {
@@ -256,6 +259,7 @@ function rerenderSurface(
       marinerWizard: wizard,
       loreCompendium: extras.loreCompendium,
       pactSeatStatuses: extras.pactSeatStatuses,
+      pending: extras.pending,
     }));
   });
 }
@@ -2418,6 +2422,90 @@ describe("M5.4 Mariner direct board manipulation", () => {
     const isleEvent = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 12, clientY: 12, button: 2 });
     flushSync(() => { isle.dispatchEvent(isleEvent); });
     expect(isleEvent.defaultPrevented).toBe(false);
+    root.unmount();
+    container.remove();
+  });
+
+  it("does not open a Mariner context menu while a Raider-direction intent is pending", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const empty = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SUNKEN_ORRERY_FAR}"]`) as Element;
+    await dragTrayPiece(container, "raider", empty, 71);
+    const chooser = container.querySelector("[data-raider-direction-chooser]") as HTMLElement;
+    expect(chooser).not.toBeNull();
+    const chooserCopy = chooser.textContent;
+
+    const otherRoute = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`) as Element;
+    const routeEvent = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 40,
+      clientY: 20,
+      button: 2,
+    });
+    flushSync(() => { otherRoute.dispatchEvent(routeEvent); });
+    expect(routeEvent.defaultPrevented).toBe(true);
+    expect(container.querySelector("[data-mariner-context-menu]")).toBeNull();
+
+    const sea = container.querySelector('[data-map-layer="sea-hit"][data-region-id="wizard_strait"]') as Element;
+    const seaEvent = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 50,
+      clientY: 30,
+      button: 2,
+    });
+    flushSync(() => { sea.dispatchEvent(seaEvent); });
+    expect(seaEvent.defaultPrevented).toBe(true);
+    expect(container.querySelector("[data-mariner-context-menu]")).toBeNull();
+    expect(container.querySelector("[data-raider-direction-chooser]")).toBe(chooser);
+    expect(container.querySelector("[data-raider-direction-chooser]")?.textContent).toBe(chooserCopy);
+    root.unmount();
+    container.remove();
+  });
+
+  it("does not open a Mariner context menu while a server action is pending", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD, [], { pending: true });
+    const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SUNKEN_ORRERY_FAR}"]`) as Element;
+    const routeEvent = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 20,
+      clientY: 20,
+      button: 2,
+    });
+    flushSync(() => { route.dispatchEvent(routeEvent); });
+    expect(routeEvent.defaultPrevented).toBe(true);
+    expect(container.querySelector("[data-mariner-context-menu]")).toBeNull();
+
+    const sea = container.querySelector('[data-map-layer="sea-hit"][data-region-id="wizard_strait"]') as Element;
+    const seaEvent = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 22,
+      clientY: 22,
+      button: 2,
+    });
+    flushSync(() => { sea.dispatchEvent(seaEvent); });
+    expect(seaEvent.defaultPrevented).toBe(true);
+    expect(container.querySelector("[data-mariner-context-menu]")).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("closes a stale context menu without mutating if the board becomes busy before the click", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    openRouteContext(container, SUNKEN_ORRERY_FAR);
+    expect(container.querySelector("[data-mariner-context-menu]")).not.toBeNull();
+    rerenderSurface(root, initializedMariner(), WIZARD, { pending: true });
+    expect(container.querySelector("[data-mariner-context-menu]")).not.toBeNull();
+    await act(async () => {
+      contextAction(container, "add-ship").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(mockMutations["m3Commands.createMarinerShip"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"]).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-mariner-context-menu]")).toBeNull();
+    expect(container.querySelector("[data-raider-direction-chooser]")).toBeNull();
+    expect(container.querySelector("[data-ship-rampage-chooser]")).toBeNull();
     root.unmount();
     container.remove();
   });

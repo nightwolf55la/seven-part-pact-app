@@ -212,6 +212,7 @@ export default function MarinerSurface({
   sorcererPresence = [],
   loreCompendium = { status: "unavailable" },
   pactSeatStatuses = {},
+  pending: pendingOverride = false,
 }: {
   mariner: MarinerState;
   world: WorldReference;
@@ -220,9 +221,11 @@ export default function MarinerSurface({
   sorcererPresence?: readonly SorcererExternalPresence[];
   loreCompendium?: LoreCompendiumUiState;
   pactSeatStatuses?: Partial<Record<PactSeatId, PactSeatStatus | null>>;
+  pending?: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const [pendingAction, setPending] = useState(false);
+  const pending = pendingOverride || pendingAction;
   const [setup, setSetup] = useState<MarinerSetupDraft>(emptyDraft);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [stormGuide, setStormGuide] = useState<StormGuide | null>(null);
