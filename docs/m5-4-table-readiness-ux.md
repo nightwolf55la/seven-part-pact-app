@@ -52,11 +52,13 @@ When a Mariner or Necromancer board item is selected, a dismissible right-side o
 **APPLICATION DESIGN (approved):**
 
 1. Left-click selects/inspects. Inspector controls, including Advanced / Correct, remain the details path. Context menus do not replace the inspector.
-2. Drag an existing board piece to move it. Drag from the board-local Ship / Raider / Storm supply tray to create/place. Off-map drag is a no-op, not a delete.
+2. Drag an existing board piece to move it. Drag from the board-local Ship / Raider / Storm / Market supply tray to create/place. Off-map drag is a no-op, not a delete. There is no generic Beast token in the tray.
 3. Right-click opens one Mariner-local HTML context menu at the pointer. There are no hover command menus.
 4. Delete / Backspace removes the selected occupied Route piece or decrements one Storm on a selected Sea/Horizon when focus is not in an editable field. Accelerators are never the only path.
 5. Route create, occupied Remove, Storm +/−, and tray placement retain the snapshot captured at context-menu open or tray pointerdown. Do not recapture at commit. Stale server rejection is preferred over silently rebasing intent.
 6. Tray Raider drop does not guess direction. An action-triggered chooser asks for the destination endpoint, then `createMarinerShip` uses that choice and the original tray snapshot. Board Raider moves still preserve a still-valid `toward`.
+7. A Distrusting Beast in a Sea may drag to an adjacent Sea (`moveMarinerBeast`) or adjacent representable Isle (`nestMarinerBeast`). A required Beast-move Rampage opens one board-local Domain chooser and keeps the pointerdown snapshot. Nesting Beasts are not dragged back off Isles in this body.
+8. Market tray placement uses `setMarinerIsleMarket` onto a valid empty Isle (`present: true`, no Rarity). Existing Markets do not drag Isle-to-Isle. Rarity is added, edited, or removed only through Isle/Market context actions as explicit text. No Gift, seasonal, Stability, Wind, Weather, or Ravage automation.
 
 Instruction line: Drag pieces to place or move • Right-click for actions • Click for details • Delete removes a selected piece.
 
@@ -557,7 +559,7 @@ Supports: UX-001, UX-019.
 - **Current status:** PARTIALLY ADDRESSED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Related to UX-010, UX-024, UX-026.
 - **Approved batch:** Batch 2 operability pass
-- **Resolution / implementation note:** Always-visible: Route occupancy/markers, Storm/Typhoon pieces, Markets (with Rarity cue when present), Ravage silhouette plus compact count, Beast tokens, and immediate-hazard rings on threatened occupied Routes. Map Stability numbers and authoritative prevailing Wind are not encoded in current domain/state and are not implemented. The hollow Visions forecast strip was removed. Nothing VERIFIED.
+- **Resolution / implementation note:** Always-visible: Route occupancy/markers, Storm/Typhoon pieces, Markets (with Rarity cue when present), Ravage silhouette plus compact count, Beast tokens, and immediate-hazard rings on threatened occupied Routes. Map Stability numbers and authoritative prevailing Wind are not encoded in current domain/state and are not implemented. The hollow Visions forecast strip was removed. Beast tokens now support Sea-to-adjacent-Sea move and Sea-to-adjacent-Isle Nest by drag, plus contextual Add/Remove. Markets can be placed from the supply tray and edited through Isle/Market context, including Rarity text. Nothing VERIFIED. No broad automation.
 
 ### UX-026
 
@@ -573,7 +575,7 @@ Supports: UX-001, UX-019.
 - **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Related to UX-025 and UX-024.
 - **Approved batch:** Batch 2 operability pass
-- **Resolution / implementation note:** Isle inspector keeps Market, Ravage, Record Ravage Result, Beast facts, and Lore. Route inspector owns Add Ship / Move Ship (or Move Raider) using the selected Route as target or source without fabricating `sourceIsleId`. **Direct board manipulation convention:** left-click inspects; drag existing pieces to move; drag Ship / Raider / Storm from a board-local supply tray to place; right-click opens one HTML context menu at the pointer; Delete / Backspace removes a selected occupied Route or decrements one selected Storm. Hover command menus are retired. Empty-Route context actions are Add Ship and Raider toward each named endpoint; occupied Route context is Remove Ship or Remove Raider; Sea/Horizon and Storm/Typhoon pieces share Add Storm and, when `stormCount > 0`, Remove Storm. Context-menu and tray actions retain the snapshot captured at menu-open or tray pointerdown. Tray Ship uses `createMarinerShip` with `destinationToward` null; tray Raider opens a direction chooser and does not guess; tray Storm uses `setMarinerSeaStormCount` only. If a placement newly traps a Beast, the existing Rampage chooser uses that same original snapshot. These Storm adjustments remain manual board-state edits only — no automatic Ship destruction, hazard resolution, Rampage, Ravage, Market, Stability, or monthly procedure. Sea inspector remains weather-centric with click-to-guide fallback; arbitrary Storm-count correction lives under Advanced / Correct — Weather. Generic Route occupancy correction lives under Advanced / Correct — Route. Nothing VERIFIED.
+- **Resolution / implementation note:** Isle inspector keeps Market, Ravage, Record Ravage Result, Beast facts, and Lore. Route inspector owns Add Ship / Move Ship (or Move Raider) using the selected Route as target or source without fabricating `sourceIsleId`. **Direct board manipulation convention:** left-click inspects; drag existing pieces to move; drag Ship / Raider / Storm / Market from a board-local supply tray to place; right-click opens one HTML context menu at the pointer; Delete / Backspace removes a selected occupied Route or decrements one selected Storm. Hover command menus are retired. Empty-Route context actions are Add Ship and Raider toward each named endpoint; occupied Route context is Remove Ship or Remove Raider; Sea/Horizon and Storm/Typhoon pieces share Add Storm and, when `stormCount > 0`, Remove Storm, plus Add Beast… from an existing unused Beast-profile World Denizen. Distrusting Sea Beasts drag to adjacent Seas (`moveMarinerBeast`) or adjacent representable Isles (`nestMarinerBeast`); right-click offers the same Move/Nest/Remove actions and a tiny Remove confirmation. Nesting Beasts are not ordinary-play draggable. Isle/Market context owns Add/Remove Market and Add/Edit/Remove Rarity. Context-menu, tray, and Beast-drag actions retain the snapshot captured at menu-open or pointerdown. Tray Ship uses `createMarinerShip` with `destinationToward` null; tray Raider opens a direction chooser and does not guess; tray Storm uses `setMarinerSeaStormCount` only; tray Market uses `setMarinerIsleMarket` with `{ present: true, rarity: null }`. If a Beast move would Rampage, a board-local Domain chooser uses that same original snapshot. These remain manual board-state edits only — no automatic World Denizen creation, Ship destruction, hazard resolution, seasonal Market, Gift award, Stability, Wind, Weather, or monthly procedure. Existing inspectors and BeastPanel remain discoverable fallbacks. Nothing VERIFIED.
 
 ---
 
@@ -601,6 +603,7 @@ Supports: UX-001, UX-019.
 - Visions forecast is a bookkeeping preview of current Storms, Typhoon seas, threatened occupied Routes, and Ravaged Isles.
 - Contextual inspectors and click-to-inspect selection. No hover command menus.
 - Click-to-guide Storm remains a keyboard/non-drag fallback. Direct Storm piece drag and tray Storm placement are implemented.
+- Direct Distrusting-Beast Sea move / Nest drag, contextual Beast Add/Remove, Market tray placement, and Market/Rarity context actions are implemented. No broad gameplay automation.
 
 Do not treat application-design forecasts as new game rules.
 
@@ -646,7 +649,8 @@ Batch 2 Mariner operability pass:
 | A | `8db4b0fc1499b06e977a1bd20cd96f7f210aff62` | M5.4 UX B2: expose Mariner operational state |
 | B | `204db083c6dd0400ec500a5a4d92368e06816411` | M5.4 UX B2: make Mariner map actions contextual |
 | C | *(earlier commit)* | M5.4 UX B2: add Mariner weather interaction |
-| Interaction convention | *(this commit)* | M5.4 UX B2: adopt board interaction convention |
+| Interaction convention | *(earlier commit)* | M5.4 UX B2: adopt board interaction convention |
+| Beast + Market board controls | *(this commit)* | M5.4 UX B2: add Beast and Market board controls |
 
 ## Browser / desktop inspection (implementation worker)
 

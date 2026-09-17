@@ -6,24 +6,48 @@ import {
   useState,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
 import type {
+  ElementId,
+  MarinerBeastState,
+  MarinerBoardIsleId,
+  MarinerIsleMarket,
   MarinerRouteEndpoint,
   MarinerRouteOccupancy,
   MarinerSeaRegionId,
   MarinerState,
+  PactSeatId,
 } from "../shared/domain";
+import { pactSeatDisplayName } from "../shared/domain";
 import {
+  MARINER_ELEMENTS,
+  MARINER_SEA_REGION_CATALOG,
+  availableIndividualBeastDenizens,
+  boardIsleWorldName,
+  buildAddMarinerBeastPayload,
   buildCreateMarinerShipPayload,
+  buildMoveMarinerBeastPayload,
   buildMoveMarinerShipPayload,
   buildMoveMarinerStormPayload,
+  buildNestMarinerBeastPayload,
+  buildRemoveMarinerBeastPayload,
+  buildSetMarinerIsleMarketPayload,
   buildSetMarinerRouteOccupancyPayload,
   buildSetMarinerSeaStormCountPayload,
   captureOperabilityBoard,
+  definitionsMatchingElement,
+  denizenName,
   expectedForCreateShip,
+  expectedForMoveBeast,
   expectedForMoveShip,
   expectedForMoveStorm,
+  expectedForNestBeast,
+  nestingBeastsOnIsle,
   newCommandId,
+  newMethodEntryId,
+  otherDomainSeatOptions,
+  predictedMovedBeastWouldRampage,
   predictedNewlyTrappedBeastIdsAfterShipPlacement,
   routeEndpointLabel,
   seaRegionDisplayName,
@@ -33,6 +57,7 @@ import type { WorldReference } from "./WorldSurface";
 import { marinerSeaOperationalView } from "./mariner-operational-view";
 import {
   endpointKey,
+  findIsleDropId,
   findRouteDropId,
   findSeaDropRegionId,
   isEmptyRoute,
@@ -44,7 +69,7 @@ import {
   routesShareBoardIsleEndpoint,
 } from "./mariner-board-pointer";
 
-type DragKind = "storm" | "route-piece" | "tray-ship" | "tray-raider" | "tray-storm";
+type DragKind = "storm" | "route-piece" | "tray-ship" | "tray-raider" | "tray-storm" | "beast" | "tray-market";
 
 type DragSession = {
   readonly kind: DragKind;
@@ -56,6 +81,7 @@ type DragSession = {
   readonly sourceRegionId?: MarinerSeaRegionId;
   readonly sourceRouteId?: string;
   readonly sourceOccupancy?: MarinerRouteOccupancy;
+  readonly sourceBeast?: MarinerBeastState;
 };
 
 export type PendingRaiderDirection = {
@@ -91,6 +117,40 @@ export type BoardDragVisual = {
   readonly occupancyKind?: "ship" | "raider";
 };
 
+export type PendingBeastRampage = {
+  readonly snapshot: ReturnType<typeof captureOperabilityBoard>;
+  readonly beast: MarinerBeastState;
+  readonly sourceRegionId: MarinerSeaRegionId;
+  readonly destinationRegionId: MarinerSeaRegionId;
+  readonly dropClientX?: number;
+  readonly dropClientY?: number;
+};
+
+export type PendingBeastAdd = {
+  readonly snapshot: ReturnType<typeof captureOperabilityBoard>;
+  readonly target:
+    | { readonly kind: "sea"; readonly regionId: MarinerSeaRegionId }
+    | { readonly kind: "isle"; readonly boardIsleId: MarinerBoardIsleId };
+  readonly clientX: number;
+  readonly clientY: number;
+};
+
+export type PendingRarityEditor = {
+  readonly snapshot: ReturnType<typeof captureOperabilityBoard>;
+  readonly boardIsleId: MarinerBoardIsleId;
+  readonly expectedMarket: MarinerIsleMarket;
+  readonly mode: "add" | "edit";
+  readonly clientX: number;
+  readonly clientY: number;
+};
+
+export type PendingBeastRemove = {
+  readonly snapshot: ReturnType<typeof captureOperabilityBoard>;
+  readonly beast: MarinerBeastState;
+  readonly clientX: number;
+  readonly clientY: number;
+};
+
 export type BoardContextMenu =
   | {
       readonly kind: "route";
@@ -107,7 +167,83 @@ export type BoardContextMenu =
       readonly clientX: number;
       readonly clientY: number;
       readonly snapshot: ReturnType<typeof captureOperabilityBoard>;
+    }
+  | {
+      readonly kind: "beast";
+      readonly beast: MarinerBeastState;
+      readonly clientX: number;
+      readonly clientY: number;
+      readonly snapshot: ReturnType<typeof captureOperabilityBoard>;
+    }
+  | {
+      readonly kind: "isle";
+      readonly boardIsleId: MarinerBoardIsleId;
+      readonly market: MarinerIsleMarket;
+      readonly clientX: number;
+      readonly clientY: number;
+      readonly snapshot: ReturnType<typeof captureOperabilityBoard>;
     };
+
+function snapshotBeast(beast: MarinerBeastState): MarinerBeastState {
+  return { ...beast, location: beast.location };
+}
+
+function seaDefinition(regionId: MarinerSeaRegionId) {
+  return MARINER_SEA_REGION_CATALOG.find((region) => region.regionId === regionId);
+}
+
+function adjacentSeaIds(regionId: MarinerSeaRegionId): readonly MarinerSeaRegionId[] {
+  return seaDefinition(regionId)?.adjacentRegionIds ?? [];
+}
+
+function adjacentIsleIds(regionId: MarinerSeaRegionId): readonly MarinerBoardIsleId[] {
+  return seaDefinition(regionId)?.adjacentBoardIsleIds ?? [];
+}
+
+function marketOnSnapshot(
+  snapshot: ReturnType<typeof captureOperabilityBoard>,
+  boardIsleId: MarinerBoardIsleId,
+): MarinerIsleMarket {
+  return snapshot.boardIsles.find((isle) => isle.boardIsleId === boardIsleId)?.market ?? { present: false };
+}
+
+function isleRavageOnSnapshot(
+  snapshot: ReturnType<typeof captureOperabilityBoard>,
+  boardIsleId: MarinerBoardIsleId,
+): number {
+  return snapshot.boardIsles.find((isle) => isle.boardIsleId === boardIsleId)?.ravageStormCount ?? 0;
+}
+
+function isleAcceptsMarket(
+  snapshot: ReturnType<typeof captureOperabilityBoard>,
+  boardIsleId: MarinerBoardIsleId,
+): boolean {
+  if (marketOnSnapshot(snapshot, boardIsleId).present) return false;
+  return nestingBeastsOnIsle(snapshot.beasts, boardIsleId).length === 0;
+}
+
+function isleAcceptsNest(
+  snapshot: ReturnType<typeof captureOperabilityBoard>,
+  boardIsleId: MarinerBoardIsleId,
+): boolean {
+  if (marketOnSnapshot(snapshot, boardIsleId).present) return false;
+  if (isleRavageOnSnapshot(snapshot, boardIsleId) > 0) return false;
+  return nestingBeastsOnIsle(snapshot.beasts, boardIsleId).length === 0;
+}
+
+function representableNestIsleIds(
+  snapshot: ReturnType<typeof captureOperabilityBoard>,
+  regionId: MarinerSeaRegionId,
+): MarinerBoardIsleId[] {
+  return adjacentIsleIds(regionId).filter((boardIsleId) => isleAcceptsNest(snapshot, boardIsleId));
+}
+
+function isleAcceptsManualBeast(
+  snapshot: ReturnType<typeof captureOperabilityBoard>,
+  boardIsleId: MarinerBoardIsleId,
+): boolean {
+  return isleAcceptsNest(snapshot, boardIsleId);
+}
 
 function isPrimaryPointerButton(event: { button: number }): boolean {
   return event.button === 0;
@@ -139,6 +275,11 @@ export function useMarinerBoardInteractions(args: {
   readonly createMarinerShip: (payload: ReturnType<typeof buildCreateMarinerShipPayload>) => Promise<unknown>;
   readonly setMarinerRouteOccupancy: (payload: ReturnType<typeof buildSetMarinerRouteOccupancyPayload>) => Promise<unknown>;
   readonly setMarinerSeaStormCount: (payload: ReturnType<typeof buildSetMarinerSeaStormCountPayload>) => Promise<unknown>;
+  readonly moveMarinerBeast: (payload: ReturnType<typeof buildMoveMarinerBeastPayload>) => Promise<unknown>;
+  readonly nestMarinerBeast: (payload: ReturnType<typeof buildNestMarinerBeastPayload>) => Promise<unknown>;
+  readonly addMarinerBeast: (payload: ReturnType<typeof buildAddMarinerBeastPayload>) => Promise<unknown>;
+  readonly removeMarinerBeast: (payload: ReturnType<typeof buildRemoveMarinerBeastPayload>) => Promise<unknown>;
+  readonly setMarinerIsleMarket: (payload: ReturnType<typeof buildSetMarinerIsleMarketPayload>) => Promise<unknown>;
   readonly onSelectRegion: (regionId: MarinerSeaRegionId) => void;
   readonly onSelectRoute: (routeId: string) => void;
 }) {
@@ -154,6 +295,11 @@ export function useMarinerBoardInteractions(args: {
     createMarinerShip,
     setMarinerRouteOccupancy,
     setMarinerSeaStormCount,
+    moveMarinerBeast,
+    nestMarinerBeast,
+    addMarinerBeast,
+    removeMarinerBeast,
+    setMarinerIsleMarket,
     onSelectRegion,
     onSelectRoute,
   } = args;
@@ -164,12 +310,17 @@ export function useMarinerBoardInteractions(args: {
   const [dragVisual, setDragVisual] = useState<BoardDragVisual | null>(null);
   const [hoveredSeaId, setHoveredSeaId] = useState<MarinerSeaRegionId | null>(null);
   const [hoveredRouteDropId, setHoveredRouteDropId] = useState<string | null>(null);
+  const [hoveredIsleId, setHoveredIsleId] = useState<MarinerBoardIsleId | null>(null);
   const hoveredSeaRef = useRef<MarinerSeaRegionId | null>(null);
   const hoveredRouteRef = useRef<string | null>(null);
   hoveredSeaRef.current = hoveredSeaId;
   hoveredRouteRef.current = hoveredRouteDropId;
   const [pendingRaiderDirection, setPendingRaiderDirection] = useState<PendingRaiderDirection | null>(null);
   const [pendingShipRampage, setPendingShipRampage] = useState<PendingShipRampage | null>(null);
+  const [pendingBeastRampage, setPendingBeastRampage] = useState<PendingBeastRampage | null>(null);
+  const [pendingBeastAdd, setPendingBeastAdd] = useState<PendingBeastAdd | null>(null);
+  const [pendingRarityEditor, setPendingRarityEditor] = useState<PendingRarityEditor | null>(null);
+  const [pendingBeastRemove, setPendingBeastRemove] = useState<PendingBeastRemove | null>(null);
   const [contextMenu, setContextMenu] = useState<BoardContextMenu | null>(null);
   const contextMenuRef = useRef<BoardContextMenu | null>(null);
   contextMenuRef.current = contextMenu;
@@ -181,7 +332,12 @@ export function useMarinerBoardInteractions(args: {
   marinerRef.current = mariner;
   const pendingRef = useRef(pending);
   pendingRef.current = pending;
-  const hasPendingDirectIntent = pendingRaiderDirection !== null || pendingShipRampage !== null;
+  const hasPendingDirectIntent = pendingRaiderDirection !== null
+    || pendingShipRampage !== null
+    || pendingBeastRampage !== null
+    || pendingBeastAdd !== null
+    || pendingRarityEditor !== null
+    || pendingBeastRemove !== null;
   const hasPendingDirectIntentRef = useRef(hasPendingDirectIntent);
   hasPendingDirectIntentRef.current = hasPendingDirectIntent;
 
@@ -194,9 +350,13 @@ export function useMarinerBoardInteractions(args: {
     : null;
   const trayRouteDragActive = dragKind === "tray-ship" || dragKind === "tray-raider";
   const trayStormDragActive = dragKind === "tray-storm";
+  const beastDragSourceId = dragKind === "beast"
+    ? sessionRef.current?.sourceRegionId ?? null
+    : null;
+  const trayMarketDragActive = dragKind === "tray-market";
 
   const recommendedSeaIds = stormDragSourceId === null
-    ? []
+    ? (beastDragSourceId === null ? [] : [...adjacentSeaIds(beastDragSourceId)])
     : marinerSeaOperationalView(mariner, stormDragSourceId).adjacentRegionIds;
 
   const cancelDrag = useCallback(() => {
@@ -205,6 +365,7 @@ export function useMarinerBoardInteractions(args: {
     setDragVisual(null);
     setHoveredSeaId(null);
     setHoveredRouteDropId(null);
+    setHoveredIsleId(null);
   }, []);
 
   const finishNoOpDrag = useCallback(() => {
@@ -440,6 +601,89 @@ export function useMarinerBoardInteractions(args: {
     if (!ok) suppressClickRef.current = false;
   }, [campaignId, cancelDrag, run, setMarinerSeaStormCount]);
 
+  const commitBeastMove = useCallback(async (
+    beast: MarinerBeastState,
+    sourceRegionId: MarinerSeaRegionId,
+    destinationRegionId: MarinerSeaRegionId,
+    snapshot: ReturnType<typeof captureOperabilityBoard>,
+    dropClientX?: number,
+    dropClientY?: number,
+  ) => {
+    if (destinationRegionId === sourceRegionId) {
+      finishNoOpDrag();
+      return;
+    }
+    if (!adjacentSeaIds(sourceRegionId).includes(destinationRegionId)) {
+      finishNoOpDrag();
+      return;
+    }
+    if (predictedMovedBeastWouldRampage(snapshot, beast.denizenId, destinationRegionId)) {
+      setPendingBeastRampage({
+        snapshot,
+        beast,
+        sourceRegionId,
+        destinationRegionId,
+        dropClientX,
+        dropClientY,
+      });
+      cancelDrag();
+      return;
+    }
+    const payload = buildMoveMarinerBeastPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      denizenId: beast.denizenId,
+      sourceRegionId,
+      destinationRegionId,
+      ...expectedForMoveBeast(snapshot, beast.denizenId, sourceRegionId, destinationRegionId),
+      rampageResolution: null,
+    });
+    const ok = await run(async () => { await moveMarinerBeast(payload); });
+    cancelDrag();
+    if (!ok) suppressClickRef.current = false;
+  }, [campaignId, cancelDrag, finishNoOpDrag, moveMarinerBeast, run]);
+
+  const commitBeastNest = useCallback(async (
+    beast: MarinerBeastState,
+    boardIsleId: MarinerBoardIsleId,
+    snapshot: ReturnType<typeof captureOperabilityBoard>,
+    sourceRegionId: MarinerSeaRegionId,
+  ) => {
+    if (!adjacentIsleIds(sourceRegionId).includes(boardIsleId) || !isleAcceptsNest(snapshot, boardIsleId)) {
+      finishNoOpDrag();
+      return;
+    }
+    const payload = buildNestMarinerBeastPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      denizenId: beast.denizenId,
+      boardIsleId,
+      ...expectedForNestBeast(snapshot, beast.denizenId, boardIsleId),
+    });
+    const ok = await run(async () => { await nestMarinerBeast(payload); });
+    cancelDrag();
+    if (!ok) suppressClickRef.current = false;
+  }, [campaignId, cancelDrag, finishNoOpDrag, nestMarinerBeast, run]);
+
+  const commitTrayMarketDrop = useCallback(async (boardIsleId: MarinerBoardIsleId) => {
+    const session = sessionRef.current;
+    if (session?.kind !== "tray-market") return;
+    if (!isleAcceptsMarket(session.snapshot, boardIsleId)) {
+      finishNoOpDrag();
+      return;
+    }
+    const payload = buildSetMarinerIsleMarketPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      boardIsleId,
+      expectedMarket: marketOnSnapshot(session.snapshot, boardIsleId),
+      market: { present: true, rarity: null },
+    });
+    const ok = await run(async () => { await setMarinerIsleMarket(payload); });
+    cancelDrag();
+    if (!ok) suppressClickRef.current = false;
+  }, [campaignId, cancelDrag, finishNoOpDrag, run, setMarinerIsleMarket]);
+
   useEffect(() => {
     const onPointerMove = (event: PointerEvent) => {
       const session = sessionRef.current;
@@ -468,6 +712,35 @@ export function useMarinerBoardInteractions(args: {
         const target = document.elementFromPoint(event.clientX, event.clientY);
         setHoveredSeaId(findSeaDropRegionId(target) as MarinerSeaRegionId | null);
         setHoveredRouteDropId(null);
+        setHoveredIsleId(null);
+        return;
+      }
+
+      if (active.kind === "beast") {
+        setDragVisual({
+          kind: active.kind,
+          clientX: event.clientX,
+          clientY: event.clientY,
+          typhoon: false,
+        });
+        const target = document.elementFromPoint(event.clientX, event.clientY);
+        setHoveredSeaId(findSeaDropRegionId(target) as MarinerSeaRegionId | null);
+        setHoveredIsleId(findIsleDropId(target) as MarinerBoardIsleId | null);
+        setHoveredRouteDropId(null);
+        return;
+      }
+
+      if (active.kind === "tray-market") {
+        setDragVisual({
+          kind: active.kind,
+          clientX: event.clientX,
+          clientY: event.clientY,
+          typhoon: false,
+        });
+        const target = document.elementFromPoint(event.clientX, event.clientY);
+        setHoveredIsleId(findIsleDropId(target) as MarinerBoardIsleId | null);
+        setHoveredSeaId(null);
+        setHoveredRouteDropId(null);
         return;
       }
 
@@ -482,6 +755,7 @@ export function useMarinerBoardInteractions(args: {
         const target = document.elementFromPoint(event.clientX, event.clientY);
         setHoveredRouteDropId(findRouteDropId(target));
         setHoveredSeaId(null);
+        setHoveredIsleId(null);
       }
     };
 
@@ -496,6 +770,8 @@ export function useMarinerBoardInteractions(args: {
           onSelectRegion(session.sourceRegionId);
         } else if (session.kind === "route-piece" && session.sourceRouteId !== undefined) {
           onSelectRoute(session.sourceRouteId);
+        } else if (session.kind === "beast" && session.sourceRegionId !== undefined) {
+          onSelectRegion(session.sourceRegionId);
         }
         return;
       }
@@ -525,6 +801,33 @@ export function useMarinerBoardInteractions(args: {
         const dropRoute = findRouteDropId(document.elementFromPoint(event.clientX, event.clientY));
         if (dropRoute !== null) {
           void commitTrayRouteDrop(dropRoute, event.clientX, event.clientY);
+          return;
+        }
+      }
+      if (session.kind === "beast" && session.sourceBeast !== undefined && session.sourceRegionId !== undefined) {
+        const dropPoint = document.elementFromPoint(event.clientX, event.clientY);
+        const dropIsle = findIsleDropId(dropPoint) as MarinerBoardIsleId | null;
+        if (dropIsle !== null) {
+          void commitBeastNest(session.sourceBeast, dropIsle, session.snapshot, session.sourceRegionId);
+          return;
+        }
+        const dropSea = findSeaDropRegionId(dropPoint);
+        if (dropSea !== null) {
+          void commitBeastMove(
+            session.sourceBeast,
+            session.sourceRegionId,
+            dropSea as MarinerSeaRegionId,
+            session.snapshot,
+            event.clientX,
+            event.clientY,
+          );
+          return;
+        }
+      }
+      if (session.kind === "tray-market") {
+        const dropIsle = findIsleDropId(document.elementFromPoint(event.clientX, event.clientY));
+        if (dropIsle !== null) {
+          void commitTrayMarketDrop(dropIsle as MarinerBoardIsleId);
           return;
         }
       }
@@ -614,8 +917,11 @@ export function useMarinerBoardInteractions(args: {
   }, [
     campaignId,
     cancelDrag,
+    commitBeastMove,
+    commitBeastNest,
     commitRoutePieceDrop,
     commitStormDrop,
+    commitTrayMarketDrop,
     commitTrayRouteDrop,
     commitTrayStormDrop,
     mariner.seaRegions,
@@ -685,7 +991,7 @@ export function useMarinerBoardInteractions(args: {
     };
   }, [hasPendingDirectIntent, mariner, pending]);
 
-  const beginTrayPointer = useCallback((kind: "tray-ship" | "tray-raider" | "tray-storm", event: ReactPointerEvent) => {
+  const beginTrayPointer = useCallback((kind: "tray-ship" | "tray-raider" | "tray-storm" | "tray-market", event: ReactPointerEvent) => {
     if (!isPrimaryPointerButton(event)) return;
     if (pending || hasPendingDirectIntent) return;
     event.preventDefault();
@@ -712,6 +1018,58 @@ export function useMarinerBoardInteractions(args: {
   const beginTrayStormPointer = useCallback((event: ReactPointerEvent) => {
     beginTrayPointer("tray-storm", event);
   }, [beginTrayPointer]);
+
+  const beginTrayMarketPointer = useCallback((event: ReactPointerEvent) => {
+    beginTrayPointer("tray-market", event);
+  }, [beginTrayPointer]);
+
+  const beginBeastPointer = useCallback((beast: MarinerBeastState, event: ReactPointerEvent) => {
+    if (!isPrimaryPointerButton(event)) return;
+    if (pending || hasPendingDirectIntent) return;
+    if (beast.condition !== "distrusting" || beast.location.kind !== "sea_region") return;
+    event.preventDefault();
+    event.stopPropagation();
+    (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+    setContextMenu(null);
+    sessionRef.current = {
+      kind: "beast",
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      dragging: false,
+      snapshot: captureOperabilityBoard(mariner),
+      sourceRegionId: beast.location.regionId,
+      sourceBeast: snapshotBeast(beast),
+    };
+  }, [hasPendingDirectIntent, mariner, pending]);
+
+  const openBeastContextMenu = useCallback((beast: MarinerBeastState, event: ReactMouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (isBusy()) return;
+    setContextMenu({
+      kind: "beast",
+      beast: snapshotBeast(beast),
+      clientX: event.clientX,
+      clientY: event.clientY,
+      snapshot: captureOperabilityBoard(mariner),
+    });
+  }, [isBusy, mariner]);
+
+  const openIsleContextMenu = useCallback((boardIsleId: MarinerBoardIsleId, event: ReactMouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (isBusy()) return;
+    const market = mariner.boardIsles.find((isle) => isle.boardIsleId === boardIsleId)?.market ?? { present: false as const };
+    setContextMenu({
+      kind: "isle",
+      boardIsleId,
+      market,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      snapshot: captureOperabilityBoard(mariner),
+    });
+  }, [isBusy, mariner]);
 
   const openRouteContextMenu = useCallback((routeId: string, event: ReactMouseEvent) => {
     event.preventDefault();
@@ -875,6 +1233,209 @@ export function useMarinerBoardInteractions(args: {
     await run(async () => { await setMarinerSeaStormCount(payload); });
   }, [campaignId, isBusy, run, setMarinerSeaStormCount]);
 
+  const contextMoveBeast = useCallback(async (destinationRegionId: MarinerSeaRegionId) => {
+    if (isBusy()) {
+      setContextMenu(null);
+      return;
+    }
+    const menu = contextMenuRef.current;
+    if (menu?.kind !== "beast" || menu.beast.location.kind !== "sea_region") return;
+    const snapshot = menu.snapshot;
+    const beast = menu.beast;
+    const sourceRegionId = menu.beast.location.regionId;
+    setContextMenu(null);
+    await commitBeastMove(beast, sourceRegionId, destinationRegionId, snapshot, menu.clientX, menu.clientY);
+  }, [commitBeastMove, isBusy]);
+
+  const contextNestBeast = useCallback(async (boardIsleId: MarinerBoardIsleId) => {
+    if (isBusy()) {
+      setContextMenu(null);
+      return;
+    }
+    const menu = contextMenuRef.current;
+    if (menu?.kind !== "beast" || menu.beast.location.kind !== "sea_region") return;
+    const snapshot = menu.snapshot;
+    const beast = menu.beast;
+    const sourceRegionId = menu.beast.location.regionId;
+    setContextMenu(null);
+    await commitBeastNest(beast, boardIsleId, snapshot, sourceRegionId);
+  }, [commitBeastNest, isBusy]);
+
+  const contextBeginRemoveBeast = useCallback(() => {
+    if (isBusy()) {
+      setContextMenu(null);
+      return;
+    }
+    const menu = contextMenuRef.current;
+    if (menu?.kind !== "beast") return;
+    setPendingBeastRemove({
+      snapshot: menu.snapshot,
+      beast: menu.beast,
+      clientX: menu.clientX,
+      clientY: menu.clientY,
+    });
+    setContextMenu(null);
+  }, [isBusy]);
+
+  const confirmRemoveBeast = useCallback(async () => {
+    if (pendingRef.current) return;
+    const intent = pendingBeastRemove;
+    if (intent === null) return;
+    const payload = buildRemoveMarinerBeastPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      denizenId: intent.beast.denizenId,
+      expectedBeast: intent.beast,
+    });
+    const ok = await run(async () => { await removeMarinerBeast(payload); });
+    if (ok) setPendingBeastRemove(null);
+  }, [campaignId, pendingBeastRemove, removeMarinerBeast, run]);
+
+  const cancelPendingBeastRemove = useCallback(() => {
+    setPendingBeastRemove(null);
+  }, []);
+
+  const contextBeginAddBeast = useCallback(() => {
+    if (isBusy()) {
+      setContextMenu(null);
+      return;
+    }
+    const menu = contextMenuRef.current;
+    if (menu?.kind === "sea") {
+      setPendingBeastAdd({
+        snapshot: menu.snapshot,
+        target: { kind: "sea", regionId: menu.regionId },
+        clientX: menu.clientX,
+        clientY: menu.clientY,
+      });
+      setContextMenu(null);
+      return;
+    }
+    if (menu?.kind === "isle") {
+      if (!isleAcceptsManualBeast(menu.snapshot, menu.boardIsleId)) {
+        setContextMenu(null);
+        return;
+      }
+      setPendingBeastAdd({
+        snapshot: menu.snapshot,
+        target: { kind: "isle", boardIsleId: menu.boardIsleId },
+        clientX: menu.clientX,
+        clientY: menu.clientY,
+      });
+      setContextMenu(null);
+    }
+  }, [isBusy]);
+
+  const submitPendingBeastAdd = useCallback(async (beast: MarinerBeastState) => {
+    if (pendingRef.current || pendingBeastAdd === null) return;
+    const payload = buildAddMarinerBeastPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      beast,
+    });
+    const ok = await run(async () => { await addMarinerBeast(payload); });
+    if (ok) setPendingBeastAdd(null);
+  }, [addMarinerBeast, campaignId, pendingBeastAdd, run]);
+
+  const cancelPendingBeastAdd = useCallback(() => {
+    setPendingBeastAdd(null);
+  }, []);
+
+  const contextAddMarket = useCallback(async () => {
+    if (isBusy()) {
+      setContextMenu(null);
+      return;
+    }
+    const menu = contextMenuRef.current;
+    if (menu?.kind !== "isle") return;
+    if (!isleAcceptsMarket(menu.snapshot, menu.boardIsleId)) {
+      setContextMenu(null);
+      return;
+    }
+    const payload = buildSetMarinerIsleMarketPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      boardIsleId: menu.boardIsleId,
+      expectedMarket: menu.market,
+      market: { present: true, rarity: null },
+    });
+    setContextMenu(null);
+    await run(async () => { await setMarinerIsleMarket(payload); });
+  }, [campaignId, isBusy, run, setMarinerIsleMarket]);
+
+  const contextRemoveMarket = useCallback(async () => {
+    if (isBusy()) {
+      setContextMenu(null);
+      return;
+    }
+    const menu = contextMenuRef.current;
+    if (menu?.kind !== "isle" || !menu.market.present) return;
+    const payload = buildSetMarinerIsleMarketPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      boardIsleId: menu.boardIsleId,
+      expectedMarket: menu.market,
+      market: { present: false },
+    });
+    setContextMenu(null);
+    await run(async () => { await setMarinerIsleMarket(payload); });
+  }, [campaignId, isBusy, run, setMarinerIsleMarket]);
+
+  const contextBeginRarityEditor = useCallback((mode: "add" | "edit") => {
+    if (isBusy()) {
+      setContextMenu(null);
+      return;
+    }
+    const menu = contextMenuRef.current;
+    if (menu?.kind !== "isle" || !menu.market.present) return;
+    setPendingRarityEditor({
+      snapshot: menu.snapshot,
+      boardIsleId: menu.boardIsleId,
+      expectedMarket: menu.market,
+      mode,
+      clientX: menu.clientX,
+      clientY: menu.clientY,
+    });
+    setContextMenu(null);
+  }, [isBusy]);
+
+  const submitPendingRarity = useCallback(async (description: string) => {
+    if (pendingRef.current || pendingRarityEditor === null) return;
+    const trimmed = description.trim();
+    if (trimmed === "") return;
+    const payload = buildSetMarinerIsleMarketPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      boardIsleId: pendingRarityEditor.boardIsleId,
+      expectedMarket: pendingRarityEditor.expectedMarket,
+      market: { present: true, rarity: trimmed },
+    });
+    const ok = await run(async () => { await setMarinerIsleMarket(payload); });
+    if (ok) setPendingRarityEditor(null);
+  }, [campaignId, pendingRarityEditor, run, setMarinerIsleMarket]);
+
+  const cancelPendingRarityEditor = useCallback(() => {
+    setPendingRarityEditor(null);
+  }, []);
+
+  const contextRemoveRarity = useCallback(async () => {
+    if (isBusy()) {
+      setContextMenu(null);
+      return;
+    }
+    const menu = contextMenuRef.current;
+    if (menu?.kind !== "isle" || !menu.market.present || menu.market.rarity === null) return;
+    const payload = buildSetMarinerIsleMarketPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      boardIsleId: menu.boardIsleId,
+      expectedMarket: menu.market,
+      market: { present: true, rarity: null },
+    });
+    setContextMenu(null);
+    await run(async () => { await setMarinerIsleMarket(payload); });
+  }, [campaignId, isBusy, run, setMarinerIsleMarket]);
+
   const chooseRaiderDirection = useCallback(async (toward: MarinerRouteEndpoint) => {
     if (pendingRaiderDirection === null) return;
     const pendingChoice = pendingRaiderDirection;
@@ -938,13 +1499,38 @@ export function useMarinerBoardInteractions(args: {
     return "available";
   }, [draggingActive, hoveredRouteDropId]);
 
-  const seaDropHighlight = useCallback((regionId: MarinerSeaRegionId): "source" | "recommended" | "available" | "hover" | null => {
+  const seaDropHighlight = useCallback((regionId: MarinerSeaRegionId): "source" | "recommended" | "available" | "hover" | "blocked" | null => {
+    if (beastDragSourceId !== null) {
+      if (regionId === beastDragSourceId) return "source";
+      if (!recommendedSeaIds.includes(regionId)) return "blocked";
+      if (hoveredSeaId === regionId) return "hover";
+      return "recommended";
+    }
     if (stormDragSourceId === null && !trayStormDragActive) return null;
     if (stormDragSourceId !== null && regionId === stormDragSourceId) return "source";
     if (hoveredSeaId === regionId) return "hover";
     if (stormDragSourceId !== null && recommendedSeaIds.includes(regionId)) return "recommended";
     return "available";
-  }, [hoveredSeaId, recommendedSeaIds, stormDragSourceId, trayStormDragActive]);
+  }, [beastDragSourceId, hoveredSeaId, recommendedSeaIds, stormDragSourceId, trayStormDragActive]);
+
+  const isleDropHighlight = useCallback((boardIsleId: MarinerBoardIsleId): "recommended" | "available" | "hover" | "blocked" | null => {
+    if (!draggingActive) return null;
+    const session = sessionRef.current;
+    if (session === null) return null;
+    if (session.kind === "beast" && session.sourceRegionId !== undefined) {
+      if (!adjacentIsleIds(session.sourceRegionId).includes(boardIsleId) || !isleAcceptsNest(session.snapshot, boardIsleId)) {
+        return "blocked";
+      }
+      if (hoveredIsleId === boardIsleId) return "hover";
+      return "recommended";
+    }
+    if (session.kind === "tray-market") {
+      if (!isleAcceptsMarket(session.snapshot, boardIsleId)) return "blocked";
+      if (hoveredIsleId === boardIsleId) return "hover";
+      return "available";
+    }
+    return null;
+  }, [draggingActive, hoveredIsleId]);
 
   const submitPendingShipRampage = useCallback(async (
     rampageResolutions: {
@@ -986,18 +1572,62 @@ export function useMarinerBoardInteractions(args: {
     setPendingShipRampage(null);
   }, []);
 
+  const submitPendingBeastRampage = useCallback(async (destinationSeatId: PactSeatId) => {
+    if (pendingBeastRampage === null) return;
+    const intent = pendingBeastRampage;
+    const payload = buildMoveMarinerBeastPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      denizenId: intent.beast.denizenId,
+      sourceRegionId: intent.sourceRegionId,
+      destinationRegionId: intent.destinationRegionId,
+      ...expectedForMoveBeast(
+        intent.snapshot,
+        intent.beast.denizenId,
+        intent.sourceRegionId,
+        intent.destinationRegionId,
+      ),
+      rampageResolution: {
+        denizenId: intent.beast.denizenId,
+        destinationSeatId,
+        rampagingMethodEntryId: newMethodEntryId(),
+      },
+    });
+    const ok = await run(async () => { await moveMarinerBeast(payload); });
+    if (ok) setPendingBeastRampage(null);
+  }, [campaignId, moveMarinerBeast, pendingBeastRampage, run]);
+
+  const cancelPendingBeastRampage = useCallback(() => {
+    setPendingBeastRampage(null);
+  }, []);
+
   return {
     dragVisual,
     stormDragSourceId,
+    beastDragSourceId,
     routeDragSourceId,
     pendingRaiderDirection,
     setPendingRaiderDirection,
     pendingShipRampage,
     submitPendingShipRampage,
     cancelPendingShipRampage,
+    pendingBeastRampage,
+    submitPendingBeastRampage,
+    cancelPendingBeastRampage,
+    pendingBeastAdd,
+    submitPendingBeastAdd,
+    cancelPendingBeastAdd,
+    pendingBeastRemove,
+    confirmRemoveBeast,
+    cancelPendingBeastRemove,
+    pendingRarityEditor,
+    submitPendingRarity,
+    cancelPendingRarityEditor,
     contextMenu,
     openRouteContextMenu,
     openSeaContextMenu,
+    openBeastContextMenu,
+    openIsleContextMenu,
     closeContextMenu,
     contextAddShip,
     contextAddRaider,
@@ -1007,15 +1637,26 @@ export function useMarinerBoardInteractions(args: {
     contextRemoveOccupancy,
     contextAddStorm,
     contextRemoveStorm,
+    contextMoveBeast,
+    contextNestBeast,
+    contextBeginRemoveBeast,
+    contextBeginAddBeast,
+    contextAddMarket,
+    contextRemoveMarket,
+    contextBeginRarityEditor,
+    contextRemoveRarity,
     beginStormPointer,
+    beginBeastPointer,
     beginRoutePiecePointer,
     beginTrayShipPointer,
     beginTrayRaiderPointer,
     beginTrayStormPointer,
+    beginTrayMarketPointer,
     chooseRaiderDirection,
     consumeSuppressClick,
     routeDropHighlight,
     seaDropHighlight,
+    isleDropHighlight,
     cancelDrag,
   };
 }
@@ -1043,6 +1684,15 @@ export function BoardDragGhost({ visual }: { visual: BoardDragVisual | null }) {
             stroke="#0f172a"
           />
         </svg>
+      ) : visual.kind === "beast" ? (
+        <svg width={24} height={28} viewBox="-12 -14 24 32">
+          <polygon points="0,-12 10,-2 6,12 -6,12 -10,-2" fill="#14532d" stroke="#052e16" />
+        </svg>
+      ) : visual.kind === "tray-market" ? (
+        <svg width={24} height={22} viewBox="-12 -16 24 28">
+          <rect x={-8} y={-6} width={16} height={12} fill="#b45309" stroke="#78350f" />
+          <path d="M -10 -6 L 0 -14 L 10 -6" fill="#f59e0b" stroke="#78350f" />
+        </svg>
       ) : (
         <svg width={28} height={20} viewBox="-8 -8 16 16">
           {visual.occupancyKind === "raider" ? (
@@ -1059,6 +1709,13 @@ export function BoardDragGhost({ visual }: { visual: BoardDragVisual | null }) {
 const CONTEXT_MENU_BTN =
   "block w-full text-left rounded px-2 py-1 text-[11px] leading-tight cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 whitespace-nowrap";
 
+function contextTarget(menu: BoardContextMenu): string {
+  if (menu.kind === "route") return menu.routeId;
+  if (menu.kind === "sea") return menu.regionId;
+  if (menu.kind === "beast") return menu.beast.denizenId;
+  return menu.boardIsleId;
+}
+
 export function MarinerBoardContextMenu({
   menu,
   mariner,
@@ -1071,6 +1728,15 @@ export function MarinerBoardContextMenu({
   onRemoveOccupancy,
   onAddStorm,
   onRemoveStorm,
+  onMoveBeast,
+  onNestBeast,
+  onRemoveBeast,
+  onAddBeast,
+  onAddMarket,
+  onRemoveMarket,
+  onAddRarity,
+  onEditRarity,
+  onRemoveRarity,
 }: {
   menu: BoardContextMenu | null;
   mariner: MarinerState;
@@ -1083,6 +1749,15 @@ export function MarinerBoardContextMenu({
   onRemoveOccupancy: () => void;
   onAddStorm: () => void;
   onRemoveStorm: () => void;
+  onMoveBeast: (regionId: MarinerSeaRegionId) => void;
+  onNestBeast: (boardIsleId: MarinerBoardIsleId) => void;
+  onRemoveBeast: () => void;
+  onAddBeast: () => void;
+  onAddMarket: () => void;
+  onRemoveMarket: () => void;
+  onAddRarity: () => void;
+  onEditRarity: () => void;
+  onRemoveRarity: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: menu?.clientX ?? 0, top: menu?.clientY ?? 0 });
@@ -1114,7 +1789,7 @@ export function MarinerBoardContextMenu({
       ref={ref}
       data-mariner-context-menu
       data-context-menu-kind={menu.kind}
-      data-context-target={menu.kind === "route" ? menu.routeId : menu.regionId}
+      data-context-target={contextTarget(menu)}
       data-pointer-x={menu.clientX}
       data-pointer-y={menu.clientY}
       className="fixed z-40 min-w-[11rem] rounded-md border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-md py-0.5"
@@ -1270,9 +1945,222 @@ export function MarinerBoardContextMenu({
               Remove Storm
             </button>
           )}
+          <button
+            type="button"
+            role="menuitem"
+            className={CONTEXT_MENU_BTN}
+            data-context-action="add-beast"
+            aria-label={`Add Beast to ${seaRegionDisplayName(menu.regionId)}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onAddBeast();
+            }}
+          >
+            Add Beast…
+          </button>
+        </>
+      )}
+      {menu.kind === "beast" && menu.beast.condition === "distrusting" && menu.beast.location.kind === "sea_region" && (
+        <>
+          {adjacentSeaIds(menu.beast.location.regionId).map((regionId) => (
+            <button
+              key={`move-${regionId}`}
+              type="button"
+              role="menuitem"
+              className={CONTEXT_MENU_BTN}
+              data-context-action="move-beast"
+              data-region-id={regionId}
+              aria-label={`Move Beast to ${seaRegionDisplayName(regionId)}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onMoveBeast(regionId);
+              }}
+            >
+              {`Move -> ${seaRegionDisplayName(regionId)}`}
+            </button>
+          ))}
+          {representableNestIsleIds(menu.snapshot, menu.beast.location.regionId).map((boardIsleId) => (
+            <button
+              key={`nest-${boardIsleId}`}
+              type="button"
+              role="menuitem"
+              className={CONTEXT_MENU_BTN}
+              data-context-action="nest-beast"
+              data-isle-id={boardIsleId}
+              aria-label={`Nest Beast on ${boardIsleWorldName(mariner, world.isles, boardIsleId)}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onNestBeast(boardIsleId);
+              }}
+            >
+              {`Nest -> ${boardIsleWorldName(mariner, world.isles, boardIsleId)}`}
+            </button>
+          ))}
+        </>
+      )}
+      {menu.kind === "beast" && (
+        <button
+          type="button"
+          role="menuitem"
+          className={`${CONTEXT_MENU_BTN} text-red-700 dark:text-red-400`}
+          data-context-action="remove-beast"
+          aria-label="Remove Beast"
+          onClick={(event) => {
+            event.stopPropagation();
+            onRemoveBeast();
+          }}
+        >
+          Remove Beast…
+        </button>
+      )}
+      {menu.kind === "isle" && !menu.market.present && (
+        <>
+          {isleAcceptsMarket(menu.snapshot, menu.boardIsleId) ? (
+            <button
+              type="button"
+              role="menuitem"
+              className={CONTEXT_MENU_BTN}
+              data-context-action="add-market"
+              aria-label="Add Market"
+              onClick={(event) => {
+                event.stopPropagation();
+                onAddMarket();
+              }}
+            >
+              Add Market
+            </button>
+          ) : (
+            <button
+              type="button"
+              role="menuitem"
+              className={`${CONTEXT_MENU_BTN} opacity-60 cursor-not-allowed`}
+              data-context-action="add-market-blocked"
+              disabled
+              aria-label="Add Market unavailable because a Nesting Beast is present"
+            >
+              Add Market (Nesting Beast present)
+            </button>
+          )}
+          {isleAcceptsManualBeast(menu.snapshot, menu.boardIsleId) && (
+            <button
+              type="button"
+              role="menuitem"
+              className={CONTEXT_MENU_BTN}
+              data-context-action="add-beast"
+              aria-label="Add Beast"
+              onClick={(event) => {
+                event.stopPropagation();
+                onAddBeast();
+              }}
+            >
+              Add Beast…
+            </button>
+          )}
+        </>
+      )}
+      {menu.kind === "isle" && menu.market.present && menu.market.rarity === null && (
+        <>
+          <button
+            type="button"
+            role="menuitem"
+            className={CONTEXT_MENU_BTN}
+            data-context-action="add-rarity"
+            aria-label="Add Rarity"
+            onClick={(event) => {
+              event.stopPropagation();
+              onAddRarity();
+            }}
+          >
+            Add Rarity…
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className={`${CONTEXT_MENU_BTN} text-red-700 dark:text-red-400`}
+            data-context-action="remove-market"
+            aria-label="Remove Market"
+            onClick={(event) => {
+              event.stopPropagation();
+              onRemoveMarket();
+            }}
+          >
+            Remove Market
+          </button>
+        </>
+      )}
+      {menu.kind === "isle" && menu.market.present && menu.market.rarity !== null && (
+        <>
+          <button
+            type="button"
+            role="menuitem"
+            className={CONTEXT_MENU_BTN}
+            data-context-action="edit-rarity"
+            aria-label="Edit Rarity"
+            onClick={(event) => {
+              event.stopPropagation();
+              onEditRarity();
+            }}
+          >
+            Edit Rarity…
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className={CONTEXT_MENU_BTN}
+            data-context-action="remove-rarity"
+            aria-label="Remove Rarity"
+            onClick={(event) => {
+              event.stopPropagation();
+              onRemoveRarity();
+            }}
+          >
+            Remove Rarity
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className={`${CONTEXT_MENU_BTN} text-red-700 dark:text-red-400`}
+            data-context-action="remove-market"
+            aria-label="Remove Market"
+            onClick={(event) => {
+              event.stopPropagation();
+              onRemoveMarket();
+            }}
+          >
+            Remove Market
+          </button>
         </>
       )}
     </div>
+  );
+}
+
+function TrayPiece({
+  kind,
+  label,
+  ariaLabel,
+  className,
+  onBegin,
+  children,
+}: {
+  kind: string;
+  label: string;
+  ariaLabel: string;
+  className: string;
+  onBegin: (event: ReactPointerEvent) => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      data-tray-piece={kind}
+      aria-label={ariaLabel}
+      className={`flex h-8 min-w-8 cursor-grab flex-col items-center justify-center rounded border px-1 ${className}`}
+      onPointerDown={onBegin}
+    >
+      {children}
+      <span className="text-[8px] leading-none text-slate-600 dark:text-slate-300">{label}</span>
+    </button>
   );
 }
 
@@ -1280,10 +2168,12 @@ export function MarinerPieceSupplyTray({
   onBeginShip,
   onBeginRaider,
   onBeginStorm,
+  onBeginMarket,
 }: {
   onBeginShip: (event: ReactPointerEvent) => void;
   onBeginRaider: (event: ReactPointerEvent) => void;
   onBeginStorm: (event: ReactPointerEvent) => void;
+  onBeginMarket: (event: ReactPointerEvent) => void;
 }) {
   return (
     <div
@@ -1291,39 +2181,261 @@ export function MarinerPieceSupplyTray({
       className="flex items-center gap-2 rounded-md border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/80 px-2 py-1"
     >
       <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Supply</span>
-      <button
-        type="button"
-        data-tray-piece="ship"
-        aria-label="Place Ship"
-        className="flex h-8 w-8 cursor-grab items-center justify-center rounded border border-teal-700/40 bg-teal-50 dark:bg-teal-950"
-        onPointerDown={onBeginShip}
-      >
-        <svg width={18} height={14} viewBox="-8 -8 16 16" aria-hidden="true">
+      <TrayPiece kind="ship" label="Ship" ariaLabel="Place Ship" className="border-teal-700/40 bg-teal-50 dark:bg-teal-950" onBegin={onBeginShip}>
+        <svg width={16} height={12} viewBox="-8 -8 16 16" aria-hidden="true">
           <path d="M-4.2 2.1 L-2.3 -1.1 L3.2 -1.1 L5.1 2.1 Z" fill="#0f766e" stroke="#042f2e" />
         </svg>
-      </button>
-      <button
-        type="button"
-        data-tray-piece="raider"
-        aria-label="Place Raider"
-        className="flex h-8 w-8 cursor-grab items-center justify-center rounded border border-red-800/40 bg-orange-50 dark:bg-orange-950"
-        onPointerDown={onBeginRaider}
-      >
-        <svg width={18} height={14} viewBox="-8 -8 16 16" aria-hidden="true">
+      </TrayPiece>
+      <TrayPiece kind="raider" label="Raider" ariaLabel="Place Raider" className="border-red-800/40 bg-orange-50 dark:bg-orange-950" onBegin={onBeginRaider}>
+        <svg width={16} height={12} viewBox="-8 -8 16 16" aria-hidden="true">
           <polygon points="-3.4,-2.7 -3.4,2.7 5.6,0" fill="#7c2d12" stroke="#431407" />
         </svg>
-      </button>
-      <button
-        type="button"
-        data-tray-piece="storm"
-        aria-label="Place Storm"
-        className="flex h-8 w-8 cursor-grab items-center justify-center rounded border border-slate-500/40 bg-slate-100 dark:bg-slate-800"
-        onPointerDown={onBeginStorm}
-      >
-        <svg width={18} height={18} viewBox="-16 -16 32 32" aria-hidden="true">
+      </TrayPiece>
+      <TrayPiece kind="storm" label="Storm" ariaLabel="Place Storm" className="border-slate-500/40 bg-slate-100 dark:bg-slate-800" onBegin={onBeginStorm}>
+        <svg width={14} height={14} viewBox="-16 -16 32 32" aria-hidden="true">
           <path d="M-10 4 Q -4 -10 4 -6 Q 10 -2 8 6 Q 0 10 -10 4 Z" fill="#475569" stroke="#0f172a" />
         </svg>
-      </button>
+      </TrayPiece>
+      <TrayPiece kind="market" label="Market" ariaLabel="Place Market" className="border-amber-700/40 bg-amber-50 dark:bg-amber-950" onBegin={onBeginMarket}>
+        <svg width={14} height={12} viewBox="-12 -16 24 28" aria-hidden="true">
+          <rect x={-8} y={-6} width={16} height={12} fill="#b45309" stroke="#78350f" />
+          <path d="M -10 -6 L 0 -14 L 10 -6" fill="#f59e0b" stroke="#78350f" />
+        </svg>
+      </TrayPiece>
+    </div>
+  );
+}
+
+const LOCAL_FIELD =
+  "text-xs rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 w-full";
+const LOCAL_BTN =
+  "text-xs font-medium rounded px-2 py-1 cursor-pointer bg-teal-800 dark:bg-teal-200 text-white dark:text-teal-950 disabled:opacity-50";
+const LOCAL_GHOST =
+  "text-xs font-medium rounded px-2 py-1 cursor-pointer border border-slate-200 dark:border-slate-700";
+
+export function BeastRampageChooser({
+  pendingIntent,
+  world,
+  pending,
+  onCancel,
+  onSubmit,
+}: {
+  pendingIntent: PendingBeastRampage;
+  world: WorldReference;
+  pending: boolean;
+  onCancel: () => void;
+  onSubmit: (destinationSeatId: PactSeatId) => void;
+}) {
+  const [seatId, setSeatId] = useState("");
+  const beastLabel = denizenName(world.denizens, pendingIntent.beast.denizenId);
+  return (
+    <div
+      data-beast-rampage-chooser
+      className="fixed z-20 rounded-lg border border-teal-200 dark:border-teal-800 bg-white/95 dark:bg-slate-900/95 p-2 space-y-2 shadow-md max-w-xs"
+      style={{
+        left: pendingIntent.dropClientX ?? 16,
+        top: pendingIntent.dropClientY ?? 16,
+      }}
+    >
+      <p className="text-xs text-slate-600 dark:text-slate-300">
+        This Beast move causes a Rampage. Choose one destination Domain.
+      </p>
+      <label className="text-xs block">
+        {`Rampage destination — ${beastLabel}`}
+        <select
+          aria-label={`Rampage destination for ${beastLabel}`}
+          className={`${LOCAL_FIELD} mt-1`}
+          value={seatId}
+          onChange={(event) => setSeatId(event.target.value)}
+        >
+          <option value="">Select destination Domain…</option>
+          {otherDomainSeatOptions().map((option) => (
+            <option key={option} value={option}>{pactSeatDisplayName(option)}</option>
+          ))}
+        </select>
+      </label>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          className={LOCAL_BTN}
+          disabled={pending || seatId === ""}
+          onClick={() => onSubmit(seatId as PactSeatId)}
+        >
+          Confirm Rampage
+        </button>
+        <button type="button" className={LOCAL_GHOST} onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+export function BeastAddChooser({
+  pendingIntent,
+  world,
+  pending,
+  onCancel,
+  onSubmit,
+}: {
+  pendingIntent: PendingBeastAdd;
+  world: WorldReference;
+  pending: boolean;
+  onCancel: () => void;
+  onSubmit: (beast: MarinerBeastState) => void;
+}) {
+  const unused = availableIndividualBeastDenizens(world.denizens, pendingIntent.snapshot.beasts);
+  const [denizenId, setDenizenId] = useState("");
+  const [element, setElement] = useState<ElementId>("air");
+  const [definitionId, setDefinitionId] = useState("");
+  const matching = definitionsMatchingElement(element);
+  return (
+    <div
+      data-beast-add-chooser
+      className="fixed z-20 rounded-lg border border-teal-200 dark:border-teal-800 bg-white/95 dark:bg-slate-900/95 p-2 space-y-2 shadow-md min-w-[14rem]"
+      style={{ left: pendingIntent.clientX, top: pendingIntent.clientY }}
+    >
+      <p className="text-xs font-medium text-slate-700 dark:text-slate-200">Add Beast</p>
+      {unused.length === 0 ? (
+        <p className="text-xs text-amber-800 dark:text-amber-200">No available Beast-profile World Denizens.</p>
+      ) : (
+        <>
+          <label className="text-xs block">
+            Denizen
+            <select
+              aria-label="Add Beast Denizen"
+              className={`${LOCAL_FIELD} mt-1`}
+              value={denizenId}
+              onChange={(event) => setDenizenId(event.target.value)}
+            >
+              <option value="">Select Denizen with Beast profile…</option>
+              {unused.map((denizen) => (
+                <option key={denizen.denizenId} value={denizen.denizenId}>{denizen.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs block">
+            Element
+            <select
+              aria-label="Beast Element"
+              className={`${LOCAL_FIELD} mt-1`}
+              value={element}
+              onChange={(event) => {
+                const next = event.target.value as ElementId;
+                setElement(next);
+                if (definitionId !== "") setDefinitionId("");
+              }}
+            >
+              {MARINER_ELEMENTS.map((id) => (
+                <option key={id} value={id}>{id}</option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs block">
+            Built-in definition
+            <select
+              aria-label="Beast definition"
+              className={`${LOCAL_FIELD} mt-1`}
+              value={definitionId}
+              onChange={(event) => setDefinitionId(event.target.value)}
+            >
+              <option value="">Custom Beast</option>
+              {matching.map((definition) => (
+                <option key={definition.id} value={definition.id}>{definition.name}</option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className={LOCAL_BTN}
+            disabled={pending || denizenId === ""}
+            onClick={() => {
+              onSubmit({
+                denizenId: denizenId as MarinerBeastState["denizenId"],
+                element,
+                definitionId: definitionId === "" ? null : definitionId as NonNullable<MarinerBeastState["definitionId"]>,
+                condition: pendingIntent.target.kind === "sea" ? "distrusting" : "friendly_nesting",
+                location: pendingIntent.target.kind === "sea"
+                  ? { kind: "sea_region", regionId: pendingIntent.target.regionId }
+                  : { kind: "board_isle", boardIsleId: pendingIntent.target.boardIsleId },
+              });
+            }}
+          >
+            Add Beast
+          </button>
+        </>
+      )}
+      <button type="button" className={LOCAL_GHOST} onClick={onCancel}>Cancel</button>
+    </div>
+  );
+}
+
+export function BeastRemoveConfirm({
+  pendingIntent,
+  world,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  pendingIntent: PendingBeastRemove;
+  world: WorldReference;
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const name = denizenName(world.denizens, pendingIntent.beast.denizenId);
+  return (
+    <div
+      data-beast-remove-confirm
+      className="fixed z-20 rounded-lg border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 p-2 space-y-2 shadow-md"
+      style={{ left: pendingIntent.clientX, top: pendingIntent.clientY }}
+    >
+      <p className="text-xs text-slate-700 dark:text-slate-200">{`Remove ${name}?`}</p>
+      <div className="flex gap-2">
+        <button type="button" className={LOCAL_BTN} disabled={pending} onClick={onConfirm}>Remove</button>
+        <button type="button" className={LOCAL_GHOST} onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+export function RarityEditor({
+  pendingIntent,
+  pending,
+  onCancel,
+  onSubmit,
+}: {
+  pendingIntent: PendingRarityEditor;
+  pending: boolean;
+  onCancel: () => void;
+  onSubmit: (description: string) => void;
+}) {
+  const initial = pendingIntent.expectedMarket.present ? pendingIntent.expectedMarket.rarity ?? "" : "";
+  const [description, setDescription] = useState(initial);
+  return (
+    <div
+      data-rarity-editor
+      className="fixed z-20 rounded-lg border border-teal-200 dark:border-teal-800 bg-white/95 dark:bg-slate-900/95 p-2 space-y-2 shadow-md min-w-[14rem]"
+      style={{ left: pendingIntent.clientX, top: pendingIntent.clientY }}
+    >
+      <label className="text-xs block">
+        Rarity description
+        <input
+          aria-label="Rarity description"
+          className={`${LOCAL_FIELD} mt-1`}
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+        />
+      </label>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          className={LOCAL_BTN}
+          disabled={pending || description.trim() === ""}
+          onClick={() => onSubmit(description)}
+        >
+          Save Rarity
+        </button>
+        <button type="button" className={LOCAL_GHOST} onClick={onCancel}>Cancel</button>
+      </div>
     </div>
   );
 }

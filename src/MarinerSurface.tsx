@@ -139,9 +139,13 @@ import {
   marinerSeaOperationalView,
 } from "./mariner-operational-view";
 import {
+  BeastAddChooser,
+  BeastRampageChooser,
+  BeastRemoveConfirm,
   BoardDragGhost,
   MarinerBoardContextMenu,
   MarinerPieceSupplyTray,
+  RarityEditor,
   useMarinerBoardInteractions,
   type PendingShipRampage,
 } from "./mariner-board-interactions";
@@ -292,6 +296,11 @@ export default function MarinerSurface({
     createMarinerShip,
     setMarinerRouteOccupancy,
     setMarinerSeaStormCount,
+    moveMarinerBeast,
+    nestMarinerBeast,
+    addMarinerBeast,
+    removeMarinerBeast,
+    setMarinerIsleMarket,
     onSelectRegion: (regionId) => setSelection({ kind: "region", regionId }),
     onSelectRoute: (routeId) => setSelection({ kind: "route", routeId }),
   });
@@ -461,6 +470,7 @@ export default function MarinerSurface({
               onBeginShip={board.beginTrayShipPointer}
               onBeginRaider={board.beginTrayRaiderPointer}
               onBeginStorm={board.beginTrayStormPointer}
+              onBeginMarket={board.beginTrayMarketPointer}
             />
             <p data-board-instruction className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">
               Drag from the tray to place or replace • Drag pieces to move • Right-click for actions • R reverses a selected Raider • Delete removes • Raider arrows point toward their destination
@@ -479,7 +489,51 @@ export default function MarinerSurface({
             onRemoveOccupancy={() => { void board.contextRemoveOccupancy(); }}
             onAddStorm={() => { void board.contextAddStorm(); }}
             onRemoveStorm={() => { void board.contextRemoveStorm(); }}
+            onMoveBeast={(regionId) => { void board.contextMoveBeast(regionId); }}
+            onNestBeast={(boardIsleId) => { void board.contextNestBeast(boardIsleId); }}
+            onRemoveBeast={() => board.contextBeginRemoveBeast()}
+            onAddBeast={() => board.contextBeginAddBeast()}
+            onAddMarket={() => { void board.contextAddMarket(); }}
+            onRemoveMarket={() => { void board.contextRemoveMarket(); }}
+            onAddRarity={() => board.contextBeginRarityEditor("add")}
+            onEditRarity={() => board.contextBeginRarityEditor("edit")}
+            onRemoveRarity={() => { void board.contextRemoveRarity(); }}
           />
+          {board.pendingBeastRampage !== null && (
+            <BeastRampageChooser
+              pendingIntent={board.pendingBeastRampage}
+              world={world}
+              pending={pending}
+              onCancel={board.cancelPendingBeastRampage}
+              onSubmit={(seatId) => { void board.submitPendingBeastRampage(seatId); }}
+            />
+          )}
+          {board.pendingBeastAdd !== null && (
+            <BeastAddChooser
+              pendingIntent={board.pendingBeastAdd}
+              world={world}
+              pending={pending}
+              onCancel={board.cancelPendingBeastAdd}
+              onSubmit={(beast) => { void board.submitPendingBeastAdd(beast); }}
+            />
+          )}
+          {board.pendingBeastRemove !== null && (
+            <BeastRemoveConfirm
+              pendingIntent={board.pendingBeastRemove}
+              world={world}
+              pending={pending}
+              onCancel={board.cancelPendingBeastRemove}
+              onConfirm={() => { void board.confirmRemoveBeast(); }}
+            />
+          )}
+          {board.pendingRarityEditor !== null && (
+            <RarityEditor
+              pendingIntent={board.pendingRarityEditor}
+              pending={pending}
+              onCancel={board.cancelPendingRarityEditor}
+              onSubmit={(description) => { void board.submitPendingRarity(description); }}
+            />
+          )}
           {board.pendingShipRampage !== null && (
             <ShipRampageChooser
               pendingIntent={board.pendingShipRampage}
@@ -1109,7 +1163,7 @@ function MarinerMap({
               style={{ outline: "none" }}
               onContextMenu={(event) => board.openSeaContextMenu(sea.regionId, event)}
               onClick={() => {
-                if (board.stormDragSourceId !== null) return;
+                if (board.stormDragSourceId !== null || board.beastDragSourceId !== null) return;
                 if (stormGuide !== null) {
                   onPickGuideDestination(sea.regionId);
                   return;
@@ -1303,17 +1357,21 @@ function MarinerMap({
           const href = `#${symbolId}`;
           const convenience = isle.shapes.length === 1;
           const hit = marinerOverlayPointToBoard(isle.hit.cx, isle.hit.cy);
+          const dropHint = board.isleDropHighlight(isle.boardIsleId);
+          const showIsleDrop = dropHint === "hover" || dropHint === "recommended" || dropHint === "available";
           return (
             <g
               key={isle.boardIsleId}
               data-map-layer="isle"
               data-isle-id={isle.boardIsleId}
+              data-isle-drop={dropHint ?? undefined}
               role="button"
               tabIndex={0}
               aria-pressed={selected}
               aria-label={`Isle ${worldName}${bits.length > 0 ? `: ${bits.join(", ")}` : ""}`}
               className={INTERACTIVE_FOCUS_CLASS}
               style={{ outline: "none" }}
+              onContextMenu={(event) => board.openIsleContextMenu(isle.boardIsleId, event)}
               onClick={() => onSelect({ kind: "isle", boardIsleId: isle.boardIsleId })}
               onKeyDown={(event) => activate(event, () => onSelect({ kind: "isle", boardIsleId: isle.boardIsleId }))}
             >
@@ -1330,12 +1388,12 @@ function MarinerMap({
                 />
               )}
               <g
-                data-selection-halo={selected ? "true" : undefined}
+                data-selection-halo={selected || showIsleDrop ? "true" : undefined}
                 data-isle-id={isle.boardIsleId}
                 data-isle-shore-glow
                 data-focus-ring
                 filter="url(#mariner-isle-shore-glow)"
-                color={MARINER_ISLE_SELECTION_GLOW[isle.boardIsleId]}
+                color={showIsleDrop && !selected ? "#0f766e" : MARINER_ISLE_SELECTION_GLOW[isle.boardIsleId]}
                 pointerEvents="none"
               >
                 <use href={href} data-source-geometry={symbolId} fill="none" stroke="none" />
@@ -1415,12 +1473,15 @@ function MarinerMap({
                     key={beast.denizenId}
                     data-piece="beast"
                     data-beast-id={beast.denizenId}
+                    data-draggable-beast={beast.condition === "distrusting" ? "true" : undefined}
                     aria-label={`Beast ${denizenName(world.denizens, beast.denizenId)}`}
                     transform={`translate(${sea.slots.beast.x + index * 16} ${sea.slots.beast.y})`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onSelect({ kind: "region", regionId: sea.regionId });
+                    style={{
+                      cursor: beast.condition === "distrusting" ? "grab" : "pointer",
+                      opacity: board.beastDragSourceId === sea.regionId ? 0.35 : 1,
                     }}
+                    onPointerDown={(event) => board.beginBeastPointer(beast, event)}
+                    onContextMenu={(event) => board.openBeastContextMenu(beast, event)}
                   >
                     <polygon points="0,-12 10,-2 6,12 -6,12 -10,-2" fill="#14532d" stroke="#052e16" />
                     <text x={0} y={20} textAnchor="middle" fontSize={8} fill="#14532d">Beast</text>
@@ -1479,6 +1540,7 @@ function MarinerMap({
                       event.stopPropagation();
                       onSelect({ kind: "isle", boardIsleId: isle.boardIsleId });
                     }}
+                    onContextMenu={(event) => board.openIsleContextMenu(isle.boardIsleId, event)}
                   >
                     <rect x={-8} y={-6} width={16} height={12} fill="#b45309" stroke="#78350f" />
                     <path d="M -10 -6 L 0 -14 L 10 -6" fill="#f59e0b" stroke="#78350f" />
@@ -1522,6 +1584,7 @@ function MarinerMap({
                       event.stopPropagation();
                       onSelect({ kind: "isle", boardIsleId: isle.boardIsleId });
                     }}
+                    onContextMenu={(event) => board.openBeastContextMenu(beast, event)}
                   >
                     <polygon points="0,-12 10,-2 6,12 -6,12 -10,-2" fill="#14532d" stroke="#052e16" />
                     <text x={0} y={20} textAnchor="middle" fontSize={8} fill="#14532d">Beast</text>

@@ -45,7 +45,9 @@ import {
   MARINER_ROUTE_CATALOG,
   captureOperabilityBoard,
   expectedForCreateShip,
+  expectedForMoveBeast,
   expectedForMoveShip,
+  expectedForNestBeast,
 } from "../src/mariner-view-model";
 import { endpointKey } from "../src/mariner-board-pointer";
 import { associatePathEndsWithRouteEndpoints } from "../src/mariner-marker-orientation";
@@ -454,7 +456,7 @@ function routeDropState(container: HTMLElement, routeId: string): string | null 
 
 async function dragTrayPiece(
   container: HTMLElement,
-  piece: "ship" | "raider" | "storm",
+  piece: "ship" | "raider" | "storm" | "market",
   dropTarget: Element | null,
   pointerId = 61,
 ): Promise<void> {
@@ -2505,7 +2507,12 @@ describe("M5.4 Mariner direct board manipulation", () => {
     const isle = container.querySelector('[data-map-layer="isle"]') as Element;
     const isleEvent = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 12, clientY: 12, button: 2 });
     flushSync(() => { isle.dispatchEvent(isleEvent); });
-    expect(isleEvent.defaultPrevented).toBe(false);
+    expect(isleEvent.defaultPrevented).toBe(true);
+    expect(container.querySelector('[data-mariner-context-menu][data-context-menu-kind="isle"]')).not.toBeNull();
+    const instruction = container.querySelector("[data-board-instruction]") as Element;
+    const instructionEvent = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 8, clientY: 8, button: 2 });
+    flushSync(() => { instruction.dispatchEvent(instructionEvent); });
+    expect(instructionEvent.defaultPrevented).toBe(false);
     root.unmount();
     container.remove();
   });
@@ -2929,3 +2936,485 @@ describe("M5.4 Mariner direct board manipulation", () => {
     expect(section).not.toMatch(/Drag\/drop remains DEFERRED/i);
   });
 });
+
+function beastPiece(container: HTMLElement, denizenId: string): Element {
+  const piece = container.querySelector(`[data-piece="beast"][data-beast-id="${denizenId}"]`) as Element | null;
+  if (piece === null) throw new Error(`Missing Beast piece ${denizenId}`);
+  return piece;
+}
+
+function isleHit(container: HTMLElement, boardIsleId: string): Element {
+  const isle = container.querySelector(`[data-map-layer="isle"][data-isle-id="${boardIsleId}"]`) as Element | null;
+  if (isle === null) throw new Error(`Missing Isle ${boardIsleId}`);
+  return isle;
+}
+
+function seaHit(container: HTMLElement, regionId: string): Element {
+  const sea = container.querySelector(`[data-map-layer="sea-hit"][data-region-id="${regionId}"]`) as Element | null;
+  if (sea === null) throw new Error(`Missing Sea ${regionId}`);
+  return sea;
+}
+
+async function dragBeastPiece(
+  container: HTMLElement,
+  denizenId: string,
+  dropTarget: Element | null,
+  pointerId = 81,
+): Promise<void> {
+  const piece = beastPiece(container, denizenId);
+  (piece as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+  Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => dropTarget });
+  await act(async () => {
+    piece.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: 15, clientY: 15, pointerId, isPrimary: true }));
+    window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 30, clientY: 15, pointerId }));
+    window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 210, clientY: 210, pointerId }));
+    window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: 210, clientY: 210, pointerId }));
+  });
+}
+
+async function hoverBeastDragOver(
+  container: HTMLElement,
+  denizenId: string,
+  dropTarget: Element,
+  pointerId = 82,
+): Promise<void> {
+  const piece = beastPiece(container, denizenId);
+  (piece as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+  Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => dropTarget });
+  await act(async () => {
+    piece.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: 15, clientY: 15, pointerId, isPrimary: true }));
+    window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 30, clientY: 15, pointerId }));
+    window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 210, clientY: 210, pointerId }));
+  });
+}
+
+function openBeastContext(container: HTMLElement, denizenId: string, clientX = 88, clientY = 44): HTMLElement {
+  openContextOn(beastPiece(container, denizenId), clientX, clientY);
+  const menu = container.querySelector("[data-mariner-context-menu]") as HTMLElement | null;
+  if (menu === null) throw new Error("Missing Beast context menu");
+  return menu;
+}
+
+function openIsleContext(container: HTMLElement, boardIsleId: string, clientX = 70, clientY = 36): HTMLElement {
+  openContextOn(isleHit(container, boardIsleId), clientX, clientY);
+  const menu = container.querySelector("[data-mariner-context-menu]") as HTMLElement | null;
+  if (menu === null) throw new Error("Missing Isle context menu");
+  return menu;
+}
+
+function withIsleMarket(
+  mariner: MarinerState,
+  boardIsleId: MarinerBoardIsleId,
+  market: MarinerState["boardIsles"][number]["market"],
+): MarinerState {
+  return {
+    ...mariner,
+    boardIsles: mariner.boardIsles.map((isle) => (
+      isle.boardIsleId === boardIsleId ? { ...isle, market } : isle
+    )),
+  };
+}
+
+function withNestingBeastOnIsle(mariner: MarinerState, boardIsleId: MarinerBoardIsleId): MarinerState {
+  return {
+    ...mariner,
+    beasts: [
+      ...mariner.beasts,
+      {
+        denizenId: DEN_B as DenizenId,
+        element: "water",
+        definitionId: "kraken",
+        condition: "friendly_nesting",
+        location: { kind: "board_isle", boardIsleId },
+      },
+    ],
+  };
+}
+
+function isleDropState(container: HTMLElement, boardIsleId: string): string | null {
+  return isleHit(container, boardIsleId).getAttribute("data-isle-drop");
+}
+
+async function confirmBeastRampage(container: HTMLElement, seatId = "hierophant"): Promise<void> {
+  const chooser = container.querySelector("[data-beast-rampage-chooser]") as HTMLElement | null;
+  if (chooser === null) throw new Error("Missing Beast Rampage chooser");
+  const dest = chooser.querySelector('select[aria-label^="Rampage destination"]') as HTMLSelectElement | null;
+  if (dest === null) throw new Error("Missing Beast Rampage destination");
+  setSelect(dest, seatId);
+  await act(async () => { button(chooser, "Confirm Rampage").click(); });
+}
+
+describe("M5.4 Mariner Beast and Market board controls", () => {
+  it("A: clicks a Beast to select its Sea and does not select after a threshold drag", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const piece = beastPiece(container, DEN_A);
+    (piece as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+    await act(async () => {
+      piece.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: 15, clientY: 15, pointerId: 2, isPrimary: true }));
+      window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: 15, clientY: 15, pointerId: 2 }));
+    });
+    expect(container.querySelector("[data-board-overlay-inspector]")?.textContent).toContain("The Sunken Fleet");
+    await act(async () => {
+      button(container, "Close").click();
+    });
+    expect(container.querySelector("[data-board-overlay-inspector]")).toBeNull();
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => seaHit(container, "sunken_fleet"),
+    });
+    await act(async () => {
+      piece.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: 15, clientY: 15, pointerId: 3, isPrimary: true }));
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 30, clientY: 15, pointerId: 3 }));
+      window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: 30, clientY: 15, pointerId: 3 }));
+    });
+    expect(container.querySelector("[data-board-overlay-inspector]")).toBeNull();
+    expect(mockMutations["m3Commands.moveMarinerBeast"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("B: drags a Distrusting Beast to an adjacent Sea with the pointerdown snapshot", async () => {
+    const start = initializedMariner();
+    const expected = expectedForMoveBeast(captureOperabilityBoard(start), DEN_A, "sunken_fleet", "wizard_strait");
+    const { container, root } = renderSurface(start, WIZARD);
+    await dragBeastPiece(container, DEN_A, seaHit(container, "wizard_strait"), 83);
+    expect(mockMutations["m3Commands.updateMarinerBeast"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.moveMarinerBeast"].mock.calls[0][0]).toMatchObject({
+      denizenId: DEN_A,
+      sourceRegionId: "sunken_fleet",
+      destinationRegionId: "wizard_strait",
+      expectedBeast: expected.expectedBeast,
+      expectedStormCounts: expected.expectedStormCounts,
+      expectedRouteOccupancies: expected.expectedRouteOccupancies,
+      expectedRelevantBeasts: expected.expectedRelevantBeasts,
+      rampageResolution: null,
+    });
+    root.unmount();
+    container.remove();
+  });
+
+  it("C: same-source, nonadjacent, and off-map Beast drops do not mutate", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    await dragBeastPiece(container, DEN_A, seaHit(container, "sunken_fleet"), 84);
+    await dragBeastPiece(container, DEN_A, seaHit(container, "sidereal_sea"), 85);
+    await dragBeastPiece(container, DEN_A, document.body, 86);
+    expect(mockMutations["m3Commands.moveMarinerBeast"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.nestMarinerBeast"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.updateMarinerBeast"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("D: drags a Distrusting Beast onto an adjacent Isle as nest and highlights the valid target", async () => {
+    const start = initializedMariner();
+    const expected = expectedForNestBeast(captureOperabilityBoard(start), DEN_A, "orrery");
+    const { container, root } = renderSurface(start, WIZARD);
+    await hoverBeastDragOver(container, DEN_A, isleHit(container, "orrery"), 87);
+    expect(isleDropState(container, "orrery")).toMatch(/^(recommended|hover|available)$/);
+    await dragBeastPiece(container, DEN_A, isleHit(container, "orrery"), 88);
+    expect(mockMutations["m3Commands.updateMarinerBeast"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.nestMarinerBeast"].mock.calls[0][0]).toMatchObject({
+      denizenId: DEN_A,
+      boardIsleId: "orrery",
+      expectedBeastCondition: expected.expectedBeastCondition,
+      expectedBeastLocation: expected.expectedBeastLocation,
+      expectedMarket: expected.expectedMarket,
+      expectedRavageStormCount: expected.expectedRavageStormCount,
+      expectedNestingBeastDenizenId: expected.expectedNestingBeastDenizenId,
+    });
+    root.unmount();
+    container.remove();
+  });
+
+  it("E: Market or Nesting-Beast Isles block nest drops without mutation", async () => {
+    const withMarket = withIsleMarket(initializedMariner(), "orrery", { present: true, rarity: null });
+    const { container, root } = renderSurface(withMarket, WIZARD);
+    await hoverBeastDragOver(container, DEN_A, isleHit(container, "orrery"), 89);
+    expect(isleDropState(container, "orrery")).toBe("blocked");
+    await dragBeastPiece(container, DEN_A, isleHit(container, "orrery"), 90);
+    expect(mockMutations["m3Commands.nestMarinerBeast"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+
+    const nested = withNestingBeastOnIsle(initializedMariner(), "far_reach");
+    const again = renderSurface(nested, WIZARD);
+    await hoverBeastDragOver(again.container, DEN_A, isleHit(again.container, "far_reach"), 91);
+    expect(isleDropState(again.container, "far_reach")).toBe("blocked");
+    await dragBeastPiece(again.container, DEN_A, isleHit(again.container, "far_reach"), 92);
+    expect(mockMutations["m3Commands.nestMarinerBeast"]).not.toHaveBeenCalled();
+    again.root.unmount();
+    again.container.remove();
+  });
+
+  it("F: predicted Beast Rampage opens a chooser, keeps the pointerdown snapshot, and does not rebase after drift", async () => {
+    const start = surroundRegion(initializedMariner(), "koiran_reef");
+    const expected = expectedForMoveBeast(captureOperabilityBoard(start), DEN_A, "sunken_fleet", "koiran_reef");
+    const drifted: MarinerState = {
+      ...start,
+      seaRegions: start.seaRegions.map((region) =>
+        region.regionId === "wizard_strait" ? { ...region, stormCount: 1 } : region
+      ),
+    };
+    const { container, root } = renderSurface(start, WIZARD);
+    await dragBeastPiece(container, DEN_A, seaHit(container, "koiran_reef"), 93);
+    expect(mockMutations["m3Commands.moveMarinerBeast"]).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-beast-rampage-chooser]")).not.toBeNull();
+    expect(container.querySelector("[data-ship-rampage-chooser]")).toBeNull();
+    rerenderSurface(root, drifted);
+    await confirmBeastRampage(container);
+    const payload = mockMutations["m3Commands.moveMarinerBeast"].mock.calls[0][0];
+    expect(payload).toMatchObject({
+      denizenId: DEN_A,
+      sourceRegionId: "sunken_fleet",
+      destinationRegionId: "koiran_reef",
+      expectedBeast: expected.expectedBeast,
+      expectedStormCounts: expected.expectedStormCounts,
+      expectedRouteOccupancies: expected.expectedRouteOccupancies,
+      expectedRelevantBeasts: expected.expectedRelevantBeasts,
+      rampageResolution: {
+        denizenId: DEN_A,
+        destinationSeatId: "hierophant",
+      },
+    });
+    expect(payload.expectedStormCounts).not.toEqual(
+      expectedForMoveBeast(captureOperabilityBoard(drifted), DEN_A, "sunken_fleet", "koiran_reef").expectedStormCounts,
+    );
+    root.unmount();
+    container.remove();
+  });
+
+  it("G: right-click Beast offers Move, Nest, and confirmed Remove without the Sea menu replacing it", async () => {
+    const start = initializedMariner();
+    const { container, root } = renderSurface(start, WIZARD);
+    const menu = openBeastContext(container, DEN_A);
+    expect(menu.getAttribute("data-context-menu-kind")).toBe("beast");
+    expect(menu.textContent).toMatch(/Move ->/);
+    expect(menu.textContent).toMatch(/Nest ->/);
+    expect(menu.textContent).toContain("Remove Beast");
+    expect(container.querySelector('[data-context-action="add-storm"]')).toBeNull();
+    await act(async () => { contextAction(container, "move-beast", undefined).click(); });
+    expect(mockMutations["m3Commands.moveMarinerBeast"]).toHaveBeenCalled();
+    expect(mockMutations["m3Commands.moveMarinerBeast"].mock.calls[0][0]).toMatchObject({
+      denizenId: DEN_A,
+      sourceRegionId: "sunken_fleet",
+    });
+
+    openBeastContext(container, DEN_A);
+    await act(async () => { contextAction(container, "remove-beast").click(); });
+    expect(mockMutations["m3Commands.removeMarinerBeast"]).not.toHaveBeenCalled();
+    const confirm = container.querySelector("[data-beast-remove-confirm]") as HTMLElement;
+    expect(confirm.textContent).toContain("Remove Kraken-kin?");
+    rerenderSurface(root, withBeast(start, { ...baselineBeast(start), element: "fire" }));
+    await act(async () => { button(confirm, "Remove").click(); });
+    expect(mockMutations["m3Commands.removeMarinerBeast"].mock.calls[0][0]).toMatchObject({
+      denizenId: DEN_A,
+      expectedBeast: baselineBeast(start),
+    });
+    expect(mockMutations["m3Commands.createMarinerBeast"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("G: nesting Beast context offers only Remove and is not draggable", async () => {
+    const nested = withBeast(initializedMariner(), {
+      ...baselineBeast(initializedMariner()),
+      condition: "friendly_nesting",
+      location: { kind: "board_isle", boardIsleId: "sage_atoll" },
+    });
+    const { container, root } = renderSurface(nested, WIZARD);
+    const piece = beastPiece(container, DEN_A);
+    expect(piece.getAttribute("data-draggable-beast")).not.toBe("true");
+    const menu = openBeastContext(container, DEN_A);
+    expect(menu.querySelector('[data-context-action="move-beast"]')).toBeNull();
+    expect(menu.querySelector('[data-context-action="nest-beast"]')).toBeNull();
+    expect(menu.querySelector('[data-context-action="remove-beast"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("H: Add Beast uses an unused World Denizen and does not create one", async () => {
+    const start = initializedMariner();
+    const { container, root } = renderSurface(start, WIZARD);
+    openSeaContext(container, "wizard_strait");
+    await act(async () => { contextAction(container, "add-beast").click(); });
+    const chooser = container.querySelector("[data-beast-add-chooser]") as HTMLElement;
+    expect(chooser).not.toBeNull();
+    expect(chooser.textContent).not.toContain("No available Beast-profile World Denizens.");
+    setSelect(select(chooser, "Add Beast Denizen"), DEN_B);
+    setSelect(select(chooser, "Beast Element"), "water");
+    await act(async () => { button(chooser, "Add Beast").click(); });
+    expect(mockMutations["m3Commands.createMarinerBeast"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.addMarinerBeast"].mock.calls[0][0]).toMatchObject({
+      denizenId: DEN_B,
+      element: "water",
+      condition: "distrusting",
+      location: { kind: "sea_region", regionId: "wizard_strait" },
+    });
+
+    openIsleContext(container, "orrery");
+    await act(async () => { contextAction(container, "add-beast").click(); });
+    const isleChooser = container.querySelector("[data-beast-add-chooser]") as HTMLElement;
+    setSelect(select(isleChooser, "Add Beast Denizen"), DEN_B);
+    setSelect(select(isleChooser, "Beast Element"), "earth");
+    await act(async () => { button(isleChooser, "Add Beast").click(); });
+    expect(mockMutations["m3Commands.addMarinerBeast"].mock.calls[1][0]).toMatchObject({
+      denizenId: DEN_B,
+      element: "earth",
+      condition: "friendly_nesting",
+      location: { kind: "board_isle", boardIsleId: "orrery" },
+    });
+    root.unmount();
+    container.remove();
+
+    const used = withNestingBeastOnIsle(initializedMariner(), "sage_atoll");
+    const again = renderSurface(used, WIZARD);
+    openIsleContext(again.container, "ishana");
+    expect(again.container.querySelector('[data-context-action="add-beast"]')).toBeNull();
+    openIsleContext(again.container, "sage_atoll");
+    expect(again.container.querySelector('[data-context-action="add-beast"]')).toBeNull();
+    openSeaContext(again.container, "wizard_strait");
+    await act(async () => { contextAction(again.container, "add-beast").click(); });
+    expect(again.container.querySelector("[data-beast-add-chooser]")?.textContent).toContain(
+      "No available Beast-profile World Denizens.",
+    );
+    expect(mockMutations["m3Commands.createMarinerBeast"]).not.toHaveBeenCalled();
+    again.root.unmount();
+    again.container.remove();
+  });
+
+  it("I: Market tray places on a valid empty Isle and no-ops existing, Nesting-Beast, or off-board targets", async () => {
+    const start = initializedMariner();
+    const { container, root } = renderSurface(start, WIZARD);
+    expect(container.querySelector('[data-tray-piece="market"]')?.textContent).toMatch(/Market/);
+    expect(container.querySelector('[data-tray-piece="beast"]')).toBeNull();
+    const orrery = isleHit(container, "orrery");
+    await dragTrayPiece(container, "market", orrery, 94);
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"].mock.calls[0][0]).toMatchObject({
+      boardIsleId: "orrery",
+      expectedMarket: start.boardIsles.find((isle) => isle.boardIsleId === "orrery")?.market,
+      market: { present: true, rarity: null },
+    });
+
+    await dragTrayPiece(container, "market", isleHit(container, "scuttleport"), 95);
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"]).toHaveBeenCalledTimes(1);
+
+    await dragTrayPiece(container, "market", document.body, 96);
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"]).toHaveBeenCalledTimes(1);
+    root.unmount();
+    container.remove();
+
+    const nested = withNestingBeastOnIsle(initializedMariner(), "sage_atoll");
+    const again = renderSurface(nested, WIZARD);
+    await hoverTrayDragOverIsle(again.container, "sage_atoll", 97);
+    expect(isleDropState(again.container, "sage_atoll")).toBe("blocked");
+    await dragTrayPiece(again.container, "market", isleHit(again.container, "sage_atoll"), 98);
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"]).toHaveBeenCalledTimes(1);
+    again.root.unmount();
+    again.container.remove();
+  });
+
+  it("J: Isle context Add/Remove Market keeps the menu-open expected Market after drift", async () => {
+    const start = initializedMariner();
+    const { container, root } = renderSurface(start, WIZARD);
+    openIsleContext(container, "orrery");
+    await act(async () => { contextAction(container, "add-market").click(); });
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"].mock.calls[0][0]).toMatchObject({
+      boardIsleId: "orrery",
+      expectedMarket: { present: false },
+      market: { present: true, rarity: null },
+    });
+
+    const withMarket = withIsleMarket(start, "ishana", { present: true, rarity: null });
+    rerenderSurface(root, withMarket);
+    const market = container.querySelector('[data-piece="market"][data-isle-id="ishana"]') as Element;
+    openContextOn(market, 66, 40);
+    expect(container.querySelector("[data-mariner-context-menu]")?.getAttribute("data-context-menu-kind")).toBe("isle");
+    rerenderSurface(root, withIsleMarket(withMarket, "ishana", { present: true, rarity: "drifted pearl" }));
+    await act(async () => { contextAction(container, "remove-market").click(); });
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"].mock.calls[1][0]).toMatchObject({
+      boardIsleId: "ishana",
+      expectedMarket: { present: true, rarity: null },
+      market: { present: false },
+    });
+    root.unmount();
+    container.remove();
+  });
+
+  it("K: Rarity add/edit/remove uses the editor-start Market and does not award Gifts", async () => {
+    const start = withIsleMarket(initializedMariner(), "orrery", { present: true, rarity: null });
+    const { container, root } = renderSurface(start, WIZARD);
+    openIsleContext(container, "orrery");
+    await act(async () => { contextAction(container, "add-rarity").click(); });
+    const editor = container.querySelector("[data-rarity-editor]") as HTMLElement;
+    const field = editor.querySelector('input[aria-label="Rarity description"]') as HTMLInputElement;
+    setInput(field, "  moon silk  ");
+    await act(async () => { button(editor, "Save Rarity").click(); });
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"].mock.calls[0][0]).toMatchObject({
+      boardIsleId: "orrery",
+      expectedMarket: { present: true, rarity: null },
+      market: { present: true, rarity: "moon silk" },
+    });
+    expect(mockMutations["m3Commands.recordMarinerRavageResult"]).not.toHaveBeenCalled();
+
+    const withRarity = withIsleMarket(start, "orrery", { present: true, rarity: "moon silk" });
+    rerenderSurface(root, withRarity);
+    openIsleContext(container, "orrery");
+    await act(async () => { contextAction(container, "edit-rarity").click(); });
+    const edit = container.querySelector("[data-rarity-editor]") as HTMLElement;
+    const editField = edit.querySelector('input[aria-label="Rarity description"]') as HTMLInputElement;
+    expect(editField.value).toBe("moon silk");
+    rerenderSurface(root, withIsleMarket(withRarity, "orrery", { present: true, rarity: "drifted" }));
+    setInput(editField, "tide glass");
+    await act(async () => { button(edit, "Save Rarity").click(); });
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"].mock.calls[1][0]).toMatchObject({
+      boardIsleId: "orrery",
+      expectedMarket: { present: true, rarity: "moon silk" },
+      market: { present: true, rarity: "tide glass" },
+    });
+
+    rerenderSurface(root, withRarity);
+    openIsleContext(container, "orrery");
+    await act(async () => { contextAction(container, "remove-rarity").click(); });
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"].mock.calls[2][0]).toMatchObject({
+      boardIsleId: "orrery",
+      expectedMarket: { present: true, rarity: "moon silk" },
+      market: { present: true, rarity: null },
+    });
+    root.unmount();
+    container.remove();
+  });
+
+  it("L: does not restore hover command menus and keeps Ship/Raider/Storm tray pieces", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    expect(container.querySelector("[data-hover-command-menu]")).toBeNull();
+    expect(container.querySelector('[data-tray-piece="ship"]')).not.toBeNull();
+    expect(container.querySelector('[data-tray-piece="raider"]')).not.toBeNull();
+    expect(container.querySelector('[data-tray-piece="storm"]')).not.toBeNull();
+    expect(container.querySelector('[data-tray-piece="market"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+});
+
+async function hoverTrayDragOverIsle(
+  container: HTMLElement,
+  hoverIsleId: string,
+  pointerId = 99,
+): Promise<void> {
+  const tray = container.querySelector('[data-tray-piece="market"]') as Element;
+  const dest = isleHit(container, hoverIsleId);
+  (tray as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+  Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => dest });
+  await act(async () => {
+    tray.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      clientX: 15,
+      clientY: 15,
+      pointerId,
+      isPrimary: true,
+      button: 0,
+    }));
+    window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 30, clientY: 15, pointerId }));
+    window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 210, clientY: 210, pointerId }));
+  });
+}

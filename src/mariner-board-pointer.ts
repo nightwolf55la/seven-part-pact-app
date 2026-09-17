@@ -58,6 +58,23 @@ export function findRouteDropId(start: Element | null): string | null {
   return null;
 }
 
+export function findIsleDropId(start: Element | null): string | null {
+  let node: Element | null = start;
+  while (node !== null) {
+    if (node instanceof Element) {
+      if (node.getAttribute("data-map-layer") === "isle") {
+        return node.getAttribute("data-isle-id");
+      }
+      const isleId = node.getAttribute("data-isle-id");
+      if (isleId !== null && isleId !== "") {
+        return isleId;
+      }
+    }
+    node = node.parentElement;
+  }
+  return null;
+}
+
 export function raiderTowardAppliesOnRoute(
   toward: MarinerRouteEndpoint,
   destinationRouteId: string,
