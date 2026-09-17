@@ -1,11 +1,13 @@
 import { useLayoutEffect, useRef, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
-import type { MarinerBoardIsleId, MarinerExternalLandId } from "../shared/domain";
+import type { MarinerBoardIsleId, MarinerExternalLandId, MarinerRouteEndpoint } from "../shared/domain";
 import { MARINER_BOARD_ISLE_IDS, MARINER_EXTERNAL_LAND_IDS } from "../shared/domain";
+import { endpointKey } from "./mariner-board-pointer";
+import { MARINER_ROUTE_CATALOG } from "./mariner-view-model";
 import type { NecromancerBuiltinGateId, NecromancerBuiltinPathSpaceId } from "../shared/domain";
 import marinerInteractionGeometryRaw from "./assets/source-boards/mariner-interaction-geometry.svg?raw";
 import necromancerInteractionGeometryRaw from "./assets/source-boards/necromancer-interaction-geometry.svg?raw";
 import { mapEndpointPoint } from "./mariner-map-geometry";
-import { alignHeadingToward } from "./mariner-marker-orientation";
+import { raiderHeadingTowardRouteEndpoint } from "./mariner-marker-orientation";
 
 /** Generated PowerPoint-native interaction sprites. Referenced by application IDs; never parsed for identity. */
 export const MARINER_INTERACTION_GEOMETRY_RAW = marinerInteractionGeometryRaw;
@@ -195,19 +197,61 @@ function poseFromSamples(samples: MapPt[], normalOffset: number): SourceRouteMar
   };
 }
 
-/** Midpoint/tangent of an exact source Route symbol, offset along the local normal. */
-export function sourceRouteMarkerPose(symbolId: string, normalOffset = 6): SourceRouteMarkerPose | null {
+function sourceRouteBoardGeometry(symbolId: string): {
+  readonly toBoard: (point: MapPt) => MapPt;
+  readonly localSamples: MapPt[];
+} | null {
   const symbol = document.getElementById(symbolId);
   const path = symbol?.querySelector("path");
   if (symbol === null || path === null || path === undefined) return null;
   const pathTransform = parseSvgTransform(path.getAttribute("transform"));
   const parentTransform = parseSvgTransform(path.parentElement?.getAttribute("transform") ?? null);
   const toBoard = (point: MapPt): MapPt => parentTransform(pathTransform(point));
-  const local = poseFromSamples(samplePathLocalPoints(path.getAttribute("d") ?? ""), 0);
+  const localSamples = samplePathLocalPoints(path.getAttribute("d") ?? "");
+  if (localSamples.length < 2) return null;
+  return { toBoard, localSamples };
+}
+
+function pathEndsFromBoardSamples(samples: MapPt[]): { readonly start: MapPt; readonly end: MapPt } | null {
+  if (samples.length === 0) return null;
+  if (samples.length === 1) return { start: samples[0]!, end: samples[0]! };
+  let bestI = 0;
+  let bestJ = 1;
+  let bestDist = 0;
+  for (let i = 0; i < samples.length; i += 1) {
+    const a = samples[i]!;
+    for (let j = i + 1; j < samples.length; j += 1) {
+      const b = samples[j]!;
+      const dist = Math.hypot(b.x - a.x, b.y - a.y);
+      if (dist > bestDist) {
+        bestDist = dist;
+        bestI = i;
+        bestJ = j;
+      }
+    }
+  }
+  return bestI <= bestJ
+    ? { start: samples[bestI]!, end: samples[bestJ]! }
+    : { start: samples[bestJ]!, end: samples[bestI]! };
+}
+
+/** Physical ends of an exact source Route path in board coordinates (farthest-apart samples). */
+export function sourceRoutePathBoardEnds(symbolId: string): { readonly start: MapPt; readonly end: MapPt } | null {
+  const geometry = sourceRouteBoardGeometry(symbolId);
+  if (geometry === null) return null;
+  const boardSamples = geometry.localSamples.map((point) => geometry.toBoard(point));
+  return pathEndsFromBoardSamples(boardSamples);
+}
+
+/** Midpoint/tangent of an exact source Route symbol, offset along the local normal. */
+export function sourceRouteMarkerPose(symbolId: string, normalOffset = 6): SourceRouteMarkerPose | null {
+  const geometry = sourceRouteBoardGeometry(symbolId);
+  if (geometry === null) return null;
+  const local = poseFromSamples(geometry.localSamples, 0);
   if (local === null) return null;
-  const mid = toBoard({ x: local.x, y: local.y });
+  const mid = geometry.toBoard({ x: local.x, y: local.y });
   const tangentRad = (local.tangentDeg * Math.PI) / 180;
-  const tangent = toBoard({ x: local.x + Math.cos(tangentRad), y: local.y + Math.sin(tangentRad) });
+  const tangent = geometry.toBoard({ x: local.x + Math.cos(tangentRad), y: local.y + Math.sin(tangentRad) });
   const dx = tangent.x - mid.x;
   const dy = tangent.y - mid.y;
   const tangentLen = Math.hypot(dx, dy) || 1;
@@ -220,15 +264,39 @@ export function sourceRouteMarkerPose(symbolId: string, normalOffset = 6): Sourc
   };
 }
 
-function towardMapPoint(toward: string | undefined): { x: number; y: number } | null {
+function towardEndpointFromString(toward: string | undefined): MarinerRouteEndpoint | null {
   if (toward === undefined) return null;
   if ((MARINER_BOARD_ISLE_IDS as readonly string[]).includes(toward)) {
-    return mapEndpointPoint({ kind: "board_isle", boardIsleId: toward as MarinerBoardIsleId });
+    return { kind: "board_isle", boardIsleId: toward as MarinerBoardIsleId };
   }
   if ((MARINER_EXTERNAL_LAND_IDS as readonly string[]).includes(toward)) {
-    return mapEndpointPoint({ kind: "external_land", externalLandId: toward as MarinerExternalLandId });
+    return { kind: "external_land", externalLandId: toward as MarinerExternalLandId };
   }
   return null;
+}
+
+export function resolveRaiderMarkerHeading(
+  symbolId: string,
+  routeId: string,
+  toward: MarinerRouteEndpoint,
+  normalOffset = 6,
+): { readonly pose: SourceRouteMarkerPose; readonly headingDeg: number; readonly reversed: boolean } | null {
+  const routeDef = MARINER_ROUTE_CATALOG.find((entry) => entry.routeId === routeId);
+  const ends = sourceRoutePathBoardEnds(symbolId);
+  const pose = sourceRouteMarkerPose(symbolId, normalOffset);
+  if (routeDef === undefined || ends === null || pose === null) return null;
+  const endpointAApprox = mapEndpointPoint(routeDef.endpointA);
+  const endpointBApprox = mapEndpointPoint(routeDef.endpointB);
+  const towardMatchesEndpointA = endpointKey(toward) === endpointKey(routeDef.endpointA);
+  const aligned = raiderHeadingTowardRouteEndpoint(
+    pose,
+    ends.start,
+    ends.end,
+    endpointAApprox,
+    endpointBApprox,
+    towardMatchesEndpointA,
+  );
+  return { pose, headingDeg: aligned.headingDeg, reversed: aligned.reversed };
 }
 
 export function SourceRouteOccupancyMarker({
@@ -269,9 +337,21 @@ export function SourceRouteOccupancyMarker({
     }
     let headingDeg = pose.tangentDeg;
     if (kind === "raider") {
-      const target = towardMapPoint(toward);
-      if (target !== null) {
-        const aligned = alignHeadingToward(pose.tangentDeg, pose, target);
+      const towardEndpoint = towardEndpointFromString(toward);
+      const routeDef = MARINER_ROUTE_CATALOG.find((entry) => entry.routeId === routeId);
+      const ends = sourceRoutePathBoardEnds(id);
+      if (towardEndpoint !== null && routeDef !== undefined && ends !== null) {
+        const endpointAApprox = mapEndpointPoint(routeDef.endpointA);
+        const endpointBApprox = mapEndpointPoint(routeDef.endpointB);
+        const towardMatchesEndpointA = endpointKey(towardEndpoint) === endpointKey(routeDef.endpointA);
+        const aligned = raiderHeadingTowardRouteEndpoint(
+          pose,
+          ends.start,
+          ends.end,
+          endpointAApprox,
+          endpointBApprox,
+          towardMatchesEndpointA,
+        );
         headingDeg = aligned.headingDeg;
         host.setAttribute("data-raider-aligned", "toward-destination");
         host.setAttribute("data-tangent-reversed", aligned.reversed ? "true" : "false");

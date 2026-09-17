@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api.js";
 import {
@@ -232,6 +232,7 @@ export default function MarinerSurface({
   const [lawDraft, setLawDraft] = useState<string[]>([...mariner.selectedLawOfSeaIds]);
   const [shipDraft, setShipDraft] = useState(mariner.shipPlaceId ?? "");
   const [confirmRemove, setConfirmRemove] = useState<MarinerBeastState | null>(null);
+  const boardStageFocusRef = useRef<HTMLDivElement>(null);
   const authoritativeLawKey = selectedLawKey(mariner.selectedLawOfSeaIds);
 
   useLayoutEffect(() => {
@@ -316,6 +317,11 @@ export default function MarinerSurface({
     }
     setSelection(null);
   }
+
+  useLayoutEffect(() => {
+    if (selection !== null || stormGuide !== null) return;
+    boardStageFocusRef.current?.focus({ preventScroll: true });
+  }, [selection, stormGuide]);
 
   async function pickStormGuideDestination(regionId: MarinerSeaRegionId): Promise<void> {
     if (stormGuide === null || pending) return;
@@ -424,8 +430,10 @@ export default function MarinerSurface({
         }}
       />
       <div
+        ref={boardStageFocusRef}
         data-mariner-board-stage
-        className="relative min-w-0 overflow-hidden rounded-lg"
+        tabIndex={-1}
+        className="relative min-w-0 overflow-hidden rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40"
         style={{ background: MARINER_MAP_PALETTE.field }}
       >
           <MarinerMap
@@ -454,7 +462,7 @@ export default function MarinerSurface({
               onBeginStorm={board.beginTrayStormPointer}
             />
             <p data-board-instruction className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">
-              Drag pieces to place or move • Right-click for actions • Click for details • Delete removes a selected piece
+              Drag from the tray to place or replace • Drag pieces to move • Right-click for actions • R reverses a selected Raider • Delete removes • Raider arrows point toward their destination
             </p>
           </div>
           <BoardDragGhost visual={board.dragVisual} />
@@ -464,6 +472,9 @@ export default function MarinerSurface({
             world={world}
             onAddShip={() => { void board.contextAddShip(); }}
             onAddRaider={(toward) => { void board.contextAddRaider(toward); }}
+            onReverseRaider={() => { void board.contextReverseRaider(); }}
+            onChangeRaiderToShip={() => { void board.contextChangeRaiderToShip(); }}
+            onChangeShipToRaider={(toward) => { void board.contextChangeShipToRaider(toward); }}
             onRemoveOccupancy={() => { void board.contextRemoveOccupancy(); }}
             onAddStorm={() => { void board.contextAddStorm(); }}
             onRemoveStorm={() => { void board.contextRemoveStorm(); }}
@@ -499,7 +510,7 @@ export default function MarinerSurface({
                   data-raider-toward={endpointKey(endpoint)}
                   onClick={() => { void board.chooseRaiderDirection(endpoint); }}
                 >
-                  {board.pendingRaiderDirection?.action === "create"
+                  {board.pendingRaiderDirection?.action === "create" || board.pendingRaiderDirection?.action === "replace"
                     ? `Raider -> ${routeEndpointLabel(endpoint, mariner, world.isles)}`
                     : routeEndpointLabel(endpoint, mariner, world.isles)}
                 </button>

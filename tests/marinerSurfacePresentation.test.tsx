@@ -42,10 +42,14 @@ import {
   RAVAGE_LORE_FOLLOW_THROUGH,
   RAVAGE_MARKET_ABSORBED_COPY,
   RAVAGE_RESULT_LABEL,
+  MARINER_ROUTE_CATALOG,
   captureOperabilityBoard,
   expectedForCreateShip,
   expectedForMoveShip,
 } from "../src/mariner-view-model";
+import { endpointKey } from "../src/mariner-board-pointer";
+import { associatePathEndsWithRouteEndpoints } from "../src/mariner-marker-orientation";
+import { marinerRouteSymbolId, sourceRoutePathBoardEnds } from "../src/source-interaction-geometry";
 
 const ADD_SHIP_LABEL = "Add Ship";
 const MOVE_RAIDER_LABEL = "Move Raider";
@@ -1286,7 +1290,20 @@ describe("Mariner desktop board hierarchy and overlay inspector", () => {
     const originX = Number(parsed?.[1]);
     const originY = Number(parsed?.[2]);
     const headingDeg = Number(parsed?.[3]);
-    const target = mapEndpointPoint({ kind: "board_isle", boardIsleId: "ishana" });
+    const routeDef = MARINER_ROUTE_CATALOG.find((entry) => entry.routeId === RAID_ROUTE);
+    expect(routeDef).toBeDefined();
+    const ends = sourceRoutePathBoardEnds(marinerRouteSymbolId(RAID_ROUTE));
+    expect(ends).not.toBeNull();
+    const associated = associatePathEndsWithRouteEndpoints(
+      ends!.start,
+      ends!.end,
+      mapEndpointPoint(routeDef!.endpointA),
+      mapEndpointPoint(routeDef!.endpointB),
+    );
+    const towardEndpoint = { kind: "board_isle" as const, boardIsleId: "ishana" as const };
+    const target = endpointKey(towardEndpoint) === endpointKey(routeDef!.endpointA)
+      ? associated.endpointA
+      : associated.endpointB;
     const rad = (headingDeg * Math.PI) / 180;
     const towardDot = Math.cos(rad) * (target.x - originX) + Math.sin(rad) * (target.y - originY);
     expect(towardDot).toBeGreaterThan(0);
@@ -2034,7 +2051,8 @@ describe("M5.4 Mariner direct board manipulation", () => {
     expect(container.querySelector("[data-sea-quick-actions]")).toBeNull();
     expect(container.querySelector("[data-storm-piece-quick-actions]")).toBeNull();
     expect(container.querySelector("[data-route-occupancy-remove]")).toBeNull();
-    expect(container.querySelector('[data-board-instruction]')?.textContent).toMatch(/Drag pieces to place or move/);
+    expect(container.querySelector('[data-board-instruction]')?.textContent).toMatch(/Drag from the tray to place or replace/);
+    expect(container.querySelector('[data-board-instruction]')?.textContent).toMatch(/R reverses a selected Raider/);
     expect(container.querySelector("[data-piece-tray]")).not.toBeNull();
     root.unmount();
     container.remove();
@@ -2510,15 +2528,25 @@ describe("M5.4 Mariner direct board manipulation", () => {
     container.remove();
   });
 
-  it("places a tray Ship on an empty Route with the pointerdown snapshot and no-ops occupied or off-board drops", async () => {
+  it("places a tray Ship on an empty Route with the pointerdown snapshot, replaces Raider, and no-ops same-type or off-board drops", async () => {
     const start = initializedMariner();
     const expected = expectedForCreateShip(captureOperabilityBoard(start), SUNKEN_ORRERY_FAR);
     const { container, root } = renderSurface(start, WIZARD);
     const empty = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SUNKEN_ORRERY_FAR}"]`) as Element;
-    const occupied = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`) as Element;
-    await dragTrayPiece(container, "ship", occupied, 61);
+    const shipOccupied = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`) as Element;
+    const raiderOccupied = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${RAID_ROUTE}"]`) as Element;
+    await dragTrayPiece(container, "ship", shipOccupied, 61);
     expect(mockMutations["m3Commands.createMarinerShip"]).not.toHaveBeenCalled();
     expect(mockMutations["m3Commands.setMarinerRouteOccupancy"]).not.toHaveBeenCalled();
+    await dragTrayPiece(container, "ship", raiderOccupied, 611);
+    expect(mockMutations["m3Commands.createMarinerShip"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.moveMarinerShip"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"].mock.calls[0][0]).toMatchObject({
+      routeId: RAID_ROUTE,
+      expectedOccupancy: { kind: "raider", toward: { kind: "board_isle", boardIsleId: "ishana" } },
+      occupancy: { kind: "ship" },
+    });
     await dragTrayPiece(container, "ship", document.body, 62);
     expect(mockMutations["m3Commands.createMarinerShip"]).not.toHaveBeenCalled();
     await dragTrayPiece(container, "ship", empty, 63);
@@ -2631,6 +2659,130 @@ describe("M5.4 Mariner direct board manipulation", () => {
     });
     expect(mockMutations["m3Commands.setMarinerSeaStormCount"].mock.calls.length).toBe(stormCalls);
     expect(mockMutations["m3Commands.setMarinerRouteOccupancy"].mock.calls.length).toBe(occupancyCalls);
+    root.unmount();
+    container.remove();
+  });
+
+  it("opens a tray Raider direction chooser when dropping on Ship and replaces with the pointerdown snapshot", async () => {
+    const start = initializedMariner();
+    const { container, root } = renderSurface(start, WIZARD);
+    const shipRoute = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`) as Element;
+    await dragTrayPiece(container, "raider", shipRoute, 701);
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.createMarinerShip"]).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-raider-direction-chooser]")).not.toBeNull();
+    rerenderSurface(root, withRealtimeOccupancyDrift(start));
+    await act(async () => { button(container, "Raider -> World thyras").click(); });
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"].mock.calls[0][0]).toMatchObject({
+      routeId: SHIP_ROUTE,
+      expectedOccupancy: { kind: "ship" },
+      occupancy: { kind: "raider", toward: { kind: "board_isle", boardIsleId: "thyras" } },
+    });
+    root.unmount();
+    container.remove();
+  });
+
+  it("no-ops tray Raider onto an existing Raider", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const raiderRoute = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${RAID_ROUTE}"]`) as Element;
+    await dragTrayPiece(container, "raider", raiderRoute, 702);
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.createMarinerShip"]).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-raider-direction-chooser]")).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("still blocks dragging an on-board piece onto an occupied Route", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    await dragRoutePiece(container, SHIP_ROUTE, RAID_ROUTE, 703);
+    expect(mockMutations["m3Commands.moveMarinerShip"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("right-click Raider offers reverse and change-to-ship with menu-open snapshots", async () => {
+    const start = initializedMariner();
+    const { container, root } = renderSurface(start, WIZARD);
+    openOccupiedRouteContext(container, RAID_ROUTE);
+    await act(async () => { contextAction(container, "reverse-raider").click(); });
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"].mock.calls[0][0]).toMatchObject({
+      routeId: RAID_ROUTE,
+      expectedOccupancy: { kind: "raider", toward: { kind: "board_isle", boardIsleId: "ishana" } },
+      occupancy: { kind: "raider", toward: { kind: "board_isle", boardIsleId: "scuttleport" } },
+    });
+    openOccupiedRouteContext(container, RAID_ROUTE);
+    await act(async () => { contextAction(container, "change-to-ship").click(); });
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"].mock.calls[1][0]).toMatchObject({
+      routeId: RAID_ROUTE,
+      expectedOccupancy: { kind: "raider", toward: { kind: "board_isle", boardIsleId: "ishana" } },
+      occupancy: { kind: "ship" },
+    });
+    root.unmount();
+    container.remove();
+  });
+
+  it("right-click Ship offers change-to-Raider toward both endpoints", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    openOccupiedRouteContext(container, SHIP_ROUTE);
+    await act(async () => { contextAction(container, "change-to-raider", "board:thyras").click(); });
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"].mock.calls[0][0]).toMatchObject({
+      routeId: SHIP_ROUTE,
+      expectedOccupancy: { kind: "ship" },
+      occupancy: { kind: "raider", toward: { kind: "board_isle", boardIsleId: "thyras" } },
+    });
+    openOccupiedRouteContext(container, SHIP_ROUTE);
+    await act(async () => { contextAction(container, "change-to-raider", "board:far_reach").click(); });
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"].mock.calls[1][0]).toMatchObject({
+      occupancy: { kind: "raider", toward: { kind: "board_isle", boardIsleId: "far_reach" } },
+    });
+    root.unmount();
+    container.remove();
+  });
+
+  it("keyboard R reverses a selected Raider but ignores editable targets and non-Raider selections", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const raiderRoute = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${RAID_ROUTE}"]`) as Element;
+    flushSync(() => { raiderRoute.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "r", bubbles: true }));
+    });
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"].mock.calls[0][0]).toMatchObject({
+      routeId: RAID_ROUTE,
+      occupancy: { kind: "raider", toward: { kind: "board_isle", boardIsleId: "scuttleport" } },
+    });
+    const shipRoute = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`) as Element;
+    flushSync(() => { shipRoute.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    const callsBefore = mockMutations["m3Commands.setMarinerRouteOccupancy"].mock.calls.length;
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "R", bubbles: true }));
+    });
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"].mock.calls.length).toBe(callsBefore);
+    const input = container.querySelector('select[aria-label="Change Mariner ship"]') as HTMLSelectElement;
+    input.focus();
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "r", bubbles: true }));
+    });
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"].mock.calls.length).toBe(callsBefore);
+    root.unmount();
+    container.remove();
+  });
+
+  it("Escape dismisses selection and moves focus to the board stage instead of the Route hit target", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`) as HTMLElement;
+    flushSync(() => { route.focus(); });
+    flushSync(() => { route.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(document.activeElement).toBe(route);
+    expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(container.querySelector("[data-board-overlay-inspector]")).toBeNull();
+    const stage = container.querySelector("[data-mariner-board-stage]") as HTMLElement;
+    expect(document.activeElement).toBe(stage);
+    expect(document.activeElement).not.toBe(route);
     root.unmount();
     container.remove();
   });

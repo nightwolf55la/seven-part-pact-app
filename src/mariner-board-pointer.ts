@@ -73,3 +73,15 @@ export function representableRaiderEndpoints(routeId: string): MarinerRouteEndpo
   if (route === undefined) return [];
   return [route.endpointA, route.endpointB];
 }
+
+export function oppositeRouteEndpoint(
+  routeId: string,
+  toward: MarinerRouteEndpoint,
+): MarinerRouteEndpoint | null {
+  const route = MARINER_ROUTE_CATALOG.find((entry) => entry.routeId === routeId);
+  if (route === undefined) return null;
+  const key = endpointKey(toward);
+  if (key === endpointKey(route.endpointA)) return route.endpointB;
+  if (key === endpointKey(route.endpointB)) return route.endpointA;
+  return null;
+}

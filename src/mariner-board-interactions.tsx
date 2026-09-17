@@ -36,9 +36,11 @@ import {
   findRouteDropId,
   findSeaDropRegionId,
   isEmptyRoute,
+  oppositeRouteEndpoint,
   pointerMovementExceedsDragThreshold,
   raiderTowardAppliesOnRoute,
   representableRaiderEndpoints,
+  routeOccupancyAt,
   routesShareBoardIsleEndpoint,
 } from "./mariner-board-pointer";
 
@@ -65,6 +67,7 @@ export type PendingRaiderDirection = {
 } & (
   | { readonly action: "move"; readonly sourceRouteId: string }
   | { readonly action: "create" }
+  | { readonly action: "replace"; readonly destinationRouteId: string }
 );
 
 type PendingPlacementOccupancy =
@@ -353,6 +356,23 @@ export function useMarinerBoardInteractions(args: {
     }
   }, [cancelDrag, commitShipMove, finishNoOpDrag]);
 
+  const commitReplaceRouteOccupancy = useCallback(async (
+    routeId: string,
+    expectedOccupancy: MarinerRouteOccupancy,
+    occupancy: MarinerRouteOccupancy,
+  ) => {
+    const payload = buildSetMarinerRouteOccupancyPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      routeId,
+      expectedOccupancy,
+      occupancy,
+    });
+    const ok = await run(async () => { await setMarinerRouteOccupancy(payload); });
+    cancelDrag();
+    if (!ok) suppressClickRef.current = false;
+  }, [campaignId, cancelDrag, run, setMarinerRouteOccupancy]);
+
   const commitTrayRouteDrop = useCallback(async (
     destinationRouteId: string,
     dropClientX: number,
@@ -360,16 +380,41 @@ export function useMarinerBoardInteractions(args: {
   ) => {
     const session = sessionRef.current;
     if (session === null || (session.kind !== "tray-ship" && session.kind !== "tray-raider")) return;
-    if (!isEmptyRoute(session.snapshot.routes, destinationRouteId)) {
+    const destinationOccupancy = routeOccupancyAt(session.snapshot.routes, destinationRouteId);
+    if (session.kind === "tray-ship") {
+      if (destinationOccupancy.kind === "empty") {
+        await commitCreateShip(destinationRouteId, null, session.snapshot);
+        return;
+      }
+      if (destinationOccupancy.kind === "ship") {
+        finishNoOpDrag();
+        return;
+      }
+      await commitReplaceRouteOccupancy(
+        destinationRouteId,
+        destinationOccupancy,
+        { kind: "ship" },
+      );
+      return;
+    }
+    if (destinationOccupancy.kind === "empty") {
+      setPendingRaiderDirection({
+        action: "create",
+        destinationRouteId,
+        choices: representableRaiderEndpoints(destinationRouteId),
+        snapshot: session.snapshot,
+        dropClientX,
+        dropClientY,
+      });
+      cancelDrag();
+      return;
+    }
+    if (destinationOccupancy.kind === "raider") {
       finishNoOpDrag();
       return;
     }
-    if (session.kind === "tray-ship") {
-      await commitCreateShip(destinationRouteId, null, session.snapshot);
-      return;
-    }
     setPendingRaiderDirection({
-      action: "create",
+      action: "replace",
       destinationRouteId,
       choices: representableRaiderEndpoints(destinationRouteId),
       snapshot: session.snapshot,
@@ -377,7 +422,7 @@ export function useMarinerBoardInteractions(args: {
       dropClientY,
     });
     cancelDrag();
-  }, [cancelDrag, commitCreateShip, finishNoOpDrag]);
+  }, [cancelDrag, commitCreateShip, commitReplaceRouteOccupancy, finishNoOpDrag]);
 
   const commitTrayStormDrop = useCallback(async (destinationRegionId: MarinerSeaRegionId) => {
     const session = sessionRef.current;
@@ -498,6 +543,27 @@ export function useMarinerBoardInteractions(args: {
         if (contextMenuRef.current !== null) {
           setContextMenu(null);
         }
+        return;
+      }
+      if (event.key === "r" || event.key === "R") {
+        if (isEditableKeyboardTarget(event.target)) return;
+        if (pendingRef.current || hasPendingDirectIntentRef.current || sessionRef.current !== null) return;
+        const routeId = selectedRouteIdRef.current;
+        if (routeId === null) return;
+        const occupancy = marinerRef.current.routes.find((entry) => entry.routeId === routeId)?.occupancy;
+        if (occupancy === undefined || occupancy.kind !== "raider") return;
+        const toward = oppositeRouteEndpoint(routeId, occupancy.toward);
+        if (toward === null) return;
+        event.preventDefault();
+        setContextMenu(null);
+        const payload = buildSetMarinerRouteOccupancyPayload({
+          commandId: newCommandId(),
+          expectedCampaignId: campaignId,
+          routeId,
+          expectedOccupancy: occupancy,
+          occupancy: { kind: "raider", toward },
+        });
+        void run(async () => { await setMarinerRouteOccupancy(payload); });
         return;
       }
       if (event.key !== "Delete" && event.key !== "Backspace") return;
@@ -699,6 +765,62 @@ export function useMarinerBoardInteractions(args: {
     await commitCreateShip(menu.routeId, toward, menu.snapshot);
   }, [commitCreateShip, isBusy]);
 
+  const contextReverseRaider = useCallback(async () => {
+    if (isBusy()) {
+      setContextMenu(null);
+      return;
+    }
+    const menu = contextMenuRef.current;
+    if (menu?.kind !== "route" || menu.occupancy.kind !== "raider") return;
+    const toward = oppositeRouteEndpoint(menu.routeId, menu.occupancy.toward);
+    if (toward === null) return;
+    setContextMenu(null);
+    const payload = buildSetMarinerRouteOccupancyPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      routeId: menu.routeId,
+      expectedOccupancy: menu.occupancy,
+      occupancy: { kind: "raider", toward },
+    });
+    await run(async () => { await setMarinerRouteOccupancy(payload); });
+  }, [campaignId, isBusy, run, setMarinerRouteOccupancy]);
+
+  const contextChangeRaiderToShip = useCallback(async () => {
+    if (isBusy()) {
+      setContextMenu(null);
+      return;
+    }
+    const menu = contextMenuRef.current;
+    if (menu?.kind !== "route" || menu.occupancy.kind !== "raider") return;
+    setContextMenu(null);
+    const payload = buildSetMarinerRouteOccupancyPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      routeId: menu.routeId,
+      expectedOccupancy: menu.occupancy,
+      occupancy: { kind: "ship" },
+    });
+    await run(async () => { await setMarinerRouteOccupancy(payload); });
+  }, [campaignId, isBusy, run, setMarinerRouteOccupancy]);
+
+  const contextChangeShipToRaider = useCallback(async (toward: MarinerRouteEndpoint) => {
+    if (isBusy()) {
+      setContextMenu(null);
+      return;
+    }
+    const menu = contextMenuRef.current;
+    if (menu?.kind !== "route" || menu.occupancy.kind !== "ship") return;
+    setContextMenu(null);
+    const payload = buildSetMarinerRouteOccupancyPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      routeId: menu.routeId,
+      expectedOccupancy: menu.occupancy,
+      occupancy: { kind: "raider", toward },
+    });
+    await run(async () => { await setMarinerRouteOccupancy(payload); });
+  }, [campaignId, isBusy, run, setMarinerRouteOccupancy]);
+
   const contextRemoveOccupancy = useCallback(async () => {
     if (isBusy()) {
       setContextMenu(null);
@@ -761,13 +883,23 @@ export function useMarinerBoardInteractions(args: {
       await commitCreateShip(pendingChoice.destinationRouteId, toward, pendingChoice.snapshot);
       return;
     }
+    if (pendingChoice.action === "replace") {
+      const expected = routeOccupancyAt(pendingChoice.snapshot.routes, pendingChoice.destinationRouteId);
+      if (expected.kind !== "ship") return;
+      await commitReplaceRouteOccupancy(
+        pendingChoice.destinationRouteId,
+        expected,
+        { kind: "raider", toward },
+      );
+      return;
+    }
     await commitShipMove(
       pendingChoice.sourceRouteId,
       pendingChoice.destinationRouteId,
       toward,
       pendingChoice.snapshot,
     );
-  }, [commitCreateShip, commitShipMove, pendingRaiderDirection]);
+  }, [commitCreateShip, commitReplaceRouteOccupancy, commitShipMove, pendingRaiderDirection]);
 
   const consumeSuppressClick = useCallback(() => {
     if (!suppressClickRef.current) return false;
@@ -849,6 +981,9 @@ export function useMarinerBoardInteractions(args: {
     closeContextMenu,
     contextAddShip,
     contextAddRaider,
+    contextReverseRaider,
+    contextChangeRaiderToShip,
+    contextChangeShipToRaider,
     contextRemoveOccupancy,
     contextAddStorm,
     contextRemoveStorm,
@@ -910,6 +1045,9 @@ export function MarinerBoardContextMenu({
   world,
   onAddShip,
   onAddRaider,
+  onReverseRaider,
+  onChangeRaiderToShip,
+  onChangeShipToRaider,
   onRemoveOccupancy,
   onAddStorm,
   onRemoveStorm,
@@ -919,6 +1057,9 @@ export function MarinerBoardContextMenu({
   world: WorldReference;
   onAddShip: () => void;
   onAddRaider: (toward: MarinerRouteEndpoint) => void;
+  onReverseRaider: () => void;
+  onChangeRaiderToShip: () => void;
+  onChangeShipToRaider: (toward: MarinerRouteEndpoint) => void;
   onRemoveOccupancy: () => void;
   onAddStorm: () => void;
   onRemoveStorm: () => void;
@@ -1000,34 +1141,84 @@ export function MarinerBoardContextMenu({
         </>
       )}
       {menu.kind === "route" && menu.occupancy.kind === "ship" && (
-        <button
-          type="button"
-          role="menuitem"
-          className={`${CONTEXT_MENU_BTN} text-red-700 dark:text-red-400`}
-          data-context-action="remove-occupancy"
-          aria-label="Remove Ship"
-          onClick={(event) => {
-            event.stopPropagation();
-            onRemoveOccupancy();
-          }}
-        >
-          Remove Ship
-        </button>
+        <>
+          {endpoints.map((endpoint) => {
+            const label = routeEndpointLabel(endpoint, mariner, world.isles);
+            return (
+              <button
+                key={endpointKey(endpoint)}
+                type="button"
+                role="menuitem"
+                className={CONTEXT_MENU_BTN}
+                data-context-action="change-to-raider"
+                data-raider-toward={endpointKey(endpoint)}
+                aria-label={`Change to Raider toward ${label}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onChangeShipToRaider(endpoint);
+                }}
+              >
+                {`Change to Raider -> ${label}`}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            role="menuitem"
+            className={`${CONTEXT_MENU_BTN} text-red-700 dark:text-red-400`}
+            data-context-action="remove-occupancy"
+            aria-label="Remove Ship"
+            onClick={(event) => {
+              event.stopPropagation();
+              onRemoveOccupancy();
+            }}
+          >
+            Remove Ship
+          </button>
+        </>
       )}
       {menu.kind === "route" && menu.occupancy.kind === "raider" && (
-        <button
-          type="button"
-          role="menuitem"
-          className={`${CONTEXT_MENU_BTN} text-red-700 dark:text-red-400`}
-          data-context-action="remove-occupancy"
-          aria-label="Remove Raider"
-          onClick={(event) => {
-            event.stopPropagation();
-            onRemoveOccupancy();
-          }}
-        >
-          Remove Raider
-        </button>
+        <>
+          <button
+            type="button"
+            role="menuitem"
+            className={CONTEXT_MENU_BTN}
+            data-context-action="reverse-raider"
+            aria-label="Reverse direction"
+            onClick={(event) => {
+              event.stopPropagation();
+              onReverseRaider();
+            }}
+          >
+            Reverse direction
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className={CONTEXT_MENU_BTN}
+            data-context-action="change-to-ship"
+            aria-label="Change to Ship"
+            onClick={(event) => {
+              event.stopPropagation();
+              onChangeRaiderToShip();
+            }}
+          >
+            Change to Ship
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className={`${CONTEXT_MENU_BTN} text-red-700 dark:text-red-400`}
+            data-context-action="remove-occupancy"
+            aria-label="Remove Raider"
+            onClick={(event) => {
+              event.stopPropagation();
+              onRemoveOccupancy();
+            }}
+          >
+            Remove Raider
+          </button>
+        </>
       )}
       {menu.kind === "sea" && (
         <>
