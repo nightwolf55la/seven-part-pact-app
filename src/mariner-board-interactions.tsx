@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import type {
   MarinerRouteEndpoint,
   MarinerRouteOccupancy,
@@ -18,12 +26,11 @@ import {
   newCommandId,
   predictedNewlyTrappedBeastIdsAfterShipPlacement,
   routeEndpointLabel,
+  seaRegionDisplayName,
   MARINER_ROUTE_CATALOG,
 } from "./mariner-view-model";
 import type { WorldReference } from "./WorldSurface";
 import { marinerSeaOperationalView } from "./mariner-operational-view";
-import { marinerRouteGeometry } from "./mariner-map-geometry";
-import { marinerOverlayPointToBoard } from "./source-board-assets";
 import {
   endpointKey,
   findRouteDropId,
@@ -31,31 +38,11 @@ import {
   isEmptyRoute,
   pointerMovementExceedsDragThreshold,
   raiderTowardAppliesOnRoute,
-  relatedTargetOwnsRouteHover,
   representableRaiderEndpoints,
   routesShareBoardIsleEndpoint,
 } from "./mariner-board-pointer";
 
-function relatedTargetOwnsEmptySeaHover(relatedTarget: EventTarget | null, regionId: string): boolean {
-  if (!(relatedTarget instanceof Element)) return false;
-  const owner = relatedTarget.closest("[data-empty-sea-hover-owner]");
-  return owner?.getAttribute("data-empty-sea-hover-owner") === regionId;
-}
-
-function relatedTargetOwnsStormPieceHover(relatedTarget: EventTarget | null, regionId: string): boolean {
-  if (!(relatedTarget instanceof Element)) return false;
-  const owner = relatedTarget.closest("[data-storm-piece-hover-owner]");
-  return owner?.getAttribute("data-storm-piece-hover-owner") === regionId;
-}
-
-function seaRegionStormCount(
-  seaRegions: readonly { regionId: MarinerSeaRegionId; stormCount: number }[],
-  regionId: MarinerSeaRegionId,
-): number {
-  return seaRegions.find((region) => region.regionId === regionId)?.stormCount ?? 0;
-}
-
-type DragKind = "storm" | "route-piece";
+type DragKind = "storm" | "route-piece" | "tray-ship" | "tray-raider" | "tray-storm";
 
 type DragSession = {
   readonly kind: DragKind;
@@ -70,11 +57,15 @@ type DragSession = {
 };
 
 export type PendingRaiderDirection = {
-  readonly sourceRouteId: string;
   readonly destinationRouteId: string;
   readonly choices: readonly MarinerRouteEndpoint[];
   readonly snapshot: ReturnType<typeof captureOperabilityBoard>;
-};
+  readonly dropClientX?: number;
+  readonly dropClientY?: number;
+} & (
+  | { readonly action: "move"; readonly sourceRouteId: string }
+  | { readonly action: "create" }
+);
 
 type PendingPlacementOccupancy =
   | { readonly kind: "ship" }
@@ -97,11 +88,48 @@ export type BoardDragVisual = {
   readonly occupancyKind?: "ship" | "raider";
 };
 
+export type BoardContextMenu =
+  | {
+      readonly kind: "route";
+      readonly routeId: string;
+      readonly occupancy: MarinerRouteOccupancy;
+      readonly clientX: number;
+      readonly clientY: number;
+      readonly snapshot: ReturnType<typeof captureOperabilityBoard>;
+    }
+  | {
+      readonly kind: "sea";
+      readonly regionId: MarinerSeaRegionId;
+      readonly stormCount: number;
+      readonly clientX: number;
+      readonly clientY: number;
+      readonly snapshot: ReturnType<typeof captureOperabilityBoard>;
+    };
+
+function isPrimaryPointerButton(event: { button: number }): boolean {
+  return event.button === 0;
+}
+
+function isEditableKeyboardTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  return target.isContentEditable;
+}
+
+function stormCountOnSnapshot(
+  snapshot: ReturnType<typeof captureOperabilityBoard>,
+  regionId: MarinerSeaRegionId,
+): number {
+  return snapshot.seaRegions.find((region) => region.regionId === regionId)?.stormCount ?? 0;
+}
+
 export function useMarinerBoardInteractions(args: {
   readonly mariner: MarinerState;
-  readonly world: WorldReference;
   readonly campaignId: string;
   readonly pending: boolean;
+  readonly selectedRouteId: string | null;
+  readonly selectedRegionId: MarinerSeaRegionId | null;
   readonly run: (action: () => Promise<void>) => Promise<boolean>;
   readonly moveMarinerStorm: (payload: ReturnType<typeof buildMoveMarinerStormPayload>) => Promise<unknown>;
   readonly moveMarinerShip: (payload: ReturnType<typeof buildMoveMarinerShipPayload>) => Promise<unknown>;
@@ -113,9 +141,10 @@ export function useMarinerBoardInteractions(args: {
 }) {
   const {
     mariner,
-    world,
     campaignId,
     pending,
+    selectedRouteId,
+    selectedRegionId,
     run,
     moveMarinerStorm,
     moveMarinerShip,
@@ -136,24 +165,36 @@ export function useMarinerBoardInteractions(args: {
   const hoveredRouteRef = useRef<string | null>(null);
   hoveredSeaRef.current = hoveredSeaId;
   hoveredRouteRef.current = hoveredRouteDropId;
-  const [focusedRouteId, setFocusedRouteId] = useState<string | null>(null);
-  const [focusedSeaRegionId, setFocusedSeaRegionId] = useState<MarinerSeaRegionId | null>(null);
-  const [focusedStormRegionId, setFocusedStormRegionId] = useState<MarinerSeaRegionId | null>(null);
   const [pendingRaiderDirection, setPendingRaiderDirection] = useState<PendingRaiderDirection | null>(null);
   const [pendingShipRampage, setPendingShipRampage] = useState<PendingShipRampage | null>(null);
+  const [contextMenu, setContextMenu] = useState<BoardContextMenu | null>(null);
+  const contextMenuRef = useRef<BoardContextMenu | null>(null);
+  contextMenuRef.current = contextMenu;
+  const selectedRouteIdRef = useRef(selectedRouteId);
+  selectedRouteIdRef.current = selectedRouteId;
+  const selectedRegionIdRef = useRef(selectedRegionId);
+  selectedRegionIdRef.current = selectedRegionId;
+  const marinerRef = useRef(mariner);
+  marinerRef.current = mariner;
+  const pendingRef = useRef(pending);
+  pendingRef.current = pending;
   const hasPendingDirectIntent = pendingRaiderDirection !== null || pendingShipRampage !== null;
+  const hasPendingDirectIntentRef = useRef(hasPendingDirectIntent);
+  hasPendingDirectIntentRef.current = hasPendingDirectIntent;
 
-  const stormDragSourceId = draggingActive && sessionRef.current?.kind === "storm"
-    ? sessionRef.current.sourceRegionId ?? null
+  const dragKind = draggingActive ? sessionRef.current?.kind ?? null : null;
+  const stormDragSourceId = dragKind === "storm"
+    ? sessionRef.current?.sourceRegionId ?? null
     : null;
+  const routeDragSourceId = dragKind === "route-piece"
+    ? sessionRef.current?.sourceRouteId ?? null
+    : null;
+  const trayRouteDragActive = dragKind === "tray-ship" || dragKind === "tray-raider";
+  const trayStormDragActive = dragKind === "tray-storm";
 
   const recommendedSeaIds = stormDragSourceId === null
     ? []
     : marinerSeaOperationalView(mariner, stormDragSourceId).adjacentRegionIds;
-
-  const routeDragSourceId = draggingActive && sessionRef.current?.kind === "route-piece"
-    ? sessionRef.current.sourceRouteId ?? null
-    : null;
 
   const cancelDrag = useCallback(() => {
     sessionRef.current = null;
@@ -169,6 +210,10 @@ export function useMarinerBoardInteractions(args: {
       suppressClickRef.current = false;
     }, 0);
   }, [cancelDrag]);
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null);
+  }, []);
 
   const commitStormDrop = useCallback(async (destinationRegionId: MarinerSeaRegionId) => {
     const session = sessionRef.current;
@@ -227,6 +272,39 @@ export function useMarinerBoardInteractions(args: {
     if (!ok) suppressClickRef.current = false;
   }, [campaignId, cancelDrag, moveMarinerShip, run]);
 
+  const commitCreateShip = useCallback(async (
+    targetRouteId: string,
+    destinationToward: MarinerRouteEndpoint | null,
+    snapshot: ReturnType<typeof captureOperabilityBoard>,
+  ) => {
+    const occupancy = destinationToward === null
+      ? { kind: "ship" as const }
+      : { kind: "raider" as const, toward: destinationToward };
+    const predicted = predictedNewlyTrappedBeastIdsAfterShipPlacement(snapshot, targetRouteId, occupancy);
+    if (predicted.length > 0) {
+      setPendingShipRampage({
+        action: "create",
+        targetRouteId,
+        occupancy,
+        snapshot,
+        predictedBeastIds: predicted,
+      });
+      cancelDrag();
+      return;
+    }
+    const payload = buildCreateMarinerShipPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      targetRouteId,
+      destinationToward,
+      ...expectedForCreateShip(snapshot, targetRouteId),
+      rampageResolutions: [],
+    });
+    const ok = await run(async () => { await createMarinerShip(payload); });
+    cancelDrag();
+    if (!ok) suppressClickRef.current = false;
+  }, [campaignId, cancelDrag, createMarinerShip, run]);
+
   const commitRoutePieceDrop = useCallback(async (destinationRouteId: string) => {
     const session = sessionRef.current;
     if (session?.kind !== "route-piece" || session.sourceRouteId === undefined || session.sourceOccupancy === undefined) {
@@ -261,6 +339,7 @@ export function useMarinerBoardInteractions(args: {
         return;
       }
       setPendingRaiderDirection({
+        action: "move",
         sourceRouteId: session.sourceRouteId,
         destinationRouteId,
         choices,
@@ -269,6 +348,48 @@ export function useMarinerBoardInteractions(args: {
       cancelDrag();
     }
   }, [cancelDrag, commitShipMove, finishNoOpDrag]);
+
+  const commitTrayRouteDrop = useCallback(async (
+    destinationRouteId: string,
+    dropClientX: number,
+    dropClientY: number,
+  ) => {
+    const session = sessionRef.current;
+    if (session === null || (session.kind !== "tray-ship" && session.kind !== "tray-raider")) return;
+    if (!isEmptyRoute(session.snapshot.routes, destinationRouteId)) {
+      finishNoOpDrag();
+      return;
+    }
+    if (session.kind === "tray-ship") {
+      await commitCreateShip(destinationRouteId, null, session.snapshot);
+      return;
+    }
+    setPendingRaiderDirection({
+      action: "create",
+      destinationRouteId,
+      choices: representableRaiderEndpoints(destinationRouteId),
+      snapshot: session.snapshot,
+      dropClientX,
+      dropClientY,
+    });
+    cancelDrag();
+  }, [cancelDrag, commitCreateShip, finishNoOpDrag]);
+
+  const commitTrayStormDrop = useCallback(async (destinationRegionId: MarinerSeaRegionId) => {
+    const session = sessionRef.current;
+    if (session?.kind !== "tray-storm") return;
+    const expectedStormCount = stormCountOnSnapshot(session.snapshot, destinationRegionId);
+    const payload = buildSetMarinerSeaStormCountPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      regionId: destinationRegionId,
+      expectedStormCount,
+      stormCount: expectedStormCount + 1,
+    });
+    const ok = await run(async () => { await setMarinerSeaStormCount(payload); });
+    cancelDrag();
+    if (!ok) suppressClickRef.current = false;
+  }, [campaignId, cancelDrag, run, setMarinerSeaStormCount]);
 
   useEffect(() => {
     const onPointerMove = (event: PointerEvent) => {
@@ -280,17 +401,20 @@ export function useMarinerBoardInteractions(args: {
         sessionRef.current = { ...session, dragging: true };
         setDraggingActive(true);
         suppressClickRef.current = true;
+        setContextMenu(null);
       }
       const active = sessionRef.current;
       if (active === null || !active.dragging) return;
 
-      if (active.kind === "storm") {
-        const stormCount = mariner.seaRegions.find((region) => region.regionId === active.sourceRegionId)?.stormCount ?? 0;
+      if (active.kind === "storm" || active.kind === "tray-storm") {
+        const stormCount = active.kind === "storm"
+          ? mariner.seaRegions.find((region) => region.regionId === active.sourceRegionId)?.stormCount ?? 0
+          : 0;
         setDragVisual({
-          kind: "storm",
+          kind: active.kind,
           clientX: event.clientX,
           clientY: event.clientY,
-          typhoon: stormCount >= 2,
+          typhoon: active.kind === "storm" && stormCount >= 2,
         });
         const target = document.elementFromPoint(event.clientX, event.clientY);
         setHoveredSeaId(findSeaDropRegionId(target) as MarinerSeaRegionId | null);
@@ -298,13 +422,13 @@ export function useMarinerBoardInteractions(args: {
         return;
       }
 
-      if (active.kind === "route-piece") {
+      if (active.kind === "route-piece" || active.kind === "tray-ship" || active.kind === "tray-raider") {
         setDragVisual({
-          kind: "route-piece",
+          kind: active.kind,
           clientX: event.clientX,
           clientY: event.clientY,
           typhoon: false,
-          occupancyKind: active.sourceOccupancy?.kind === "raider" ? "raider" : "ship",
+          occupancyKind: active.kind === "tray-raider" || active.sourceOccupancy?.kind === "raider" ? "raider" : "ship",
         });
         const target = document.elementFromPoint(event.clientX, event.clientY);
         setHoveredRouteDropId(findRouteDropId(target));
@@ -334,10 +458,24 @@ export function useMarinerBoardInteractions(args: {
           return;
         }
       }
+      if (session.kind === "tray-storm") {
+        const dropSea = findSeaDropRegionId(document.elementFromPoint(event.clientX, event.clientY));
+        if (dropSea !== null) {
+          void commitTrayStormDrop(dropSea as MarinerSeaRegionId);
+          return;
+        }
+      }
       if (session.kind === "route-piece") {
         const dropRoute = findRouteDropId(document.elementFromPoint(event.clientX, event.clientY));
         if (dropRoute !== null) {
           void commitRoutePieceDrop(dropRoute);
+          return;
+        }
+      }
+      if (session.kind === "tray-ship" || session.kind === "tray-raider") {
+        const dropRoute = findRouteDropId(document.elementFromPoint(event.clientX, event.clientY));
+        if (dropRoute !== null) {
+          void commitTrayRouteDrop(dropRoute, event.clientX, event.clientY);
           return;
         }
       }
@@ -348,9 +486,50 @@ export function useMarinerBoardInteractions(args: {
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && sessionRef.current !== null) {
-        cancelDrag();
-        suppressClickRef.current = false;
+      if (event.key === "Escape") {
+        if (sessionRef.current !== null) {
+          cancelDrag();
+          suppressClickRef.current = false;
+        }
+        if (contextMenuRef.current !== null) {
+          setContextMenu(null);
+        }
+        return;
+      }
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+      if (isEditableKeyboardTarget(event.target)) return;
+      if (pendingRef.current || hasPendingDirectIntentRef.current) return;
+      const routeId = selectedRouteIdRef.current;
+      if (routeId !== null) {
+        const occupancy = marinerRef.current.routes.find((entry) => entry.routeId === routeId)?.occupancy
+          ?? { kind: "empty" as const };
+        if (occupancy.kind === "empty") return;
+        event.preventDefault();
+        setContextMenu(null);
+        const payload = buildSetMarinerRouteOccupancyPayload({
+          commandId: newCommandId(),
+          expectedCampaignId: campaignId,
+          routeId,
+          expectedOccupancy: occupancy,
+          occupancy: { kind: "empty" },
+        });
+        void run(async () => { await setMarinerRouteOccupancy(payload); });
+        return;
+      }
+      const regionId = selectedRegionIdRef.current;
+      if (regionId !== null) {
+        const current = marinerRef.current.seaRegions.find((region) => region.regionId === regionId)?.stormCount ?? 0;
+        if (current < 1) return;
+        event.preventDefault();
+        setContextMenu(null);
+        const payload = buildSetMarinerSeaStormCountPayload({
+          commandId: newCommandId(),
+          expectedCampaignId: campaignId,
+          regionId,
+          expectedStormCount: current,
+          stormCount: current - 1,
+        });
+        void run(async () => { await setMarinerSeaStormCount(payload); });
       }
     };
 
@@ -363,21 +542,49 @@ export function useMarinerBoardInteractions(args: {
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [
+    campaignId,
     cancelDrag,
     commitRoutePieceDrop,
     commitStormDrop,
+    commitTrayRouteDrop,
+    commitTrayStormDrop,
     mariner.seaRegions,
     onSelectRegion,
     onSelectRoute,
+    run,
+    setMarinerRouteOccupancy,
+    setMarinerSeaStormCount,
   ]);
 
+  useEffect(() => {
+    if (contextMenu === null) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!isPrimaryPointerButton(event)) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest("[data-mariner-context-menu]")) return;
+      setContextMenu(null);
+    };
+    const onContextMenu = (event: Event) => {
+      if (event.defaultPrevented) return;
+      setContextMenu(null);
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("contextmenu", onContextMenu);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("contextmenu", onContextMenu);
+    };
+  }, [contextMenu]);
+
   const beginStormPointer = useCallback((regionId: MarinerSeaRegionId, event: ReactPointerEvent) => {
+    if (!isPrimaryPointerButton(event)) return;
     if (pending || hasPendingDirectIntent) return;
     const storms = mariner.seaRegions.find((region) => region.regionId === regionId)?.stormCount ?? 0;
     if (storms < 1) return;
     event.preventDefault();
     event.stopPropagation();
     (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+    setContextMenu(null);
     sessionRef.current = {
       kind: "storm",
       pointerId: event.pointerId,
@@ -390,10 +597,12 @@ export function useMarinerBoardInteractions(args: {
   }, [hasPendingDirectIntent, mariner, pending]);
 
   const beginRoutePiecePointer = useCallback((routeId: string, occupancy: MarinerRouteOccupancy, event: ReactPointerEvent) => {
+    if (!isPrimaryPointerButton(event)) return;
     if (pending || hasPendingDirectIntent || occupancy.kind === "empty") return;
     event.preventDefault();
     event.stopPropagation();
     (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+    setContextMenu(null);
     sessionRef.current = {
       kind: "route-piece",
       pointerId: event.pointerId,
@@ -406,108 +615,133 @@ export function useMarinerBoardInteractions(args: {
     };
   }, [hasPendingDirectIntent, mariner, pending]);
 
-  const addShipToRoute = useCallback(async (routeId: string) => {
-    if (pending || hasPendingDirectIntent || !isEmptyRoute(mariner.routes, routeId)) return;
-    const snapshot = captureOperabilityBoard(mariner);
-    const predicted = predictedNewlyTrappedBeastIdsAfterShipPlacement(snapshot, routeId, { kind: "ship" });
-    if (predicted.length > 0) {
-      setPendingShipRampage({
-        action: "create",
-        targetRouteId: routeId,
-        occupancy: { kind: "ship" },
-        snapshot,
-        predictedBeastIds: predicted,
-      });
-      return;
-    }
-    const payload = buildCreateMarinerShipPayload({
-      commandId: newCommandId(),
-      expectedCampaignId: campaignId,
-      targetRouteId: routeId,
-      destinationToward: null,
-      ...expectedForCreateShip(snapshot, routeId),
-      rampageResolutions: [],
-    });
-    await run(async () => { await createMarinerShip(payload); });
-  }, [campaignId, createMarinerShip, hasPendingDirectIntent, mariner, pending, run]);
-
-  const addRaiderToRoute = useCallback(async (routeId: string, toward: MarinerRouteEndpoint) => {
-    if (pending || hasPendingDirectIntent || !isEmptyRoute(mariner.routes, routeId)) return;
-    const snapshot = captureOperabilityBoard(mariner);
-    const occupancy = { kind: "raider" as const, toward };
-    const predicted = predictedNewlyTrappedBeastIdsAfterShipPlacement(snapshot, routeId, occupancy);
-    if (predicted.length > 0) {
-      setPendingShipRampage({
-        action: "create",
-        targetRouteId: routeId,
-        occupancy,
-        snapshot,
-        predictedBeastIds: predicted,
-      });
-      return;
-    }
-    const payload = buildCreateMarinerShipPayload({
-      commandId: newCommandId(),
-      expectedCampaignId: campaignId,
-      targetRouteId: routeId,
-      destinationToward: toward,
-      ...expectedForCreateShip(snapshot, routeId),
-      rampageResolutions: [],
-    });
-    await run(async () => { await createMarinerShip(payload); });
-  }, [campaignId, createMarinerShip, hasPendingDirectIntent, mariner, pending, run]);
-
-  const removeRouteOccupancy = useCallback(async (routeId: string) => {
+  const beginTrayPointer = useCallback((kind: "tray-ship" | "tray-raider" | "tray-storm", event: ReactPointerEvent) => {
+    if (!isPrimaryPointerButton(event)) return;
     if (pending || hasPendingDirectIntent) return;
-    const route = mariner.routes.find((entry) => entry.routeId === routeId);
-    if (route === undefined || route.occupancy.kind === "empty") return;
+    event.preventDefault();
+    (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
+    setContextMenu(null);
+    sessionRef.current = {
+      kind,
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      dragging: false,
+      snapshot: captureOperabilityBoard(mariner),
+    };
+  }, [hasPendingDirectIntent, mariner, pending]);
+
+  const beginTrayShipPointer = useCallback((event: ReactPointerEvent) => {
+    beginTrayPointer("tray-ship", event);
+  }, [beginTrayPointer]);
+
+  const beginTrayRaiderPointer = useCallback((event: ReactPointerEvent) => {
+    beginTrayPointer("tray-raider", event);
+  }, [beginTrayPointer]);
+
+  const beginTrayStormPointer = useCallback((event: ReactPointerEvent) => {
+    beginTrayPointer("tray-storm", event);
+  }, [beginTrayPointer]);
+
+  const openRouteContextMenu = useCallback((routeId: string, event: ReactMouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const occupancy = mariner.routes.find((entry) => entry.routeId === routeId)?.occupancy ?? { kind: "empty" as const };
+    setContextMenu({
+      kind: "route",
+      routeId,
+      occupancy,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      snapshot: captureOperabilityBoard(mariner),
+    });
+  }, [mariner]);
+
+  const openSeaContextMenu = useCallback((regionId: MarinerSeaRegionId, event: ReactMouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const stormCount = mariner.seaRegions.find((region) => region.regionId === regionId)?.stormCount ?? 0;
+    setContextMenu({
+      kind: "sea",
+      regionId,
+      stormCount,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      snapshot: captureOperabilityBoard(mariner),
+    });
+  }, [mariner]);
+
+  const contextAddShip = useCallback(async () => {
+    const menu = contextMenuRef.current;
+    if (menu?.kind !== "route") return;
+    setContextMenu(null);
+    await commitCreateShip(menu.routeId, null, menu.snapshot);
+  }, [commitCreateShip]);
+
+  const contextAddRaider = useCallback(async (toward: MarinerRouteEndpoint) => {
+    const menu = contextMenuRef.current;
+    if (menu?.kind !== "route") return;
+    setContextMenu(null);
+    await commitCreateShip(menu.routeId, toward, menu.snapshot);
+  }, [commitCreateShip]);
+
+  const contextRemoveOccupancy = useCallback(async () => {
+    const menu = contextMenuRef.current;
+    if (menu?.kind !== "route" || menu.occupancy.kind === "empty") return;
+    setContextMenu(null);
     const payload = buildSetMarinerRouteOccupancyPayload({
       commandId: newCommandId(),
       expectedCampaignId: campaignId,
-      routeId,
-      expectedOccupancy: route.occupancy,
+      routeId: menu.routeId,
+      expectedOccupancy: menu.occupancy,
       occupancy: { kind: "empty" },
     });
     await run(async () => { await setMarinerRouteOccupancy(payload); });
-  }, [campaignId, hasPendingDirectIntent, mariner.routes, pending, run, setMarinerRouteOccupancy]);
+  }, [campaignId, run, setMarinerRouteOccupancy]);
 
-  const addStormToRegion = useCallback(async (regionId: MarinerSeaRegionId) => {
-    if (pending || hasPendingDirectIntent) return;
-    const current = mariner.seaRegions.find((region) => region.regionId === regionId)?.stormCount ?? 0;
+  const contextAddStorm = useCallback(async () => {
+    const menu = contextMenuRef.current;
+    if (menu?.kind !== "sea") return;
+    setContextMenu(null);
     const payload = buildSetMarinerSeaStormCountPayload({
       commandId: newCommandId(),
       expectedCampaignId: campaignId,
-      regionId,
-      expectedStormCount: current,
-      stormCount: current + 1,
+      regionId: menu.regionId,
+      expectedStormCount: menu.stormCount,
+      stormCount: menu.stormCount + 1,
     });
     await run(async () => { await setMarinerSeaStormCount(payload); });
-  }, [campaignId, hasPendingDirectIntent, mariner.seaRegions, pending, run, setMarinerSeaStormCount]);
+  }, [campaignId, run, setMarinerSeaStormCount]);
 
-  const removeStormFromRegion = useCallback(async (regionId: MarinerSeaRegionId) => {
-    if (pending || hasPendingDirectIntent) return;
-    const current = mariner.seaRegions.find((region) => region.regionId === regionId)?.stormCount ?? 0;
-    if (current < 1) return;
+  const contextRemoveStorm = useCallback(async () => {
+    const menu = contextMenuRef.current;
+    if (menu?.kind !== "sea" || menu.stormCount < 1) return;
+    setContextMenu(null);
     const payload = buildSetMarinerSeaStormCountPayload({
       commandId: newCommandId(),
       expectedCampaignId: campaignId,
-      regionId,
-      expectedStormCount: current,
-      stormCount: current - 1,
+      regionId: menu.regionId,
+      expectedStormCount: menu.stormCount,
+      stormCount: menu.stormCount - 1,
     });
     await run(async () => { await setMarinerSeaStormCount(payload); });
-  }, [campaignId, hasPendingDirectIntent, mariner.seaRegions, pending, run, setMarinerSeaStormCount]);
+  }, [campaignId, run, setMarinerSeaStormCount]);
 
   const chooseRaiderDirection = useCallback(async (toward: MarinerRouteEndpoint) => {
     if (pendingRaiderDirection === null) return;
-    await commitShipMove(
-      pendingRaiderDirection.sourceRouteId,
-      pendingRaiderDirection.destinationRouteId,
-      toward,
-      pendingRaiderDirection.snapshot,
-    );
+    const pendingChoice = pendingRaiderDirection;
     setPendingRaiderDirection(null);
-  }, [commitShipMove, pendingRaiderDirection]);
+    if (pendingChoice.action === "create") {
+      await commitCreateShip(pendingChoice.destinationRouteId, toward, pendingChoice.snapshot);
+      return;
+    }
+    await commitShipMove(
+      pendingChoice.sourceRouteId,
+      pendingChoice.destinationRouteId,
+      toward,
+      pendingChoice.snapshot,
+    );
+  }, [commitCreateShip, commitShipMove, pendingRaiderDirection]);
 
   const consumeSuppressClick = useCallback(() => {
     if (!suppressClickRef.current) return false;
@@ -516,20 +750,23 @@ export function useMarinerBoardInteractions(args: {
   }, []);
 
   const routeDropHighlight = useCallback((routeId: string): "recommended" | "available" | "hover" | "blocked" | null => {
-    if (routeDragSourceId === null) return null;
-    if (routeId === routeDragSourceId) return "blocked";
+    if (routeDragSourceId === null && !trayRouteDragActive) return null;
+    if (routeDragSourceId !== null && routeId === routeDragSourceId) return "blocked";
     if (!isEmptyRoute(mariner.routes, routeId)) return "blocked";
     if (hoveredRouteDropId === routeId) return "hover";
-    return routesShareBoardIsleEndpoint(routeDragSourceId, routeId) ? "recommended" : "available";
-  }, [hoveredRouteDropId, mariner.routes, routeDragSourceId]);
+    if (routeDragSourceId !== null) {
+      return routesShareBoardIsleEndpoint(routeDragSourceId, routeId) ? "recommended" : "available";
+    }
+    return "available";
+  }, [hoveredRouteDropId, mariner.routes, routeDragSourceId, trayRouteDragActive]);
 
   const seaDropHighlight = useCallback((regionId: MarinerSeaRegionId): "source" | "recommended" | "available" | "hover" | null => {
-    if (stormDragSourceId === null) return null;
-    if (regionId === stormDragSourceId) return "source";
+    if (stormDragSourceId === null && !trayStormDragActive) return null;
+    if (stormDragSourceId !== null && regionId === stormDragSourceId) return "source";
     if (hoveredSeaId === regionId) return "hover";
-    if (recommendedSeaIds.includes(regionId)) return "recommended";
+    if (stormDragSourceId !== null && recommendedSeaIds.includes(regionId)) return "recommended";
     return "available";
-  }, [hoveredSeaId, recommendedSeaIds, stormDragSourceId]);
+  }, [hoveredSeaId, recommendedSeaIds, stormDragSourceId, trayStormDragActive]);
 
   const submitPendingShipRampage = useCallback(async (
     rampageResolutions: {
@@ -571,67 +808,39 @@ export function useMarinerBoardInteractions(args: {
     setPendingShipRampage(null);
   }, []);
 
-  const onRouteHoverEnter = useCallback((routeId: string) => {
-    setFocusedRouteId(routeId);
-  }, []);
-
-  const onRouteHoverLeave = useCallback((routeId: string, relatedTarget: EventTarget | null) => {
-    if (relatedTargetOwnsRouteHover(relatedTarget, routeId)) return;
-    setFocusedRouteId((current) => current === routeId ? null : current);
-  }, []);
-
-  const onSeaHoverEnter = useCallback((regionId: MarinerSeaRegionId) => {
-    if (seaRegionStormCount(mariner.seaRegions, regionId) > 0) return;
-    setFocusedSeaRegionId(regionId);
-  }, [mariner.seaRegions]);
-
-  const onSeaHoverLeave = useCallback((regionId: MarinerSeaRegionId, relatedTarget: EventTarget | null) => {
-    if (relatedTargetOwnsEmptySeaHover(relatedTarget, regionId)) return;
-    setFocusedSeaRegionId((current) => current === regionId ? null : current);
-  }, []);
-
-  const onStormHoverEnter = useCallback((regionId: MarinerSeaRegionId) => {
-    setFocusedSeaRegionId((current) => current === regionId ? null : current);
-    setFocusedStormRegionId(regionId);
-  }, []);
-
-  const onStormHoverLeave = useCallback((regionId: MarinerSeaRegionId, relatedTarget: EventTarget | null) => {
-    if (relatedTargetOwnsStormPieceHover(relatedTarget, regionId)) return;
-    setFocusedStormRegionId((current) => current === regionId ? null : current);
-  }, []);
-
   return {
     dragVisual,
     stormDragSourceId,
     routeDragSourceId,
-    focusedRouteId,
-    setFocusedRouteId,
     pendingRaiderDirection,
     setPendingRaiderDirection,
     pendingShipRampage,
     submitPendingShipRampage,
     cancelPendingShipRampage,
-    onRouteHoverEnter,
-    onRouteHoverLeave,
-    focusedSeaRegionId,
-    onSeaHoverEnter,
-    onSeaHoverLeave,
-    focusedStormRegionId,
-    onStormHoverEnter,
-    onStormHoverLeave,
-    addStormToRegion,
-    removeStormFromRegion,
+    contextMenu,
+    openRouteContextMenu,
+    openSeaContextMenu,
+    closeContextMenu,
+    contextAddShip,
+    contextAddRaider,
+    contextRemoveOccupancy,
+    contextAddStorm,
+    contextRemoveStorm,
     beginStormPointer,
     beginRoutePiecePointer,
-    addShipToRoute,
-    addRaiderToRoute,
-    removeRouteOccupancy,
+    beginTrayShipPointer,
+    beginTrayRaiderPointer,
+    beginTrayStormPointer,
     chooseRaiderDirection,
     consumeSuppressClick,
     routeDropHighlight,
     seaDropHighlight,
     cancelDrag,
   };
+}
+
+function isStormGhostKind(kind: DragKind): boolean {
+  return kind === "storm" || kind === "tray-storm";
 }
 
 export function BoardDragGhost({ visual }: { visual: BoardDragVisual | null }) {
@@ -643,7 +852,7 @@ export function BoardDragGhost({ visual }: { visual: BoardDragVisual | null }) {
       style={{ left: visual.clientX, top: visual.clientY }}
       aria-hidden="true"
     >
-      {visual.kind === "storm" ? (
+      {isStormGhostKind(visual.kind) ? (
         <svg width={visual.typhoon ? 36 : 28} height={visual.typhoon ? 36 : 28} viewBox="-16 -16 32 32">
           <path
             d={visual.typhoon
@@ -666,64 +875,81 @@ export function BoardDragGhost({ visual }: { visual: BoardDragVisual | null }) {
   );
 }
 
-const ROUTE_MENU_BTN =
+const CONTEXT_MENU_BTN =
   "block w-full text-left rounded px-2 py-1 text-[11px] leading-tight cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 whitespace-nowrap";
 
-export function RouteQuickActions({
-  routeId,
+export function MarinerBoardContextMenu({
+  menu,
   mariner,
   world,
-  visible,
   onAddShip,
   onAddRaider,
-  onHoverEnter,
-  onHoverLeave,
+  onRemoveOccupancy,
+  onAddStorm,
+  onRemoveStorm,
 }: {
-  routeId: string;
+  menu: BoardContextMenu | null;
   mariner: MarinerState;
   world: WorldReference;
-  visible: boolean;
   onAddShip: () => void;
   onAddRaider: (toward: MarinerRouteEndpoint) => void;
-  onHoverEnter: () => void;
-  onHoverLeave: (relatedTarget: EventTarget | null) => void;
+  onRemoveOccupancy: () => void;
+  onAddStorm: () => void;
+  onRemoveStorm: () => void;
 }) {
-  const geometry = marinerRouteGeometry(routeId);
-  if (!visible || geometry === null) return null;
-  const anchor = marinerOverlayPointToBoard(geometry.pieceAnchor.x, geometry.pieceAnchor.y);
-  const endpoints = representableRaiderEndpoints(routeId);
-  const routeDef = MARINER_ROUTE_CATALOG.find((entry) => entry.routeId === routeId);
-  const routeLabel = routeDef === undefined
-    ? routeId
-    : `${routeEndpointLabel(routeDef.endpointA, mariner, world.isles)} — ${routeEndpointLabel(routeDef.endpointB, mariner, world.isles)}`;
-  const menuHeight = 28 + endpoints.length * 24;
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ left: menu?.clientX ?? 0, top: menu?.clientY ?? 0 });
+
+  useLayoutEffect(() => {
+    if (menu === null) return;
+    const el = ref.current;
+    if (el === null) return;
+    const rect = el.getBoundingClientRect();
+    const pad = 8;
+    let left = menu.clientX;
+    let top = menu.clientY;
+    if (left + rect.width > window.innerWidth - pad) left = Math.max(pad, window.innerWidth - rect.width - pad);
+    if (top + rect.height > window.innerHeight - pad) top = Math.max(pad, window.innerHeight - rect.height - pad);
+    if (left < pad) left = pad;
+    if (top < pad) top = pad;
+    setPos({ left, top });
+  }, [menu]);
+
+  if (menu === null) return null;
+
+  const routeDef = menu.kind === "route"
+    ? MARINER_ROUTE_CATALOG.find((entry) => entry.routeId === menu.routeId)
+    : undefined;
+  const endpoints = menu.kind === "route" ? representableRaiderEndpoints(menu.routeId) : [];
 
   return (
-    <g
-      data-route-quick-actions
-      data-route-id={routeId}
-      data-route-hover-owner={routeId}
-      transform={`translate(${anchor.x + 12} ${anchor.y})`}
-      pointerEvents="all"
-      onMouseOver={onHoverEnter}
-      onMouseOut={(event) => onHoverLeave(event.relatedTarget)}
+    <div
+      ref={ref}
+      data-mariner-context-menu
+      data-context-menu-kind={menu.kind}
+      data-context-target={menu.kind === "route" ? menu.routeId : menu.regionId}
+      data-pointer-x={menu.clientX}
+      data-pointer-y={menu.clientY}
+      className="fixed z-40 min-w-[11rem] rounded-md border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-md py-0.5"
+      style={{ left: pos.left, top: pos.top }}
+      role="menu"
     >
-      <foreignObject x={0} y={-menuHeight / 2} width={220} height={menuHeight}>
-        <div
-          data-route-action-menu
-          className="rounded-md border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-sm py-0.5"
-        >
+      {menu.kind === "route" && menu.occupancy.kind === "empty" && (
+        <>
           <button
             type="button"
-            className={ROUTE_MENU_BTN}
-            data-quick-action="add-ship"
-            aria-label={`Add Ship on route ${routeLabel}`}
+            role="menuitem"
+            className={CONTEXT_MENU_BTN}
+            data-context-action="add-ship"
+            aria-label={routeDef === undefined
+              ? "Add Ship"
+              : `Add Ship on route ${routeEndpointLabel(routeDef.endpointA, mariner, world.isles)} — ${routeEndpointLabel(routeDef.endpointB, mariner, world.isles)}`}
             onClick={(event) => {
               event.stopPropagation();
               onAddShip();
             }}
           >
-            + Ship
+            Add Ship
           </button>
           {endpoints.map((endpoint) => {
             const label = routeEndpointLabel(endpoint, mariner, world.isles);
@@ -731,10 +957,11 @@ export function RouteQuickActions({
               <button
                 key={endpointKey(endpoint)}
                 type="button"
-                className={ROUTE_MENU_BTN}
-                data-quick-action="add-raider"
+                role="menuitem"
+                className={CONTEXT_MENU_BTN}
+                data-context-action="add-raider"
                 data-raider-toward={endpointKey(endpoint)}
-                aria-label={`Add Raider toward ${label}`}
+                aria-label={`Raider toward ${label}`}
                 onClick={(event) => {
                   event.stopPropagation();
                   onAddRaider(endpoint);
@@ -744,127 +971,122 @@ export function RouteQuickActions({
               </button>
             );
           })}
-        </div>
-      </foreignObject>
-    </g>
-  );
-}
-
-const SEA_MENU_BTN =
-  "block w-full text-left rounded px-2 py-1 text-[11px] leading-tight cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 whitespace-nowrap";
-
-export function SeaStormQuickActions({
-  regionId,
-  anchorX,
-  anchorY,
-  visible,
-  onAddStorm,
-  onHoverEnter,
-  onHoverLeave,
-}: {
-  regionId: MarinerSeaRegionId;
-  anchorX: number;
-  anchorY: number;
-  visible: boolean;
-  onAddStorm: () => void;
-  onHoverEnter: () => void;
-  onHoverLeave: (relatedTarget: EventTarget | null) => void;
-}) {
-  if (!visible) return null;
-  return (
-    <g
-      data-sea-quick-actions
-      data-region-id={regionId}
-      data-empty-sea-hover-owner={regionId}
-      transform={`translate(${anchorX + 14} ${anchorY})`}
-      pointerEvents="all"
-      onMouseOver={onHoverEnter}
-      onMouseOut={(event) => onHoverLeave(event.relatedTarget)}
-    >
-      <foreignObject x={0} y={-8} width={140} height={28}>
-        <div
-          data-sea-action-menu
-          className="rounded-md border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-sm py-0.5"
+        </>
+      )}
+      {menu.kind === "route" && menu.occupancy.kind === "ship" && (
+        <button
+          type="button"
+          role="menuitem"
+          className={`${CONTEXT_MENU_BTN} text-red-700 dark:text-red-400`}
+          data-context-action="remove-occupancy"
+          aria-label="Remove Ship"
+          onClick={(event) => {
+            event.stopPropagation();
+            onRemoveOccupancy();
+          }}
         >
+          Remove Ship
+        </button>
+      )}
+      {menu.kind === "route" && menu.occupancy.kind === "raider" && (
+        <button
+          type="button"
+          role="menuitem"
+          className={`${CONTEXT_MENU_BTN} text-red-700 dark:text-red-400`}
+          data-context-action="remove-occupancy"
+          aria-label="Remove Raider"
+          onClick={(event) => {
+            event.stopPropagation();
+            onRemoveOccupancy();
+          }}
+        >
+          Remove Raider
+        </button>
+      )}
+      {menu.kind === "sea" && (
+        <>
           <button
             type="button"
-            className={SEA_MENU_BTN}
-            data-quick-action="add-storm"
-            aria-label="Add Storm"
+            role="menuitem"
+            className={CONTEXT_MENU_BTN}
+            data-context-action="add-storm"
+            aria-label={`Add Storm to ${seaRegionDisplayName(menu.regionId)}`}
             onClick={(event) => {
               event.stopPropagation();
               onAddStorm();
             }}
           >
-            + Storm
+            Add Storm
           </button>
-        </div>
-      </foreignObject>
-    </g>
+          {menu.stormCount > 0 && (
+            <button
+              type="button"
+              role="menuitem"
+              className={`${CONTEXT_MENU_BTN} text-red-700 dark:text-red-400`}
+              data-context-action="remove-storm"
+              aria-label={`Remove Storm from ${seaRegionDisplayName(menu.regionId)}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onRemoveStorm();
+              }}
+            >
+              Remove Storm
+            </button>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
-export function StormPieceQuickActions({
-  regionId,
-  anchorX,
-  anchorY,
-  visible,
-  onAddStorm,
-  onRemoveStorm,
-  onHoverEnter,
-  onHoverLeave,
+export function MarinerPieceSupplyTray({
+  onBeginShip,
+  onBeginRaider,
+  onBeginStorm,
 }: {
-  regionId: MarinerSeaRegionId;
-  anchorX: number;
-  anchorY: number;
-  visible: boolean;
-  onAddStorm: () => void;
-  onRemoveStorm: () => void;
-  onHoverEnter: () => void;
-  onHoverLeave: (relatedTarget: EventTarget | null) => void;
+  onBeginShip: (event: ReactPointerEvent) => void;
+  onBeginRaider: (event: ReactPointerEvent) => void;
+  onBeginStorm: (event: ReactPointerEvent) => void;
 }) {
-  if (!visible) return null;
   return (
-    <g
-      data-storm-piece-quick-actions
-      data-region-id={regionId}
-      data-storm-piece-hover-owner={regionId}
-      transform={`translate(${anchorX + 16} ${anchorY - 10})`}
-      pointerEvents="all"
-      onMouseOver={onHoverEnter}
-      onMouseOut={(event) => onHoverLeave(event.relatedTarget)}
+    <div
+      data-piece-tray
+      className="flex items-center gap-2 rounded-md border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/80 px-2 py-1"
     >
-      <foreignObject x={0} y={-8} width={150} height={52}>
-        <div
-          data-storm-piece-action-menu
-          className="rounded-md border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-sm py-0.5"
-        >
-          <button
-            type="button"
-            className={SEA_MENU_BTN}
-            data-quick-action="add-storm"
-            aria-label="Add Storm"
-            onClick={(event) => {
-              event.stopPropagation();
-              onAddStorm();
-            }}
-          >
-            + Storm
-          </button>
-          <button
-            type="button"
-            className={`${SEA_MENU_BTN} text-red-700 dark:text-red-400`}
-            data-quick-action="remove-storm"
-            aria-label="Remove Storm"
-            onClick={(event) => {
-              event.stopPropagation();
-              onRemoveStorm();
-            }}
-          >
-            × Remove
-          </button>
-        </div>
-      </foreignObject>
-    </g>
+      <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Supply</span>
+      <button
+        type="button"
+        data-tray-piece="ship"
+        aria-label="Place Ship"
+        className="flex h-8 w-8 cursor-grab items-center justify-center rounded border border-teal-700/40 bg-teal-50 dark:bg-teal-950"
+        onPointerDown={onBeginShip}
+      >
+        <svg width={18} height={14} viewBox="-8 -8 16 16" aria-hidden="true">
+          <path d="M-4.2 2.1 L-2.3 -1.1 L3.2 -1.1 L5.1 2.1 Z" fill="#0f766e" stroke="#042f2e" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        data-tray-piece="raider"
+        aria-label="Place Raider"
+        className="flex h-8 w-8 cursor-grab items-center justify-center rounded border border-red-800/40 bg-orange-50 dark:bg-orange-950"
+        onPointerDown={onBeginRaider}
+      >
+        <svg width={18} height={14} viewBox="-8 -8 16 16" aria-hidden="true">
+          <polygon points="-3.4,-2.7 -3.4,2.7 5.6,0" fill="#7c2d12" stroke="#431407" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        data-tray-piece="storm"
+        aria-label="Place Storm"
+        className="flex h-8 w-8 cursor-grab items-center justify-center rounded border border-slate-500/40 bg-slate-100 dark:bg-slate-800"
+        onPointerDown={onBeginStorm}
+      >
+        <svg width={18} height={18} viewBox="-16 -16 32 32" aria-hidden="true">
+          <path d="M-10 4 Q -4 -10 4 -6 Q 10 -2 8 6 Q 0 10 -10 4 Z" fill="#475569" stroke="#0f172a" />
+        </svg>
+      </button>
+    </div>
   );
 }

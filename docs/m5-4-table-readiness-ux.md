@@ -47,6 +47,21 @@ Full-screen desktop / table use. Primary acceptance viewport **1600×1000**. Pho
 
 When a Mariner or Necromancer board item is selected, a dismissible right-side overlay inspector (~360–420px) appears. The board does **not** resize. Escape and an explicit Close control dismiss it. Focus is not trapped as a modal.
 
+### Approved Mariner board interaction convention
+
+**APPLICATION DESIGN (approved):**
+
+1. Left-click selects/inspects. Inspector controls, including Advanced / Correct, remain the details path. Context menus do not replace the inspector.
+2. Drag an existing board piece to move it. Drag from the board-local Ship / Raider / Storm supply tray to create/place. Off-map drag is a no-op, not a delete.
+3. Right-click opens one Mariner-local HTML context menu at the pointer. There are no hover command menus.
+4. Delete / Backspace removes the selected occupied Route piece or decrements one Storm on a selected Sea/Horizon when focus is not in an editable field. Accelerators are never the only path.
+5. Route create, occupied Remove, Storm +/−, and tray placement retain the snapshot captured at context-menu open or tray pointerdown. Do not recapture at commit. Stale server rejection is preferred over silently rebasing intent.
+6. Tray Raider drop does not guess direction. An action-triggered chooser asks for the destination endpoint, then `createMarinerShip` uses that choice and the original tray snapshot. Board Raider moves still preserve a still-valid `toward`.
+
+Instruction line: Drag pieces to place or move • Right-click for actions • Click for details • Delete removes a selected piece.
+
+This remains Mariner-local. No generic drag-and-drop library, context-menu framework, or cross-Domain interaction subsystem. No rules automation. Nothing VERIFIED.
+
 ### Source visuals used
 
 - Authoritative source for Batch 2 board art: local `Patreon Materials [04.26.04].pptx` (not committed).
@@ -558,7 +573,7 @@ Supports: UX-001, UX-019.
 - **Current status:** FIXED — NEEDS HUMAN RETEST
 - **Dependencies / duplicates:** Related to UX-025 and UX-024.
 - **Approved batch:** Batch 2 operability pass
-- **Resolution / implementation note:** Isle inspector keeps Market, Ravage, Record Ravage Result, Beast facts, and Lore. Route inspector owns Add Ship / Move Ship (or Move Raider) using the selected Route as target or source without fabricating `sourceIsleId`. **Direct board manipulation:** empty Routes expose a compact hover/focus menu beside the Route midpoint (`+ Ship`, `Raider -> <endpoint name>` for each endpoint); occupied Routes expose draggable Ship/Raider markers with an adjacent one-click Remove on the piece hover owner, and drag-to-empty-Route moves. Quick actions remain while the pointer travels from the Route or piece onto those controls. If a placement newly traps a Beast, a board-local chooser asks only for required Rampage destination Domains, using the snapshot captured when the action began; Raider direction choice uses the same drag-start snapshot. Sea/Horizon hover exposes direct `+ Storm` (existing `setMarinerSeaStormCount`, +1 only); Storm/Typhoon piece hover exposes `× Remove` (−1 only). These Storm adjustments are manual board-state edits only — no automatic Ship destruction, hazard resolution, Rampage, Ravage, Market, Stability, or monthly procedure. Sea inspector remains weather-centric with click-to-guide fallback; arbitrary Storm-count correction lives under Advanced / Correct — Weather. Generic Route occupancy correction lives under Advanced / Correct — Route. Nothing VERIFIED.
+- **Resolution / implementation note:** Isle inspector keeps Market, Ravage, Record Ravage Result, Beast facts, and Lore. Route inspector owns Add Ship / Move Ship (or Move Raider) using the selected Route as target or source without fabricating `sourceIsleId`. **Direct board manipulation convention:** left-click inspects; drag existing pieces to move; drag Ship / Raider / Storm from a board-local supply tray to place; right-click opens one HTML context menu at the pointer; Delete / Backspace removes a selected occupied Route or decrements one selected Storm. Hover command menus are retired. Empty-Route context actions are Add Ship and Raider toward each named endpoint; occupied Route context is Remove Ship or Remove Raider; Sea/Horizon and Storm/Typhoon pieces share Add Storm and, when `stormCount > 0`, Remove Storm. Context-menu and tray actions retain the snapshot captured at menu-open or tray pointerdown. Tray Ship uses `createMarinerShip` with `destinationToward` null; tray Raider opens a direction chooser and does not guess; tray Storm uses `setMarinerSeaStormCount` only. If a placement newly traps a Beast, the existing Rampage chooser uses that same original snapshot. These Storm adjustments remain manual board-state edits only — no automatic Ship destruction, hazard resolution, Rampage, Ravage, Market, Stability, or monthly procedure. Sea inspector remains weather-centric with click-to-guide fallback; arbitrary Storm-count correction lives under Advanced / Correct — Weather. Generic Route occupancy correction lives under Advanced / Correct — Route. Nothing VERIFIED.
 
 ---
 
@@ -584,8 +599,8 @@ Supports: UX-001, UX-019.
 - Prevailing Wind chrome omitted: software does not know actual Wind; do not guess from calendar/season.
 - Next-Storm destination omitted from forecast: not deterministic from current state.
 - Visions forecast is a bookkeeping preview of current Storms, Typhoon seas, threatened occupied Routes, and Ravaged Isles.
-- Hover/focus operational copy and contextual inspectors.
-- Click-to-guide Storm; drag/drop deferred.
+- Contextual inspectors and click-to-inspect selection. No hover command menus.
+- Click-to-guide Storm remains a keyboard/non-drag fallback. Direct Storm piece drag and tray Storm placement are implemented.
 
 Do not treat application-design forecasts as new game rules.
 
@@ -630,7 +645,8 @@ Batch 2 Mariner operability pass:
 |---|---|---|
 | A | `8db4b0fc1499b06e977a1bd20cd96f7f210aff62` | M5.4 UX B2: expose Mariner operational state |
 | B | `204db083c6dd0400ec500a5a4d92368e06816411` | M5.4 UX B2: make Mariner map actions contextual |
-| C | *(this commit)* | M5.4 UX B2: add Mariner weather interaction |
+| C | *(earlier commit)* | M5.4 UX B2: add Mariner weather interaction |
+| Interaction convention | *(this commit)* | M5.4 UX B2: adopt board interaction convention |
 
 ## Browser / desktop inspection (implementation worker)
 

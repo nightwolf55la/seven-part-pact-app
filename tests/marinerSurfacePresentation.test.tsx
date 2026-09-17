@@ -346,6 +346,79 @@ async function dragRoutePiece(
   });
 }
 
+function openContextOn(target: Element, clientX = 80, clientY = 40): void {
+  flushSync(() => {
+    target.dispatchEvent(new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX,
+      clientY,
+      button: 2,
+    }));
+  });
+}
+
+function openRouteContext(container: HTMLElement, routeId: string, clientX = 80, clientY = 40): HTMLElement {
+  const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${routeId}"]`) as Element;
+  openContextOn(route, clientX, clientY);
+  const menu = container.querySelector("[data-mariner-context-menu]") as HTMLElement | null;
+  if (menu === null) throw new Error("Missing route context menu");
+  return menu;
+}
+
+function openOccupiedRouteContext(container: HTMLElement, routeId: string, clientX = 80, clientY = 40): HTMLElement {
+  const marker = container.querySelector(`[data-route-occupancy-marker][data-route-id="${routeId}"]`) as Element;
+  (marker as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+  openContextOn(marker, clientX, clientY);
+  const menu = container.querySelector("[data-mariner-context-menu]") as HTMLElement | null;
+  if (menu === null) throw new Error("Missing occupied-route context menu");
+  return menu;
+}
+
+function openSeaContext(container: HTMLElement, regionId: string, clientX = 90, clientY = 50): HTMLElement {
+  const sea = container.querySelector(`[data-map-layer="sea-hit"][data-region-id="${regionId}"]`) as Element;
+  openContextOn(sea, clientX, clientY);
+  const menu = container.querySelector("[data-mariner-context-menu]") as HTMLElement | null;
+  if (menu === null) throw new Error("Missing sea context menu");
+  return menu;
+}
+
+function contextAction(container: HTMLElement, action: string, toward?: string): HTMLButtonElement {
+  const selector = toward === undefined
+    ? `[data-mariner-context-menu] [data-context-action="${action}"]`
+    : `[data-mariner-context-menu] [data-context-action="${action}"][data-raider-toward="${toward}"]`;
+  const found = container.querySelector(selector) as HTMLButtonElement | null;
+  if (found === null) throw new Error(`Missing context action ${action}`);
+  return found;
+}
+
+async function dragTrayPiece(
+  container: HTMLElement,
+  piece: "ship" | "raider" | "storm",
+  dropTarget: Element | null,
+  pointerId = 61,
+): Promise<void> {
+  const tray = container.querySelector(`[data-tray-piece="${piece}"]`) as Element;
+  (tray as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+  Object.defineProperty(document, "elementFromPoint", {
+    configurable: true,
+    value: () => dropTarget,
+  });
+  await act(async () => {
+    tray.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      clientX: 15,
+      clientY: 15,
+      pointerId,
+      isPrimary: true,
+      button: 0,
+    }));
+    window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 30, clientY: 15, pointerId }));
+    window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 210, clientY: 210, pointerId }));
+    window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: 210, clientY: 210, pointerId }));
+  });
+}
+
 async function confirmRampageDestination(container: HTMLElement, seatId = "hierophant"): Promise<void> {
   const chooser = container.querySelector("[data-ship-rampage-chooser]") as HTMLElement | null;
   if (chooser === null) throw new Error("Missing Rampage chooser");
@@ -1938,20 +2011,43 @@ describe("M5.4 Mariner direct board manipulation", () => {
     container.remove();
   });
 
-  it("shows empty Route quick actions on focus and Add Ship submits without sourceIsleId", async () => {
+  it("does not render hover command menus on Route, Sea, or Storm hover or focus", async () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SUNKEN_ORRERY_FAR}"]`) as SVGElement;
+    const sea = container.querySelector('[data-map-layer="sea-hit"][data-region-id="wizard_strait"]') as SVGGElement;
+    const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]') as SVGGElement;
+    const marker = container.querySelector(
+      `[data-route-occupancy-marker="ship"][data-route-id="${SHIP_ROUTE}"]`,
+    ) as SVGGElement;
     flushSync(() => { route.focus(); });
-    const quick = container.querySelector(`[data-route-quick-actions][data-route-id="${SUNKEN_ORRERY_FAR}"]`);
-    expect(quick).not.toBeNull();
-    const menu = quick?.querySelector("[data-route-action-menu]") as HTMLElement;
-    expect(menu?.textContent).toContain("+ Ship");
-    expect(menu?.textContent).toMatch(/Raider -> World orrery/);
-    expect(menu?.textContent).toMatch(/Raider -> World far reach/);
-    expect(menu?.textContent).not.toMatch(/\+R/);
-    expect(menu?.textContent).not.toMatch(/\+S/);
-    const addShip = quick?.querySelector('[data-quick-action="add-ship"]') as HTMLButtonElement;
-    expect(addShip?.getAttribute("aria-label")).toMatch(/Add Ship/i);
+    await act(async () => {
+      route.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
+      sea.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
+      storm.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
+      marker.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
+    });
+    expect(container.querySelector("[data-route-quick-actions]")).toBeNull();
+    expect(container.querySelector("[data-sea-quick-actions]")).toBeNull();
+    expect(container.querySelector("[data-storm-piece-quick-actions]")).toBeNull();
+    expect(container.querySelector("[data-route-occupancy-remove]")).toBeNull();
+    expect(container.querySelector('[data-board-instruction]')?.textContent).toMatch(/Drag pieces to place or move/);
+    expect(container.querySelector("[data-piece-tray]")).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("opens an empty Route context menu at the pointer and Add Ship creates without sourceIsleId", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const menu = openRouteContext(container, SUNKEN_ORRERY_FAR, 88, 44);
+    expect(menu.getAttribute("data-pointer-x")).toBe("88");
+    expect(menu.getAttribute("data-pointer-y")).toBe("44");
+    expect(menu.textContent).toContain("Add Ship");
+    expect(menu.textContent).toMatch(/Raider -> World orrery/);
+    expect(menu.textContent).toMatch(/Raider -> World far reach/);
+    expect(menu.textContent).not.toMatch(/\+R/);
+    expect(menu.textContent).not.toMatch(/\+S/);
+    const addShip = contextAction(container, "add-ship");
+    expect(addShip.getAttribute("aria-label")).toMatch(/Add Ship/i);
     await act(async () => { addShip.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     const payload = mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0];
     expect(payload.targetRouteId).toBe(SUNKEN_ORRERY_FAR);
@@ -1961,52 +2057,56 @@ describe("M5.4 Mariner direct board manipulation", () => {
     container.remove();
   });
 
-  it("Add Raider submits semantic createMarinerShip with destinationToward", async () => {
+  it("Add Raider from context menu submits semantic createMarinerShip with destinationToward", async () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SUNKEN_ORRERY_FAR}"]`) as SVGElement;
-    flushSync(() => { route.focus(); });
-    const addRaider = container.querySelector(
-      `[data-route-quick-actions][data-route-id="${SUNKEN_ORRERY_FAR}"] [data-quick-action="add-raider"][data-raider-toward="board:orrery"]`,
-    ) as HTMLButtonElement;
-    expect(addRaider).not.toBeNull();
-    expect(addRaider.textContent).toMatch(/Raider -> World orrery/);
-    expect(addRaider.getAttribute("aria-label")).toMatch(/Add Raider toward/i);
-    await act(async () => { addRaider.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    openRouteContext(container, SUNKEN_ORRERY_FAR);
+    const addOrrery = contextAction(container, "add-raider", "board:orrery");
+    expect(addOrrery.textContent).toMatch(/Raider -> World orrery/);
+    await act(async () => { addOrrery.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     expect(mockMutations["m3Commands.setMarinerRouteOccupancy"]).not.toHaveBeenCalled();
-    const payload = mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0];
-    expect(payload.targetRouteId).toBe(SUNKEN_ORRERY_FAR);
-    expect(payload.destinationToward).toEqual({ kind: "board_isle", boardIsleId: "orrery" });
-    expect(payload).not.toHaveProperty("sourceIsleId");
-    root.unmount();
-    container.remove();
-  });
-
-  it("exposes Remove on the occupied piece hover owner, not on empty Route menus", async () => {
-    const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    const emptyRoute = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SUNKEN_ORRERY_FAR}"]`) as SVGElement;
-    flushSync(() => { emptyRoute.focus(); });
-    expect(container.querySelector('[data-quick-action="remove"]')).toBeNull();
-    const marker = container.querySelector(
-      `[data-route-occupancy-marker="ship"][data-route-id="${SHIP_ROUTE}"]`,
-    ) as SVGGElement;
-    await act(async () => {
-      marker.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
+    expect(mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0]).toMatchObject({
+      targetRouteId: SUNKEN_ORRERY_FAR,
+      destinationToward: { kind: "board_isle", boardIsleId: "orrery" },
     });
-    expect(marker.querySelector('[data-quick-action="remove"]')).not.toBeNull();
-    expect(container.querySelector(`[data-route-quick-actions][data-route-id="${SHIP_ROUTE}"]`)).toBeNull();
+    openRouteContext(container, SUNKEN_ORRERY_FAR);
+    const addFar = contextAction(container, "add-raider", "board:far_reach");
+    await act(async () => { addFar.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(mockMutations["m3Commands.createMarinerShip"].mock.calls[1][0].destinationToward).toEqual({
+      kind: "board_isle",
+      boardIsleId: "far_reach",
+    });
     root.unmount();
     container.remove();
   });
 
-  it("defers quick +Ship that traps a Beast until Rampage destinations are chosen", async () => {
+  it("context-menu Add Ship keeps the menu-open snapshot after realtime occupancy drift", async () => {
+    const start = initializedMariner();
+    const expected = expectedForCreateShip(captureOperabilityBoard(start), SUNKEN_ORRERY_FAR);
+    const { container, root } = renderSurface(start, WIZARD);
+    openRouteContext(container, SUNKEN_ORRERY_FAR);
+    rerenderSurface(root, withRealtimeOccupancyDrift(start));
+    await act(async () => { contextAction(container, "add-ship").dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    const payload = mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0];
+    expect(payload).toMatchObject({
+      targetRouteId: SUNKEN_ORRERY_FAR,
+      destinationToward: null,
+      expectedTargetOccupancy: expected.expectedTargetOccupancy,
+      expectedRouteOccupancies: expected.expectedRouteOccupancies,
+    });
+    expect(payload.expectedRouteOccupancies).not.toEqual(
+      expectedForCreateShip(captureOperabilityBoard(withRealtimeOccupancyDrift(start)), SUNKEN_ORRERY_FAR)
+        .expectedRouteOccupancies,
+    );
+    root.unmount();
+    container.remove();
+  });
+
+  it("defers context-menu Add Ship that traps a Beast until Rampage destinations are chosen", async () => {
     const start = withSunkenFleetTrapReady(initializedMariner());
     const expected = expectedForCreateShip(captureOperabilityBoard(start), SUNKEN_ORRERY_FAR);
     const { container, root } = renderSurface(start, WIZARD);
-    focusRoute(container, SUNKEN_ORRERY_FAR);
-    const addShip = container.querySelector(
-      `[data-route-quick-actions][data-route-id="${SUNKEN_ORRERY_FAR}"] [data-quick-action="add-ship"]`,
-    ) as HTMLButtonElement;
-    await act(async () => { addShip.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    openRouteContext(container, SUNKEN_ORRERY_FAR);
+    await act(async () => { contextAction(container, "add-ship").dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     expect(mockMutations["m3Commands.createMarinerShip"]).not.toHaveBeenCalled();
     expect(container.querySelector("[data-ship-rampage-chooser]")).not.toBeNull();
     await confirmRampageDestination(container);
@@ -2034,11 +2134,10 @@ describe("M5.4 Mariner direct board manipulation", () => {
     const start = withSunkenFleetTrapReady(initializedMariner());
     const expected = expectedForCreateShip(captureOperabilityBoard(start), SUNKEN_ORRERY_FAR);
     const { container, root } = renderSurface(start, WIZARD);
-    focusRoute(container, SUNKEN_ORRERY_FAR);
-    const addRaider = container.querySelector(
-      `[data-route-quick-actions][data-route-id="${SUNKEN_ORRERY_FAR}"] [data-quick-action="add-raider"][data-raider-toward="board:orrery"]`,
-    ) as HTMLButtonElement;
-    await act(async () => { addRaider.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    openRouteContext(container, SUNKEN_ORRERY_FAR);
+    await act(async () => {
+      contextAction(container, "add-raider", "board:orrery").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
     expect(mockMutations["m3Commands.createMarinerShip"]).not.toHaveBeenCalled();
     expect(mockMutations["m3Commands.setMarinerRouteOccupancy"]).not.toHaveBeenCalled();
     expect(container.querySelector("[data-ship-rampage-chooser]")).not.toBeNull();
@@ -2090,11 +2189,8 @@ describe("M5.4 Mariner direct board manipulation", () => {
     const start = withSunkenFleetTrapReady(initializedMariner());
     const expected = expectedForCreateShip(captureOperabilityBoard(start), SUNKEN_ORRERY_FAR);
     const { container, root } = renderSurface(start, WIZARD);
-    focusRoute(container, SUNKEN_ORRERY_FAR);
-    const addShip = container.querySelector(
-      `[data-route-quick-actions][data-route-id="${SUNKEN_ORRERY_FAR}"] [data-quick-action="add-ship"]`,
-    ) as HTMLButtonElement;
-    await act(async () => { addShip.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    openRouteContext(container, SUNKEN_ORRERY_FAR);
+    await act(async () => { contextAction(container, "add-ship").dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     expect(container.querySelector("[data-ship-rampage-chooser]")).not.toBeNull();
     rerenderSurface(root, withRealtimeOccupancyDrift(start));
     expect(container.querySelector("[data-ship-rampage-chooser]")).not.toBeNull();
@@ -2162,46 +2258,67 @@ describe("M5.4 Mariner direct board manipulation", () => {
     container.remove();
   });
 
-  it("keeps empty-Route quick actions mounted across pointer travel onto the control group", async () => {
-    const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SUNKEN_ORRERY_FAR}"]`) as SVGElement;
-    await act(async () => {
-      route.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
-    });
-    const quick = container.querySelector(`[data-route-quick-actions][data-route-id="${SUNKEN_ORRERY_FAR}"]`) as SVGGElement | null;
-    expect(quick).not.toBeNull();
-    await act(async () => {
-      route.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, composed: true, relatedTarget: quick }));
-      quick?.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true, relatedTarget: route }));
-    });
-    const stillQuick = container.querySelector(`[data-route-quick-actions][data-route-id="${SUNKEN_ORRERY_FAR}"]`);
-    expect(stillQuick).not.toBeNull();
-    const addShip = stillQuick?.querySelector('[data-quick-action="add-ship"]') as HTMLButtonElement;
-    await act(async () => { addShip.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
-    expect(mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0]).toMatchObject({
-      targetRouteId: SUNKEN_ORRERY_FAR,
-      destinationToward: null,
-    });
-    root.unmount();
-    container.remove();
-  });
-
-  it("Remove on an occupied Route submits empty occupancy against the captured occupancy", async () => {
-    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+  it("context-menu Remove on occupied Route is not nested under the draggable piece pointerdown", async () => {
+    const start = initializedMariner();
+    const { container, root } = renderSurface(start, WIZARD);
     const marker = container.querySelector(
       `[data-route-occupancy-marker="ship"][data-route-id="${SHIP_ROUTE}"]`,
     ) as SVGGElement;
+    const menu = openOccupiedRouteContext(container, SHIP_ROUTE, 40, 50);
+    expect(marker.contains(menu)).toBe(false);
+    const remove = contextAction(container, "remove-occupancy");
     await act(async () => {
-      marker.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
+      remove.dispatchEvent(new PointerEvent("pointerdown", {
+        bubbles: true,
+        clientX: 40,
+        clientY: 50,
+        pointerId: 88,
+        isPrimary: true,
+        button: 0,
+      }));
+      window.dispatchEvent(new PointerEvent("pointerup", {
+        bubbles: true,
+        clientX: 41,
+        clientY: 50,
+        pointerId: 88,
+        button: 0,
+      }));
+      remove.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
-    const remove = marker.querySelector('[data-quick-action="remove"]') as HTMLButtonElement;
-    await act(async () => { remove.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"]).toHaveBeenCalledTimes(1);
     expect(mockMutations["m3Commands.setMarinerRouteOccupancy"].mock.calls[0][0]).toMatchObject({
       expectedCampaignId: CAMPAIGN_ID,
       routeId: SHIP_ROUTE,
       expectedOccupancy: { kind: "ship" },
       occupancy: { kind: "empty" },
     });
+    expect(mockMutations["m3Commands.moveMarinerShip"]).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-drag-ghost]")).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("occupied Route context Remove keeps the menu-open occupancy after later board drift", async () => {
+    const start = initializedMariner();
+    const { container, root } = renderSurface(start, WIZARD);
+    openOccupiedRouteContext(container, SHIP_ROUTE);
+    rerenderSurface(root, {
+      ...start,
+      routes: start.routes.map((route) =>
+        route.routeId === SHIP_ROUTE
+          ? { ...route, occupancy: { kind: "raider" as const, toward: { kind: "board_isle" as const, boardIsleId: "thyras" } } }
+          : route
+      ),
+    });
+    await act(async () => {
+      contextAction(container, "remove-occupancy").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"].mock.calls[0][0]).toMatchObject({
+      routeId: SHIP_ROUTE,
+      expectedOccupancy: { kind: "ship" },
+      occupancy: { kind: "empty" },
+    });
+    expect(mockMutations["m3Commands.moveMarinerShip"]).not.toHaveBeenCalled();
     root.unmount();
     container.remove();
   });
@@ -2222,11 +2339,8 @@ describe("M5.4 Mariner direct board manipulation", () => {
   it("shows distinct Beast names in the board Rampage chooser and maps each destination to the correct denizenId", async () => {
     const start = withTwoSunkenFleetBeastsTrapReady(initializedMariner());
     const { container, root } = renderSurface(start, WIZARD);
-    focusRoute(container, SUNKEN_ORRERY_FAR);
-    const addShip = container.querySelector(
-      `[data-route-quick-actions][data-route-id="${SUNKEN_ORRERY_FAR}"] [data-quick-action="add-ship"]`,
-    ) as HTMLButtonElement;
-    await act(async () => { addShip.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    openRouteContext(container, SUNKEN_ORRERY_FAR);
+    await act(async () => { contextAction(container, "add-ship").dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     const chooser = container.querySelector("[data-ship-rampage-chooser]") as HTMLElement;
     expect(chooser.textContent).toContain("Kraken-kin");
     expect(chooser.textContent).toContain("Spare Leviathan");
@@ -2259,57 +2373,135 @@ describe("M5.4 Mariner direct board manipulation", () => {
     container.remove();
   });
 
-  it("keeps empty-Route quick actions mounted when the pointer moves onto each Raider option", async () => {
+  it("adds and removes Storms from Sea context menus using the menu-open storm count", async () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SUNKEN_ORRERY_FAR}"]`) as SVGElement;
-    await act(async () => {
-      route.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
-    });
-    const quick = container.querySelector(`[data-route-quick-actions][data-route-id="${SUNKEN_ORRERY_FAR}"]`) as SVGGElement;
-    const raiderFar = quick.querySelector(
-      '[data-quick-action="add-raider"][data-raider-toward="board:far_reach"]',
-    ) as HTMLButtonElement;
-    await act(async () => {
-      route.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, composed: true, relatedTarget: raiderFar }));
-      raiderFar.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true, relatedTarget: route }));
-    });
-    expect(container.querySelector(`[data-route-quick-actions][data-route-id="${SUNKEN_ORRERY_FAR}"]`)).not.toBeNull();
-    await act(async () => { raiderFar.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
-    expect(mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0].destinationToward).toEqual({
-      kind: "board_isle",
-      boardIsleId: "far_reach",
-    });
-    root.unmount();
-    container.remove();
-  });
-
-  it("shows + Storm only on empty Sea hover and never Remove", async () => {
-    const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    const sea = container.querySelector('[data-map-layer="sea-hit"][data-region-id="wizard_strait"]') as SVGGElement;
-    await act(async () => {
-      sea.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
-    });
-    const emptyMenu = container.querySelector(
-      '[data-sea-quick-actions][data-region-id="wizard_strait"] [data-sea-action-menu]',
-    ) as HTMLElement;
-    expect(emptyMenu?.textContent).toContain("+ Storm");
-    expect(container.querySelector('[data-quick-action="remove-storm"]')).toBeNull();
-    expect(container.querySelector('[data-storm-piece-quick-actions]')).toBeNull();
-    root.unmount();
-    container.remove();
-  });
-
-  it("submits + Storm from empty Sea hover with expected count only", async () => {
-    const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    const sea = container.querySelector('[data-map-layer="sea-hit"][data-region-id="wizard_strait"]') as SVGGElement;
-    await act(async () => {
-      sea.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
-    });
-    const addStorm = container.querySelector(
-      '[data-sea-quick-actions][data-region-id="wizard_strait"] [data-quick-action="add-storm"]',
-    ) as HTMLButtonElement;
-    await act(async () => { addStorm.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    openSeaContext(container, "wizard_strait");
+    expect(container.querySelector("[data-mariner-context-menu]")?.textContent).toContain("Add Storm");
+    expect(container.querySelector('[data-context-action="remove-storm"]')).toBeNull();
+    await act(async () => { contextAction(container, "add-storm").dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     expect(mockMutations["m3Commands.moveMarinerStorm"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.setMarinerSeaStormCount"].mock.calls[0][0]).toMatchObject({
+      regionId: "wizard_strait",
+      expectedStormCount: 0,
+      stormCount: 1,
+    });
+    const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]') as Element;
+    openContextOn(storm, 70, 60);
+    await act(async () => { contextAction(container, "remove-storm").dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(mockMutations["m3Commands.moveMarinerStorm"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.setMarinerSeaStormCount"].mock.calls[1][0]).toMatchObject({
+      regionId: "sidereal_sea",
+      expectedStormCount: 2,
+      stormCount: 1,
+    });
+    root.unmount();
+    container.remove();
+  });
+
+  it("closes the context menu on Escape and outside click, and prevents native menu only on board targets", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SUNKEN_ORRERY_FAR}"]`) as Element;
+    const routeEvent = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 20, clientY: 20, button: 2 });
+    flushSync(() => { route.dispatchEvent(routeEvent); });
+    expect(routeEvent.defaultPrevented).toBe(true);
+    expect(container.querySelector("[data-mariner-context-menu]")).not.toBeNull();
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(container.querySelector("[data-mariner-context-menu]")).toBeNull();
+    openRouteContext(container, SUNKEN_ORRERY_FAR);
+    await act(async () => {
+      document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 }));
+    });
+    expect(container.querySelector("[data-mariner-context-menu]")).toBeNull();
+    const isle = container.querySelector('[data-map-layer="isle"]') as Element;
+    const isleEvent = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 12, clientY: 12, button: 2 });
+    flushSync(() => { isle.dispatchEvent(isleEvent); });
+    expect(isleEvent.defaultPrevented).toBe(false);
+    root.unmount();
+    container.remove();
+  });
+
+  it("places a tray Ship on an empty Route with the pointerdown snapshot and no-ops occupied or off-board drops", async () => {
+    const start = initializedMariner();
+    const expected = expectedForCreateShip(captureOperabilityBoard(start), SUNKEN_ORRERY_FAR);
+    const { container, root } = renderSurface(start, WIZARD);
+    const empty = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SUNKEN_ORRERY_FAR}"]`) as Element;
+    const occupied = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`) as Element;
+    await dragTrayPiece(container, "ship", occupied, 61);
+    expect(mockMutations["m3Commands.createMarinerShip"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"]).not.toHaveBeenCalled();
+    await dragTrayPiece(container, "ship", document.body, 62);
+    expect(mockMutations["m3Commands.createMarinerShip"]).not.toHaveBeenCalled();
+    await dragTrayPiece(container, "ship", empty, 63);
+    const payload = mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0];
+    expect(payload).toMatchObject({
+      targetRouteId: SUNKEN_ORRERY_FAR,
+      destinationToward: null,
+      expectedTargetOccupancy: expected.expectedTargetOccupancy,
+      expectedRouteOccupancies: expected.expectedRouteOccupancies,
+    });
+    expect(payload).not.toHaveProperty("sourceIsleId");
+    root.unmount();
+    container.remove();
+  });
+
+  it("opens a tray Raider direction chooser after a valid drop and does not guess an endpoint", async () => {
+    const start = initializedMariner();
+    const expected = expectedForCreateShip(captureOperabilityBoard(start), SUNKEN_ORRERY_FAR);
+    const { container, root } = renderSurface(start, WIZARD);
+    const empty = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SUNKEN_ORRERY_FAR}"]`) as Element;
+    await dragTrayPiece(container, "raider", empty, 64);
+    expect(mockMutations["m3Commands.createMarinerShip"]).not.toHaveBeenCalled();
+    const chooser = container.querySelector("[data-raider-direction-chooser]") as HTMLElement;
+    expect(chooser).not.toBeNull();
+    expect(chooser.textContent).toMatch(/Raider -> World orrery/);
+    expect(chooser.textContent).toMatch(/Raider -> World far reach/);
+    await act(async () => { button(chooser, "Raider -> World orrery").click(); });
+    expect(mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0]).toMatchObject({
+      targetRouteId: SUNKEN_ORRERY_FAR,
+      destinationToward: { kind: "board_isle", boardIsleId: "orrery" },
+      expectedTargetOccupancy: expected.expectedTargetOccupancy,
+      expectedRouteOccupancies: expected.expectedRouteOccupancies,
+    });
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps the original tray Raider snapshot through direction choice and Rampage after realtime drift", async () => {
+    const start = withSunkenFleetTrapReady(initializedMariner());
+    const expected = expectedForCreateShip(captureOperabilityBoard(start), SUNKEN_ORRERY_FAR);
+    const { container, root } = renderSurface(start, WIZARD);
+    const empty = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SUNKEN_ORRERY_FAR}"]`) as Element;
+    await dragTrayPiece(container, "raider", empty, 65);
+    expect(container.querySelector("[data-raider-direction-chooser]")).not.toBeNull();
+    rerenderSurface(root, withRealtimeOccupancyDrift(start));
+    await act(async () => { button(container, "Raider -> World orrery").click(); });
+    expect(mockMutations["m3Commands.createMarinerShip"]).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-ship-rampage-chooser]")).not.toBeNull();
+    await confirmRampageDestination(container);
+    const payload = mockMutations["m3Commands.createMarinerShip"].mock.calls[0][0];
+    expect(payload).toMatchObject({
+      targetRouteId: SUNKEN_ORRERY_FAR,
+      destinationToward: { kind: "board_isle", boardIsleId: "orrery" },
+      expectedRouteOccupancies: expected.expectedRouteOccupancies,
+      expectedRelevantBeasts: expected.expectedRelevantBeasts,
+    });
+    expect(payload.expectedRouteOccupancies).not.toEqual(
+      expectedForCreateShip(captureOperabilityBoard(withRealtimeOccupancyDrift(start)), SUNKEN_ORRERY_FAR)
+        .expectedRouteOccupancies,
+    );
+    root.unmount();
+    container.remove();
+  });
+
+  it("places a tray Storm on a Sea with the pointerdown storm count and does not move Storms", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const sea = container.querySelector('[data-map-layer="sea-hit"][data-region-id="wizard_strait"]') as Element;
+    await dragTrayPiece(container, "storm", sea, 66);
+    expect(mockMutations["m3Commands.moveMarinerStorm"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.createMarinerShip"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"]).not.toHaveBeenCalled();
     expect(mockMutations["m3Commands.setMarinerSeaStormCount"].mock.calls[0][0]).toMatchObject({
       regionId: "wizard_strait",
       expectedStormCount: 0,
@@ -2319,140 +2511,38 @@ describe("M5.4 Mariner direct board manipulation", () => {
     container.remove();
   });
 
-  it("does not show occupied Storm menus on broad Sea hover alone", async () => {
+  it("Delete and Backspace remove a selected occupied Route or decrement a selected Storm region, but not while editing", async () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    const sea = container.querySelector('[data-map-layer="sea-hit"][data-region-id="sidereal_sea"]') as SVGGElement;
+    const occupied = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`) as Element;
+    flushSync(() => { occupied.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     await act(async () => {
-      sea.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true }));
     });
-    expect(container.querySelector('[data-storm-piece-quick-actions][data-region-id="sidereal_sea"]')).toBeNull();
-    expect(container.querySelector('[data-sea-quick-actions][data-region-id="sidereal_sea"]')).toBeNull();
-    root.unmount();
-    container.remove();
-  });
-
-  it("shows one combined Storm piece menu with + Storm and Remove for a single Storm", async () => {
-    const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="bay_of_ishana"]') as SVGGElement;
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"].mock.calls[0][0]).toMatchObject({
+      routeId: SHIP_ROUTE,
+      expectedOccupancy: { kind: "ship" },
+      occupancy: { kind: "empty" },
+    });
+    const sea = container.querySelector('[data-map-layer="sea-hit"][data-region-id="sidereal_sea"]') as Element;
+    flushSync(() => { sea.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     await act(async () => {
-      storm.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true }));
     });
-    const menu = container.querySelector(
-      '[data-storm-piece-quick-actions][data-region-id="bay_of_ishana"] [data-storm-piece-action-menu]',
-    ) as HTMLElement;
-    expect(menu?.textContent).toContain("+ Storm");
-    expect(menu?.textContent).toMatch(/Remove/);
-    expect(container.querySelectorAll('[data-quick-action="add-storm"]').length).toBe(1);
-    root.unmount();
-    container.remove();
-  });
-
-  it("shows one combined Storm piece menu for Typhoon without duplicate + Storm controls", async () => {
-    const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]') as SVGGElement;
-    await act(async () => {
-      storm.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
-    });
-    expect(container.querySelector('[data-sea-quick-actions][data-region-id="sidereal_sea"]')).toBeNull();
-    expect(container.querySelectorAll('[data-quick-action="add-storm"]').length).toBe(1);
-    expect(
-      container.querySelector('[data-storm-piece-quick-actions][data-region-id="sidereal_sea"] [data-quick-action="remove-storm"]'),
-    ).not.toBeNull();
-    root.unmount();
-    container.remove();
-  });
-
-  it("decrements Storm count by one from the Storm piece combined menu", async () => {
-    const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]') as SVGGElement;
-    await act(async () => {
-      storm.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
-    });
-    const remove = container.querySelector(
-      '[data-storm-piece-quick-actions][data-region-id="sidereal_sea"] [data-quick-action="remove-storm"]',
-    ) as HTMLButtonElement;
-    await act(async () => { remove.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
-    expect(mockMutations["m3Commands.moveMarinerStorm"]).not.toHaveBeenCalled();
     expect(mockMutations["m3Commands.setMarinerSeaStormCount"].mock.calls[0][0]).toMatchObject({
       regionId: "sidereal_sea",
       expectedStormCount: 2,
       stormCount: 1,
     });
-    root.unmount();
-    container.remove();
-  });
-
-  it("increments Storm count from the occupied Storm piece combined menu", async () => {
-    const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]') as SVGGElement;
+    const stormCalls = mockMutations["m3Commands.setMarinerSeaStormCount"].mock.calls.length;
+    const occupancyCalls = mockMutations["m3Commands.setMarinerRouteOccupancy"].mock.calls.length;
+    const input = container.querySelector('input[aria-label="Storm count"]') as HTMLInputElement;
+    input.focus();
     await act(async () => {
-      storm.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true }));
     });
-    const addStorm = container.querySelector(
-      '[data-storm-piece-quick-actions][data-region-id="sidereal_sea"] [data-quick-action="add-storm"]',
-    ) as HTMLButtonElement;
-    await act(async () => { addStorm.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
-    expect(mockMutations["m3Commands.setMarinerSeaStormCount"].mock.calls[0][0]).toMatchObject({
-      regionId: "sidereal_sea",
-      expectedStormCount: 2,
-      stormCount: 3,
-    });
-    root.unmount();
-    container.remove();
-  });
-
-  it("removes the last Storm token from a single-Storm region", async () => {
-    const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="bay_of_ishana"]') as SVGGElement;
-    await act(async () => {
-      storm.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
-    });
-    const remove = container.querySelector(
-      '[data-storm-piece-quick-actions][data-region-id="bay_of_ishana"] [data-quick-action="remove-storm"]',
-    ) as HTMLButtonElement;
-    await act(async () => { remove.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
-    expect(mockMutations["m3Commands.setMarinerSeaStormCount"].mock.calls[0][0]).toMatchObject({
-      regionId: "bay_of_ishana",
-      expectedStormCount: 1,
-      stormCount: 0,
-    });
-    root.unmount();
-    container.remove();
-  });
-
-  it("keeps the Storm piece combined menu mounted across pointer travel from piece onto menu", async () => {
-    const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]') as SVGGElement;
-    await act(async () => {
-      storm.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
-    });
-    const menuHost = container.querySelector(
-      '[data-storm-piece-quick-actions][data-region-id="sidereal_sea"]',
-    ) as SVGGElement;
-    expect(menuHost).not.toBeNull();
-    await act(async () => {
-      storm.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, composed: true, relatedTarget: menuHost }));
-      menuHost.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true, relatedTarget: storm }));
-    });
-    expect(
-      container.querySelector('[data-storm-piece-quick-actions][data-region-id="sidereal_sea"] [data-quick-action="remove-storm"]'),
-    ).not.toBeNull();
-    root.unmount();
-    container.remove();
-  });
-
-  it("closes the Storm piece menu when the pointer moves onto ordinary Sea background", async () => {
-    const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]') as SVGGElement;
-    const sea = container.querySelector('[data-map-layer="sea-hit"][data-region-id="sidereal_sea"]') as SVGGElement;
-    await act(async () => {
-      storm.dispatchEvent(new MouseEvent("mouseover", { bubbles: true, composed: true }));
-    });
-    expect(container.querySelector('[data-storm-piece-quick-actions][data-region-id="sidereal_sea"]')).not.toBeNull();
-    await act(async () => {
-      storm.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, composed: true, relatedTarget: sea }));
-    });
-    expect(container.querySelector('[data-storm-piece-quick-actions][data-region-id="sidereal_sea"]')).toBeNull();
+    expect(mockMutations["m3Commands.setMarinerSeaStormCount"].mock.calls.length).toBe(stormCalls);
+    expect(mockMutations["m3Commands.setMarinerRouteOccupancy"].mock.calls.length).toBe(occupancyCalls);
     root.unmount();
     container.remove();
   });

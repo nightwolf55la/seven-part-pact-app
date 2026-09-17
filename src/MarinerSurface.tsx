@@ -140,9 +140,8 @@ import {
 } from "./mariner-operational-view";
 import {
   BoardDragGhost,
-  RouteQuickActions,
-  SeaStormQuickActions,
-  StormPieceQuickActions,
+  MarinerBoardContextMenu,
+  MarinerPieceSupplyTray,
   useMarinerBoardInteractions,
   type PendingShipRampage,
 } from "./mariner-board-interactions";
@@ -279,9 +278,10 @@ export default function MarinerSurface({
 
   const board = useMarinerBoardInteractions({
     mariner,
-    world,
     campaignId,
     pending,
+    selectedRouteId: selection?.kind === "route" ? selection.routeId : null,
+    selectedRegionId: selection?.kind === "region" ? selection.regionId : null,
     run,
     moveMarinerStorm,
     moveMarinerShip,
@@ -444,7 +444,27 @@ export default function MarinerSurface({
             onPickGuideDestination={(regionId) => { void pickStormGuideDestination(regionId); }}
             sorcererPresence={sorcererPresence}
           />
+          <div className="flex flex-wrap items-center justify-between gap-2 px-2 pb-2 pt-1">
+            <MarinerPieceSupplyTray
+              onBeginShip={board.beginTrayShipPointer}
+              onBeginRaider={board.beginTrayRaiderPointer}
+              onBeginStorm={board.beginTrayStormPointer}
+            />
+            <p data-board-instruction className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">
+              Drag pieces to place or move • Right-click for actions • Click for details • Delete removes a selected piece
+            </p>
+          </div>
           <BoardDragGhost visual={board.dragVisual} />
+          <MarinerBoardContextMenu
+            menu={board.contextMenu}
+            mariner={mariner}
+            world={world}
+            onAddShip={() => { void board.contextAddShip(); }}
+            onAddRaider={(toward) => { void board.contextAddRaider(toward); }}
+            onRemoveOccupancy={() => { void board.contextRemoveOccupancy(); }}
+            onAddStorm={() => { void board.contextAddStorm(); }}
+            onRemoveStorm={() => { void board.contextRemoveStorm(); }}
+          />
           {board.pendingShipRampage !== null && (
             <ShipRampageChooser
               pendingIntent={board.pendingShipRampage}
@@ -457,7 +477,15 @@ export default function MarinerSurface({
           {board.pendingShipRampage === null && board.pendingRaiderDirection !== null && (
             <div
               data-raider-direction-chooser
-              className="absolute bottom-3 left-3 z-20 rounded-lg border border-teal-200 dark:border-teal-800 bg-white/95 dark:bg-slate-900/95 p-2 space-y-1 shadow-md"
+              className={board.pendingRaiderDirection.dropClientX === undefined
+                ? "absolute bottom-3 left-3 z-20 rounded-lg border border-teal-200 dark:border-teal-800 bg-white/95 dark:bg-slate-900/95 p-2 space-y-1 shadow-md"
+                : "fixed z-20 rounded-lg border border-teal-200 dark:border-teal-800 bg-white/95 dark:bg-slate-900/95 p-2 space-y-1 shadow-md"}
+              style={board.pendingRaiderDirection.dropClientX === undefined
+                ? undefined
+                : {
+                    left: board.pendingRaiderDirection.dropClientX,
+                    top: board.pendingRaiderDirection.dropClientY,
+                  }}
             >
               <p className="text-xs text-slate-600 dark:text-slate-300">Raids toward which endpoint?</p>
               {board.pendingRaiderDirection.choices.map((endpoint) => (
@@ -465,9 +493,12 @@ export default function MarinerSurface({
                   key={endpointKey(endpoint)}
                   type="button"
                   className={ghostBtn}
+                  data-raider-toward={endpointKey(endpoint)}
                   onClick={() => { void board.chooseRaiderDirection(endpoint); }}
                 >
-                  {routeEndpointLabel(endpoint, mariner, world.isles)}
+                  {board.pendingRaiderDirection?.action === "create"
+                    ? `Raider -> ${routeEndpointLabel(endpoint, mariner, world.isles)}`
+                    : routeEndpointLabel(endpoint, mariner, world.isles)}
                 </button>
               ))}
               <button type="button" className={ghostBtn} onClick={() => board.setPendingRaiderDirection(null)}>Cancel</button>
@@ -1054,7 +1085,6 @@ function MarinerMap({
               key={sea.regionId}
               data-map-layer="sea-hit"
               data-region-id={sea.regionId}
-              data-empty-sea-hover-owner={stormCount === 0 ? sea.regionId : undefined}
               data-storm-guide-dest={guideDest ?? undefined}
               role="button"
               tabIndex={0}
@@ -1062,10 +1092,7 @@ function MarinerMap({
               aria-label={`${kind} ${name}: ${seaRegionStateLabel(stormCount)}`}
               className={INTERACTIVE_FOCUS_CLASS}
               style={{ outline: "none" }}
-              onMouseOver={() => board.onSeaHoverEnter(sea.regionId)}
-              onMouseOut={(event) => board.onSeaHoverLeave(sea.regionId, event.relatedTarget)}
-              onFocus={() => board.onSeaHoverEnter(sea.regionId)}
-              onBlur={(event) => board.onSeaHoverLeave(sea.regionId, event.relatedTarget)}
+              onContextMenu={(event) => board.openSeaContextMenu(sea.regionId, event)}
               onClick={() => {
                 if (board.stormDragSourceId !== null) return;
                 if (stormGuide !== null) {
@@ -1151,7 +1178,6 @@ function MarinerMap({
               key={`hit-${route.routeId}`}
               data-map-layer="route-hit"
               data-route-id={route.routeId}
-              data-route-hover-owner={route.routeId}
               data-route-drop={dropHint ?? undefined}
               role="button"
               tabIndex={0}
@@ -1159,10 +1185,7 @@ function MarinerMap({
               aria-label={`Route ${aName} to ${bName}: ${label}`}
               className={INTERACTIVE_FOCUS_CLASS}
               style={{ outline: "none" }}
-              onMouseOver={() => board.onRouteHoverEnter(route.routeId)}
-              onMouseOut={(event) => board.onRouteHoverLeave(route.routeId, event.relatedTarget)}
-              onFocus={() => board.onRouteHoverEnter(route.routeId)}
-              onBlur={(event) => board.onRouteHoverLeave(route.routeId, event.relatedTarget)}
+              onContextMenu={(event) => board.openRouteContextMenu(route.routeId, event)}
               onClick={() => onSelect({ kind: "route", routeId: route.routeId })}
               onKeyDown={(event) => activate(event, () => onSelect({ kind: "route", routeId: route.routeId }))}
             >
@@ -1228,30 +1251,9 @@ function MarinerMap({
               toward={toward}
               threatened={operational.threatened}
               color={color}
-              showRemove={board.focusedRouteId === route.routeId && board.routeDragSourceId === null}
-              onRemove={() => { void board.removeRouteOccupancy(route.routeId); }}
               onSelect={() => onSelect({ kind: "route", routeId: route.routeId })}
               onPointerDown={(event) => board.beginRoutePiecePointer(route.routeId, occupancy, event)}
-              onMouseEnter={() => board.onRouteHoverEnter(route.routeId)}
-              onMouseLeave={(event) => board.onRouteHoverLeave(route.routeId, event.relatedTarget)}
-            />
-          );
-        })}
-        {MARINER_ROUTE_CATALOG.map((route) => {
-          const occupancy = mariner.routes.find((entry) => entry.routeId === route.routeId)?.occupancy ?? { kind: "empty" as const };
-          if (occupancy.kind !== "empty") return null;
-          const visible = board.focusedRouteId === route.routeId && board.routeDragSourceId === null;
-          return (
-            <RouteQuickActions
-              key={`quick-${route.routeId}`}
-              routeId={route.routeId}
-              mariner={mariner}
-              world={world}
-              visible={visible}
-              onAddShip={() => { void board.addShipToRoute(route.routeId); }}
-              onAddRaider={(toward) => { void board.addRaiderToRoute(route.routeId, toward); }}
-              onHoverEnter={() => board.onRouteHoverEnter(route.routeId)}
-              onHoverLeave={(relatedTarget) => board.onRouteHoverLeave(route.routeId, relatedTarget)}
+              onContextMenu={(event) => board.openRouteContextMenu(route.routeId, event)}
             />
           );
         })}
@@ -1352,7 +1354,6 @@ function MarinerMap({
                     data-piece="storm"
                     data-draggable-storm="true"
                     data-region-id={sea.regionId}
-                    data-storm-piece-hover-owner={sea.regionId}
                     data-storm-count={stormCount}
                     data-storm-piece={storms.typhoon ? "typhoon" : "storm"}
                     data-typhoon={storms.typhoon ? "true" : "false"}
@@ -1361,10 +1362,7 @@ function MarinerMap({
                       : `Move one Storm from ${seaName}`}
                     style={{ cursor: "grab", opacity: board.stormDragSourceId === sea.regionId ? 0.35 : 1 }}
                     onPointerDown={(event) => board.beginStormPointer(sea.regionId, event)}
-                    onMouseOver={() => board.onStormHoverEnter(sea.regionId)}
-                    onMouseOut={(event) => board.onStormHoverLeave(sea.regionId, event.relatedTarget)}
-                    onFocus={() => board.onStormHoverEnter(sea.regionId)}
-                    onBlur={(event) => board.onStormHoverLeave(sea.regionId, event.relatedTarget)}
+                    onContextMenu={(event) => board.openSeaContextMenu(sea.regionId, event)}
                     tabIndex={0}
                   >
                     {Array.from({ length: storms.tokenCount }, (_, index) => (
@@ -1431,39 +1429,6 @@ function MarinerMap({
                     </text>
                   </g>
                 ))}
-              </g>
-            );
-          })}
-          {MARINER_SEA_GEOMETRY.map((sea) => {
-            const stormCount = mariner.seaRegions.find((entry) => entry.regionId === sea.regionId)?.stormCount ?? 0;
-            const storms = stormPiecePresentation(stormCount);
-            const snapAnchor = marinerOverlayPointToBoard(sea.slots.storm.x, sea.slots.storm.y);
-            const pieceAnchor = marinerOverlayPointToBoard(
-              sea.slots.storm.x + Math.max(0, storms.tokenCount - 1) * 7,
-              sea.slots.storm.y - Math.max(0, storms.tokenCount - 1) * 6,
-            );
-            const dragIdle = board.stormDragSourceId === null;
-            return (
-              <g key={`sea-quick-${sea.regionId}`}>
-                <SeaStormQuickActions
-                  regionId={sea.regionId}
-                  anchorX={snapAnchor.x}
-                  anchorY={snapAnchor.y}
-                  visible={stormCount === 0 && board.focusedSeaRegionId === sea.regionId && dragIdle}
-                  onAddStorm={() => { void board.addStormToRegion(sea.regionId); }}
-                  onHoverEnter={() => board.onSeaHoverEnter(sea.regionId)}
-                  onHoverLeave={(relatedTarget) => board.onSeaHoverLeave(sea.regionId, relatedTarget)}
-                />
-                <StormPieceQuickActions
-                  regionId={sea.regionId}
-                  anchorX={pieceAnchor.x}
-                  anchorY={pieceAnchor.y}
-                  visible={board.focusedStormRegionId === sea.regionId && stormCount > 0 && dragIdle}
-                  onAddStorm={() => { void board.addStormToRegion(sea.regionId); }}
-                  onRemoveStorm={() => { void board.removeStormFromRegion(sea.regionId); }}
-                  onHoverEnter={() => board.onStormHoverEnter(sea.regionId)}
-                  onHoverLeave={(relatedTarget) => board.onStormHoverLeave(sea.regionId, relatedTarget)}
-                />
               </g>
             );
           })}
