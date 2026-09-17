@@ -7,6 +7,7 @@ import { marinerRouteId, type MarinerRouteEndpoint } from "../shared/domain";
 import { endpointKey } from "../src/mariner-board-pointer";
 import { MARINER_ROUTE_CATALOG } from "../src/mariner-view-model";
 import { mapEndpointPoint } from "../src/mariner-map-geometry";
+import { marinerOverlayPointToBoard } from "../src/source-board-assets";
 import {
   alignHeadingToward,
   associatePathEndsWithRouteEndpoints,
@@ -45,6 +46,12 @@ function mountMarinerInteractionGeometry(): void {
   });
 }
 
+function overlayEndpointOnNativeBoard(endpoint: MarinerRouteEndpoint) {
+  const overlay = mapEndpointPoint(endpoint);
+  return marinerOverlayPointToBoard(overlay.x, overlay.y);
+}
+
+/** Catalog-only structural helper. Not used as the Halcyon/Caravesse expected answer. */
 function physicalEndpoint(routeId: string, toward: MarinerRouteEndpoint) {
   const routeDef = MARINER_ROUTE_CATALOG.find((entry) => entry.routeId === routeId);
   const ends = sourceRoutePathBoardEnds(marinerRouteSymbolId(routeId));
@@ -52,12 +59,21 @@ function physicalEndpoint(routeId: string, toward: MarinerRouteEndpoint) {
   const associated = associatePathEndsWithRouteEndpoints(
     ends.start,
     ends.end,
-    mapEndpointPoint(routeDef.endpointA),
-    mapEndpointPoint(routeDef.endpointB),
+    overlayEndpointOnNativeBoard(routeDef.endpointA),
+    overlayEndpointOnNativeBoard(routeDef.endpointB),
   );
   return endpointKey(toward) === endpointKey(routeDef.endpointA)
     ? associated.endpointA
     : associated.endpointB;
+}
+
+function nearerExactPathEnd(
+  ends: { readonly start: { readonly x: number; readonly y: number }; readonly end: { readonly x: number; readonly y: number } },
+  nativeTarget: { readonly x: number; readonly y: number },
+) {
+  const startDist = Math.hypot(ends.start.x - nativeTarget.x, ends.start.y - nativeTarget.y);
+  const endDist = Math.hypot(ends.end.x - nativeTarget.x, ends.end.y - nativeTarget.y);
+  return startDist <= endDist ? ends.start : ends.end;
 }
 
 function acuteSeparationDeg(a: number, b: number): number {
@@ -103,9 +119,16 @@ describe("Mariner Raider orientation from exact source geometry", () => {
     mountMarinerInteractionGeometry();
   });
 
-  it("points Halcyon Isles -> Caravesse toward Caravesse and reverses for the opposite toward", () => {
+  it("points Halcyon Isles <-> Caravesse toward independently transformed native-board ends", () => {
     const towardCaravesse = { kind: "board_isle" as const, boardIsleId: "caravesse" as const };
     const towardHalcyon = { kind: "board_isle" as const, boardIsleId: "halcyon_isles" as const };
+    const ends = sourceRoutePathBoardEnds(marinerRouteSymbolId(HALCYON_CARAVESSE));
+    expect(ends).not.toBeNull();
+    const halcyonNative = overlayEndpointOnNativeBoard(towardHalcyon);
+    const caravesseNative = overlayEndpointOnNativeBoard(towardCaravesse);
+    const halcyonPhysical = nearerExactPathEnd(ends!, halcyonNative);
+    const caravessePhysical = nearerExactPathEnd(ends!, caravesseNative);
+    expect(halcyonPhysical).not.toEqual(caravessePhysical);
     const toCaravesse = resolveRaiderMarkerHeading(
       marinerRouteSymbolId(HALCYON_CARAVESSE),
       HALCYON_CARAVESSE,
@@ -121,18 +144,21 @@ describe("Mariner Raider orientation from exact source geometry", () => {
     expect(headingForwardDotToward(
       toCaravesse!.headingDeg,
       toCaravesse!.pose,
-      physicalEndpoint(HALCYON_CARAVESSE, towardCaravesse),
+      caravessePhysical,
     )).toBeGreaterThan(0);
     expect(headingForwardDotToward(
       toHalcyon!.headingDeg,
       toHalcyon!.pose,
-      physicalEndpoint(HALCYON_CARAVESSE, towardHalcyon),
+      halcyonPhysical,
     )).toBeGreaterThan(0);
     expect(acuteSeparationDeg(toCaravesse!.headingDeg, toHalcyon!.headingDeg)).toBeGreaterThan(179);
   });
 
   it("keeps a representative east-west Route correct", () => {
     const towardIshana = { kind: "board_isle" as const, boardIsleId: "ishana" as const };
+    const ends = sourceRoutePathBoardEnds(marinerRouteSymbolId(ISHANA_SCUTTLE));
+    expect(ends).not.toBeNull();
+    const ishanaPhysical = nearerExactPathEnd(ends!, overlayEndpointOnNativeBoard(towardIshana));
     const resolved = resolveRaiderMarkerHeading(
       marinerRouteSymbolId(ISHANA_SCUTTLE),
       ISHANA_SCUTTLE,
@@ -142,7 +168,7 @@ describe("Mariner Raider orientation from exact source geometry", () => {
     expect(headingForwardDotToward(
       resolved!.headingDeg,
       resolved!.pose,
-      physicalEndpoint(ISHANA_SCUTTLE, towardIshana),
+      ishanaPhysical,
     )).toBeGreaterThan(0);
   });
 

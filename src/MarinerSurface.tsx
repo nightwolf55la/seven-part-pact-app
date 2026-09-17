@@ -1243,8 +1243,8 @@ function MarinerMap({
                   data-source-geometry={symbolId}
                   fill="none"
                   stroke="#0f766e"
-                  strokeWidth={4.2}
-                  opacity={0.22}
+                  strokeWidth={6.5}
+                  opacity={0.28}
                   pointerEvents="none"
                 />
               )}

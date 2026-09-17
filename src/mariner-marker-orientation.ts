@@ -16,7 +16,9 @@ export function headingForwardDotToward(headingDeg: number, origin: MapPt, targe
   return Math.cos(rad) * dx + Math.sin(rad) * dy;
 }
 
-/** Map authoritative Route endpoints onto exact source-path ends using approximate hit geometry once per Route. */
+/** Map authoritative Route endpoints onto exact source-path ends using approximate hit geometry once per Route.
+ * Approximate endpoints must already share the path-end coordinate space (native board, not overlay).
+ */
 export function associatePathEndsWithRouteEndpoints(
   pathStart: MapPt,
   pathEnd: MapPt,

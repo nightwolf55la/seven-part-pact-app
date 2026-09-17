@@ -8,6 +8,7 @@ import marinerInteractionGeometryRaw from "./assets/source-boards/mariner-intera
 import necromancerInteractionGeometryRaw from "./assets/source-boards/necromancer-interaction-geometry.svg?raw";
 import { mapEndpointPoint } from "./mariner-map-geometry";
 import { raiderHeadingTowardRouteEndpoint } from "./mariner-marker-orientation";
+import { marinerOverlayPointToBoard } from "./source-board-assets";
 
 /** Generated PowerPoint-native interaction sprites. Referenced by application IDs; never parsed for identity. */
 export const MARINER_INTERACTION_GEOMETRY_RAW = marinerInteractionGeometryRaw;
@@ -264,6 +265,12 @@ export function sourceRouteMarkerPose(symbolId: string, normalOffset = 6): Sourc
   };
 }
 
+/** Convert overlay hit-geometry endpoints into native source-board coordinates before associating path ends. */
+function mapEndpointPointOnBoard(endpoint: MarinerRouteEndpoint): MapPt {
+  const overlay = mapEndpointPoint(endpoint);
+  return marinerOverlayPointToBoard(overlay.x, overlay.y);
+}
+
 function towardEndpointFromString(toward: string | undefined): MarinerRouteEndpoint | null {
   if (toward === undefined) return null;
   if ((MARINER_BOARD_ISLE_IDS as readonly string[]).includes(toward)) {
@@ -285,15 +292,13 @@ export function resolveRaiderMarkerHeading(
   const ends = sourceRoutePathBoardEnds(symbolId);
   const pose = sourceRouteMarkerPose(symbolId, normalOffset);
   if (routeDef === undefined || ends === null || pose === null) return null;
-  const endpointAApprox = mapEndpointPoint(routeDef.endpointA);
-  const endpointBApprox = mapEndpointPoint(routeDef.endpointB);
   const towardMatchesEndpointA = endpointKey(toward) === endpointKey(routeDef.endpointA);
   const aligned = raiderHeadingTowardRouteEndpoint(
     pose,
     ends.start,
     ends.end,
-    endpointAApprox,
-    endpointBApprox,
+    mapEndpointPointOnBoard(routeDef.endpointA),
+    mapEndpointPointOnBoard(routeDef.endpointB),
     towardMatchesEndpointA,
   );
   return { pose, headingDeg: aligned.headingDeg, reversed: aligned.reversed };
@@ -341,15 +346,13 @@ export function SourceRouteOccupancyMarker({
       const routeDef = MARINER_ROUTE_CATALOG.find((entry) => entry.routeId === routeId);
       const ends = sourceRoutePathBoardEnds(id);
       if (towardEndpoint !== null && routeDef !== undefined && ends !== null) {
-        const endpointAApprox = mapEndpointPoint(routeDef.endpointA);
-        const endpointBApprox = mapEndpointPoint(routeDef.endpointB);
         const towardMatchesEndpointA = endpointKey(towardEndpoint) === endpointKey(routeDef.endpointA);
         const aligned = raiderHeadingTowardRouteEndpoint(
           pose,
           ends.start,
           ends.end,
-          endpointAApprox,
-          endpointBApprox,
+          mapEndpointPointOnBoard(routeDef.endpointA),
+          mapEndpointPointOnBoard(routeDef.endpointB),
           towardMatchesEndpointA,
         );
         headingDeg = aligned.headingDeg;

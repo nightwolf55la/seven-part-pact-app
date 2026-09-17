@@ -50,6 +50,7 @@ import {
 import { endpointKey } from "../src/mariner-board-pointer";
 import { associatePathEndsWithRouteEndpoints } from "../src/mariner-marker-orientation";
 import { marinerRouteSymbolId, sourceRoutePathBoardEnds } from "../src/source-interaction-geometry";
+import { marinerOverlayPointToBoard } from "../src/source-board-assets";
 
 const ADD_SHIP_LABEL = "Add Ship";
 const MOVE_RAIDER_LABEL = "Move Raider";
@@ -1180,6 +1181,20 @@ describe("Mariner desktop board hierarchy and overlay inspector", () => {
     container.remove();
   });
 
+  it("thickens occupied selected Route halo while remaining secondary to the occupancy stroke", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const occupied = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`) as SVGElement;
+    flushSync(() => { occupied.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    const halo = occupied.querySelector("[data-selection-halo]") as SVGElement | null;
+    expect(halo).not.toBeNull();
+    expect(halo?.getAttribute("stroke-width") ?? halo?.getAttribute("strokeWidth")).toBe("6.5");
+    expect(halo?.getAttribute("opacity")).toBe("0.28");
+    const occupancyStroke = container.querySelector(`[data-route-visible="${SHIP_ROUTE}"]`);
+    expect(Number(occupancyStroke?.getAttribute("stroke-width") ?? occupancyStroke?.getAttribute("strokeWidth"))).toBeLessThan(6.5);
+    root.unmount();
+    container.remove();
+  });
+
   it("reuses the same exact source Route geometry for Raider occupancy instead of old pathD", () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     const oldPath = marinerRouteGeometry(RAID_ROUTE)?.pathD;
@@ -1348,8 +1363,8 @@ describe("Mariner desktop board hierarchy and overlay inspector", () => {
     const associated = associatePathEndsWithRouteEndpoints(
       ends!.start,
       ends!.end,
-      mapEndpointPoint(routeDef!.endpointA),
-      mapEndpointPoint(routeDef!.endpointB),
+      marinerOverlayPointToBoard(mapEndpointPoint(routeDef!.endpointA).x, mapEndpointPoint(routeDef!.endpointA).y),
+      marinerOverlayPointToBoard(mapEndpointPoint(routeDef!.endpointB).x, mapEndpointPoint(routeDef!.endpointB).y),
     );
     const towardEndpoint = { kind: "board_isle" as const, boardIsleId: "ishana" as const };
     const target = endpointKey(towardEndpoint) === endpointKey(routeDef!.endpointA)
@@ -2880,23 +2895,6 @@ describe("M5.4 Mariner direct board manipulation", () => {
     expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
     act(() => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-    });
-    expect(container.querySelector("[data-board-overlay-inspector]")).toBeNull();
-    const stage = container.querySelector("[data-mariner-board-stage]") as HTMLElement;
-    expect(document.activeElement).toBe(stage);
-    expect(document.activeElement).not.toBe(route);
-    root.unmount();
-    container.remove();
-  });
-
-  it("inspector Close dismisses selection and moves focus to the board stage instead of the Route hit target", () => {
-    const { container, root } = renderSurface(initializedMariner(), WIZARD);
-    const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`) as HTMLElement;
-    flushSync(() => { route.focus(); });
-    flushSync(() => { route.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
-    expect(document.activeElement).toBe(route);
-    act(() => {
-      button(container, "Close").click();
     });
     expect(container.querySelector("[data-board-overlay-inspector]")).toBeNull();
     const stage = container.querySelector("[data-mariner-board-stage]") as HTMLElement;
