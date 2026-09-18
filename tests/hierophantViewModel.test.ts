@@ -17,6 +17,7 @@ import {
   denizenLabel,
   deriveSupplicantSupport,
   baseBenefactionReference,
+  formatVisionsTempleWarnings,
   hierophantSetupReady,
   hierophantSourceSetupReady,
   hostedProphets,
@@ -302,6 +303,33 @@ describe("Hierophant command payload helpers", () => {
     expect(deriveSupplicantSupport(blasphemous, "artisan", [])).toBe("supported");
     expect(deriveSupplicantSupport(blasphemous, "gentry", [])).toBe("unsupported");
     expect(templeSupportedClassLabels(blasphemous, [], [])).toEqual(["Artisan", "Peasant"]);
+  });
+
+  it("uses table-facing Visions warning copy and names Hestar donors", () => {
+    expect(formatVisionsTempleWarnings({
+      templeId: "krolis",
+      abundance: { before: 5, delta: null, after: null },
+      conviction: { before: 4, delta: 0, after: 4 },
+      shortage: null,
+      hestarFallback: "not_needed",
+      hestarDonor: "not_needed",
+      reliableProphetProduction: true,
+      orderChoiceRequired: false,
+      unresolved: true,
+    })).toEqual(["Prophet affects this production · resolve at the table"]);
+    expect(formatVisionsTempleWarnings({
+      templeId: "hestar",
+      abundance: { before: 0, delta: null, after: null },
+      conviction: { before: 5, delta: 0, after: 5 },
+      shortage: null,
+      hestarFallback: "not_needed",
+      hestarDonor: "choice_required",
+      reliableProphetProduction: false,
+      orderChoiceRequired: false,
+      unresolved: true,
+    }, { donorAmount: 1, donorResource: "abundance", donorLabels: ["Krolis", "Zephon"] })).toEqual([
+      "Hestar needs 1 Abundance · choose Krolis or Zephon",
+    ]);
   });
 
   it("treats empty temples as uninitialized", () => {

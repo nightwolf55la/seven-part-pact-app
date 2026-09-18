@@ -547,11 +547,15 @@ export function formatVisionsDemand(demand: HierophantVisionsDemand): string | n
   return "Cost not determined";
 }
 
-export function formatVisionsSupplicantLine(preview: HierophantVisionsSupplicantPreview): string {
-  const parts: string[] = [supportDisplayLabel(preview.support)];
+export function formatVisionsSupplicantLine(
+  preview: HierophantVisionsSupplicantPreview,
+  variant: "board" | "detail" = "detail",
+): string {
+  const parts: string[] = [];
+  if (variant === "detail") parts.push(supportDisplayLabel(preview.support));
   const cost = formatVisionsDemand(preview.demand);
   if (cost !== null) parts.push(cost);
-  if (preview.woeProjection.kind === "determined") {
+  if (variant === "detail" && preview.woeProjection.kind === "determined") {
     parts.push(`Woe ${preview.woeProjection.from} → ${preview.woeProjection.to}`);
   }
   if (preview.departure.kind === "benefaction") {
@@ -566,14 +570,54 @@ export function formatVisionsSupplicantLine(preview: HierophantVisionsSupplicant
   return parts.join(" · ");
 }
 
-export function formatVisionsTempleWarnings(preview: HierophantVisionsTemplePreview): readonly string[] {
+export function joinTableChoiceLabels(labels: readonly string[]): string {
+  if (labels.length === 0) return "";
+  if (labels.length === 1) return labels[0]!;
+  if (labels.length === 2) return `${labels[0]} or ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")}, or ${labels[labels.length - 1]}`;
+}
+
+export function shortTempleBoardLabel(name: string): string {
+  return name.replace(/^Temple\s+/i, "");
+}
+
+export function formatVisionsTempleWarnings(
+  preview: HierophantVisionsTemplePreview,
+  context: {
+    readonly donorLabels?: readonly string[];
+    readonly donorResource?: HierophantVisionsResource;
+    readonly donorAmount?: number;
+    readonly hestarFallbackResource?: HierophantVisionsResource;
+  } = {},
+): readonly string[] {
   const warnings: string[] = [];
   if (preview.shortage?.consequence === "collapse") warnings.push("Shortage · Collapse");
   if (preview.shortage?.consequence === "blasphemy") warnings.push("Shortage · Blasphemy");
-  if (preview.hestarFallback === "choice_required") warnings.push("Hestar choice needed");
-  if (preview.hestarDonor === "choice_required") warnings.push("Hestar donor choice needed");
-  if (preview.orderChoiceRequired) warnings.push("Order choice needed");
-  if (preview.reliableProphetProduction) warnings.push("Reliable Prophet production resolution required");
+  if (preview.hestarFallback === "choice_required") {
+    warnings.push(
+      context.hestarFallbackResource === undefined
+        ? "May use Hestar"
+        : `May use Hestar's ${formatVisionsResourceName(context.hestarFallbackResource)}`,
+    );
+  }
+  if (preview.hestarDonor === "choice_required") {
+    const labels = context.donorLabels ?? [];
+    if (
+      context.donorAmount !== undefined
+      && context.donorResource !== undefined
+      && labels.length > 0
+    ) {
+      warnings.push(
+        `Hestar needs ${context.donorAmount} ${formatVisionsResourceName(context.donorResource)} · choose ${joinTableChoiceLabels(labels)}`,
+      );
+    } else {
+      warnings.push("Hestar needs a resource from another Temple");
+    }
+  }
+  if (preview.orderChoiceRequired) warnings.push("Choose Visions order");
+  if (preview.reliableProphetProduction) {
+    warnings.push("Prophet affects this production · resolve at the table");
+  }
   return warnings;
 }
 

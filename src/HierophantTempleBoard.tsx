@@ -27,6 +27,7 @@ import {
   templeResearchers,
   templeSupportedClassLabels,
   deriveHierophantVisionsContext,
+  shortTempleBoardLabel,
 } from "./hierophant-view-model";
 
 function activate(event: KeyboardEvent<Element>, action: () => void): void {
@@ -141,7 +142,7 @@ function SupplicantPiece({
   const name = denizenLabel(denizens, person.denizenId);
   const klass = classLabel(person.classId, campaignClasses);
   const support = preview === undefined ? null : preview.support === "supported" ? "Supported" : preview.support === "unsupported" ? "Unsupported" : null;
-  const line = preview === undefined ? null : formatVisionsSupplicantLine(preview);
+  const line = preview === undefined ? null : formatVisionsSupplicantLine(preview, "board");
   const projectedTo = preview?.woeProjection.kind === "determined" ? preview.woeProjection.to : null;
   const danger = preview?.departure.kind === "cult_threshold" || preview?.blockerKind !== null;
   const accessible = [
@@ -212,7 +213,26 @@ function TemplePiece({
   const status = boardStatus(temple);
   const name = templeDisplayName(temple, places);
   const templePreview: HierophantVisionsTemplePreview | undefined = plan.temples.find((entry) => entry.templeId === temple.templeId);
-  const warnings = templePreview === undefined ? [] : formatVisionsTempleWarnings(templePreview);
+  const fallbackChoice = plan.requiredChoices.find(
+    (choice) => choice.kind === "hestar_fallback" && choice.templeId === temple.templeId,
+  );
+  const donorChoice = plan.requiredChoices.find(
+    (choice) => choice.kind === "hestar_donor" && choice.templeId === temple.templeId,
+  );
+  const donorLabels = donorChoice?.kind === "hestar_donor"
+    ? donorChoice.eligibleDonorTempleIds.map((templeId) => {
+        const donor = hierophant.temples.find((entry) => entry.templeId === templeId);
+        return shortTempleBoardLabel(donor === undefined ? templeId : templeDisplayName(donor, places));
+      })
+    : [];
+  const warnings = templePreview === undefined
+    ? []
+    : formatVisionsTempleWarnings(templePreview, {
+        hestarFallbackResource: fallbackChoice?.kind === "hestar_fallback" ? fallbackChoice.resource : undefined,
+        donorAmount: donorChoice?.kind === "hestar_donor" ? donorChoice.amount : undefined,
+        donorResource: donorChoice?.kind === "hestar_donor" ? donorChoice.resource : undefined,
+        donorLabels,
+      });
   const supportedClasses = templeSupportedClassLabels(temple, hierophant.campaignDoctrines, hierophant.campaignClasses);
   const previews = new Map(plan.supplicants.map((entry) => [entry.denizenId, entry]));
   return (
@@ -304,11 +324,14 @@ function TemplePiece({
           </ul>
         )}
       </header>
-      {groups.map((group) => (
+      {groups.filter((group) => group.people.length > 0 || group.key === "courtyard" || group.key === "agiary" || group.key === "hestar").map((group) => (
         <section key={group.key} aria-label={group.label} className="text-sm">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{group.label}</h4>
           {group.people.length === 0 ? (
-            <p className="text-xs text-slate-500">None</p>
+            <div
+              className="mt-1 min-h-[2.25rem] rounded-md border border-dashed border-amber-900/20 bg-amber-50/40 dark:border-amber-200/15 dark:bg-amber-950/20"
+              aria-hidden="true"
+            />
           ) : (
             <ul className="flex flex-col gap-1.5 mt-1">
               {group.people.map((person) => (
@@ -325,12 +348,10 @@ function TemplePiece({
           )}
         </section>
       ))}
+      {prophets.length > 0 && (
       <section aria-label="Prophets" className="text-sm">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Prophets</h4>
-        {prophets.length === 0 ? (
-          <p className="text-xs text-slate-500">None</p>
-        ) : (
-          <ul className="flex flex-col gap-1 mt-1">
+        <ul className="flex flex-col gap-1 mt-1">
             {prophets.map((prophet: HierophantProphet) => (
               <li key={prophet.denizenId}>
                 <button
@@ -346,15 +367,13 @@ function TemplePiece({
                 </button>
               </li>
             ))}
-          </ul>
-        )}
+        </ul>
       </section>
+      )}
+      {researchers.length > 0 && (
       <section aria-label="Sorcerer Researcher" className="text-sm">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Researcher</h4>
-        {researchers.length === 0 ? (
-          <p className="text-xs text-slate-500">No Researcher at this Temple</p>
-        ) : (
-          <ul className="flex flex-col gap-1 mt-1">
+        <ul className="flex flex-col gap-1 mt-1">
             {researchers.map((researcher) => (
               <li
                 key={researcher.denizenId}
@@ -370,9 +389,9 @@ function TemplePiece({
                 </div>
               </li>
             ))}
-          </ul>
-        )}
+        </ul>
       </section>
+      )}
     </article>
   );
 }
