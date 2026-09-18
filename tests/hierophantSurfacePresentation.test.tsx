@@ -1132,3 +1132,154 @@ describe("Hierophant Visions preview choices", () => {
     container.remove();
   });
 });
+
+function supplyPiece(container: HTMLElement, classId: string): HTMLElement | null {
+  return container.querySelector(`[data-supply-class="${classId}"]`);
+}
+
+function supplyDrop(container: HTMLElement, templeId: string, zone: string): HTMLElement | null {
+  return container.querySelector(`[data-temple-id="${templeId}"] [data-supply-drop="${zone}"]`);
+}
+
+function dragSupplyTo(piece: HTMLElement, zone: HTMLElement): void {
+  flushSync(() => { piece.dispatchEvent(new Event("dragstart", { bubbles: true })); });
+  flushSync(() => {
+    zone.dispatchEvent(new Event("dragenter", { bubbles: true }));
+    zone.dispatchEvent(new Event("dragover", { bubbles: true }));
+    zone.dispatchEvent(new Event("drop", { bubbles: true }));
+  });
+  flushSync(() => { piece.dispatchEvent(new Event("dragend", { bubbles: true })); });
+}
+
+describe("Hierophant Supplicant supply placement", () => {
+  const supplyTemples = [
+    ordinaryBoardTemple("krolis"),
+    ordinaryBoardTemple("notor"),
+    hestarBoardTemple(),
+    ordinaryBoardTemple("ushin", {
+      status: "collapsed",
+      doctrine: { kind: "blasphemy", blasphemyId: "law_of_the_wolf" },
+    }),
+    ordinaryBoardTemple("zephon", {
+      doctrine: { kind: "blasphemy", blasphemyId: "old_land_demands_blood" },
+    }),
+  ];
+  const supplyState = {
+    ...EMPTY_HIEROPHANT_STATE,
+    temples: supplyTemples,
+  };
+
+  it("renders five source Class pieces subordinate to the Temple board", () => {
+    const { container, root } = renderChoiceSurface(supplyState as typeof EMPTY_HIEROPHANT_STATE);
+    const board = container.querySelector('[aria-label="Temples of the Hierophant"]');
+    const supply = container.querySelector('[aria-label="Supplicant supply"]');
+    expect(supply).not.toBeNull();
+    expect(board).not.toBeNull();
+    expect(board!.compareDocumentPosition(supply!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect([...supply!.querySelectorAll("[data-supply-class]")].map((el) => el.getAttribute("data-supply-class"))).toEqual([
+      "peasant",
+      "artisan",
+      "merchant",
+      "gentry",
+      "pariah",
+    ]);
+    expect(supplyPiece(container, "peasant")?.getAttribute("aria-label")).toBe("Peasant supply");
+    root.unmount();
+    container.remove();
+  });
+
+  it("opens Receive from a supply drop without mutating, and keeps the existing confirm path", async () => {
+    mockMutations["m3Commands.createHierophantSupplicant"] = vi.fn(async () => {});
+    mockMutations["m3Commands.addSupplicant"] = vi.fn(async () => {});
+    const { container, root } = renderChoiceSurface(supplyState as typeof EMPTY_HIEROPHANT_STATE);
+    const before = mutationCallCount();
+    dragSupplyTo(supplyPiece(container, "peasant")!, supplyDrop(container, "krolis", "courtyard")!);
+    expect(mutationCallCount()).toBe(before);
+    const form = receiveForm(container);
+    expect(form).not.toBeNull();
+    expect((form!.querySelector("select") as HTMLSelectElement).value).toBe("peasant");
+    expect((form!.querySelectorAll("select")[1] as HTMLSelectElement).value).toBe("courtyard");
+    const cancel = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.getAttribute("aria-label") === "Cancel Receive Supplicant",
+    );
+    flushSync(() => { cancel!.click(); });
+    expect(receiveForm(container)).toBeNull();
+    expect(mutationCallCount()).toBe(before);
+
+    dragSupplyTo(supplyPiece(container, "artisan")!, supplyDrop(container, "krolis", "agiary")!);
+    expect((receiveForm(container)!.querySelector("select") as HTMLSelectElement).value).toBe("artisan");
+    expect((receiveForm(container)!.querySelectorAll("select")[1] as HTMLSelectElement).value).toBe("agiary");
+    flushSync(() => { cancelReceiveIfOpen(container); });
+
+    dragSupplyTo(supplyPiece(container, "merchant")!, supplyDrop(container, "hestar", "hestar")!);
+    const hestarForm = receiveForm(container)!;
+    expect((hestarForm.querySelector("select") as HTMLSelectElement).value).toBe("merchant");
+    expect(hestarForm.querySelectorAll("select")).toHaveLength(1);
+    expect(container.querySelector('[aria-label="Selected Temple"]')?.textContent).toContain("Hestar");
+    flushSync(() => { setControlledInput(receiveNameInput(container) as HTMLInputElement, "Placed Merchant"); });
+    flushSync(() => { hestarForm.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.createHierophantSupplicant"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.addSupplicant"]).not.toHaveBeenCalled();
+    const args = mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[0][0];
+    expect(args.classId).toBe("merchant");
+    expect(args.templeId).toBe("hestar");
+    expect(args.area).toBeNull();
+    expect(args.name).toBe("Placed Merchant");
+    root.unmount();
+    container.remove();
+  });
+
+  it("blocks collapsed Temples, ignores off-board drops, and still allows Blasphemous receipt", () => {
+    mockMutations["m3Commands.createHierophantSupplicant"] = vi.fn(async () => {});
+    const { container, root } = renderChoiceSurface(supplyState as typeof EMPTY_HIEROPHANT_STATE);
+    const before = mutationCallCount();
+    dragSupplyTo(supplyPiece(container, "gentry")!, supplyDrop(container, "ushin", "blocked")!);
+    expect(receiveForm(container)).toBeNull();
+    expect(container.textContent).toContain("Receive Supplicant is not available at a collapsed Temple");
+    expect(mutationCallCount()).toBe(before);
+
+    dragSupplyTo(supplyPiece(container, "pariah")!, container.querySelector("h2")!);
+    expect(receiveForm(container)).toBeNull();
+    expect(mutationCallCount()).toBe(before);
+
+    dragSupplyTo(supplyPiece(container, "peasant")!, supplyDrop(container, "zephon", "courtyard")!);
+    expect(receiveForm(container)).not.toBeNull();
+    expect((receiveForm(container)!.querySelector("select") as HTMLSelectElement).value).toBe("peasant");
+    expect(container.querySelector('[aria-label="Selected Temple"]')?.textContent).toContain("Temple Zephon");
+    expect(container.querySelector('[data-temple-id="zephon"]')?.textContent).toContain("Blasphemous");
+    expect(mutationCallCount()).toBe(before);
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps the non-drag Receive path and retries the same ids", async () => {
+    mockMutations["m3Commands.createHierophantSupplicant"] = vi.fn(async () => {
+      throw new Error("stale temple status");
+    });
+    const { container, root } = renderChoiceSurface(supplyState as typeof EMPTY_HIEROPHANT_STATE);
+    flushSync(() => { templeSelectButton(container, "Temple Krolis").click(); });
+    flushSync(() => { receiveOfferButton(container)!.click(); });
+    flushSync(() => { setControlledInput(receiveNameInput(container) as HTMLInputElement, "Button Path"); });
+    flushSync(() => { receiveForm(container)!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+    await Promise.resolve();
+    const first = mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[0][0];
+    expect(first.name).toBe("Button Path");
+    expect(first.classId).toBe("peasant");
+    flushSync(() => { receiveForm(container)!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+    await Promise.resolve();
+    const second = mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[1][0];
+    expect(second.commandId).toBe(first.commandId);
+    expect(second.denizenId).toBe(first.denizenId);
+    expect(mockMutations["m3Commands.addSupplicant"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+});
+
+function cancelReceiveIfOpen(container: HTMLElement): void {
+  const cancel = Array.from(container.querySelectorAll("button")).find((button) =>
+    button.getAttribute("aria-label") === "Cancel Receive Supplicant",
+  );
+  cancel?.click();
+}

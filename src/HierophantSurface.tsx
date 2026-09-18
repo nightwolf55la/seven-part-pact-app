@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api.js";
 import {
@@ -26,6 +26,7 @@ import {
   type HierophantVisionsResource,
   type DenizenId,
   type HierophantTempleId,
+  type HierophantBuiltinClassId,
 } from "../shared/domain";
 import type { WorldReference } from "./WorldSurface";
 import LoreContextPanel from "./LoreContextPanel";
@@ -91,6 +92,10 @@ import {
   visionsChoicesEqual,
   visionsRequiredChoiceKey,
 } from "./hierophant-visions-preview";
+import {
+  resolveHierophantSupplyDestination,
+  type HierophantSupplyZone,
+} from "./hierophant-supply";
 
 type HierophantTab = "overview" | "temples" | "people" | "cults" | "definitions";
 
@@ -169,6 +174,10 @@ export default function HierophantSurface({
   const [previewChoices, setPreviewChoices] = useState<HierophantVisionsChoices>({});
   const [orderDraft, setOrderDraft] = useState<readonly DenizenId[]>([]);
   const [visionsChoiceKey, setVisionsChoiceKey] = useState("");
+  const [supplyClassId, setSupplyClassId] = useState<string | null>(null);
+  const [supplyHoverKey, setSupplyHoverKey] = useState<string | null>(null);
+  const [supplyBlock, setSupplyBlock] = useState<{ templeId: string; reason: string } | null>(null);
+  const supplyClassRef = useRef<string | null>(null);
   const [receiveDraft, setReceiveDraft] = useState<{
     commandId: string;
     denizenId: string;
@@ -231,7 +240,10 @@ export default function HierophantSurface({
     }
   }
 
-  function openReceive(temple: HierophantTemple): void {
+  function openReceive(
+    temple: HierophantTemple,
+    seed?: { readonly classId?: string; readonly area?: "" | "courtyard" | "agiary" },
+  ): void {
     if (receiveDraft !== null && receiveDraft.templeId !== temple.templeId) {
       const existing = hierophant.temples.find((candidate) => candidate.templeId === receiveDraft.templeId);
       const name = existing === undefined ? receiveDraft.templeId : templeDisplayName(existing, world.places);
@@ -240,15 +252,16 @@ export default function HierophantSurface({
     }
     if (receiveDraft !== null) return;
     setError(null);
+    setSelectedTempleId(temple.templeId);
     setReceiveDraft({
       commandId: newCommandId(),
       denizenId: newDenizenId(),
       templeId: temple.templeId,
       expectedTempleStatus: temple.status,
       name: "",
-      classId: "peasant",
+      classId: seed?.classId ?? "peasant",
       woe: "0",
-      area: "",
+      area: temple.kind === "hestar" ? "" : (seed?.area ?? ""),
     });
   }
 
@@ -938,6 +951,42 @@ export default function HierophantSurface({
               },
               onOrderReset: () => {
                 setOrderDraft([]);
+              },
+            }}
+            supply={{
+              activeClassId: supplyClassId,
+              hoverKey: supplyHoverKey,
+              blockNotice: supplyBlock,
+              onBegin: (classId: HierophantBuiltinClassId) => {
+                supplyClassRef.current = classId;
+                setSupplyClassId(classId);
+                setSupplyHoverKey(null);
+              },
+              onHover: (key) => {
+                setSupplyHoverKey(key);
+              },
+              onDeliver: (temple, zone: HierophantSupplyZone) => {
+                const classId = supplyClassRef.current;
+                if (classId === null) return;
+                const dest = resolveHierophantSupplyDestination(temple, zone);
+                if (dest === null) return;
+                if (dest.kind === "blocked") {
+                  setSupplyBlock({ templeId: dest.templeId, reason: dest.reason });
+                  return;
+                }
+                setSupplyBlock(null);
+                openReceive(temple, {
+                  classId,
+                  area: dest.area === null ? "" : dest.area,
+                });
+                supplyClassRef.current = null;
+                setSupplyClassId(null);
+                setSupplyHoverKey(null);
+              },
+              onCancel: () => {
+                supplyClassRef.current = null;
+                setSupplyClassId(null);
+                setSupplyHoverKey(null);
               },
             }}
           />
