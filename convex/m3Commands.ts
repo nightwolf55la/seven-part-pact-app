@@ -123,6 +123,7 @@ import {
   moveMarinerShipFingerprint,
   moveMarinerBeastFingerprint,
   nestMarinerBeastFingerprint,
+  relocateMarinerNestingBeastFingerprint,
   recordMarinerRavageResultFingerprint,
   applyCreateDenizenV5Candidate,
   applyUpdateDenizenV5Candidate,
@@ -180,6 +181,7 @@ import {
   prepareCreateMarinerShipCommand,
   canonicalizeMoveMarinerBeastInput,
   canonicalizeNestMarinerBeastInput,
+  canonicalizeRelocateMarinerNestingBeastInput,
   canonicalizeMoveMarinerMarketInput,
   canonicalizeRecordMarinerRavageResultInput,
   applyCreateMarinerBeast,
@@ -188,6 +190,7 @@ import {
   applyCreateMarinerShip,
   applyMoveMarinerBeast,
   applyNestMarinerBeast,
+  applyRelocateMarinerNestingBeast,
   applyMoveMarinerMarket,
   applyRecordMarinerRavageResult,
   initializeNecromancerFingerprint,
@@ -458,6 +461,7 @@ import type {
   CreateMarinerShipCommandArgs,
   MoveMarinerBeastInput,
   NestMarinerBeastInput,
+  RelocateMarinerNestingBeastInput,
   MoveMarinerMarketInput,
   RecordMarinerRavageResultInput,
   ArrangeFaustianTableInput,
@@ -3336,6 +3340,50 @@ export const nestMarinerBeast = mutation({
           commandType: "nest_mariner_beast",
           commandFingerprint: nestMarinerBeastFingerprint(args.expectedCampaignId, input),
           apply: (state) => applyNestMarinerBeast(state, input),
+        };
+      },
+    );
+  },
+});
+
+export const relocateMarinerNestingBeast = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    denizenId: v.string(),
+    expectedBeast: marinerExpectedBeastStateArg,
+    destination: v.union(
+      v.object({
+        kind: v.literal("board_isle"),
+        boardIsleId: v.string(),
+        expectedMarket: marinerIsleMarketArg,
+        expectedRavageStormCount: v.number(),
+        expectedNestingBeastDenizenId: v.union(v.string(), v.null()),
+      }),
+      v.object({
+        kind: v.literal("sea_region"),
+        regionId: v.string(),
+        expectedStormCounts: v.array(marinerExpectedStormArg),
+        expectedRouteOccupancies: v.array(marinerExpectedRouteArg),
+        expectedRelevantBeasts: v.array(marinerExpectedBeastStateArg),
+        rampageResolution: v.union(v.null(), marinerRampageResolutionArg),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    return executeConvexOrdinaryLogicalCommand(
+      ctx,
+      { commandId: args.commandId, expectedCampaignId: args.expectedCampaignId },
+      () => {
+        const input = canonicalizeRelocateMarinerNestingBeastInput({
+          denizenId: args.denizenId,
+          expectedBeast: args.expectedBeast,
+          destination: args.destination,
+        } as unknown as RelocateMarinerNestingBeastInput);
+        return {
+          commandType: "relocate_mariner_nesting_beast",
+          commandFingerprint: relocateMarinerNestingBeastFingerprint(args.expectedCampaignId, input),
+          apply: (state) => applyRelocateMarinerNestingBeast(state, input),
         };
       },
     );

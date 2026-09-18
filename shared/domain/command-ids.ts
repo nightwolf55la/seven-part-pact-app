@@ -599,6 +599,10 @@ export function nestMarinerBeastFingerprint(expectedCampaignId: string, input: u
   return `nest_mariner_beast:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
 }
 
+export function relocateMarinerNestingBeastFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `relocate_mariner_nesting_beast:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
 export function recordMarinerRavageResultFingerprint(expectedCampaignId: string, input: unknown): string {
   return `record_mariner_ravage_result:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
 }

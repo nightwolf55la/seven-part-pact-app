@@ -1833,6 +1833,33 @@ const marinerBeastNestedEventV1Validator = v.object({
   }),
 });
 
+const marinerNestingBeastRelocatedEventV1Validator = v.object({
+  type: v.literal("mariner_nesting_beast_relocated"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    sourceBoardIsleId: v.string(),
+    requestedDestination: v.union(
+      v.object({
+        kind: v.literal("board_isle"),
+        boardIsleId: v.string(),
+      }),
+      v.object({
+        kind: v.literal("sea_region"),
+        regionId: v.string(),
+      }),
+    ),
+    resultingCondition: v.string(),
+    resultingLocation: marinerBeastLocationValidator,
+    destroyedRouteIds: v.array(v.string()),
+    rampaged: v.boolean(),
+    rampageDestinationSeatId: v.union(
+      v.union(...PACT_SEAT_IDS.map((id) => v.literal(id))),
+      v.null(),
+    ),
+  }),
+});
+
 const marinerRavageResultRecordedEventV1Validator = v.object({
   type: v.literal("mariner_ravage_result_recorded"),
   version: v.literal(1),
@@ -3485,6 +3512,7 @@ export const campaignEventValidator = v.union(
   marinerShipCreatedEventV3Validator,
   marinerBeastMovedEventV1Validator,
   marinerBeastNestedEventV1Validator,
+  marinerNestingBeastRelocatedEventV1Validator,
   marinerRavageResultRecordedEventV1Validator,
   necromancerInitializedEventV1Validator,
   necromancerDepthChangedEventV1Validator,

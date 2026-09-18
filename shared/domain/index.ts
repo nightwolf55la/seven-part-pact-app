@@ -152,6 +152,7 @@ export type {
   MarinerSeaStormCountChangedEventV1,
   MarinerIsleMarketChangedEventV1,
   MarinerMarketMovedEventV1,
+  MarinerNestingBeastRelocatedEventV1,
   MarinerIsleRavageChangedEventV1,
   MarinerBeastAddedEventV1,
   MarinerBeastUpdatedEventV1,
@@ -444,6 +445,7 @@ export {
   createMarinerShipFingerprint,
   moveMarinerBeastFingerprint,
   nestMarinerBeastFingerprint,
+  relocateMarinerNestingBeastFingerprint,
   recordMarinerRavageResultFingerprint,
   initializeNecromancerFingerprint,
   initializeNecromancerSourceSetupFingerprint,
@@ -1137,7 +1139,12 @@ export type {
 } from "./mariner-state";
 export {
   EMPTY_MARINER_STATE,
+  MARINER_UNDESCRIBED_RARITY_SENTINEL,
   buildInitializedDefaultMarinerState,
+  createUndescribedRareMarinerMarket,
+  isMarinerUndescribedRarity,
+  isReservedMarinerRarityDescriptionInput,
+  marinerMarketHasUndescribedRarity,
 } from "./mariner-state";
 
 export { validateMarinerStructure, validateMarinerReferenceIntegrity } from "./mariner-validation";
@@ -1966,6 +1973,8 @@ export type {
   CreateMarinerShipInput,
   MoveMarinerBeastInput,
   NestMarinerBeastInput,
+  RelocateMarinerNestingBeastInput,
+  RelocateMarinerNestingBeastDestination,
   MoveMarinerMarketInput,
   RecordMarinerRavageResultInput,
   MarinerOperabilityTransitionResult,
@@ -1984,6 +1993,7 @@ export {
   prepareCreateMarinerShipCommand,
   canonicalizeMoveMarinerBeastInput,
   canonicalizeNestMarinerBeastInput,
+  canonicalizeRelocateMarinerNestingBeastInput,
   canonicalizeMoveMarinerMarketInput,
   canonicalizeRecordMarinerRavageResultInput,
   applyCreateMarinerBeast,
@@ -1992,6 +2002,7 @@ export {
   applyCreateMarinerShip,
   applyMoveMarinerBeast,
   applyNestMarinerBeast,
+  applyRelocateMarinerNestingBeast,
   applyMoveMarinerMarket,
   applyRecordMarinerRavageResult,
 } from "./mariner-operability-transitions";

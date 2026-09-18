@@ -446,6 +446,14 @@ Pact-Law procedures can create durable consequences involving Wizards, Time, Tre
 
 Do not create a Sorcerer-local legal-case subsystem.
 
+### Mariner undescribed-Rarity sentinel
+
+Current Mariner Market shape remains `{ present: false } | { present: true, rarity: string | null }`. Batch 2 uses one reserved application sentinel (`__7PP_APP_UNDESCRIBED_MARINER_RARITY_V1__`) as pre-activation metadata meaning "Market is Rare, but fictional Rarity description has not yet been supplied."
+
+Before V5 activation, explicitly decide whether the Mariner undescribed-Rarity sentinel becomes durable representation or is replaced with a typed description-pending state while migration remains controlled.
+
+Do not treat a migration as approved now.
+
 ### Other Full-Pact Representability Gaps
 
 M5.5 exists partly to discover these through realistic integrated use rather than repeated speculative whole-source audits.

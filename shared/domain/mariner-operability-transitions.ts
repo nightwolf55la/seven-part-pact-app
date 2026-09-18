@@ -153,6 +153,29 @@ export interface NestMarinerBeastInput {
   readonly expectedNestingBeastDenizenId: DenizenId | null;
 }
 
+export type RelocateMarinerNestingBeastDestination =
+  | {
+      readonly kind: "board_isle";
+      readonly boardIsleId: MarinerBoardIsleId;
+      readonly expectedMarket: MarinerIsleMarket;
+      readonly expectedRavageStormCount: number;
+      readonly expectedNestingBeastDenizenId: DenizenId | null;
+    }
+  | {
+      readonly kind: "sea_region";
+      readonly regionId: MarinerSeaRegionId;
+      readonly expectedStormCounts: readonly ExpectedStormCount[];
+      readonly expectedRouteOccupancies: readonly ExpectedRouteOccupancy[];
+      readonly expectedRelevantBeasts: readonly ExpectedBeastState[];
+      readonly rampageResolution: MarinerRampageResolution | null;
+    };
+
+export interface RelocateMarinerNestingBeastInput {
+  readonly denizenId: DenizenId;
+  readonly expectedBeast: ExpectedBeastState;
+  readonly destination: RelocateMarinerNestingBeastDestination;
+}
+
 export interface MoveMarinerMarketInput {
   readonly sourceBoardIsleId: MarinerBoardIsleId;
   readonly destinationBoardIsleId: MarinerBoardIsleId;
@@ -653,6 +676,83 @@ export function canonicalizeNestMarinerBeastInput(input: NestMarinerBeastInput):
   };
 }
 
+function canonicalizeExpectedBeastState(expectedBeast: ExpectedBeastState): ExpectedBeastState {
+  return {
+    denizenId: expectedBeast.denizenId,
+    condition: expectedBeast.condition,
+    location: { ...expectedBeast.location },
+  };
+}
+
+function canonicalizeRampageResolution(
+  resolution: MarinerRampageResolution | null,
+): MarinerRampageResolution | null {
+  if (resolution === null) {
+    return null;
+  }
+  if (!isValidDenizenId(resolution.denizenId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid Rampage resolution denizenId: ${resolution.denizenId}`);
+  }
+  if (resolution.destinationSeatId !== undefined && !isValidPactSeatId(resolution.destinationSeatId)) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Invalid Rampage destination: ${String(resolution.destinationSeatId)}`,
+    );
+  }
+  return { ...resolution };
+}
+
+export function canonicalizeRelocateMarinerNestingBeastInput(
+  input: RelocateMarinerNestingBeastInput,
+): RelocateMarinerNestingBeastInput {
+  if (!isValidDenizenId(input.denizenId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${input.denizenId}`);
+  }
+  if (input.destination.kind === "board_isle") {
+    if (!isValidMarinerBoardIsleId(input.destination.boardIsleId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown board Isle: ${input.destination.boardIsleId}`);
+    }
+    if (
+      input.destination.expectedNestingBeastDenizenId !== null
+      && !isValidDenizenId(input.destination.expectedNestingBeastDenizenId)
+    ) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        `Invalid expected Nesting Beast: ${input.destination.expectedNestingBeastDenizenId}`,
+      );
+    }
+    return {
+      denizenId: input.denizenId,
+      expectedBeast: canonicalizeExpectedBeastState(input.expectedBeast),
+      destination: {
+        kind: "board_isle",
+        boardIsleId: input.destination.boardIsleId,
+        expectedMarket: canonicalizeExpectedMarket(input.destination.expectedMarket),
+        expectedRavageStormCount: input.destination.expectedRavageStormCount,
+        expectedNestingBeastDenizenId: input.destination.expectedNestingBeastDenizenId,
+      },
+    };
+  }
+  if (input.destination.kind !== "sea_region") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Relocation destination must be a board Isle or Sea region");
+  }
+  if (!isValidMarinerSeaRegionId(input.destination.regionId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown destination sea region: ${input.destination.regionId}`);
+  }
+  return {
+    denizenId: input.denizenId,
+    expectedBeast: canonicalizeExpectedBeastState(input.expectedBeast),
+    destination: {
+      kind: "sea_region",
+      regionId: input.destination.regionId,
+      expectedStormCounts: input.destination.expectedStormCounts.map((entry) => ({ ...entry })),
+      expectedRouteOccupancies: input.destination.expectedRouteOccupancies.map((entry) => ({ ...entry })),
+      expectedRelevantBeasts: input.destination.expectedRelevantBeasts.map((entry) => ({ ...entry })),
+      rampageResolution: canonicalizeRampageResolution(input.destination.rampageResolution),
+    },
+  };
+}
+
 function canonicalizeExpectedMarket(market: MarinerIsleMarket): MarinerIsleMarket {
   return market.present
     ? { present: true, rarity: market.rarity }
@@ -1096,45 +1196,70 @@ export function applyMoveMarinerBeast(
     condition: "distrusting",
     location: { kind: "sea_region", regionId: input.destinationRegionId },
   };
-  let mariner: MarinerState = replaceBeast(current, moved);
-  const hazards = applyImmediateShippingHazards(
-    mariner.routes,
-    immediateHazardRouteIdsCausedBy(mariner, { focusRegionIds: [input.destinationRegionId] }),
+  const arrival = applyMarinerBeastSeaArrivalConsequences(
+    { ...state, mariner: current },
+    moved,
+    input.destinationRegionId,
+    input.rampageResolution,
   );
-  mariner = { ...mariner, routes: [...hazards.routes] };
-  let working: CampaignStateV5 = { ...state, mariner };
-  let rampaged = false;
-  let rampageDestinationSeatId: PactSeatId | null = null;
-  if (beastIsEntirelySurrounded(input.destinationRegionId, mariner.routes)) {
-    if (input.rampageResolution === null || input.rampageResolution.denizenId !== input.denizenId) {
-      throw new DomainError(
-        "INVALID_CAMPAIGN_STATE",
-        "Surrounded Beast move requires an exact Rampage resolution for the moved Beast",
-      );
-    }
-    const accepted = requireExactMarinerRampageResolutions([input.denizenId], [input.rampageResolution]);
-    working = applyMarinerRampageResolutions(working, accepted);
-    rampaged = true;
-    rampageDestinationSeatId = accepted[0]!.destinationSeatId;
-  } else if (input.rampageResolution !== null) {
-    throw new DomainError(
-      "INVALID_CAMPAIGN_STATE",
-      "Beast is not surrounded after immediate hazards; Rampage resolution must be absent",
-    );
-  }
 
-  return commit(working, [{
+  return commit(arrival.working, [{
     type: "mariner_beast_moved",
     version: 1,
     data: {
       denizenId: input.denizenId,
       sourceRegionId: input.sourceRegionId,
       destinationRegionId: input.destinationRegionId,
-      destroyedRouteIds: [...hazards.destroyedRouteIds],
-      rampaged,
-      rampageDestinationSeatId,
+      destroyedRouteIds: [...arrival.destroyedRouteIds],
+      rampaged: arrival.rampaged,
+      rampageDestinationSeatId: arrival.rampageDestinationSeatId,
     },
   }]);
+}
+
+function applyMarinerBeastSeaArrivalConsequences(
+  state: CampaignStateV5,
+  arrived: MarinerBeastState,
+  destinationRegionId: MarinerSeaRegionId,
+  rampageResolution: MarinerRampageResolution | null,
+): {
+  readonly working: CampaignStateV5;
+  readonly destroyedRouteIds: readonly MarinerRouteId[];
+  readonly rampaged: boolean;
+  readonly rampageDestinationSeatId: PactSeatId | null;
+} {
+  let mariner: MarinerState = replaceBeast(state.mariner, arrived);
+  const hazards = applyImmediateShippingHazards(
+    mariner.routes,
+    immediateHazardRouteIdsCausedBy(mariner, { focusRegionIds: [destinationRegionId] }),
+  );
+  mariner = { ...mariner, routes: [...hazards.routes] };
+  let working: CampaignStateV5 = { ...state, mariner };
+  let rampaged = false;
+  let rampageDestinationSeatId: PactSeatId | null = null;
+  if (beastIsEntirelySurrounded(destinationRegionId, mariner.routes)) {
+    if (rampageResolution === null || rampageResolution.denizenId !== arrived.denizenId) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        "Surrounded Beast move requires an exact Rampage resolution for the moved Beast",
+      );
+    }
+    const accepted = requireExactMarinerRampageResolutions([arrived.denizenId], [rampageResolution]);
+    working = applyMarinerRampageResolutions(working, accepted);
+    rampaged = true;
+    rampageDestinationSeatId = accepted[0]!.destinationSeatId;
+  } else if (rampageResolution !== null) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      "Beast is not surrounded after immediate hazards; Rampage resolution must be absent",
+    );
+  }
+  return {
+    working,
+    destroyedRouteIds: [...hazards.destroyedRouteIds],
+    rampaged,
+    rampageDestinationSeatId,
+  };
 }
 
 export function applyNestMarinerBeast(
@@ -1207,6 +1332,134 @@ export function applyNestMarinerBeast(
       denizenId: input.denizenId,
       boardIsleId: input.boardIsleId,
       previousLocation: beast.location,
+    },
+  }]);
+}
+
+export function applyRelocateMarinerNestingBeast(
+  state: CampaignStateV5,
+  rawInput: RelocateMarinerNestingBeastInput,
+): MarinerOperabilityTransitionResult {
+  const input = canonicalizeRelocateMarinerNestingBeastInput(rawInput);
+  const current = requireInitialized(state);
+  const beast = current.beasts.find((candidate) => candidate.denizenId === input.denizenId);
+  if (beast === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Mariner Beast not found: ${input.denizenId}`);
+  }
+  if (
+    beast.condition !== input.expectedBeast.condition
+    || !beastLocationEqual(beast.location, input.expectedBeast.location)
+    || beast.denizenId !== input.expectedBeast.denizenId
+  ) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      `Beast ${input.denizenId} does not match the expected current condition and location`,
+    );
+  }
+  if (beast.condition !== "friendly_nesting" || beast.location.kind !== "board_isle") {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      "Relocate Nesting Beast requires a Friendly/Nesting Beast currently on a board Isle",
+    );
+  }
+  const sourceBoardIsleId = beast.location.boardIsleId;
+  const destination = input.destination;
+
+  if (destination.kind === "board_isle") {
+    if (sourceBoardIsleId === destination.boardIsleId) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", "Relocation source and destination Isles must differ");
+    }
+    const destIsleId = destination.boardIsleId;
+    const isle = current.boardIsles.find((candidate) => candidate.boardIsleId === destIsleId);
+    if (isle === undefined) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Unknown board Isle: ${destIsleId}`);
+    }
+    if (!marketEqual(isle.market, destination.expectedMarket)) {
+      throw new DomainError(
+        "STALE_COMMAND_PRECONDITION",
+        `market for ${destIsleId} does not match the expected current value`,
+      );
+    }
+    if (isle.ravageStormCount !== destination.expectedRavageStormCount) {
+      throw new DomainError(
+        "STALE_COMMAND_PRECONDITION",
+        `ravageStormCount: expected "${destination.expectedRavageStormCount}" but current is "${isle.ravageStormCount}"`,
+      );
+    }
+    const existingNest = nestingBeastOnIsle(current, destIsleId);
+    if ((existingNest?.denizenId ?? null) !== destination.expectedNestingBeastDenizenId) {
+      throw new DomainError(
+        "STALE_COMMAND_PRECONDITION",
+        `Nesting Beast on ${destIsleId} does not match the expected current identity`,
+      );
+    }
+    if (isle.market.present) {
+      throw new DomainError(
+        "INVALID_CAMPAIGN_STATE",
+        "Friendly/Nesting Beast relocation cannot target an Isle that has a Market",
+      );
+    }
+    if (isle.ravageStormCount > 0) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", "Friendly/Nesting Beast relocation cannot target a Ravaged Isle");
+    }
+    if (existingNest !== undefined) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", "Chosen Isle already has a Nesting Beast");
+    }
+
+    const updated: MarinerBeastState = {
+      ...beast,
+      condition: "friendly_nesting",
+      location: { kind: "board_isle", boardIsleId: destIsleId },
+    };
+    return commit({ ...state, mariner: replaceBeast(current, updated) }, [{
+      type: "mariner_nesting_beast_relocated",
+      version: 1,
+      data: {
+        denizenId: input.denizenId,
+        sourceBoardIsleId,
+        requestedDestination: { kind: "board_isle", boardIsleId: destIsleId },
+        resultingCondition: "friendly_nesting",
+        resultingLocation: updated.location,
+        destroyedRouteIds: [],
+        rampaged: false,
+        rampageDestinationSeatId: null,
+      },
+    }]);
+  }
+
+  const requiredRegions = relevantSeaRegions(destination.regionId);
+  const requiredRoutes = relevantBoundingAndSharedRoutes(destination.regionId);
+  checkExpectedStorms(state, destination.expectedStormCounts, requiredRegions);
+  checkExpectedRoutes(state, destination.expectedRouteOccupancies, requiredRoutes);
+  checkExpectedBeastStates(state, destination.expectedRelevantBeasts, requiredRegions);
+
+  const arrived: MarinerBeastState = {
+    ...beast,
+    condition: "distrusting",
+    location: { kind: "sea_region", regionId: destination.regionId },
+  };
+  const arrival = applyMarinerBeastSeaArrivalConsequences(
+    { ...state, mariner: current },
+    arrived,
+    destination.regionId,
+    destination.rampageResolution,
+  );
+  const resulting = arrival.working.mariner.beasts.find((candidate) => candidate.denizenId === input.denizenId);
+  if (resulting === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Mariner Beast not found: ${input.denizenId}`);
+  }
+  return commit(arrival.working, [{
+    type: "mariner_nesting_beast_relocated",
+    version: 1,
+    data: {
+      denizenId: input.denizenId,
+      sourceBoardIsleId,
+      requestedDestination: { kind: "sea_region", regionId: destination.regionId },
+      resultingCondition: resulting.condition,
+      resultingLocation: resulting.location,
+      destroyedRouteIds: [...arrival.destroyedRouteIds],
+      rampaged: arrival.rampaged,
+      rampageDestinationSeatId: arrival.rampageDestinationSeatId,
     },
   }]);
 }

@@ -332,6 +332,7 @@ Explicitly review source-valid deferred capabilities that may be expensive to ad
 - arbitrary/multiple Domain-instance implications;
 - Wicker-Ways;
 - Pact-Law sanctions/anathema;
+- whether the Mariner undescribed-Rarity sentinel remains durable representation or is replaced with a typed description-pending state while migration remains controlled;
 - any other representability gap exposed by realistic integrated use.
 
 Do not implement every exotic rule merely because it appears in source. Decide which capabilities need representability before V5 freeze.

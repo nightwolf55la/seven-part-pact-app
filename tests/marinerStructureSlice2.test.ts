@@ -89,6 +89,7 @@ const MARINER_COMMAND_TYPES = [
   "create_mariner_ship",
   "move_mariner_beast",
   "nest_mariner_beast",
+  "relocate_mariner_nesting_beast",
   "move_mariner_market",
   "record_mariner_ravage_result",
 ] as const;
@@ -542,7 +543,7 @@ describe("Mariner anti-automation", () => {
 });
 
 describe("Mariner command registration and fingerprints", () => {
-  it("registers all ten Mariner commands as active logical commands with deterministic fingerprints", () => {
+  it("registers Mariner commands as active logical commands with deterministic fingerprints", () => {
     for (const commandType of MARINER_COMMAND_TYPES) {
       expect(CAMPAIGN_COMMAND_TYPES as readonly string[]).toContain(commandType);
       expect(isLogicalStateCommandType(commandType)).toBe(true);

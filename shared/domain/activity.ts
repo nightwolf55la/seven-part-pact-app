@@ -4,11 +4,16 @@ import type {
   MonthChangedEventV1,
 } from "./events";
 import { displayNameFromOrdinal } from "./calendar";
-import { MARINER_BOARD_ISLE_DEFINITIONS } from "./mariner-catalogs";
+import { MARINER_BOARD_ISLE_DEFINITIONS, MARINER_SEA_REGION_DEFINITIONS } from "./mariner-catalogs";
 
 function marinerBoardIsleLabel(boardIsleId: string): string {
   return MARINER_BOARD_ISLE_DEFINITIONS.find((definition) => definition.boardIsleId === boardIsleId)?.displayName
     ?? boardIsleId;
+}
+
+function marinerSeaRegionLabel(regionId: string): string {
+  return MARINER_SEA_REGION_DEFINITIONS.find((definition) => definition.regionId === regionId)?.displayName
+    ?? regionId;
 }
 
 export type ActivityEntry =
@@ -270,6 +275,15 @@ function describeConfigEvent(event: CampaignEvent): string {
         : "Moved a Distrusting Beast";
     case "mariner_beast_nested":
       return "Helped a Beast nest";
+    case "mariner_nesting_beast_relocated": {
+      const from = marinerBoardIsleLabel(event.data.sourceBoardIsleId);
+      const requested = event.data.requestedDestination.kind === "board_isle"
+        ? marinerBoardIsleLabel(event.data.requestedDestination.boardIsleId)
+        : marinerSeaRegionLabel(event.data.requestedDestination.regionId);
+      return event.data.rampaged
+        ? `Moved Nesting Beast from ${from} to ${requested} that then Rampaged`
+        : `Moved Nesting Beast from ${from} to ${requested}`;
+    }
     case "mariner_ravage_result_recorded":
       return event.data.outcome === "market_absorbed"
         ? "Recorded Ravage result absorbed by a Market"
@@ -626,6 +640,7 @@ export function mapEventToActivityEntry(
     case "mariner_ship_created":
     case "mariner_beast_moved":
     case "mariner_beast_nested":
+    case "mariner_nesting_beast_relocated":
     case "mariner_ravage_result_recorded":
     case "necromancer_initialized":
     case "necromancer_depth_changed":
