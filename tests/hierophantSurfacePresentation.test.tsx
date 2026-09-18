@@ -415,3 +415,183 @@ describe("Hierophant Temple board interactions", () => {
     container2.remove();
   });
 });
+
+describe("Hierophant zero-click monthly board", () => {
+  const monthlyWorld: WorldReference = {
+    denizens: [
+      { denizenId: "den_ann", name: "Acolyte Ann", representation: "individual", description: null },
+      { denizenId: "den_gentry", name: "Lord Gareth", representation: "individual", description: null },
+      { denizenId: "den_zephon", name: "Sister Zea", representation: "individual", description: null },
+      { denizenId: "den_prophet", name: "Prophet Ilya", representation: "individual", description: null },
+      { denizenId: "den_highwoe", name: "Weary Bran", representation: "individual", description: null },
+    ],
+    isles: [],
+    places: [
+      { placeId: "plc_krolis", name: "Krolis Grounds", description: null, placement: { kind: "unspecified" } },
+    ],
+  };
+
+  const monthlyState = {
+    ...EMPTY_HIEROPHANT_STATE,
+    holidayTempleIds: ["krolis"] as const,
+    prophets: [
+      { denizenId: "den_prophet" as never, host: { kind: "temple" as const, templeId: "krolis" as const } },
+    ],
+    temples: [
+      {
+        templeId: "krolis" as const,
+        kind: "ordinary" as const,
+        placeId: "plc_krolis" as never,
+        hostSeatId: "hierophant" as const,
+        status: "active" as const,
+        abundance: 5,
+        conviction: 4,
+        doctrine: { kind: "doctrine" as const, doctrineId: "worth_proved_through_labor" as const },
+      },
+      {
+        templeId: "notor" as const,
+        kind: "ordinary" as const,
+        placeId: "plc_krolis" as never,
+        hostSeatId: "hierophant" as const,
+        status: "active" as const,
+        abundance: 3,
+        conviction: 6,
+        doctrine: { kind: "doctrine" as const, doctrineId: "charity_measure_of_moral_worth" as const },
+      },
+      {
+        templeId: "hestar" as const,
+        kind: "hestar" as const,
+        placeId: "plc_krolis" as never,
+        hostSeatId: "hierophant" as const,
+        status: "active" as const,
+        abundance: 4,
+        conviction: 5,
+      },
+      {
+        templeId: "ushin" as const,
+        kind: "ordinary" as const,
+        placeId: "plc_krolis" as never,
+        hostSeatId: "hierophant" as const,
+        status: "collapsed" as const,
+        abundance: 0,
+        conviction: 0,
+        doctrine: { kind: "blasphemy" as const, blasphemyId: "law_of_the_wolf" as const },
+      },
+      {
+        templeId: "zephon" as const,
+        kind: "ordinary" as const,
+        placeId: "plc_krolis" as never,
+        hostSeatId: "hierophant" as const,
+        status: "active" as const,
+        abundance: 0,
+        conviction: 5,
+        doctrine: { kind: "doctrine" as const, doctrineId: "people_used_to_be_kinder" as const },
+      },
+    ],
+    supplicants: [
+      {
+        denizenId: "den_ann" as never,
+        classId: "peasant" as const,
+        woe: 3,
+        host: { kind: "temple" as const, templeId: "krolis" as const, area: "courtyard" as const },
+      },
+      {
+        denizenId: "den_gentry" as never,
+        classId: "gentry" as const,
+        woe: 4,
+        host: { kind: "temple" as const, templeId: "krolis" as const, area: "courtyard" as const },
+      },
+      {
+        denizenId: "den_highwoe" as never,
+        classId: "peasant" as const,
+        woe: 7,
+        host: { kind: "temple" as const, templeId: "krolis" as const, area: "agiary" as const },
+      },
+      {
+        denizenId: "den_zephon" as never,
+        classId: "peasant" as const,
+        woe: 2,
+        host: { kind: "temple" as const, templeId: "zephon" as const, area: "courtyard" as const },
+      },
+    ],
+  };
+
+  function renderMonthly() {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    flushSync(() => {
+      root.render(createElement(HierophantSurface, {
+        hierophant: monthlyState as typeof EMPTY_HIEROPHANT_STATE,
+        world: monthlyWorld,
+        campaignId: CAMPAIGN_ID,
+        sorcererPresence: [
+          {
+            kind: "researcher",
+            denizenId: "den_00000000-0000-0000-0000-0000000000aa" as never,
+            name: "Lina the Seer",
+            operationalThisMonth: true,
+            positionId: "srp_temple_krolis",
+            target: { kind: "hierophant_temple", templeId: "krolis" },
+          },
+        ],
+      }));
+    });
+    const board = container.querySelector('[aria-label="Temples of the Hierophant"]') as HTMLElement | null;
+    return { container, root, board };
+  }
+
+  it("shows monthly board information without selecting a Temple", () => {
+    const { container, root, board } = renderMonthly();
+    expect(board).not.toBeNull();
+    const krolis = board!.querySelector('[data-temple-id="krolis"]') as HTMLElement;
+    const zephon = board!.querySelector('[data-temple-id="zephon"]') as HTMLElement;
+    const hestar = board!.querySelector('[data-temple-id="hestar"]') as HTMLElement;
+    const ushin = board!.querySelector('[data-temple-id="ushin"]') as HTMLElement;
+    const notor = board!.querySelector('[data-temple-id="notor"]') as HTMLElement;
+    expect(krolis.textContent).toContain("Temple Krolis");
+    expect(notor.textContent).toContain("Temple Notor");
+    expect(hestar.textContent).toContain("Hestar");
+    expect(ushin.textContent).toContain("Temple Ushin");
+    expect(zephon.textContent).toContain("Temple Zephon");
+    expect(krolis.querySelector('[aria-label="Abundance 5, this Visions phase -2 → 3"]')).not.toBeNull();
+    expect(krolis.querySelector('[aria-label="Conviction 4"]')).not.toBeNull();
+    expect(krolis.textContent).toContain("Supports Artisan, Peasant");
+    expect(hestar.textContent).toContain("Supports all Classes");
+    expect(krolis.textContent).toContain("Acolyte Ann");
+    expect(krolis.textContent).toContain("Peasant");
+    expect(krolis.querySelector('[aria-label="Woe 3 → 2"]')).not.toBeNull();
+    expect(krolis.textContent).toContain("Supported");
+    expect(krolis.textContent).toContain("-1 Abundance");
+    expect(krolis.textContent).toContain("Woe 3 → 2");
+    expect(krolis.querySelector('[aria-label="Woe 7 → 6"]')).not.toBeNull();
+    expect(krolis.textContent).toContain("Woe 7");
+    expect(krolis.textContent).toContain("Unsupported");
+    expect(krolis.textContent).toContain("Woe 4 → 5");
+    expect(krolis.textContent).toContain("Cult resolution required");
+    expect(krolis.querySelector('[aria-label="Holiday marked"]')).not.toBeNull();
+    expect(krolis.textContent).toContain("Prophet Ilya");
+    expect(krolis.textContent).toContain("Lina the Seer");
+    expect(ushin.textContent).toContain("Collapsed");
+    expect(ushin.textContent).toContain("Blasphemous");
+    expect(zephon.textContent).toContain("Hestar choice needed");
+    const advanced = container.querySelector("summary");
+    expect(advanced?.textContent).toContain("Advanced / Correct Board");
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps the five-Temple Hestar hierarchy and subordinate correction hatch", () => {
+    const { container, root, board } = renderMonthly();
+    const grid = board as HTMLElement;
+    expect(grid.className).toContain("md:grid-cols-[1fr_1.15fr_1fr]");
+    expect(container.querySelector('[data-temple-id="hestar"]')?.closest(".md\\:col-start-2")).not.toBeNull();
+    const details = Array.from(container.querySelectorAll("details")).find((el) =>
+      el.querySelector("summary")?.textContent?.includes("Advanced / Correct Board"),
+    );
+    expect(details).toBeDefined();
+    expect(details?.open).toBeFalsy();
+    root.unmount();
+    container.remove();
+  });
+});

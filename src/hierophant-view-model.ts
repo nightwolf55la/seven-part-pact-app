@@ -26,6 +26,10 @@ import {
   type HierophantTemple,
   type HierophantTempleArea,
   type HierophantTempleStatus,
+  type HierophantVisionsDemand,
+  type HierophantVisionsResource,
+  type HierophantVisionsSupplicantPreview,
+  type HierophantVisionsTemplePreview,
   type PowerfulDenizenProfile,
   type SorcererExternalPresence,
 } from "../shared/domain";
@@ -515,6 +519,57 @@ export function benefactionReferenceLabel(reference: HierophantBenefactionRefere
   }
   const resource = reference.kind === "abundance" ? "Abundance" : "Conviction";
   return `Benefaction reference: +${reference.amount} ${resource}`;
+}
+
+export function templeSupportedClassLabels(
+  temple: HierophantTemple,
+  campaignDoctrines: readonly HierophantCampaignDoctrine[],
+  campaignClasses: readonly HierophantCampaignClass[],
+): readonly string[] {
+  if (temple.kind === "hestar") return [];
+  if (temple.doctrine.kind !== "doctrine") return [];
+  const ids = supportedClassIdsForDoctrine(temple.doctrine.doctrineId, campaignDoctrines);
+  if (ids === null) return [];
+  return ids.map((classId) => classLabel(classId, campaignClasses));
+}
+
+export function formatVisionsResourceName(resource: HierophantVisionsResource): string {
+  return resource === "abundance" ? "Abundance" : "Conviction";
+}
+
+export function formatVisionsDemand(demand: HierophantVisionsDemand): string | null {
+  if (demand.kind === "none") return null;
+  if (demand.kind === "fixed") return `-${demand.amount} ${formatVisionsResourceName(demand.resource)}`;
+  if (demand.kind === "artisan") return "1 Abundance or Conviction";
+  return "Cost not determined";
+}
+
+export function formatVisionsSupplicantLine(preview: HierophantVisionsSupplicantPreview): string {
+  const parts: string[] = [supportDisplayLabel(preview.support)];
+  const cost = formatVisionsDemand(preview.demand);
+  if (cost !== null) parts.push(cost);
+  if (preview.woeProjection.kind === "determined") {
+    parts.push(`Woe ${preview.woeProjection.from} → ${preview.woeProjection.to}`);
+  }
+  if (preview.departure.kind === "benefaction") {
+    parts.push(`Departs · +${preview.departure.amount} ${formatVisionsResourceName(preview.departure.resource)}`);
+  }
+  if (preview.departure.kind === "cult_threshold") {
+    parts.push("Cult resolution required");
+  }
+  if (preview.choiceRequired && preview.demand.kind === "artisan") {
+    parts.push("Artisan choice needed");
+  }
+  return parts.join(" · ");
+}
+
+export function formatVisionsTempleWarnings(preview: HierophantVisionsTemplePreview): readonly string[] {
+  const warnings: string[] = [];
+  if (preview.shortage?.consequence === "collapse") warnings.push("Shortage · Collapse");
+  if (preview.shortage?.consequence === "blasphemy") warnings.push("Shortage · Blasphemy");
+  if (preview.hestarFallback === "choice_required") warnings.push("Hestar choice needed");
+  if (preview.orderChoiceRequired) warnings.push("Order choice needed");
+  return warnings;
 }
 
 export function templeResearchers(
