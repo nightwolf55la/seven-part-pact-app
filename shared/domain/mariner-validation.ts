@@ -359,22 +359,9 @@ function validateBeastsAndLaws(m: Record<string, unknown>, initialized: boolean)
     return;
   }
 
-  const marketIsles = new Set<MarinerBoardIsleId>();
-  for (const isle of m.boardIsles as Array<Record<string, unknown>>) {
-    const market = isle.market as MarinerIsleMarket;
-    if (market.present) {
-      marketIsles.add(isle.boardIsleId as MarinerBoardIsleId);
-    }
-  }
   for (const [boardIsleId, count] of nestingByIsle) {
     if (count > 1) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `Multiple Friendly/Nesting Beasts occupy board Isle ${boardIsleId}`);
-    }
-    if (marketIsles.has(boardIsleId)) {
-      throw new DomainError(
-        "INVALID_CAMPAIGN_STATE",
-        `Board Isle ${boardIsleId} cannot have both a Market and a Friendly/Nesting Beast`,
-      );
     }
   }
 }

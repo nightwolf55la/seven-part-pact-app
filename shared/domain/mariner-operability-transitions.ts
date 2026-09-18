@@ -1307,12 +1307,6 @@ export function applyNestMarinerBeast(
   if (beast.location.kind !== "sea_region") {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Help Beast Nest requires a Beast currently in a Sea or Horizon region");
   }
-  if (isle.market.present) {
-    throw new DomainError(
-      "INVALID_CAMPAIGN_STATE",
-      "Help Beast Nest cannot target an Isle that has a Market; the table must resolve or remove the Market separately",
-    );
-  }
   if (isle.ravageStormCount > 0) {
     throw new DomainError("INVALID_CAMPAIGN_STATE", "Help Beast Nest cannot target a Ravaged Isle");
   }
@@ -1391,12 +1385,6 @@ export function applyRelocateMarinerNestingBeast(
       throw new DomainError(
         "STALE_COMMAND_PRECONDITION",
         `Nesting Beast on ${destIsleId} does not match the expected current identity`,
-      );
-    }
-    if (isle.market.present) {
-      throw new DomainError(
-        "INVALID_CAMPAIGN_STATE",
-        "Friendly/Nesting Beast relocation cannot target an Isle that has a Market",
       );
     }
     if (isle.ravageStormCount > 0) {
@@ -1615,12 +1603,6 @@ export function applyMoveMarinerMarket(
     throw new DomainError(
       "STALE_COMMAND_PRECONDITION",
       `Nesting Beast on ${input.destinationBoardIsleId} does not match the expected current identity`,
-    );
-  }
-  if (destinationNest !== undefined) {
-    throw new DomainError(
-      "INVALID_CAMPAIGN_STATE",
-      `Board Isle ${input.destinationBoardIsleId} cannot have both a Market and a Friendly/Nesting Beast`,
     );
   }
 

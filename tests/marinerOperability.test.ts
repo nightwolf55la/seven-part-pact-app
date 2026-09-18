@@ -1211,16 +1211,8 @@ describe("nest_mariner_beast", () => {
     });
   });
 
-  it("still rejects Market, existing Nest, and Ravaged nest targets after adjacency is advisory", () => {
+  it("still rejects existing Nest and Ravaged nest targets after adjacency is advisory", () => {
     const created = applyCreateMarinerBeast(initializedQuiet(), createBeastInput(initializedQuiet())).nextState;
-    const nearMarket = applyCreateMarinerBeast(initializedQuiet(), createBeastInput(initializedQuiet(), {
-      regionId: "scuttle_channel",
-    })).nextState;
-    expectCode(
-      () => applyNestMarinerBeast(nearMarket, nestInput(nearMarket, { boardIsleId: "scuttleport" })),
-      "INVALID_CAMPAIGN_STATE",
-      /Market/,
-    );
     const ravaged = applySetMarinerIsleRavage(created, "orrery", 0, 6).nextState;
     expectCode(
       () => applyNestMarinerBeast(ravaged, nestInput(ravaged)),
@@ -1240,16 +1232,8 @@ describe("nest_mariner_beast", () => {
     );
   });
 
-  it("rejects a Market, Ravaged Isle, existing Nest, and non-Distrusting Beast", () => {
+  it("rejects a Ravaged Isle, existing Nest, and non-Distrusting Beast", () => {
     const created = applyCreateMarinerBeast(initializedQuiet(), createBeastInput(initializedQuiet())).nextState;
-    const nearMarket = applyCreateMarinerBeast(initializedQuiet(), createBeastInput(initializedQuiet(), {
-      regionId: "scuttle_channel",
-    })).nextState;
-    expectCode(
-      () => applyNestMarinerBeast(nearMarket, nestInput(nearMarket, { boardIsleId: "scuttleport" })),
-      "INVALID_CAMPAIGN_STATE",
-      /Market/,
-    );
     const ravaged = applySetMarinerIsleRavage(created, "orrery", 0, 6).nextState;
     expectCode(
       () => applyNestMarinerBeast(ravaged, nestInput(ravaged)),
@@ -2372,16 +2356,6 @@ describe("move_mariner_market", () => {
     );
   });
 
-  it("rejects a destination that already has a Nesting Beast", () => {
-    const created = applyCreateMarinerBeast(initializedQuiet(), createBeastInput(initializedQuiet())).nextState;
-    const nested = applyNestMarinerBeast(created, nestInput(created)).nextState;
-    expectCode(
-      () => applyMoveMarinerMarket(nested, moveMarketInput(nested)),
-      "INVALID_CAMPAIGN_STATE",
-      /Nest|Market/,
-    );
-  });
-
   it("rejects stale source Market, destination Market, and destination Nest identity", () => {
     const before = initializedQuiet();
     const input = moveMarketInput(before);
@@ -3213,15 +3187,8 @@ describe("relocate_mariner_nesting_beast", () => {
     );
   });
 
-  it("rejects Isle destinations that have a Market, Ravage, or a different Nest", () => {
+  it("rejects Isle destinations that have Ravage or a different Nest", () => {
     const nested = nestedBeastOn("druntyr");
-    expectCode(
-      () => applyRelocateMarinerNestingBeast(nested, relocateInput(nested, {
-        destination: relocateIsleDestination(nested, "scuttleport"),
-      })),
-      "INVALID_CAMPAIGN_STATE",
-      /Market/,
-    );
     const ravaged = applySetMarinerIsleRavage(nested, "orrery", 0, 6).nextState;
     expectCode(
       () => applyRelocateMarinerNestingBeast(ravaged, relocateInput(ravaged, {
@@ -3556,6 +3523,175 @@ describe("relocate_mariner_nesting_beast", () => {
     expect(activityText(seaEvent)).toBe("Revision 9 — Moved Nesting Beast from Druntyr to Scuttle Channel");
     expect(activityText(rampageEvent)).toBe(
       "Revision 9 — Moved Nesting Beast from Druntyr to The Sunken Fleet that then Rampaged",
+    );
+  });
+});
+
+describe("Market + Nesting Beast coexistence", () => {
+  it("nests into an exact Market-present Isle without changing the Market", () => {
+    const created = applyCreateMarinerBeast(
+      initializedQuiet(),
+      createBeastInput(initializedQuiet(), { regionId: "scuttle_channel" }),
+    ).nextState;
+    const beforeMarket = marketOf(created, "scuttleport");
+    expect(beforeMarket).toEqual({ present: true, rarity: null });
+    const result = applyNestMarinerBeast(created, nestInput(created, { boardIsleId: "scuttleport" }));
+    expect(marketOf(result.nextState, "scuttleport")).toEqual(beforeMarket);
+    expect(result.nextState.mariner.beasts[0]).toEqual({
+      denizenId: NEW_DEN,
+      element: "water",
+      definitionId: "kraken",
+      condition: "friendly_nesting",
+      location: { kind: "board_isle", boardIsleId: "scuttleport" },
+    });
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0]).toEqual({
+      type: "mariner_beast_nested",
+      version: 1,
+      data: {
+        denizenId: NEW_DEN,
+        boardIsleId: "scuttleport",
+        previousLocation: { kind: "sea_region", regionId: "scuttle_channel" },
+      },
+    });
+    expect(result.events).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "mariner_isle_market_changed" })]),
+    );
+    expect(() => validateCampaignStateV5Candidate(result.nextState)).not.toThrow();
+  });
+
+  it("rejects Nest when expectedMarket differs from the authoritative Market", () => {
+    const created = applyCreateMarinerBeast(
+      initializedQuiet(),
+      createBeastInput(initializedQuiet(), { regionId: "scuttle_channel" }),
+    ).nextState;
+    const input = nestInput(created, {
+      boardIsleId: "scuttleport",
+      expectedMarket: { present: false },
+    });
+    expectCode(() => applyNestMarinerBeast(created, input), "STALE_COMMAND_PRECONDITION", /market/i);
+  });
+
+  it("relocates a Nesting Beast onto an exact Market-present Isle without changing the Market", () => {
+    const nested = nestedBeastOn("druntyr");
+    const beforeMarket = marketOf(nested, "scuttleport");
+    expect(beforeMarket).toEqual({ present: true, rarity: null });
+    const result = applyRelocateMarinerNestingBeast(nested, relocateInput(nested, {
+      destination: relocateIsleDestination(nested, "scuttleport"),
+    }));
+    expect(marketOf(result.nextState, "scuttleport")).toEqual(beforeMarket);
+    expect(result.nextState.mariner.beasts[0]).toEqual({
+      denizenId: NEW_DEN,
+      element: "water",
+      definitionId: "kraken",
+      condition: "friendly_nesting",
+      location: { kind: "board_isle", boardIsleId: "scuttleport" },
+    });
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0]).toEqual({
+      type: "mariner_nesting_beast_relocated",
+      version: 1,
+      data: {
+        denizenId: NEW_DEN,
+        sourceBoardIsleId: "druntyr",
+        requestedDestination: { kind: "board_isle", boardIsleId: "scuttleport" },
+        resultingCondition: "friendly_nesting",
+        resultingLocation: { kind: "board_isle", boardIsleId: "scuttleport" },
+        destroyedRouteIds: [],
+        rampaged: false,
+        rampageDestinationSeatId: null,
+      },
+    });
+    expect(() => validateCampaignStateV5Candidate(result.nextState)).not.toThrow();
+  });
+
+  it("rejects Nest relocation when expectedMarket differs from the authoritative Market", () => {
+    const nested = nestedBeastOn("druntyr");
+    const input = relocateInput(nested, {
+      destination: {
+        ...relocateIsleDestination(nested, "scuttleport"),
+        expectedMarket: { present: false },
+      },
+    });
+    expectCode(
+      () => applyRelocateMarinerNestingBeast(nested, input),
+      "STALE_COMMAND_PRECONDITION",
+      /market/i,
+    );
+  });
+
+  it("moves a Market onto an exact Nesting-Beast destination without changing the Beast", () => {
+    const nested = nestedBeastOn("orrery");
+    const beforeBeast = nested.mariner.beasts[0];
+    expect(marketOf(nested, "scuttleport")).toEqual({ present: true, rarity: null });
+    const result = applyMoveMarinerMarket(nested, moveMarketInput(nested, {
+      destinationBoardIsleId: "orrery",
+    }));
+    expect(marketOf(result.nextState, "scuttleport")).toEqual({ present: false });
+    expect(marketOf(result.nextState, "orrery")).toEqual({ present: true, rarity: null });
+    expect(result.nextState.mariner.beasts[0]).toEqual(beforeBeast);
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0]).toEqual({
+      type: "mariner_market_moved",
+      version: 1,
+      data: {
+        sourceBoardIsleId: "scuttleport",
+        destinationBoardIsleId: "orrery",
+        rarity: null,
+      },
+    });
+    expect(result.events).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "mariner_beast_nested" }),
+        expect.objectContaining({ type: "mariner_beast_updated" }),
+        expect.objectContaining({ type: "mariner_nesting_beast_relocated" }),
+      ]),
+    );
+    expect(() => validateCampaignStateV5Candidate(result.nextState)).not.toThrow();
+  });
+
+  it("rejects Market move when expected destination Nest identity differs", () => {
+    const nested = nestedBeastOn("orrery");
+    const input = moveMarketInput(nested, {
+      destinationBoardIsleId: "orrery",
+      expectedDestinationNestingBeastDenizenId: null,
+    });
+    expectCode(() => applyMoveMarinerMarket(nested, input), "STALE_COMMAND_PRECONDITION", /Nest/);
+  });
+
+  it("still rejects a second Nesting Beast on the same Isle", () => {
+    const nested = nestedBeastOn("orrery");
+    const second = applyCreateMarinerBeast(nested, createBeastInput(nested, {
+      denizenId: NEW_DEN_2,
+      name: "Second",
+      regionId: "sunken_fleet",
+    })).nextState;
+    expectCode(
+      () => applyNestMarinerBeast(second, nestInput(second, {
+        denizenId: NEW_DEN_2,
+        boardIsleId: "orrery",
+      })),
+      "INVALID_CAMPAIGN_STATE",
+      /Nest/,
+    );
+  });
+
+  it("still rejects Nesting onto a Ravaged Isle", () => {
+    const created = applyCreateMarinerBeast(initializedQuiet(), createBeastInput(initializedQuiet())).nextState;
+    const ravaged = applySetMarinerIsleRavage(created, "orrery", 0, 6).nextState;
+    expectCode(
+      () => applyNestMarinerBeast(ravaged, nestInput(ravaged)),
+      "INVALID_CAMPAIGN_STATE",
+      /Ravage/,
+    );
+    const nested = nestedBeastOn("druntyr");
+    const ravagedDest = applySetMarinerIsleRavage(nested, "ishana", 0, 6).nextState;
+    expectCode(
+      () => applyRelocateMarinerNestingBeast(ravagedDest, relocateInput(ravagedDest, {
+        destination: relocateIsleDestination(ravagedDest, "ishana"),
+      })),
+      "INVALID_CAMPAIGN_STATE",
+      /Ravage/,
     );
   });
 });

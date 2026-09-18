@@ -429,7 +429,7 @@ describe("post-initialization Mariner mutations", () => {
       .nextState.mariner.boardIsles.find((isle) => isle.boardIsleId === "druntyr")?.ravageStormCount).toBe(2);
   });
 
-  it("updates Markets with rarity normalization and structural invariant failures", () => {
+  it("updates Markets with rarity normalization and stale expected Market", () => {
     const initialized = initializeQuiet().nextState;
     expect(() => applySetMarinerIsleMarket(
       initialized,
@@ -445,20 +445,38 @@ describe("post-initialization Mariner mutations", () => {
     );
     expect(trimmed.nextState.mariner.boardIsles.find((isle) => isle.boardIsleId === "scuttleport")?.market)
       .toEqual({ present: true, rarity: "pearl" });
+  });
 
-    const nested = applyAddMarinerBeast(initialized, {
+  it("allows Market + Nesting Beast coexistence via the single-Isle Market setter", () => {
+    const initialized = initializeQuiet().nextState;
+    const nestedBeast: MarinerBeastState = {
       denizenId: DEN_1,
       element: "water",
       definitionId: null,
       condition: "friendly_nesting",
       location: { kind: "board_isle", boardIsleId: "tahv" },
-    }).nextState;
-    expect(() => applySetMarinerIsleMarket(
+    };
+    const nested = applyAddMarinerBeast(initialized, nestedBeast).nextState;
+    const result = applySetMarinerIsleMarket(
       nested,
       "tahv",
       { present: false },
       { present: true, rarity: null },
-    )).toThrow(DomainError);
+    );
+    expect(result.nextState.mariner.boardIsles.find((isle) => isle.boardIsleId === "tahv")?.market)
+      .toEqual({ present: true, rarity: null });
+    expect(result.nextState.mariner.beasts[0]).toEqual(nestedBeast);
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0]).toEqual({
+      type: "mariner_isle_market_changed",
+      version: 1,
+      data: {
+        boardIsleId: "tahv",
+        previousMarket: { present: false },
+        newMarket: { present: true, rarity: null },
+      },
+    });
+    expect(() => validateCampaignStateV5Candidate(result.nextState)).not.toThrow();
   });
 
   it("adds, atomically updates, and removes Beasts, including other_domain Rampaging rules", () => {
