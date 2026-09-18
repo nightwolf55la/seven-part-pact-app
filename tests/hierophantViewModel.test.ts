@@ -34,6 +34,7 @@ import {
   placeLabel,
   templeDisplayName,
   templeEditCapabilities,
+  templeSupportedClassLabels,
   unresolvedStartingTemples,
 } from "../src/hierophant-view-model";
 import type { HierophantProphet, HierophantSupplicant, HierophantTemple } from "../shared/domain";
@@ -284,6 +285,23 @@ describe("Hierophant command payload helpers", () => {
     expect(deriveSupplicantSupport(krolis, "hcl_custom", [])).toBe("not_determined");
     expect(baseBenefactionReference("gentry")).toEqual({ kind: "abundance", amount: 4 });
     expect(baseBenefactionReference("hcl_custom")).toEqual({ kind: "not_determined" });
+  });
+
+  it("shows Blasphemous Doctrine pair support rather than supporting nobody", () => {
+    const blasphemous: HierophantTemple = {
+      templeId: "krolis",
+      kind: "ordinary",
+      placeId: "plc_krolis" as HierophantTemple["placeId"],
+      hostSeatId: "hierophant",
+      status: "active",
+      abundance: 5,
+      conviction: 4,
+      doctrine: { kind: "blasphemy", blasphemyId: "old_land_demands_blood" },
+    };
+    expect(deriveSupplicantSupport(blasphemous, "peasant", [])).toBe("supported");
+    expect(deriveSupplicantSupport(blasphemous, "artisan", [])).toBe("supported");
+    expect(deriveSupplicantSupport(blasphemous, "gentry", [])).toBe("unsupported");
+    expect(templeSupportedClassLabels(blasphemous, [], [])).toEqual(["Artisan", "Peasant"]);
   });
 
   it("treats empty temples as uninitialized", () => {

@@ -43,6 +43,7 @@ import {
   cultDogmaConvictionWarning,
   cultLeaderWarning,
   denizenLabel,
+  deriveHierophantVisionsContext,
   dogmaDisplay,
   hierophantSetupReady,
   hierophantSourceSetupReady,
@@ -861,7 +862,7 @@ export default function HierophantSurface({
               : undefined;
             const caps = templeEditCapabilities(selected);
             const receiveOpen = receiveDraft !== null && receiveDraft.templeId === selected.templeId;
-            const visions = planHierophantVisions(hierophant);
+            const visions = planHierophantVisions(hierophant, {}, deriveHierophantVisionsContext(world.denizens));
             const selectedVisions = visions.temples.find((entry) => entry.templeId === selected.templeId);
             const selectedPeople = visions.supplicants.filter((entry) => entry.templeId === selected.templeId);
             const selectedWarnings = selectedVisions === undefined ? [] : formatVisionsTempleWarnings(selectedVisions);

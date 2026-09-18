@@ -1077,10 +1077,11 @@ export type {
   HierophantVisionsTemplePreview,
   HierophantVisionsSupplicantPreview,
   HierophantVisionsChoices,
+  HierophantVisionsContext,
   HierophantVisionsPlanKind,
   HierophantVisionsPlan,
 } from "./hierophant-visions";
-export { planHierophantVisions, hierophantVisionsSupport } from "./hierophant-visions";
+export { planHierophantVisions, hierophantVisionsSupport, hierophantDoctrinePairSupportedClassIds } from "./hierophant-visions";
 
 export { validateHierophantStructure, validateHierophantReferenceIntegrity } from "./hierophant-validation";
 

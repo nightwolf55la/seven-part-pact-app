@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   EMPTY_HIEROPHANT_STATE,
+  hierophantDoctrinePairSupportedClassIds,
   planHierophantVisions,
   type HierophantState,
   type HierophantTemple,
@@ -70,6 +71,7 @@ function state(args: {
   readonly temples?: readonly HierophantTemple[];
   readonly supplicants?: readonly HierophantSupplicant[];
   readonly prophets?: HierophantState["prophets"];
+  readonly campaignDoctrines?: HierophantState["campaignDoctrines"];
 }): HierophantState {
   return {
     ...EMPTY_HIEROPHANT_STATE,
@@ -92,6 +94,7 @@ function state(args: {
     ],
     supplicants: args.supplicants ?? [],
     prophets: args.prophets ?? [],
+    campaignDoctrines: args.campaignDoctrines ?? [],
   };
 }
 
@@ -513,5 +516,377 @@ describe("Hierophant Visions planner — local independence", () => {
     expect(previewFor(plan, "krolis-p").woeProjection).toEqual({ kind: "determined", from: 3, to: 2 });
     expect(templePreview(plan, "zephon").hestarFallback).toBe("choice_required");
     expect(templePreview(plan, "zephon").abundance.after).toBeNull();
+  });
+});
+
+describe("Hierophant Visions planner — Blasphemous Doctrine pair support", () => {
+  it("resolves orthodox and paired Blasphemy to the same support definition", () => {
+    expect(hierophantDoctrinePairSupportedClassIds(
+      { kind: "doctrine", doctrineId: "worth_proved_through_labor" },
+      [],
+    )).toEqual(["artisan", "peasant"]);
+    expect(hierophantDoctrinePairSupportedClassIds(
+      { kind: "blasphemy", blasphemyId: "old_land_demands_blood" },
+      [],
+    )).toEqual(["artisan", "peasant"]);
+  });
+  it("keeps the pair's supported Classes for a built-in Blasphemy", () => {
+    const plan = planHierophantVisions(
+      state({
+        temples: [
+          ordinaryTemple("krolis", {
+            abundance: 5,
+            conviction: 4,
+            doctrine: { kind: "blasphemy", blasphemyId: "old_land_demands_blood" },
+          }),
+          hestarTemple(),
+        ],
+        supplicants: [supplicant({ id: "peasant-blasphemy", classId: "peasant", woe: 3, templeId: "krolis" })],
+      }),
+    );
+    expect(plan.kind).toBe("ready");
+    const person = previewFor(plan, "peasant-blasphemy");
+    expect(person.support).toBe("supported");
+    expect(person.demand).toEqual({ kind: "fixed", resource: "abundance", amount: 1 });
+    expect(person.woeProjection).toEqual({ kind: "determined", from: 3, to: 2 });
+    expect(templePreview(plan, "krolis").abundance).toEqual({ before: 5, delta: -1, after: 4 });
+  });
+
+  it("treats a Class outside that pair as Unsupported", () => {
+    const plan = planHierophantVisions(
+      state({
+        temples: [
+          ordinaryTemple("krolis", {
+            doctrine: { kind: "blasphemy", blasphemyId: "old_land_demands_blood" },
+          }),
+          hestarTemple(),
+        ],
+        supplicants: [supplicant({ id: "gentry-blasphemy", classId: "gentry", woe: 2, templeId: "krolis" })],
+      }),
+    );
+    expect(plan.kind).toBe("ready");
+    const person = previewFor(plan, "gentry-blasphemy");
+    expect(person.support).toBe("unsupported");
+    expect(person.demand).toEqual({ kind: "none" });
+    expect(person.woeProjection).toEqual({ kind: "determined", from: 2, to: 3 });
+    expect(templePreview(plan, "krolis").abundance).toEqual({ before: 5, delta: 0, after: 5 });
+  });
+
+  it("uses a campaign Doctrine's supportedClassIds while that Doctrine is Blasphemous", () => {
+    const doctrineId = "hdc_00000000-0000-0000-0000-0000000000aa" as HierophantState["campaignDoctrines"][number]["doctrineId"];
+    const blasphemyId = "hbl_00000000-0000-0000-0000-0000000000aa" as NonNullable<
+      HierophantState["campaignDoctrines"][number]["blasphemy"]
+    >["blasphemyId"];
+    const plan = planHierophantVisions(
+      state({
+        campaignDoctrines: [
+          {
+            doctrineId,
+            orthodoxText: "Campaign labor is sacred.",
+            blasphemy: { blasphemyId, text: "Idle blood for the campaign land." },
+            supportedClassIds: ["artisan", "peasant"],
+          },
+        ],
+        temples: [
+          ordinaryTemple("krolis", {
+            abundance: 5,
+            conviction: 4,
+            doctrine: { kind: "blasphemy", blasphemyId },
+          }),
+          hestarTemple(),
+        ],
+        supplicants: [
+          supplicant({ id: "campaign-artisan", classId: "artisan", woe: 2, templeId: "krolis" }),
+          supplicant({ id: "campaign-gentry", classId: "gentry", woe: 2, templeId: "krolis" }),
+        ],
+      }),
+    );
+    expect(plan.kind).toBe("ready");
+    expect(previewFor(plan, "campaign-artisan").support).toBe("supported");
+    expect(previewFor(plan, "campaign-artisan").demand).toEqual({ kind: "fixed", resource: "abundance", amount: 1 });
+    expect(previewFor(plan, "campaign-gentry").support).toBe("unsupported");
+  });
+
+  it("does not let a Blasphemous ordinary Temple use Hestar as a resource backstop", () => {
+    const plan = planHierophantVisions(
+      state({
+        temples: [
+          ordinaryTemple("krolis", {
+            abundance: 0,
+            conviction: 4,
+            doctrine: { kind: "blasphemy", blasphemyId: "old_land_demands_blood" },
+          }),
+          hestarTemple({ abundance: 5, conviction: 5 }),
+        ],
+        supplicants: [supplicant({ id: "peasant-no-hestar", classId: "peasant", woe: 2, templeId: "krolis" })],
+      }),
+    );
+    expect(plan.kind).toBe("manual_resolution_required");
+    expect(plan.requiredChoices.some((choice) => choice.kind === "hestar_fallback")).toBe(false);
+    expect(plan.blockers.some((blocker) => blocker.kind === "resource_shortage_collapse")).toBe(true);
+    expect(templePreview(plan, "krolis").hestarFallback).toBe("not_needed");
+  });
+});
+
+describe("Hierophant Visions planner — Reliable Prophet context", () => {
+  it("keeps an otherwise-safe preview automatic when a Reliable Prophet is present but no production is projected", () => {
+    const plan = planHierophantVisions(
+      state({
+        supplicants: [supplicant({ id: "peasant-p", classId: "peasant", woe: 3, templeId: "krolis" })],
+        prophets: [{ denizenId: denizen("prophet-1"), host: { kind: "temple", templeId: "krolis" } }],
+      }),
+      {},
+      { reliableProphetDenizenIds: [denizen("prophet-1")] },
+    );
+    expect(plan.kind).toBe("ready");
+    expect(plan.blockers).toEqual([]);
+    expect(templePreview(plan, "krolis").reliableProphetProduction).toBe(false);
+    expect(templePreview(plan, "krolis").abundance.after).toBe(4);
+  });
+
+  it("returns a structured manual blocker for Reliable Prophet + projected Benefaction production", () => {
+    const plan = planHierophantVisions(
+      state({
+        supplicants: [supplicant({ id: "peasant-gift", classId: "peasant", woe: 1, templeId: "krolis" })],
+        prophets: [{ denizenId: denizen("prophet-1"), host: { kind: "temple", templeId: "krolis" } }],
+      }),
+      {},
+      { reliableProphetDenizenIds: [denizen("prophet-1")] },
+    );
+    expect(plan.kind).toBe("manual_resolution_required");
+    expect(plan.blockers).toEqual([
+      {
+        kind: "reliable_prophet_production",
+        templeId: "krolis",
+        prophetDenizenIds: [denizen("prophet-1")],
+        productions: [
+          {
+            denizenId: denizen("peasant-gift"),
+            resource: "conviction",
+            amount: 1,
+          },
+        ],
+      },
+    ]);
+    expect(previewFor(plan, "peasant-gift").departure).toEqual({
+      kind: "benefaction",
+      resource: "conviction",
+      amount: 1,
+    });
+    expect(templePreview(plan, "krolis").reliableProphetProduction).toBe(true);
+    expect(templePreview(plan, "krolis").abundance.after).toBeNull();
+    expect(templePreview(plan, "krolis").conviction.after).toBeNull();
+  });
+
+  it("does not apply the Reliable Prophet rule to a Disruptive Prophet", () => {
+    const plan = planHierophantVisions(
+      state({
+        supplicants: [supplicant({ id: "peasant-gift", classId: "peasant", woe: 1, templeId: "krolis" })],
+        prophets: [{ denizenId: denizen("prophet-d"), host: { kind: "temple", templeId: "krolis" } }],
+      }),
+      {},
+      { reliableProphetDenizenIds: [] },
+    );
+    expect(plan.kind).toBe("ready");
+    expect(plan.blockers.some((blocker) => blocker.kind === "reliable_prophet_production")).toBe(false);
+    expect(templePreview(plan, "krolis").conviction).toEqual({ before: 4, delta: 1, after: 5 });
+  });
+});
+
+describe("Hierophant Visions planner — Hestar may borrow from ordinary Temples", () => {
+  it("requests a Hestar-donor choice when Hestar is short and an eligible ordinary Temple can pay", () => {
+    const plan = planHierophantVisions(
+      state({
+        temples: [
+          ordinaryTemple("krolis", { abundance: 5, conviction: 4 }),
+          hestarTemple({ abundance: 0, conviction: 5 }),
+        ],
+        supplicants: [supplicant({ id: "hestar-p", classId: "peasant", woe: 2, templeId: "hestar" })],
+      }),
+    );
+    expect(plan.kind).toBe("choices_required");
+    expect(plan.requiredChoices).toEqual([
+      {
+        kind: "hestar_donor",
+        denizenId: denizen("hestar-p"),
+        templeId: "hestar",
+        resource: "abundance",
+        amount: 1,
+        eligibleDonorTempleIds: ["krolis"],
+      },
+    ]);
+    expect(templePreview(plan, "hestar").hestarDonor).toBe("choice_required");
+    expect(templePreview(plan, "hestar").abundance.after).toBeNull();
+  });
+
+  it("moves the resource from the chosen eligible donor, not from Hestar", () => {
+    const plan = planHierophantVisions(
+      state({
+        temples: [
+          ordinaryTemple("krolis", { abundance: 5, conviction: 4 }),
+          hestarTemple({ abundance: 0, conviction: 5 }),
+        ],
+        supplicants: [supplicant({ id: "hestar-p", classId: "peasant", woe: 2, templeId: "hestar" })],
+      }),
+      { hestarDonors: { [denizen("hestar-p")]: "krolis" } },
+    );
+    expect(plan.kind).toBe("ready");
+    expect(previewFor(plan, "hestar-p").woeProjection).toEqual({ kind: "determined", from: 2, to: 1 });
+    expect(templePreview(plan, "hestar").abundance).toEqual({ before: 0, delta: 0, after: 0 });
+    expect(templePreview(plan, "hestar").hestarDonor).toBe("applied");
+    expect(templePreview(plan, "krolis").abundance).toEqual({ before: 5, delta: -1, after: 4 });
+  });
+
+  it("excludes a Blasphemous ordinary Temple from Hestar-sharing donors", () => {
+    const plan = planHierophantVisions(
+      state({
+        temples: [
+          ordinaryTemple("krolis", {
+            abundance: 5,
+            conviction: 4,
+            doctrine: { kind: "blasphemy", blasphemyId: "old_land_demands_blood" },
+          }),
+          ordinaryTemple("notor", { abundance: 3, conviction: 6 }),
+          hestarTemple({ abundance: 0, conviction: 5 }),
+        ],
+        supplicants: [supplicant({ id: "hestar-p", classId: "peasant", woe: 2, templeId: "hestar" })],
+      }),
+    );
+    expect(plan.kind).toBe("choices_required");
+    const donorChoice = plan.requiredChoices.find((choice) => choice.kind === "hestar_donor");
+    expect(donorChoice).toMatchObject({
+      kind: "hestar_donor",
+      eligibleDonorTempleIds: ["notor"],
+    });
+    expect(donorChoice && donorChoice.kind === "hestar_donor"
+      ? donorChoice.eligibleDonorTempleIds
+      : []).not.toContain("krolis");
+  });
+
+  it("blocks when no single source-safe donor can satisfy the spend", () => {
+    const plan = planHierophantVisions(
+      state({
+        temples: [
+          ordinaryTemple("krolis", {
+            abundance: 5,
+            conviction: 4,
+            doctrine: { kind: "blasphemy", blasphemyId: "old_land_demands_blood" },
+          }),
+          ordinaryTemple("notor", { abundance: 0, conviction: 6 }),
+          hestarTemple({ abundance: 0, conviction: 5 }),
+        ],
+        supplicants: [supplicant({ id: "hestar-p", classId: "peasant", woe: 2, templeId: "hestar" })],
+      }),
+    );
+    expect(plan.kind).toBe("manual_resolution_required");
+    expect(plan.requiredChoices.some((choice) => choice.kind === "hestar_donor")).toBe(false);
+    expect(plan.blockers).toEqual([
+      {
+        kind: "hestar_share_unresolved",
+        denizenId: denizen("hestar-p"),
+        templeId: "hestar",
+        resource: "abundance",
+        amount: 1,
+        reason: "no_eligible_donor",
+      },
+    ]);
+    expect(templePreview(plan, "hestar").shortage).toBeNull();
+  });
+
+  it("does not invent combining multiple partial donors for one Hestar spend", () => {
+    const plan = planHierophantVisions(
+      state({
+        temples: [
+          ordinaryTemple("krolis", { abundance: 5, conviction: 1 }),
+          ordinaryTemple("notor", { abundance: 3, conviction: 1 }),
+          hestarTemple({ abundance: 4, conviction: 0 }),
+        ],
+        supplicants: [supplicant({ id: "hestar-g", classId: "gentry", woe: 2, templeId: "hestar" })],
+      }),
+    );
+    expect(plan.kind).toBe("manual_resolution_required");
+    expect(plan.requiredChoices.some((choice) => choice.kind === "hestar_donor")).toBe(false);
+    expect(plan.blockers).toEqual([
+      {
+        kind: "hestar_share_unresolved",
+        denizenId: denizen("hestar-g"),
+        templeId: "hestar",
+        resource: "conviction",
+        amount: 2,
+        reason: "donor_combination_unapproved",
+      },
+    ]);
+  });
+});
+
+describe("Hierophant Visions planner — cross-Temple Hestar contention", () => {
+  it("does not allocate a scarce Hestar resource by input array order", () => {
+    const temples = [
+      ordinaryTemple("krolis", { abundance: 0, conviction: 4 }),
+      ordinaryTemple("zephon", {
+        abundance: 0,
+        conviction: 5,
+        doctrine: { kind: "doctrine", doctrineId: "people_used_to_be_kinder" },
+      }),
+      hestarTemple({ abundance: 1, conviction: 5 }),
+    ];
+    const people = [
+      supplicant({ id: "krolis-p", classId: "peasant", woe: 2, templeId: "krolis" }),
+      supplicant({ id: "zephon-p", classId: "peasant", woe: 2, templeId: "zephon" }),
+    ];
+    const fallback = {
+      hestarFallback: {
+        [denizen("krolis-p")]: true,
+        [denizen("zephon-p")]: true,
+      },
+    } as const;
+    const asListed = planHierophantVisions(state({ temples, supplicants: people }), fallback);
+    const reversed = planHierophantVisions(state({ temples, supplicants: [...people].reverse() }), fallback);
+    expect(asListed.kind).toBe("choices_required");
+    expect(reversed.kind).toBe("choices_required");
+    expect(asListed.requiredChoices.some((choice) => choice.kind === "supplicant_order")).toBe(true);
+    expect(reversed.requiredChoices.some((choice) => choice.kind === "supplicant_order")).toBe(true);
+    const listedOrder = asListed.requiredChoices.find((choice) => choice.kind === "supplicant_order");
+    const reversedOrder = reversed.requiredChoices.find((choice) => choice.kind === "supplicant_order");
+    expect(listedOrder).toEqual(reversedOrder);
+    expect(listedOrder).toMatchObject({
+      kind: "supplicant_order",
+      participantIds: [denizen("krolis-p"), denizen("zephon-p")],
+      reason: "resource_competition",
+    });
+    expect(templePreview(asListed, "krolis").abundance.after).toBeNull();
+    expect(templePreview(asListed, "zephon").abundance.after).toBeNull();
+    expect(templePreview(asListed, "hestar").abundance.after).toBeNull();
+  });
+
+  it("honors an explicit order for scarce Hestar allocation", () => {
+    const temples = [
+      ordinaryTemple("krolis", { abundance: 0, conviction: 4 }),
+      ordinaryTemple("zephon", {
+        abundance: 0,
+        conviction: 5,
+        doctrine: { kind: "doctrine", doctrineId: "people_used_to_be_kinder" },
+      }),
+      hestarTemple({ abundance: 1, conviction: 5 }),
+    ];
+    const people = [
+      supplicant({ id: "krolis-p", classId: "peasant", woe: 2, templeId: "krolis" }),
+      supplicant({ id: "zephon-p", classId: "peasant", woe: 2, templeId: "zephon" }),
+    ];
+    const funded = planHierophantVisions(
+      state({ temples, supplicants: people }),
+      {
+        hestarFallback: {
+          [denizen("krolis-p")]: true,
+          [denizen("zephon-p")]: true,
+        },
+        supplicantOrder: [denizen("krolis-p"), denizen("zephon-p")],
+      },
+    );
+    expect(funded.kind).toBe("manual_resolution_required");
+    expect(previewFor(funded, "krolis-p").woeProjection).toEqual({ kind: "determined", from: 2, to: 1 });
+    expect(previewFor(funded, "zephon-p").blockerKind).toBe("resource_shortage_collapse");
+    expect(templePreview(funded, "krolis").abundance).toEqual({ before: 0, delta: 0, after: 0 });
+    expect(templePreview(funded, "hestar").abundance).toEqual({ before: 1, delta: -1, after: 0 });
   });
 });
