@@ -58,6 +58,7 @@ export function retainValidHierophantVisionsChoices(
   for (const [id, templeId] of Object.entries(choices.hestarDonors ?? {})) {
     const donor = donorById.get(id as DenizenId);
     if (donor === undefined || donor.kind !== "hestar_donor") continue;
+    if (templeId === undefined) continue;
     if (!donor.eligibleDonorTempleIds.includes(templeId as Exclude<HierophantTempleId, "hestar">)) continue;
     hestarDonors[id] = templeId;
   }
@@ -71,12 +72,12 @@ export function retainValidHierophantVisionsChoices(
     }
   }
 
-  const next: HierophantVisionsChoices = {};
-  if (Object.keys(artisanPayments).length > 0) next.artisanPayments = artisanPayments;
-  if (Object.keys(hestarFallback).length > 0) next.hestarFallback = hestarFallback;
-  if (Object.keys(hestarDonors).length > 0) next.hestarDonors = hestarDonors;
-  if (supplicantOrder !== undefined) next.supplicantOrder = supplicantOrder;
-  return next;
+  return {
+    ...(Object.keys(artisanPayments).length > 0 ? { artisanPayments } : {}),
+    ...(Object.keys(hestarFallback).length > 0 ? { hestarFallback } : {}),
+    ...(Object.keys(hestarDonors).length > 0 ? { hestarDonors } : {}),
+    ...(supplicantOrder === undefined ? {} : { supplicantOrder }),
+  };
 }
 
 export function pruneHierophantVisionsChoices(
