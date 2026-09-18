@@ -184,6 +184,54 @@ export interface HierophantVisionsPlan {
   readonly supplicants: readonly HierophantVisionsSupplicantPreview[];
 }
 
+export interface HierophantVisionsResourceDeltaFact {
+  readonly templeId: HierophantTempleId;
+  readonly resource: HierophantVisionsResource;
+  readonly before: number;
+  readonly after: number;
+  readonly delta: number;
+}
+
+export interface HierophantVisionsWoeFact {
+  readonly denizenId: DenizenId;
+  readonly templeId: HierophantTempleId;
+  readonly from: number;
+  readonly to: number;
+}
+
+export interface HierophantVisionsBenefactionFact {
+  readonly denizenId: DenizenId;
+  readonly templeId: HierophantTempleId;
+  readonly resource: HierophantVisionsResource;
+  readonly amount: number;
+}
+
+export interface HierophantVisionsOutcomeFacts {
+  readonly suppliedChoices: HierophantVisionsChoices;
+  readonly templeIds: readonly HierophantTempleId[];
+  readonly supplicantIds: readonly DenizenId[];
+  readonly resourceDeltas: readonly HierophantVisionsResourceDeltaFact[];
+  readonly woeChanges: readonly HierophantVisionsWoeFact[];
+  readonly departures: readonly HierophantVisionsBenefactionFact[];
+  readonly benefactions: readonly HierophantVisionsBenefactionFact[];
+}
+
+export type HierophantVisionsResolution =
+  | {
+      readonly kind: "ready";
+      readonly plan: HierophantVisionsPlan;
+      readonly resultingState: HierophantState;
+      readonly facts: HierophantVisionsOutcomeFacts;
+    }
+  | {
+      readonly kind: "choices_required";
+      readonly plan: HierophantVisionsPlan;
+    }
+  | {
+      readonly kind: "manual_resolution_required";
+      readonly plan: HierophantVisionsPlan;
+    };
+
 const CULT_WOE_THRESHOLD = 5;
 
 const FIXED_CLASS_COST: Record<Exclude<HierophantBuiltinClassId, "artisan">, {
@@ -1047,4 +1095,132 @@ export function planHierophantVisions(
     temples,
     supplicants,
   };
+}
+
+function previewByTempleId(
+  plan: HierophantVisionsPlan,
+): Map<HierophantTempleId, HierophantVisionsTemplePreview> {
+  return new Map(plan.temples.map((preview) => [preview.templeId, preview]));
+}
+
+function readyTempleStock(
+  preview: HierophantVisionsTemplePreview | undefined,
+): { readonly abundance: number; readonly conviction: number } | null {
+  if (preview === undefined) return null;
+  if (preview.abundance.after === null || preview.conviction.after === null) return null;
+  return { abundance: preview.abundance.after, conviction: preview.conviction.after };
+}
+
+function resultingTemple(
+  temple: HierophantTemple,
+  stock: { readonly abundance: number; readonly conviction: number },
+): HierophantTemple {
+  return { ...temple, abundance: stock.abundance, conviction: stock.conviction };
+}
+
+function assembleReadyResolution(
+  hierophant: HierophantState,
+  choices: HierophantVisionsChoices,
+  plan: HierophantVisionsPlan,
+): Extract<HierophantVisionsResolution, { kind: "ready" }> | null {
+  const templePreview = previewByTempleId(plan);
+  const resultingTemples: HierophantTemple[] = [];
+  const resourceDeltas: HierophantVisionsResourceDeltaFact[] = [];
+  for (const temple of hierophant.temples) {
+    const preview = templePreview.get(temple.templeId);
+    const stock = readyTempleStock(preview);
+    if (stock === null) return null;
+    resultingTemples.push(resultingTemple(temple, stock));
+    if (preview !== undefined) {
+      if (preview.abundance.delta !== 0 && preview.abundance.delta !== null) {
+        resourceDeltas.push({
+          templeId: temple.templeId,
+          resource: "abundance",
+          before: preview.abundance.before,
+          after: stock.abundance,
+          delta: preview.abundance.delta,
+        });
+      }
+      if (preview.conviction.delta !== 0 && preview.conviction.delta !== null) {
+        resourceDeltas.push({
+          templeId: temple.templeId,
+          resource: "conviction",
+          before: preview.conviction.before,
+          after: stock.conviction,
+          delta: preview.conviction.delta,
+        });
+      }
+    }
+  }
+
+  const personPreview = new Map(plan.supplicants.map((preview) => [preview.denizenId, preview]));
+  const resultingSupplicants: HierophantSupplicant[] = [];
+  const woeChanges: HierophantVisionsWoeFact[] = [];
+  const departures: HierophantVisionsBenefactionFact[] = [];
+  for (const person of hierophant.supplicants) {
+    const preview = personPreview.get(person.denizenId);
+    if (preview === undefined) {
+      resultingSupplicants.push(person);
+      continue;
+    }
+    if (preview.woeProjection.kind !== "determined") return null;
+    woeChanges.push({
+      denizenId: person.denizenId,
+      templeId: preview.templeId,
+      from: preview.woeProjection.from,
+      to: preview.woeProjection.to,
+    });
+    if (preview.departure.kind === "benefaction") {
+      departures.push({
+        denizenId: person.denizenId,
+        templeId: preview.templeId,
+        resource: preview.departure.resource,
+        amount: preview.departure.amount,
+      });
+      continue;
+    }
+    if (preview.departure.kind !== "none") return null;
+    resultingSupplicants.push({ ...person, woe: preview.woeProjection.to });
+  }
+
+  const resultingState: HierophantState = {
+    ...hierophant,
+    temples: resultingTemples,
+    supplicants: resultingSupplicants,
+  };
+  return {
+    kind: "ready",
+    plan,
+    resultingState,
+    facts: {
+      suppliedChoices: choices,
+      templeIds: hierophant.temples.map((temple) => temple.templeId),
+      supplicantIds: hierophant.supplicants
+        .filter((person) => person.host.kind === "temple")
+        .map((person) => person.denizenId),
+      resourceDeltas,
+      woeChanges,
+      departures,
+      benefactions: departures,
+    },
+  };
+}
+
+export function computeHierophantVisionsResolution(
+  hierophant: HierophantState,
+  choices: HierophantVisionsChoices = {},
+  context: HierophantVisionsContext = {},
+): HierophantVisionsResolution {
+  const plan = planHierophantVisions(hierophant, choices, context);
+  if (plan.kind === "choices_required") {
+    return { kind: "choices_required", plan };
+  }
+  if (plan.kind !== "ready") {
+    return { kind: "manual_resolution_required", plan };
+  }
+  const assembled = assembleReadyResolution(hierophant, choices, plan);
+  if (assembled === null) {
+    return { kind: "manual_resolution_required", plan };
+  }
+  return assembled;
 }

@@ -1080,8 +1080,13 @@ export type {
   HierophantVisionsContext,
   HierophantVisionsPlanKind,
   HierophantVisionsPlan,
+  HierophantVisionsResourceDeltaFact,
+  HierophantVisionsWoeFact,
+  HierophantVisionsBenefactionFact,
+  HierophantVisionsOutcomeFacts,
+  HierophantVisionsResolution,
 } from "./hierophant-visions";
-export { planHierophantVisions, hierophantVisionsSupport, hierophantDoctrinePairSupportedClassIds } from "./hierophant-visions";
+export { planHierophantVisions, computeHierophantVisionsResolution, hierophantVisionsSupport, hierophantDoctrinePairSupportedClassIds } from "./hierophant-visions";
 
 export { validateHierophantStructure, validateHierophantReferenceIntegrity } from "./hierophant-validation";
 
