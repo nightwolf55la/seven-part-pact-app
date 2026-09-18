@@ -77,6 +77,7 @@ import {
   type StartingTempleBindings,
   formatVisionsSupplicantLine,
   formatVisionsTempleWarnings,
+  shortTempleBoardLabel,
 } from "./hierophant-view-model";
 
 type HierophantTab = "overview" | "temples" | "people" | "cults" | "definitions";
@@ -849,13 +850,17 @@ export default function HierophantSurface({
             denizens={world.denizens}
             places={world.places}
             presence={sorcererPresence}
-            selectedTempleId={selectedTempleId ?? hierophant.temples[0]?.templeId ?? null}
+            selectedTempleId={selectedTempleId !== null && hierophant.temples.some((temple) => temple.templeId === selectedTempleId)
+              ? selectedTempleId
+              : null}
             onSelectTemple={(templeId) => {
               setSelectedTempleId(templeId);
             }}
           />
           {(() => {
-            const selected = hierophant.temples.find((temple) => temple.templeId === (selectedTempleId ?? hierophant.temples[0]?.templeId));
+            const selected = selectedTempleId === null
+              ? undefined
+              : hierophant.temples.find((temple) => temple.templeId === selectedTempleId);
             if (selected === undefined) return null;
             const loreSubject = loreCompendium.status === "ready"
               ? findPresentationSubjectByRef(loreCompendium.presentation, { kind: "hierophant_temple", templeId: selected.templeId })
@@ -865,7 +870,27 @@ export default function HierophantSurface({
             const visions = planHierophantVisions(hierophant, {}, deriveHierophantVisionsContext(world.denizens));
             const selectedVisions = visions.temples.find((entry) => entry.templeId === selected.templeId);
             const selectedPeople = visions.supplicants.filter((entry) => entry.templeId === selected.templeId);
-            const selectedWarnings = selectedVisions === undefined ? [] : formatVisionsTempleWarnings(selectedVisions);
+            const selectedWarnings = selectedVisions === undefined
+              ? []
+              : formatVisionsTempleWarnings(selectedVisions, (() => {
+                  const fallbackChoice = visions.requiredChoices.find(
+                    (choice) => choice.kind === "hestar_fallback" && choice.templeId === selected.templeId,
+                  );
+                  const donorChoice = visions.requiredChoices.find(
+                    (choice) => choice.kind === "hestar_donor" && choice.templeId === selected.templeId,
+                  );
+                  return {
+                    hestarFallbackResource: fallbackChoice?.kind === "hestar_fallback" ? fallbackChoice.resource : undefined,
+                    donorAmount: donorChoice?.kind === "hestar_donor" ? donorChoice.amount : undefined,
+                    donorResource: donorChoice?.kind === "hestar_donor" ? donorChoice.resource : undefined,
+                    donorLabels: donorChoice?.kind === "hestar_donor"
+                      ? donorChoice.eligibleDonorTempleIds.map((templeId) => {
+                          const donor = hierophant.temples.find((entry) => entry.templeId === templeId);
+                          return shortTempleBoardLabel(donor === undefined ? templeId : templeDisplayName(donor, world.places));
+                        })
+                      : [],
+                  };
+                })());
             return (
               <aside aria-label="Selected Temple" className="mt-4 rounded-xl border border-amber-200 dark:border-amber-900 p-4 space-y-3">
                 <h3 className="text-sm font-semibold">{templeDisplayName(selected, world.places)}</h3>
@@ -993,10 +1018,13 @@ export default function HierophantSurface({
                     Record Abundance / Conviction
                   </button>
                 </div>
-                <p className="text-xs text-slate-600 dark:text-slate-300">{HOLIDAY_DEFER_GUIDANCE}</p>
-                <p className="text-xs text-slate-600 dark:text-slate-300">{SERMON_DEFER_GUIDANCE}</p>
-                <p className="text-xs text-slate-600 dark:text-slate-300">{STEER_DEFER_GUIDANCE}</p>
-                {caps.isHestar && <p className="text-xs text-slate-600 dark:text-slate-300">{HESTAR_PROVIDE_DEFER_GUIDANCE}</p>}
+                <details className="text-xs text-slate-600 dark:text-slate-300">
+                  <summary className="cursor-pointer font-medium">Deferred table procedures</summary>
+                  <p className="mt-2">{HOLIDAY_DEFER_GUIDANCE}</p>
+                  <p className="mt-2">{SERMON_DEFER_GUIDANCE}</p>
+                  <p className="mt-2">{STEER_DEFER_GUIDANCE}</p>
+                  {caps.isHestar && <p className="mt-2">{HESTAR_PROVIDE_DEFER_GUIDANCE}</p>}
+                </details>
                 {loreSubject !== undefined && (
                   <LoreContextPanel subject={loreSubject} campaignId={campaignId} compact contextConstraint={{ kind: "any" }} />
                 )}

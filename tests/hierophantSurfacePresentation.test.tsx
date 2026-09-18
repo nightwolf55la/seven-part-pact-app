@@ -171,6 +171,8 @@ describe("Hierophant surface setup", () => {
     expect(container.innerHTML).toContain("Temple Krolis");
     expect(container.innerHTML).toContain("Hestar");
     expect(container.innerHTML).toContain("Acolyte Ann");
+    expect(container.innerHTML).not.toContain("Receive Supplicant");
+    flushSync(() => { templeSelectButton(container, "Temple Krolis").click(); });
     expect(container.innerHTML).toContain("Receive Supplicant");
     expect(container.innerHTML).toContain("Advanced / Correct Board");
     expect(container.querySelector("[aria-label='Temples of the Hierophant']")).not.toBeNull();
@@ -179,8 +181,10 @@ describe("Hierophant surface setup", () => {
     flushSync(() => { hestarSelect!.click(); });
     expect(container.innerHTML).toContain("No Doctrine");
     expect(container.innerHTML).not.toContain("Give Sermon");
-    const advanced = container.querySelector("summary");
-    expect(advanced?.textContent).toContain("Advanced / Correct Board");
+    const advanced = Array.from(container.querySelectorAll("summary")).find((el) =>
+      el.textContent?.includes("Advanced / Correct Board"),
+    );
+    expect(advanced).toBeDefined();
     flushSync(() => { (advanced as HTMLElement).click(); });
     const cultsTab = Array.from(container.querySelectorAll("button")).find((b) => b.textContent === "Cults");
     flushSync(() => { cultsTab!.click(); });
@@ -260,6 +264,7 @@ describe("Hierophant Temple board interactions", () => {
   it("submits Receive Supplicant as one compound mutation and keeps the draft after error", async () => {
     mockMutations["m3Commands.createHierophantSupplicant"] = vi.fn(async () => {});
     const { container, root } = renderSurface(hierophant as typeof EMPTY_HIEROPHANT_STATE);
+    flushSync(() => { templeSelectButton(container, "Temple Krolis").click(); });
     const receive = receiveOfferButton(container);
     flushSync(() => { receive!.click(); });
     const name = receiveNameInput(container) as HTMLInputElement;
@@ -291,6 +296,7 @@ describe("Hierophant Temple board interactions", () => {
 
   it("keeps an entered Receive draft when inspecting another Temple and returning", () => {
     const { container, root } = renderSurface(hierophant as typeof EMPTY_HIEROPHANT_STATE);
+    flushSync(() => { templeSelectButton(container, "Temple Krolis").click(); });
     flushSync(() => { receiveOfferButton(container)!.click(); });
     flushSync(() => { setControlledInput(receiveNameInput(container) as HTMLInputElement, "Kept Acolyte"); });
     flushSync(() => { templeSelectButton(container, "Notor").click(); });
@@ -303,6 +309,7 @@ describe("Hierophant Temple board interactions", () => {
 
   it("does not silently replace an existing Receive draft when starting Receive at another Temple", () => {
     const { container, root } = renderSurface(hierophant as typeof EMPTY_HIEROPHANT_STATE);
+    flushSync(() => { templeSelectButton(container, "Temple Krolis").click(); });
     flushSync(() => { receiveOfferButton(container)!.click(); });
     flushSync(() => { setControlledInput(receiveNameInput(container) as HTMLInputElement, "First Intent"); });
     flushSync(() => { templeSelectButton(container, "Notor").click(); });
@@ -318,6 +325,7 @@ describe("Hierophant Temple board interactions", () => {
 
   it("clears the Receive draft only from explicit Cancel", () => {
     const { container, root } = renderSurface(hierophant as typeof EMPTY_HIEROPHANT_STATE);
+    flushSync(() => { templeSelectButton(container, "Temple Krolis").click(); });
     flushSync(() => { receiveOfferButton(container)!.click(); });
     flushSync(() => { setControlledInput(receiveNameInput(container) as HTMLInputElement, "Discarded Acolyte"); });
     const cancel = Array.from(container.querySelectorAll("button")).find((button) =>
@@ -337,6 +345,7 @@ describe("Hierophant Temple board interactions", () => {
       throw new Error("stale temple status");
     });
     const { container, root, rerender } = renderSurface(hierophant as typeof EMPTY_HIEROPHANT_STATE);
+    flushSync(() => { templeSelectButton(container, "Temple Krolis").click(); });
     flushSync(() => { receiveOfferButton(container)!.click(); });
     flushSync(() => { setControlledInput(receiveNameInput(container) as HTMLInputElement, "Retry Acolyte"); });
     const form = receiveForm(container) as HTMLFormElement;
@@ -370,7 +379,7 @@ describe("Hierophant Temple board interactions", () => {
       hierophant as typeof EMPTY_HIEROPHANT_STATE,
     );
     // default render without presence should still show the board
-    expect(container.innerHTML).toContain("No Researcher at this Temple");
+    expect(container.innerHTML).not.toContain("No Researcher at this Temple");
     root.unmount();
     const container2 = document.createElement("div");
     document.body.appendChild(container2);
@@ -575,7 +584,7 @@ describe("Hierophant zero-click monthly board", () => {
     expect(krolis.textContent).toContain("Lina the Seer");
     expect(ushin.textContent).toContain("Collapsed");
     expect(ushin.textContent).toContain("Blasphemous");
-    expect(zephon.textContent).toContain("Hestar choice needed");
+    expect(zephon.textContent).toContain("May use Hestar's Abundance");
     const advanced = container.querySelector("summary");
     expect(advanced?.textContent).toContain("Advanced / Correct Board");
     root.unmount();
@@ -683,8 +692,78 @@ describe("Hierophant zero-click monthly board", () => {
       }));
     });
     const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
-    expect(krolis.textContent).toContain("Reliable Prophet production resolution required");
+    expect(krolis.textContent).toContain("Prophet affects this production · resolve at the table");
+    expect(krolis.textContent).not.toContain("Reliable Prophet production resolution required");
     expect(krolis.textContent).toContain("Departs");
+    root.unmount();
+    container.remove();
+  });
+
+  it("treats empty Temples as empty board space instead of None-field rows", () => {
+    const { container, root, board } = renderMonthly();
+    const notor = board!.querySelector('[data-temple-id="notor"]') as HTMLElement;
+    expect(notor.textContent).toContain("Temple Notor");
+    expect(notor.textContent).toContain("Courtyard");
+    expect(notor.textContent).toContain("Agiary");
+    expect(notor.textContent).not.toMatch(/\bNone\b/);
+    expect(notor.textContent).not.toContain("No Researcher");
+    expect(notor.querySelector('[aria-label="Prophets"]')).toBeNull();
+    const krolis = board!.querySelector('[data-temple-id="krolis"]') as HTMLElement;
+    expect(krolis.querySelector('[aria-label="Courtyard"]')?.textContent).toContain("Acolyte Ann");
+    expect(krolis.querySelector('[aria-label="Agiary"]')?.textContent).toContain("Weary Bran");
+    expect(krolis.textContent).toContain("Prophet Ilya");
+    expect(krolis.textContent).toContain("Lina the Seer");
+    root.unmount();
+    container.remove();
+  });
+
+  it("does not open a Temple inspector until the player selects a Temple", () => {
+    const { container, root } = renderMonthly();
+    expect(container.querySelector('[aria-label="Selected Temple"]')).toBeNull();
+    expect(receiveOfferButton(container)).toBeUndefined();
+    flushSync(() => { templeSelectButton(container, "Temple Zephon").click(); });
+    const inspector = container.querySelector('[aria-label="Selected Temple"]');
+    expect(inspector).not.toBeNull();
+    expect(inspector?.textContent).toContain("Temple Zephon");
+    expect(receiveOfferButton(container)).toBeDefined();
+    root.unmount();
+    container.remove();
+  });
+
+  it("names eligible Hestar donors in the zero-click warning", () => {
+    const donorState = {
+      ...monthlyState,
+      temples: monthlyState.temples.map((temple) => {
+        if (temple.templeId === "hestar") return { ...temple, abundance: 0 };
+        if (temple.templeId === "zephon") return { ...temple, abundance: 4 };
+        return temple;
+      }),
+      prophets: [],
+      holidayTempleIds: [],
+      supplicants: [
+        {
+          denizenId: "den_hestar" as never,
+          classId: "peasant" as const,
+          woe: 2,
+          host: { kind: "temple" as const, templeId: "hestar" as const, area: null },
+        },
+      ],
+    };
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    flushSync(() => {
+      root.render(createElement(HierophantSurface, {
+        hierophant: donorState as typeof EMPTY_HIEROPHANT_STATE,
+        world: { ...monthlyWorld, denizens: [...monthlyWorld.denizens, { denizenId: "den_hestar", name: "Hearth Mina", representation: "individual", description: null }] },
+        campaignId: CAMPAIGN_ID,
+      }));
+    });
+    const hestar = container.querySelector('[data-temple-id="hestar"]') as HTMLElement;
+    expect(hestar.textContent).toMatch(/Hestar needs 1 Abundance · choose /);
+    expect(hestar.textContent).toContain("Krolis");
+    expect(hestar.textContent).not.toContain("Hestar donor choice needed");
+    expect(container.querySelector('[aria-label="Selected Temple"]')).toBeNull();
     root.unmount();
     container.remove();
   });
