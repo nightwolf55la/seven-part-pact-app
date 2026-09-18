@@ -252,15 +252,13 @@ function isleAcceptsMarket(
   snapshot: ReturnType<typeof captureOperabilityBoard>,
   boardIsleId: MarinerBoardIsleId,
 ): boolean {
-  if (marketOnSnapshot(snapshot, boardIsleId).present) return false;
-  return nestingBeastsOnIsle(snapshot.beasts, boardIsleId).length === 0;
+  return !marketOnSnapshot(snapshot, boardIsleId).present;
 }
 
 function isleAcceptsNest(
   snapshot: ReturnType<typeof captureOperabilityBoard>,
   boardIsleId: MarinerBoardIsleId,
 ): boolean {
-  if (marketOnSnapshot(snapshot, boardIsleId).present) return false;
   if (isleRavageOnSnapshot(snapshot, boardIsleId) > 0) return false;
   return nestingBeastsOnIsle(snapshot.beasts, boardIsleId).length === 0;
 }
@@ -269,24 +267,15 @@ function nestBlockReason(
   snapshot: ReturnType<typeof captureOperabilityBoard>,
   boardIsleId: MarinerBoardIsleId,
 ): string | null {
-  if (marketOnSnapshot(snapshot, boardIsleId).present) return "Market present";
   if (isleRavageOnSnapshot(snapshot, boardIsleId) > 0) return "Ravaged";
   if (nestingBeastsOnIsle(snapshot.beasts, boardIsleId).length > 0) return "Beast already Nesting here";
   return null;
-}
-
-function isleHasNestingBeast(
-  snapshot: ReturnType<typeof captureOperabilityBoard>,
-  boardIsleId: MarinerBoardIsleId,
-): boolean {
-  return nestingBeastsOnIsle(snapshot.beasts, boardIsleId).length > 0;
 }
 
 function isleAcceptsOrdinarySupplyMarket(
   snapshot: ReturnType<typeof captureOperabilityBoard>,
   boardIsleId: MarinerBoardIsleId,
 ): boolean {
-  if (isleHasNestingBeast(snapshot, boardIsleId)) return false;
   const market = marketOnSnapshot(snapshot, boardIsleId);
   if (!market.present) return true;
   return market.rarity !== null;
@@ -296,7 +285,6 @@ function isleAcceptsRareSupplyMarket(
   snapshot: ReturnType<typeof captureOperabilityBoard>,
   boardIsleId: MarinerBoardIsleId,
 ): boolean {
-  if (isleHasNestingBeast(snapshot, boardIsleId)) return false;
   const market = marketOnSnapshot(snapshot, boardIsleId);
   if (!market.present) return true;
   return market.rarity === null;
@@ -308,8 +296,7 @@ function isleAcceptsExistingMarketMove(
   destinationBoardIsleId: MarinerBoardIsleId,
 ): boolean {
   if (destinationBoardIsleId === sourceBoardIsleId) return false;
-  if (marketOnSnapshot(snapshot, destinationBoardIsleId).present) return false;
-  return !isleHasNestingBeast(snapshot, destinationBoardIsleId);
+  return !marketOnSnapshot(snapshot, destinationBoardIsleId).present;
 }
 
 function isleAcceptsManualBeast(
@@ -367,7 +354,7 @@ export function useMarinerBoardInteractions(args: {
     pending,
     selectedRouteId,
     selectedRegionId,
-    run,
+    run: runMutation,
     moveMarinerStorm,
     moveMarinerShip,
     createMarinerShip,
@@ -415,6 +402,10 @@ export function useMarinerBoardInteractions(args: {
   marinerRef.current = mariner;
   const pendingRef = useRef(pending);
   pendingRef.current = pending;
+  const run = useCallback(async (action: () => Promise<void>) => {
+    pendingRef.current = true;
+    return runMutation(action);
+  }, [runMutation]);
   const hasPendingDirectIntent = pendingRaiderDirection !== null
     || pendingShipRampage !== null
     || pendingBeastRampage !== null
@@ -450,7 +441,7 @@ export function useMarinerBoardInteractions(args: {
     ? (beastDragSourceId === null ? [] : [...adjacentSeaIds(beastDragSourceId)])
     : marinerSeaOperationalView(mariner, stormDragSourceId).adjacentRegionIds;
 
-  const cancelDrag = useCallback(() => {
+  const endVisualDrag = useCallback(() => {
     sessionRef.current = null;
     setDraggingActive(false);
     setDragVisual(null);
@@ -459,12 +450,15 @@ export function useMarinerBoardInteractions(args: {
     setHoveredIsleId(null);
   }, []);
 
-  const finishNoOpDrag = useCallback(() => {
-    cancelDrag();
+  const releaseClickSuppressionSoon = useCallback(() => {
     window.setTimeout(() => {
       suppressClickRef.current = false;
     }, 0);
-  }, [cancelDrag]);
+  }, []);
+
+  const cancelDrag = useCallback(() => {
+    endVisualDrag();
+  }, [endVisualDrag]);
 
   const closeContextMenu = useCallback(() => {
     setContextMenu(null);
@@ -474,13 +468,12 @@ export function useMarinerBoardInteractions(args: {
     pendingRef.current || hasPendingDirectIntentRef.current || sessionRef.current !== null
   ), []);
 
-  const commitStormDrop = useCallback(async (destinationRegionId: MarinerSeaRegionId) => {
-    const session = sessionRef.current;
-    if (session?.kind !== "storm" || session.sourceRegionId === undefined) return;
-    if (destinationRegionId === session.sourceRegionId) {
-      finishNoOpDrag();
-      return;
-    }
+  const commitStormDrop = useCallback(async (
+    session: DragSession,
+    destinationRegionId: MarinerSeaRegionId,
+  ) => {
+    if (session.kind !== "storm" || session.sourceRegionId === undefined) return;
+    if (destinationRegionId === session.sourceRegionId) return;
     const payload = buildMoveMarinerStormPayload({
       commandId: newCommandId(),
       expectedCampaignId: campaignId,
@@ -488,10 +481,8 @@ export function useMarinerBoardInteractions(args: {
       destinationRegionId,
       ...expectedForMoveStorm(session.snapshot, session.sourceRegionId, destinationRegionId),
     });
-    const ok = await run(async () => { await moveMarinerStorm(payload); });
-    cancelDrag();
-    if (!ok) suppressClickRef.current = false;
-  }, [campaignId, cancelDrag, finishNoOpDrag, moveMarinerStorm, run]);
+    await run(async () => { await moveMarinerStorm(payload); });
+  }, [campaignId, moveMarinerStorm, run]);
 
   const commitShipMove = useCallback(async (
     sourceRouteId: string,
@@ -523,13 +514,10 @@ export function useMarinerBoardInteractions(args: {
         snapshot,
         predictedBeastIds: predicted,
       });
-      cancelDrag();
       return;
     }
-    const ok = await run(async () => { await moveMarinerShip(payload); });
-    cancelDrag();
-    if (!ok) suppressClickRef.current = false;
-  }, [campaignId, cancelDrag, moveMarinerShip, run]);
+    await run(async () => { await moveMarinerShip(payload); });
+  }, [campaignId, moveMarinerShip, run]);
 
   const commitCreateShip = useCallback(async (
     targetRouteId: string,
@@ -548,7 +536,6 @@ export function useMarinerBoardInteractions(args: {
         snapshot,
         predictedBeastIds: predicted,
       });
-      cancelDrag();
       return;
     }
     const payload = buildCreateMarinerShipPayload({
@@ -559,24 +546,18 @@ export function useMarinerBoardInteractions(args: {
       ...expectedForCreateShip(snapshot, targetRouteId),
       rampageResolutions: [],
     });
-    const ok = await run(async () => { await createMarinerShip(payload); });
-    cancelDrag();
-    if (!ok) suppressClickRef.current = false;
-  }, [campaignId, cancelDrag, createMarinerShip, run]);
+    await run(async () => { await createMarinerShip(payload); });
+  }, [campaignId, createMarinerShip, run]);
 
-  const commitRoutePieceDrop = useCallback(async (destinationRouteId: string) => {
-    const session = sessionRef.current;
-    if (session?.kind !== "route-piece" || session.sourceRouteId === undefined || session.sourceOccupancy === undefined) {
+  const commitRoutePieceDrop = useCallback(async (
+    session: DragSession,
+    destinationRouteId: string,
+  ) => {
+    if (session.kind !== "route-piece" || session.sourceRouteId === undefined || session.sourceOccupancy === undefined) {
       return;
     }
-    if (destinationRouteId === session.sourceRouteId) {
-      finishNoOpDrag();
-      return;
-    }
-    if (!isEmptyRoute(session.snapshot.routes, destinationRouteId)) {
-      finishNoOpDrag();
-      return;
-    }
+    if (destinationRouteId === session.sourceRouteId) return;
+    if (!isEmptyRoute(session.snapshot.routes, destinationRouteId)) return;
 
     if (session.sourceOccupancy.kind === "ship") {
       await commitShipMove(session.sourceRouteId, destinationRouteId, null, session.snapshot);
@@ -604,9 +585,8 @@ export function useMarinerBoardInteractions(args: {
         choices,
         snapshot: session.snapshot,
       });
-      cancelDrag();
     }
-  }, [cancelDrag, commitShipMove, finishNoOpDrag]);
+  }, [commitShipMove]);
 
   const commitReplaceRouteOccupancy = useCallback(async (
     routeId: string,
@@ -620,28 +600,23 @@ export function useMarinerBoardInteractions(args: {
       expectedOccupancy,
       occupancy,
     });
-    const ok = await run(async () => { await setMarinerRouteOccupancy(payload); });
-    cancelDrag();
-    if (!ok) suppressClickRef.current = false;
-  }, [campaignId, cancelDrag, run, setMarinerRouteOccupancy]);
+    await run(async () => { await setMarinerRouteOccupancy(payload); });
+  }, [campaignId, run, setMarinerRouteOccupancy]);
 
   const commitTrayRouteDrop = useCallback(async (
+    session: DragSession,
     destinationRouteId: string,
     dropClientX: number,
     dropClientY: number,
   ) => {
-    const session = sessionRef.current;
-    if (session === null || (session.kind !== "tray-ship" && session.kind !== "tray-raider")) return;
+    if (session.kind !== "tray-ship" && session.kind !== "tray-raider") return;
     const destinationOccupancy = routeOccupancyAt(session.snapshot.routes, destinationRouteId);
     if (session.kind === "tray-ship") {
       if (destinationOccupancy.kind === "empty") {
         await commitCreateShip(destinationRouteId, null, session.snapshot);
         return;
       }
-      if (destinationOccupancy.kind === "ship") {
-        finishNoOpDrag();
-        return;
-      }
+      if (destinationOccupancy.kind === "ship") return;
       await commitReplaceRouteOccupancy(
         destinationRouteId,
         destinationOccupancy,
@@ -658,13 +633,9 @@ export function useMarinerBoardInteractions(args: {
         dropClientX,
         dropClientY,
       });
-      cancelDrag();
       return;
     }
-    if (destinationOccupancy.kind === "raider") {
-      finishNoOpDrag();
-      return;
-    }
+    if (destinationOccupancy.kind === "raider") return;
     setPendingRaiderDirection({
       action: "replace",
       destinationRouteId,
@@ -673,12 +644,13 @@ export function useMarinerBoardInteractions(args: {
       dropClientX,
       dropClientY,
     });
-    cancelDrag();
-  }, [cancelDrag, commitCreateShip, commitReplaceRouteOccupancy, finishNoOpDrag]);
+  }, [commitCreateShip, commitReplaceRouteOccupancy]);
 
-  const commitTrayStormDrop = useCallback(async (destinationRegionId: MarinerSeaRegionId) => {
-    const session = sessionRef.current;
-    if (session?.kind !== "tray-storm") return;
+  const commitTrayStormDrop = useCallback(async (
+    session: DragSession,
+    destinationRegionId: MarinerSeaRegionId,
+  ) => {
+    if (session.kind !== "tray-storm") return;
     const expectedStormCount = stormCountOnSnapshot(session.snapshot, destinationRegionId);
     const payload = buildSetMarinerSeaStormCountPayload({
       commandId: newCommandId(),
@@ -687,10 +659,8 @@ export function useMarinerBoardInteractions(args: {
       expectedStormCount,
       stormCount: expectedStormCount + 1,
     });
-    const ok = await run(async () => { await setMarinerSeaStormCount(payload); });
-    cancelDrag();
-    if (!ok) suppressClickRef.current = false;
-  }, [campaignId, cancelDrag, run, setMarinerSeaStormCount]);
+    await run(async () => { await setMarinerSeaStormCount(payload); });
+  }, [campaignId, run, setMarinerSeaStormCount]);
 
   const commitBeastMove = useCallback(async (
     beast: MarinerBeastState,
@@ -700,10 +670,7 @@ export function useMarinerBoardInteractions(args: {
     dropClientX?: number,
     dropClientY?: number,
   ) => {
-    if (destinationRegionId === sourceRegionId) {
-      finishNoOpDrag();
-      return;
-    }
+    if (destinationRegionId === sourceRegionId) return;
     if (predictedMovedBeastWouldRampage(snapshot, beast.denizenId, destinationRegionId)) {
       setPendingBeastRampage({
         action: "move",
@@ -714,7 +681,6 @@ export function useMarinerBoardInteractions(args: {
         dropClientX,
         dropClientY,
       });
-      cancelDrag();
       return;
     }
     const payload = buildMoveMarinerBeastPayload({
@@ -726,10 +692,8 @@ export function useMarinerBoardInteractions(args: {
       ...expectedForMoveBeast(snapshot, beast.denizenId, sourceRegionId, destinationRegionId),
       rampageResolution: null,
     });
-    const ok = await run(async () => { await moveMarinerBeast(payload); });
-    cancelDrag();
-    if (!ok) suppressClickRef.current = false;
-  }, [campaignId, cancelDrag, finishNoOpDrag, moveMarinerBeast, run]);
+    await run(async () => { await moveMarinerBeast(payload); });
+  }, [campaignId, moveMarinerBeast, run]);
 
   const commitBeastNest = useCallback(async (
     beast: MarinerBeastState,
@@ -737,10 +701,7 @@ export function useMarinerBoardInteractions(args: {
     snapshot: ReturnType<typeof captureOperabilityBoard>,
     sourceRegionId: MarinerSeaRegionId,
   ) => {
-    if (!isleAcceptsNest(snapshot, boardIsleId)) {
-      finishNoOpDrag();
-      return;
-    }
+    if (!isleAcceptsNest(snapshot, boardIsleId)) return;
     const payload = buildNestMarinerBeastPayload({
       commandId: newCommandId(),
       expectedCampaignId: campaignId,
@@ -748,18 +709,15 @@ export function useMarinerBoardInteractions(args: {
       boardIsleId,
       ...expectedForNestBeast(snapshot, beast.denizenId, boardIsleId),
     });
-    const ok = await run(async () => { await nestMarinerBeast(payload); });
-    cancelDrag();
-    if (!ok) suppressClickRef.current = false;
-  }, [campaignId, cancelDrag, finishNoOpDrag, nestMarinerBeast, run]);
+    await run(async () => { await nestMarinerBeast(payload); });
+  }, [campaignId, nestMarinerBeast, run]);
 
-  const commitTrayMarketDrop = useCallback(async (boardIsleId: MarinerBoardIsleId) => {
-    const session = sessionRef.current;
-    if (session?.kind !== "tray-market") return;
-    if (!isleAcceptsOrdinarySupplyMarket(session.snapshot, boardIsleId)) {
-      finishNoOpDrag();
-      return;
-    }
+  const commitTrayMarketDrop = useCallback(async (
+    session: DragSession,
+    boardIsleId: MarinerBoardIsleId,
+  ) => {
+    if (session.kind !== "tray-market") return;
+    if (!isleAcceptsOrdinarySupplyMarket(session.snapshot, boardIsleId)) return;
     const payload = buildSetMarinerIsleMarketPayload({
       commandId: newCommandId(),
       expectedCampaignId: campaignId,
@@ -767,24 +725,16 @@ export function useMarinerBoardInteractions(args: {
       expectedMarket: marketOnSnapshot(session.snapshot, boardIsleId),
       market: { present: true, rarity: null },
     });
-    const ok = await run(async () => { await setMarinerIsleMarket(payload); });
-    cancelDrag();
-    if (!ok) suppressClickRef.current = false;
-  }, [campaignId, cancelDrag, finishNoOpDrag, run, setMarinerIsleMarket]);
+    await run(async () => { await setMarinerIsleMarket(payload); });
+  }, [campaignId, run, setMarinerIsleMarket]);
 
   const commitRelocateNestingBeastToIsle = useCallback(async (
     beast: MarinerBeastState,
     boardIsleId: MarinerBoardIsleId,
     snapshot: ReturnType<typeof captureOperabilityBoard>,
   ) => {
-    if (beast.location.kind !== "board_isle" || boardIsleId === beast.location.boardIsleId) {
-      finishNoOpDrag();
-      return;
-    }
-    if (!isleAcceptsNest(snapshot, boardIsleId)) {
-      finishNoOpDrag();
-      return;
-    }
+    if (beast.location.kind !== "board_isle" || boardIsleId === beast.location.boardIsleId) return;
+    if (!isleAcceptsNest(snapshot, boardIsleId)) return;
     const expected = expectedForRelocateNestingBeastToIsle(snapshot, beast.denizenId, boardIsleId);
     const payload = buildRelocateMarinerNestingBeastPayload({
       commandId: newCommandId(),
@@ -799,10 +749,8 @@ export function useMarinerBoardInteractions(args: {
         expectedNestingBeastDenizenId: expected.expectedNestingBeastDenizenId,
       },
     });
-    const ok = await run(async () => { await relocateMarinerNestingBeast(payload); });
-    cancelDrag();
-    if (!ok) suppressClickRef.current = false;
-  }, [campaignId, cancelDrag, finishNoOpDrag, relocateMarinerNestingBeast, run]);
+    await run(async () => { await relocateMarinerNestingBeast(payload); });
+  }, [campaignId, relocateMarinerNestingBeast, run]);
 
   const commitRelocateNestingBeastToSea = useCallback(async (
     beast: MarinerBeastState,
@@ -820,7 +768,6 @@ export function useMarinerBoardInteractions(args: {
         dropClientX,
         dropClientY,
       });
-      cancelDrag();
       return;
     }
     const expected = expectedForRelocateNestingBeastToSea(snapshot, beast.denizenId, destinationRegionId);
@@ -838,18 +785,15 @@ export function useMarinerBoardInteractions(args: {
         rampageResolution: null,
       },
     });
-    const ok = await run(async () => { await relocateMarinerNestingBeast(payload); });
-    cancelDrag();
-    if (!ok) suppressClickRef.current = false;
-  }, [campaignId, cancelDrag, relocateMarinerNestingBeast, run]);
+    await run(async () => { await relocateMarinerNestingBeast(payload); });
+  }, [campaignId, relocateMarinerNestingBeast, run]);
 
-  const commitTrayRareMarketDrop = useCallback(async (boardIsleId: MarinerBoardIsleId) => {
-    const session = sessionRef.current;
-    if (session?.kind !== "tray-rare-market") return;
-    if (!isleAcceptsRareSupplyMarket(session.snapshot, boardIsleId)) {
-      finishNoOpDrag();
-      return;
-    }
+  const commitTrayRareMarketDrop = useCallback(async (
+    session: DragSession,
+    boardIsleId: MarinerBoardIsleId,
+  ) => {
+    if (session.kind !== "tray-rare-market") return;
+    if (!isleAcceptsRareSupplyMarket(session.snapshot, boardIsleId)) return;
     const payload = buildSetMarinerIsleMarketPayload({
       commandId: newCommandId(),
       expectedCampaignId: campaignId,
@@ -857,24 +801,18 @@ export function useMarinerBoardInteractions(args: {
       expectedMarket: marketOnSnapshot(session.snapshot, boardIsleId),
       market: createUndescribedRareMarinerMarket(),
     });
-    const ok = await run(async () => { await setMarinerIsleMarket(payload); });
-    cancelDrag();
-    if (!ok) suppressClickRef.current = false;
-  }, [campaignId, cancelDrag, finishNoOpDrag, run, setMarinerIsleMarket]);
+    await run(async () => { await setMarinerIsleMarket(payload); });
+  }, [campaignId, run, setMarinerIsleMarket]);
 
-  const commitBoardMarketDrop = useCallback(async (destinationBoardIsleId: MarinerBoardIsleId) => {
-    const session = sessionRef.current;
-    if (session?.kind !== "board-market" || session.sourceBoardIsleId === undefined || session.sourceMarket === undefined) {
+  const commitBoardMarketDrop = useCallback(async (
+    session: DragSession,
+    destinationBoardIsleId: MarinerBoardIsleId,
+  ) => {
+    if (session.kind !== "board-market" || session.sourceBoardIsleId === undefined || session.sourceMarket === undefined) {
       return;
     }
-    if (destinationBoardIsleId === session.sourceBoardIsleId) {
-      finishNoOpDrag();
-      return;
-    }
-    if (!isleAcceptsExistingMarketMove(session.snapshot, session.sourceBoardIsleId, destinationBoardIsleId)) {
-      finishNoOpDrag();
-      return;
-    }
+    if (destinationBoardIsleId === session.sourceBoardIsleId) return;
+    if (!isleAcceptsExistingMarketMove(session.snapshot, session.sourceBoardIsleId, destinationBoardIsleId)) return;
     const payload = buildMoveMarinerMarketPayload({
       commandId: newCommandId(),
       expectedCampaignId: campaignId,
@@ -882,10 +820,9 @@ export function useMarinerBoardInteractions(args: {
       destinationBoardIsleId,
       ...expectedForMoveMarket(session.snapshot, session.sourceBoardIsleId, destinationBoardIsleId),
     });
-    const ok = await run(async () => { await moveMarinerMarket(payload); });
-    cancelDrag();
-    if (!ok) suppressClickRef.current = false;
-  }, [campaignId, cancelDrag, finishNoOpDrag, moveMarinerMarket, run]);
+    await run(async () => { await moveMarinerMarket(payload); });
+  }, [campaignId, moveMarinerMarket, run]);
+
 
   useEffect(() => {
     const onPointerMove = (event: PointerEvent) => {
@@ -981,36 +918,41 @@ export function useMarinerBoardInteractions(args: {
         return;
       }
 
+      const dropPoint = document.elementFromPoint(event.clientX, event.clientY);
+      const dropX = event.clientX;
+      const dropY = event.clientY;
+      endVisualDrag();
+      releaseClickSuppressionSoon();
+
       if (session.kind === "storm") {
-        const dropSea = findSeaDropRegionId(document.elementFromPoint(event.clientX, event.clientY));
+        const dropSea = findSeaDropRegionId(dropPoint);
         if (dropSea !== null) {
-          void commitStormDrop(dropSea as MarinerSeaRegionId);
+          void commitStormDrop(session, dropSea as MarinerSeaRegionId);
           return;
         }
       }
       if (session.kind === "tray-storm") {
-        const dropSea = findSeaDropRegionId(document.elementFromPoint(event.clientX, event.clientY));
+        const dropSea = findSeaDropRegionId(dropPoint);
         if (dropSea !== null) {
-          void commitTrayStormDrop(dropSea as MarinerSeaRegionId);
+          void commitTrayStormDrop(session, dropSea as MarinerSeaRegionId);
           return;
         }
       }
       if (session.kind === "route-piece") {
-        const dropRoute = findRouteDropId(document.elementFromPoint(event.clientX, event.clientY));
+        const dropRoute = findRouteDropId(dropPoint);
         if (dropRoute !== null) {
-          void commitRoutePieceDrop(dropRoute);
+          void commitRoutePieceDrop(session, dropRoute);
           return;
         }
       }
       if (session.kind === "tray-ship" || session.kind === "tray-raider") {
-        const dropRoute = findRouteDropId(document.elementFromPoint(event.clientX, event.clientY));
+        const dropRoute = findRouteDropId(dropPoint);
         if (dropRoute !== null) {
-          void commitTrayRouteDrop(dropRoute, event.clientX, event.clientY);
+          void commitTrayRouteDrop(session, dropRoute, dropX, dropY);
           return;
         }
       }
       if (session.kind === "beast" && session.sourceBeast !== undefined) {
-        const dropPoint = document.elementFromPoint(event.clientX, event.clientY);
         const dropIsle = findIsleDropId(dropPoint) as MarinerBoardIsleId | null;
         const dropSea = findSeaDropRegionId(dropPoint);
         if (session.sourceBeast.location.kind === "board_isle") {
@@ -1023,8 +965,8 @@ export function useMarinerBoardInteractions(args: {
               session.sourceBeast,
               dropSea as MarinerSeaRegionId,
               session.snapshot,
-              event.clientX,
-              event.clientY,
+              dropX,
+              dropY,
             );
             return;
           }
@@ -1039,38 +981,33 @@ export function useMarinerBoardInteractions(args: {
               session.sourceRegionId,
               dropSea as MarinerSeaRegionId,
               session.snapshot,
-              event.clientX,
-              event.clientY,
+              dropX,
+              dropY,
             );
             return;
           }
         }
       }
       if (session.kind === "tray-market") {
-        const dropIsle = findIsleDropId(document.elementFromPoint(event.clientX, event.clientY));
+        const dropIsle = findIsleDropId(dropPoint);
         if (dropIsle !== null) {
-          void commitTrayMarketDrop(dropIsle as MarinerBoardIsleId);
+          void commitTrayMarketDrop(session, dropIsle as MarinerBoardIsleId);
           return;
         }
       }
       if (session.kind === "tray-rare-market") {
-        const dropIsle = findIsleDropId(document.elementFromPoint(event.clientX, event.clientY));
+        const dropIsle = findIsleDropId(dropPoint);
         if (dropIsle !== null) {
-          void commitTrayRareMarketDrop(dropIsle as MarinerBoardIsleId);
+          void commitTrayRareMarketDrop(session, dropIsle as MarinerBoardIsleId);
           return;
         }
       }
       if (session.kind === "board-market") {
-        const dropIsle = findIsleDropId(document.elementFromPoint(event.clientX, event.clientY));
+        const dropIsle = findIsleDropId(dropPoint);
         if (dropIsle !== null) {
-          void commitBoardMarketDrop(dropIsle as MarinerBoardIsleId);
-          return;
+          void commitBoardMarketDrop(session, dropIsle as MarinerBoardIsleId);
         }
       }
-      cancelDrag();
-      window.setTimeout(() => {
-        suppressClickRef.current = false;
-      }, 0);
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1164,11 +1101,13 @@ export function useMarinerBoardInteractions(args: {
     commitTrayRareMarketDrop,
     commitTrayRouteDrop,
     commitTrayStormDrop,
+    endVisualDrag,
     mariner.seaRegions,
     onSelectBeast,
     onSelectIsle,
     onSelectRegion,
     onSelectRoute,
+    releaseClickSuppressionSoon,
     run,
     setMarinerRouteOccupancy,
     setMarinerSeaStormCount,
@@ -1196,11 +1135,11 @@ export function useMarinerBoardInteractions(args: {
 
   const beginStormPointer = useCallback((regionId: MarinerSeaRegionId, event: ReactPointerEvent) => {
     if (!isPrimaryPointerButton(event)) return;
-    if (pending || hasPendingDirectIntent) return;
-    const storms = mariner.seaRegions.find((region) => region.regionId === regionId)?.stormCount ?? 0;
-    if (storms < 1) return;
     event.preventDefault();
     event.stopPropagation();
+    if (pendingRef.current || pending || hasPendingDirectIntent) return;
+    const storms = mariner.seaRegions.find((region) => region.regionId === regionId)?.stormCount ?? 0;
+    if (storms < 1) return;
     (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
     setContextMenu(null);
     sessionRef.current = {
@@ -1216,9 +1155,9 @@ export function useMarinerBoardInteractions(args: {
 
   const beginRoutePiecePointer = useCallback((routeId: string, occupancy: MarinerRouteOccupancy, event: ReactPointerEvent) => {
     if (!isPrimaryPointerButton(event)) return;
-    if (pending || hasPendingDirectIntent || occupancy.kind === "empty") return;
     event.preventDefault();
     event.stopPropagation();
+    if (pendingRef.current || pending || hasPendingDirectIntent || occupancy.kind === "empty") return;
     (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
     setContextMenu(null);
     sessionRef.current = {
@@ -1235,8 +1174,8 @@ export function useMarinerBoardInteractions(args: {
 
   const beginTrayPointer = useCallback((kind: "tray-ship" | "tray-raider" | "tray-storm" | "tray-market" | "tray-rare-market", event: ReactPointerEvent) => {
     if (!isPrimaryPointerButton(event)) return;
-    if (pending || hasPendingDirectIntent) return;
     event.preventDefault();
+    if (pendingRef.current || pending || hasPendingDirectIntent) return;
     (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
     setContextMenu(null);
     sessionRef.current = {
@@ -1271,11 +1210,11 @@ export function useMarinerBoardInteractions(args: {
 
   const beginBoardMarketPointer = useCallback((boardIsleId: MarinerBoardIsleId, event: ReactPointerEvent) => {
     if (!isPrimaryPointerButton(event)) return;
-    if (pending || hasPendingDirectIntent) return;
-    const market = mariner.boardIsles.find((isle) => isle.boardIsleId === boardIsleId)?.market;
-    if (market === undefined || !market.present) return;
     event.preventDefault();
     event.stopPropagation();
+    if (pendingRef.current || pending || hasPendingDirectIntent) return;
+    const market = mariner.boardIsles.find((isle) => isle.boardIsleId === boardIsleId)?.market;
+    if (market === undefined || !market.present) return;
     (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
     setContextMenu(null);
     sessionRef.current = {
@@ -1292,12 +1231,12 @@ export function useMarinerBoardInteractions(args: {
 
   const beginBeastPointer = useCallback((beast: MarinerBeastState, event: ReactPointerEvent) => {
     if (!isPrimaryPointerButton(event)) return;
-    if (pending || hasPendingDirectIntent) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (pendingRef.current || pending || hasPendingDirectIntent) return;
     const distrustingSea = beast.condition === "distrusting" && beast.location.kind === "sea_region";
     const nestingIsle = beast.condition === "friendly_nesting" && beast.location.kind === "board_isle";
     if (!distrustingSea && !nestingIsle) return;
-    event.preventDefault();
-    event.stopPropagation();
     (event.currentTarget as Element).setPointerCapture?.(event.pointerId);
     setContextMenu(null);
     sessionRef.current = {
@@ -2500,49 +2439,34 @@ export function MarinerBoardContextMenu({
         </button>
       )}
       {menu.kind === "isle" && !menu.market.present && (
-        <>
-          {isleAcceptsMarket(menu.snapshot, menu.boardIsleId) ? (
-            <button
-              type="button"
-              role="menuitem"
-              className={CONTEXT_MENU_BTN}
-              data-context-action="add-market"
-              aria-label="Add Market"
-              onClick={(event) => {
-                event.stopPropagation();
-                onAddMarket();
-              }}
-            >
-              Add Market
-            </button>
-          ) : (
-            <button
-              type="button"
-              role="menuitem"
-              className={`${CONTEXT_MENU_BTN} opacity-60 cursor-not-allowed`}
-              data-context-action="add-market-blocked"
-              disabled
-              aria-label="Add Market unavailable because a Nesting Beast is present"
-            >
-              Add Market (Nesting Beast present)
-            </button>
-          )}
-          {isleAcceptsManualBeast(menu.snapshot, menu.boardIsleId) && (
-            <button
-              type="button"
-              role="menuitem"
-              className={CONTEXT_MENU_BTN}
-              data-context-action="add-beast"
-              aria-label="Add Beast"
-              onClick={(event) => {
-                event.stopPropagation();
-                onAddBeast();
-              }}
-            >
-              Add Beast…
-            </button>
-          )}
-        </>
+        <button
+          type="button"
+          role="menuitem"
+          className={CONTEXT_MENU_BTN}
+          data-context-action="add-market"
+          aria-label="Add Market"
+          onClick={(event) => {
+            event.stopPropagation();
+            onAddMarket();
+          }}
+        >
+          Add Market
+        </button>
+      )}
+      {menu.kind === "isle" && isleAcceptsManualBeast(menu.snapshot, menu.boardIsleId) && (
+        <button
+          type="button"
+          role="menuitem"
+          className={CONTEXT_MENU_BTN}
+          data-context-action="add-beast"
+          aria-label="Add Beast"
+          onClick={(event) => {
+            event.stopPropagation();
+            onAddBeast();
+          }}
+        >
+          Add Beast…
+        </button>
       )}
       {menu.kind === "isle" && menu.market.present && menu.market.rarity === null && (
         <>
@@ -2682,7 +2606,7 @@ export function MarinerPieceSupplyTray({
   return (
     <div
       data-piece-tray
-      className="flex items-center gap-2 rounded-md border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/80 px-2 py-1"
+      className="flex items-center gap-2 rounded-md border border-slate-200/80 dark:border-slate-700/80 bg-white/80 dark:bg-slate-900/80 px-2 py-1 select-none"
     >
       <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">Supply</span>
       <TrayPiece kind="ship" label="Ship" ariaLabel="Place Ship" className="border-teal-700/40 bg-teal-50 dark:bg-teal-950" onBegin={onBeginShip}>
@@ -2718,7 +2642,7 @@ export function MarinerPieceSupplyTray({
 }
 
 const LOCAL_FIELD =
-  "text-xs rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 w-full";
+  "text-xs rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 w-full select-text";
 const LOCAL_BTN =
   "text-xs font-medium rounded px-2 py-1 cursor-pointer bg-teal-800 dark:bg-teal-200 text-white dark:text-teal-950 disabled:opacity-50";
 const LOCAL_GHOST =
@@ -2934,7 +2858,7 @@ export function RarityEditor({
         {describe ? "Describe Rarity" : "Rarity description"}
         <input
           aria-label="Rarity description"
-          className={`${LOCAL_FIELD} mt-1`}
+          className={`${LOCAL_FIELD} mt-1 select-text`}
           value={description}
           onChange={(event) => {
             setDescription(event.target.value);

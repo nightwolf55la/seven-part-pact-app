@@ -94,7 +94,8 @@ import {
   marinerSeaResearchers,
   marinerSetupReady,
   marinerSourceSetupReady,
-  marketBeastConflict,
+  marketNestRuleConflict,
+  DRAFT4_MARKET_NEST_WARNING,
   marinerIsleLoreSelection,
   nestingBeastsOnIsle,
   newCommandId,
@@ -180,7 +181,7 @@ type StormGuide = {
 };
 
 const fieldClass =
-  "text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 w-full text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-300 dark:focus:ring-teal-800";
+  "text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 w-full text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-300 dark:focus:ring-teal-800 select-text";
 const btnClass =
   "text-xs font-medium rounded-lg px-3 py-1.5 cursor-pointer bg-teal-800 dark:bg-teal-200 text-white dark:text-teal-950 hover:bg-teal-700 dark:hover:bg-teal-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors";
 const ghostBtn =
@@ -460,7 +461,7 @@ export default function MarinerSurface({
         ref={boardStageFocusRef}
         data-mariner-board-stage
         tabIndex={-1}
-        className="relative min-w-0 overflow-hidden rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40"
+        className="relative min-w-0 overflow-hidden rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-teal-600/40 select-none"
         style={{ background: MARINER_MAP_PALETTE.field }}
       >
           <MarinerMap
@@ -1094,7 +1095,7 @@ function MarinerMap({
     <div className="overflow-hidden">
       <svg
         viewBox={`0 0 ${MARINER_SOURCE_BOARD.width} ${MARINER_SOURCE_BOARD.height}`}
-        className="mx-auto block h-auto w-full max-w-[min(100%,calc(100vh-13.5rem))] text-slate-800 dark:text-slate-100"
+        className="mx-auto block h-auto w-full max-w-[min(100%,calc(100vh-13.5rem))] text-slate-800 dark:text-slate-100 select-none"
         role="group"
         aria-label="Interactive Archipelago of Isha map"
         data-mariner-board
@@ -1667,6 +1668,19 @@ function MarinerMap({
                   </g>
                   );
                 })}
+                {marketNestRuleConflict(mariner, isle.boardIsleId) && (
+                  <g
+                    data-draft4-conflict-warning
+                    data-isle-id={isle.boardIsleId}
+                    pointerEvents="none"
+                    aria-label={DRAFT4_MARKET_NEST_WARNING}
+                    transform={`translate(${isle.slots.beast.x + beasts.length * 16 + 10} ${isle.slots.beast.y - 10})`}
+                  >
+                    <title>{DRAFT4_MARKET_NEST_WARNING}</title>
+                    <circle r={7} fill="#fbbf24" stroke="#92400e" />
+                    <text textAnchor="middle" y={3} fontSize={9} fontWeight={700} fill="#78350f">!</text>
+                  </g>
+                )}
               </g>
             );
           })}
@@ -1793,6 +1807,8 @@ function BeastInspector({
     return <div className="text-sm text-slate-500">Beast no longer present</div>;
   }
   const definition = builtinBeastName(beast.definitionId);
+  const nestConflict = beast.location.kind === "board_isle"
+    && marketNestRuleConflict(mariner, beast.location.boardIsleId);
   return (
     <section data-beast-inspector className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-2">
       <h3 className="text-sm font-semibold">Beast inspector</h3>
@@ -1801,6 +1817,9 @@ function BeastInspector({
       {definition !== null && <p className="text-sm">Built-in: {definition}</p>}
       <p className="text-sm">Condition: {conditionLabel(beast.condition)}</p>
       <p className="text-sm">Location: {beastLocationLabel(beast.location, mariner, world.isles)}</p>
+      {nestConflict && (
+        <p className="text-sm text-amber-800 dark:text-amber-200">{DRAFT4_MARKET_NEST_WARNING}</p>
+      )}
     </section>
   );
 }
@@ -2182,7 +2201,7 @@ function IsleInspector({
     return <div className="text-sm text-slate-500">Unknown Isle.</div>;
   }
   const nested = nestingBeastsOnIsle(mariner.beasts, boardIsleId);
-  const conflict = marketBeastConflict(present, mariner.beasts, boardIsleId);
+  const conflict = marketNestRuleConflict(mariner, boardIsleId);
   const parsed = parseNonNegInt(ravage);
   const operational = marinerIsleOperationalView(mariner, boardIsleId);
   return (
@@ -2201,7 +2220,7 @@ function IsleInspector({
       <p className="text-sm">Friendly / Nesting Beast: {nested.map((beast) => denizenName(world.denizens, beast.denizenId)).join(", ") || "none"}</p>
       {conflict && (
         <p className="text-sm text-amber-800 dark:text-amber-200">
-          An Isle cannot contain both a Market and a Friendly / Nesting Beast. The server will reject this combination.
+          {DRAFT4_MARKET_NEST_WARNING}
         </p>
       )}
       <label className="text-sm flex items-center gap-2">

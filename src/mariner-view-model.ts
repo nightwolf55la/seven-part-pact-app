@@ -341,6 +341,17 @@ export function marketBeastConflict(
   return marketPresent && nestingBeastsOnIsle(beasts, boardIsleId).length > 0;
 }
 
+export const DRAFT4_MARKET_NEST_WARNING =
+  "Draft 4 conflict: an Isle with a Nesting Beast cannot have a Market.";
+
+export function marketNestRuleConflict(
+  mariner: Pick<MarinerState, "boardIsles" | "beasts">,
+  boardIsleId: MarinerBoardIsleId,
+): boolean {
+  const present = mariner.boardIsles.find((isle) => isle.boardIsleId === boardIsleId)?.market.present === true;
+  return marketBeastConflict(present, mariner.beasts, boardIsleId);
+}
+
 export function arrangementSetupSummary(arrangementId: string): string {
   const definition = marinerArrangementDefinition(arrangementId);
   if (definition === undefined) return "";
