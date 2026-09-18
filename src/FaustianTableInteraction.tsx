@@ -331,6 +331,7 @@ export function useFaustianTablePlay(args: {
 
   const startSchemeSupplyDrag = useCallback((event: ReactPointerEvent) => {
     if (event.button !== 0 || !event.isPrimary) return;
+    if (faustianRef.current.devilDeck.length === 0) return;
     event.preventDefault();
     event.stopPropagation();
     setContextMenu(null);
@@ -929,7 +930,7 @@ export function FaustianTableContextMenu({
       ref={ref}
       data-faustian-context-menu
       data-context-menu-kind={menu.kind}
-      className="fixed z-40 min-w-[11rem] rounded-md border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-md py-0.5"
+      className="fixed z-50 min-w-[11rem] rounded-md border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-md py-0.5"
       style={{ left: pos.left, top: pos.top }}
       role="menu"
     >

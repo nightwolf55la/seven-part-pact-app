@@ -4,6 +4,13 @@
  * This is not a shared drag/context-menu framework. It only supports the
  * approved Faustian common-play gestures: Devil Deck Scheme supply drag and
  * object-attached context actions.
+ *
+ * Accomplice drag is deliberately omitted. `direct_faustian_accomplice`
+ * re-resolves the live source Community from the card id and has no
+ * expectedFaustian / expected source snapshot. A pointerdown in Community A
+ * followed by a realtime move to C and a drop on B would be interpreted as
+ * C -> B. Safe one-gesture Accomplice drag requires captured expected
+ * source/state in the semantic command contract.
  */
 
 import type { FaustianCommunityId, FaustianState } from "../shared/domain";

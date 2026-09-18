@@ -55,7 +55,7 @@ type SupportingArea =
   | "lore";
 
 const ghostBtn =
-  "text-xs font-medium rounded-lg px-2.5 py-1 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer disabled:opacity-40";
+  "text-[0.65rem] font-medium rounded-md px-2 py-0.5 border border-amber-200/40 text-amber-100 hover:bg-emerald-800 cursor-pointer disabled:opacity-40";
 
 function cardFaceClass(card: FaustianPublicCardPresentation): string {
   if (card.facing === "face_down") {
@@ -557,7 +557,7 @@ export default function FaustianSurface({
               data-faustian-scheme-supply
               aria-label={FACEDOWN_SCHEME_SUPPLY_LABEL}
               onPointerDown={play.startSchemeSupplyDrag}
-              className="cursor-grab active:cursor-grabbing select-none text-left"
+              className="cursor-grab active:cursor-grabbing select-none text-left touch-none"
             >
               <DeckStack count={presentation.devilDeckCount} emptyLabel="Empty" />
             </button>

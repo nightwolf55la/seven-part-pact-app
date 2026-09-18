@@ -208,6 +208,20 @@ describe("hidden information on the ordinary table", () => {
     expect(haystack).not.toMatch(/Ace of Spades/);
     expect(container.querySelector("[data-faustian-scheme-supply]")?.getAttribute("aria-label") ?? "").toMatch(/facedown|devil/i);
     expect(container.querySelector("[data-faustian-scheme-supply]")?.textContent ?? "").not.toMatch(/clubs_6|Six of Clubs/);
+    const ghost = container.querySelector("[data-faustian-drag-ghost]");
+    expect(ghost === null || !(ghost.textContent ?? "").match(/clubs_6|Six of Clubs|Ace of Spades/)).toBe(true);
+    const facedownCards = Array.from(container.querySelectorAll("[data-faustian-card]")).filter((el) =>
+      (el.getAttribute("aria-label") ?? "").startsWith("Unrevealed"),
+    );
+    for (const el of facedownCards) {
+      expect(el.getAttribute("data-card-id")).toBeNull();
+      expect(el.getAttribute("title") ?? "").not.toMatch(/hearts|clubs|spades|Ace of Spades|Three of Hearts/i);
+    }
+    const twist = Array.from(container.querySelectorAll('[data-faustian-card="machination"]')).find((el) =>
+      (el.getAttribute("aria-label") ?? "").includes("Active Twist"),
+    );
+    openContextOn(twist as Element);
+    expect(container.querySelector("[data-faustian-context-menu]")?.textContent ?? "").not.toMatch(/Ace of Spades|spades_ace/i);
     const facedown = Array.from(container.querySelectorAll("[aria-label]")).filter((el) =>
       el.getAttribute("aria-label") === FACEDOWN_SCHEME_LABEL || el.getAttribute("aria-label") === FACEDOWN_TWIST_LABEL,
     );
@@ -275,9 +289,16 @@ describe("Scheme supply drag", () => {
     mockMutations["m3Commands.placeFaustianSchemes"] = vi.fn(async () => {
       throw new Error("Devil's Deck does not contain enough cards for the requested quantity");
     });
-    const { container } = renderSurface({ faustian: { ...playTable(), devilDeck: [] } });
+    const { container } = renderSurface();
     await dragSchemeSupply(container, communityEl(container, "aries"));
     expect(mockMutations["m3Commands.placeFaustianSchemes"]).toHaveBeenCalledTimes(1);
+    expect(container.querySelector("[data-faustian-drag-ghost]")).toBeNull();
+  });
+
+  it("does not start a Scheme supply drag from an empty Devil Deck", async () => {
+    const { container } = renderSurface({ faustian: { ...playTable(), devilDeck: [] } });
+    await dragSchemeSupply(container, communityEl(container, "aries"));
+    expect(mockMutations["m3Commands.placeFaustianSchemes"]?.mock.calls.length ?? 0).toBe(0);
     expect(container.querySelector("[data-faustian-drag-ghost]")).toBeNull();
   });
 
