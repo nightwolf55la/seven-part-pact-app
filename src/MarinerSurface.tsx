@@ -39,6 +39,12 @@ import {
   beastLocationLabel,
   beastsInRegion,
   beastsOnIsle,
+  marinerIsleMarketAriaBits,
+  marinerMarketHasRarityCue,
+  marinerMarketRarityDetailLine,
+  marinerMarketTokenAriaLabel,
+  marinerMarketTokenLabel,
+  marinerRarityEditorPrefill,
   boardIsleDisplayName,
   boardIsleWorldName,
   buildAddMarinerBeastPayload,
@@ -58,6 +64,7 @@ import {
   buildMoveMarinerStormPayload,
   buildNestMarinerBeastPayload,
   buildRecordMarinerRavageResultPayload,
+  buildRelocateMarinerNestingBeastPayload,
   buildUpdateMarinerBeastFields,
   buildUpdateMarinerBeastPayload,
   captureOperabilityBoard,
@@ -164,7 +171,8 @@ export type { MarinerWizardRef };
 type Selection =
   | { readonly kind: "isle"; readonly boardIsleId: MarinerBoardIsleId }
   | { readonly kind: "route"; readonly routeId: string }
-  | { readonly kind: "region"; readonly regionId: MarinerSeaRegionId };
+  | { readonly kind: "region"; readonly regionId: MarinerSeaRegionId }
+  | { readonly kind: "beast"; readonly denizenId: string };
 
 type StormGuide = {
   readonly sourceRegionId: MarinerSeaRegionId;
@@ -265,6 +273,9 @@ export default function MarinerSurface({
   const createMarinerShip = useMutation(api.m3Commands.createMarinerShip);
   const moveMarinerBeast = useMutation(api.m3Commands.moveMarinerBeast);
   const nestMarinerBeast = useMutation(api.m3Commands.nestMarinerBeast);
+  const relocateMarinerNestingBeast = useMutation(
+    "m3Commands.relocateMarinerNestingBeast" as never,
+  ) as unknown as (payload: ReturnType<typeof buildRelocateMarinerNestingBeastPayload>) => Promise<unknown>;
   const moveMarinerMarket = useMutation(api.m3Commands.moveMarinerMarket);
   const recordMarinerRavageResult = useMutation(api.m3Commands.recordMarinerRavageResult);
 
@@ -300,6 +311,7 @@ export default function MarinerSurface({
     setMarinerSeaStormCount,
     moveMarinerBeast,
     nestMarinerBeast,
+    relocateMarinerNestingBeast,
     addMarinerBeast,
     removeMarinerBeast,
     setMarinerIsleMarket,
@@ -307,6 +319,7 @@ export default function MarinerSurface({
     onSelectRegion: (regionId) => setSelection({ kind: "region", regionId }),
     onSelectRoute: (routeId) => setSelection({ kind: "route", routeId }),
     onSelectIsle: (boardIsleId) => setSelection({ kind: "isle", boardIsleId }),
+    onSelectBeast: (denizenId) => setSelection({ kind: "beast", denizenId }),
   });
 
   function beginStormGuide(sourceRegionId: MarinerSeaRegionId): void {
@@ -498,11 +511,14 @@ export default function MarinerSurface({
             onNestBeast={(boardIsleId) => { void board.contextNestBeast(boardIsleId); }}
             onMoveBeastElsewhere={() => board.contextBeginBeastElsewhere("move")}
             onNestBeastElsewhere={() => board.contextBeginBeastElsewhere("nest")}
+            onRelocateNestElsewhere={() => board.contextBeginBeastElsewhere("relocate-nest")}
+            onLeaveNestToSea={() => board.contextBeginBeastElsewhere("leave-nest")}
             onRemoveBeast={() => board.contextBeginRemoveBeast()}
             onAddBeast={() => board.contextBeginAddBeast()}
             onAddMarket={() => { void board.contextAddMarket(); }}
             onRemoveMarket={() => { void board.contextRemoveMarket(); }}
             onAddRarity={() => board.contextBeginRarityEditor("add")}
+            onDescribeRarity={() => board.contextBeginRarityEditor("describe")}
             onEditRarity={() => board.contextBeginRarityEditor("edit")}
             onRemoveRarity={() => { void board.contextRemoveRarity(); }}
           />
@@ -1361,14 +1377,12 @@ function MarinerMap({
         {MARINER_ISLE_GEOMETRY.map((isle) => {
           const current = mariner.boardIsles.find((entry) => entry.boardIsleId === isle.boardIsleId);
           const worldName = boardIsleWorldName(mariner, world.isles, isle.boardIsleId);
-          const market = current?.market.present === true;
-          const rarity = current?.market.present === true ? current.market.rarity : null;
+          const market = current?.market ?? { present: false as const };
           const ravage = current?.ravageStormCount ?? 0;
           const nested = nestingBeastsOnIsle(mariner.beasts, isle.boardIsleId);
           const selected = selection?.kind === "isle" && selection.boardIsleId === isle.boardIsleId;
           const bits = [
-            market ? "Market" : null,
-            rarity ? `Rarity ${rarity}` : null,
+            ...marinerIsleMarketAriaBits(market),
             ravage > 0 ? `Ravage ${ravage}` : null,
             nested.length > 0 ? "Nesting Beast" : null,
           ].filter((bit): bit is string => bit !== null);
@@ -1494,25 +1508,40 @@ function MarinerMap({
                     <title>{storms.accessibleCount}</title>
                   </g>
                 )}
-                {beasts.map((beast, index) => (
+                {beasts.map((beast, index) => {
+                  const selected = selection?.kind === "beast" && selection.denizenId === beast.denizenId;
+                  const draggable = beast.condition === "distrusting";
+                  return (
                   <g
                     key={beast.denizenId}
                     data-piece="beast"
                     data-beast-id={beast.denizenId}
-                    data-draggable-beast={beast.condition === "distrusting" ? "true" : undefined}
+                    data-beast-selected={selected ? "true" : undefined}
+                    data-draggable-beast={draggable ? "true" : undefined}
                     aria-label={`Beast ${denizenName(world.denizens, beast.denizenId)}`}
                     transform={`translate(${sea.slots.beast.x + index * 16} ${sea.slots.beast.y})`}
                     style={{
-                      cursor: beast.condition === "distrusting" ? "grab" : "pointer",
-                      opacity: board.beastDragSourceId === sea.regionId ? 0.35 : 1,
+                      cursor: draggable ? "grab" : "pointer",
+                      opacity: board.beastDragDenizenId === beast.denizenId ? 0.35 : 1,
                     }}
                     onPointerDown={(event) => board.beginBeastPointer(beast, event)}
                     onContextMenu={(event) => board.openBeastContextMenu(beast, event)}
                   >
+                    {selected && (
+                      <circle
+                        data-beast-selection-halo
+                        r={16}
+                        fill="none"
+                        stroke="#0f766e"
+                        strokeWidth={1.6}
+                        opacity={0.9}
+                      />
+                    )}
                     <polygon points="0,-12 10,-2 6,12 -6,12 -10,-2" fill="#14532d" stroke="#052e16" />
                     <text x={0} y={20} textAnchor="middle" fontSize={8} fill="#14532d">Beast</text>
                   </g>
-                ))}
+                  );
+                })}
                 {researchers.map((researcher, index) => (
                   <g
                     key={researcher.denizenId}
@@ -1549,8 +1578,9 @@ function MarinerMap({
           })}
           {MARINER_ISLE_GEOMETRY.map((isle) => {
             const current = mariner.boardIsles.find((entry) => entry.boardIsleId === isle.boardIsleId);
-            const market = current?.market.present === true;
-            const hasRarity = current?.market.present === true && current.market.rarity !== null;
+            const marketState = current?.market ?? { present: false as const };
+            const market = marketState.present;
+            const hasRarity = marinerMarketHasRarityCue(marketState);
             const ravage = current?.ravageStormCount ?? 0;
             const beasts = beastsOnIsle(mariner.beasts, isle.boardIsleId);
             return (
@@ -1561,7 +1591,7 @@ function MarinerMap({
                     data-isle-id={isle.boardIsleId}
                     data-draggable-market="true"
                     data-rarity={hasRarity ? "true" : "false"}
-                    aria-label={hasRarity ? "Market with a Rarity" : "Market"}
+                    aria-label={marinerMarketTokenAriaLabel(marketState)}
                     transform={`translate(${isle.slots.market.x} ${isle.slots.market.y})`}
                     style={{ cursor: "grab" }}
                     onPointerDown={(event) => board.beginBoardMarketPointer(isle.boardIsleId, event)}
@@ -1584,7 +1614,7 @@ function MarinerMap({
                       />
                     )}
                     <text x={0} y={16} textAnchor="middle" fontSize={8} fill="#78350f">
-                      {hasRarity ? "Rare Market" : "Market"}
+                      {marinerMarketTokenLabel(marketState)}
                     </text>
                   </g>
                 )}
@@ -1603,23 +1633,40 @@ function MarinerMap({
                     <text textAnchor="middle" fontSize={9} fill="#9a3412">Ravaged {ravage}</text>
                   </g>
                 )}
-                {beasts.map((beast, index) => (
+                {beasts.map((beast, index) => {
+                  const selectedBeast = selection?.kind === "beast" && selection.denizenId === beast.denizenId;
+                  const draggable = beast.condition === "friendly_nesting";
+                  return (
                   <g
                     key={beast.denizenId}
                     data-piece="beast"
                     data-beast-id={beast.denizenId}
+                    data-beast-selected={selectedBeast ? "true" : undefined}
+                    data-draggable-beast={draggable ? "true" : undefined}
                     aria-label={`Beast ${denizenName(world.denizens, beast.denizenId)}`}
                     transform={`translate(${isle.slots.beast.x + index * 16} ${isle.slots.beast.y})`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onSelect({ kind: "isle", boardIsleId: isle.boardIsleId });
+                    style={{
+                      cursor: draggable ? "grab" : "pointer",
+                      opacity: board.beastDragDenizenId === beast.denizenId ? 0.35 : 1,
                     }}
+                    onPointerDown={(event) => board.beginBeastPointer(beast, event)}
                     onContextMenu={(event) => board.openBeastContextMenu(beast, event)}
                   >
+                    {selectedBeast && (
+                      <circle
+                        data-beast-selection-halo
+                        r={16}
+                        fill="none"
+                        stroke="#0f766e"
+                        strokeWidth={1.6}
+                        opacity={0.9}
+                      />
+                    )}
                     <polygon points="0,-12 10,-2 6,12 -6,12 -10,-2" fill="#14532d" stroke="#052e16" />
                     <text x={0} y={20} textAnchor="middle" fontSize={8} fill="#14532d">Beast</text>
                   </g>
-                ))}
+                  );
+                })}
               </g>
             );
           })}
@@ -1680,7 +1727,10 @@ function Inspector({
   onSubmitRavage: (boardIsleId: MarinerBoardIsleId, ravageStormCount: number) => void;
 }) {
   if (selection === null) {
-    return <div className="text-sm text-slate-500">Select an Isle, Route, or Sea / Horizon on the map.</div>;
+    return <div className="text-sm text-slate-500">Select an Isle, Route, Sea / Horizon, or Beast on the map.</div>;
+  }
+  if (selection.kind === "beast") {
+    return <BeastInspector denizenId={selection.denizenId} mariner={mariner} world={world} />;
   }
   if (selection.kind === "route") {
     return (
@@ -1726,6 +1776,32 @@ function Inspector({
       onSubmitRavage={onSubmitRavage}
       onRecordRavage={onRecordRavage}
     />
+  );
+}
+
+function BeastInspector({
+  denizenId,
+  mariner,
+  world,
+}: {
+  denizenId: string;
+  mariner: MarinerState;
+  world: WorldReference;
+}) {
+  const beast = mariner.beasts.find((candidate) => candidate.denizenId === denizenId);
+  if (beast === undefined) {
+    return <div className="text-sm text-slate-500">Beast no longer present</div>;
+  }
+  const definition = builtinBeastName(beast.definitionId);
+  return (
+    <section data-beast-inspector className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-2">
+      <h3 className="text-sm font-semibold">Beast inspector</h3>
+      <p className="text-sm">Beast: {denizenName(world.denizens, beast.denizenId)}</p>
+      <p className="text-sm">Element: {beast.element}</p>
+      {definition !== null && <p className="text-sm">Built-in: {definition}</p>}
+      <p className="text-sm">Condition: {conditionLabel(beast.condition)}</p>
+      <p className="text-sm">Location: {beastLocationLabel(beast.location, mariner, world.isles)}</p>
+    </section>
   );
 }
 
@@ -2089,13 +2165,13 @@ function IsleInspector({
 }) {
   const current = mariner.boardIsles.find((isle) => isle.boardIsleId === boardIsleId);
   const [present, setPresent] = useState(current?.market.present === true);
-  const [rarity, setRarity] = useState(current?.market.present === true ? current.market.rarity ?? "" : "");
+  const [rarity, setRarity] = useState(current === undefined ? "" : marinerRarityEditorPrefill(current.market));
   const [ravage, setRavage] = useState(String(current?.ravageStormCount ?? 0));
   const [ravageOpen, setRavageOpen] = useState(false);
   const [ravageOutcome, setRavageOutcome] = useState<"market_absorbed" | "isle_ravaged" | null>(null);
   useEffect(() => {
     setPresent(current?.market.present === true);
-    setRarity(current?.market.present === true ? current.market.rarity ?? "" : "");
+    setRarity(current === undefined ? "" : marinerRarityEditorPrefill(current.market));
     setRavage(String(current?.ravageStormCount ?? 0));
   }, [boardIsleId, current]);
   useEffect(() => {
@@ -2116,12 +2192,10 @@ function IsleInspector({
       <p className="text-sm">World Isle: {worldIsleName(world.isles, current.worldIsleId)}</p>
       <p className="text-sm">Adjacent occupied Routes: {operational.adjacentOccupiedCount}</p>
       <p className="text-sm">
-        Market: {current.market.present
-          ? (current.market.rarity !== null ? "Rare Market" : "Market")
-          : "absent"}
+        Market: {current.market.present ? marinerMarketTokenLabel(current.market) : "absent"}
       </p>
-      {current.market.present && current.market.rarity !== null && (
-        <p className="text-sm text-slate-600 dark:text-slate-300">Market Rarity: {current.market.rarity}</p>
+      {marinerMarketRarityDetailLine(current.market) !== null && (
+        <p className="text-sm text-slate-600 dark:text-slate-300">{marinerMarketRarityDetailLine(current.market)}</p>
       )}
       <p className="text-sm">Ravage Storms: {current.ravageStormCount}</p>
       <p className="text-sm">Friendly / Nesting Beast: {nested.map((beast) => denizenName(world.denizens, beast.denizenId)).join(", ") || "none"}</p>

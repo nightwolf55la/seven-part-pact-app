@@ -20,6 +20,9 @@ import {
   type PactSeatId,
   type PactSeatStatus,
   MARINER_SEA_REGION_DEFINITIONS,
+  createUndescribedRareMarinerMarket,
+  isReservedMarinerRarityDescriptionInput,
+  MARINER_UNDESCRIBED_RARITY_SENTINEL,
 } from "../shared/domain";
 import type { SorcererExternalPresence } from "../shared/domain";
 import MarinerSurface from "../src/MarinerSurface";
@@ -196,6 +199,7 @@ vi.mock("../convex/_generated/api.js", () => ({
       createMarinerShip: "m3Commands.createMarinerShip",
       moveMarinerBeast: "m3Commands.moveMarinerBeast",
       nestMarinerBeast: "m3Commands.nestMarinerBeast",
+      relocateMarinerNestingBeast: "m3Commands.relocateMarinerNestingBeast",
       recordMarinerRavageResult: "m3Commands.recordMarinerRavageResult",
       addLoreEntry: "m3Commands.addLoreEntry",
       reviseLoreEntry: "m3Commands.reviseLoreEntry",
@@ -3033,6 +3037,14 @@ function withNestingBeastOnIsle(mariner: MarinerState, boardIsleId: MarinerBoard
   };
 }
 
+function withFriendlyNestingOnIsle(mariner: MarinerState, boardIsleId: MarinerBoardIsleId): MarinerState {
+  return withBeast(mariner, {
+    ...baselineBeast(mariner),
+    condition: "friendly_nesting",
+    location: { kind: "board_isle", boardIsleId },
+  });
+}
+
 function isleDropState(container: HTMLElement, boardIsleId: string): string | null {
   return isleHit(container, boardIsleId).getAttribute("data-isle-drop");
 }
@@ -3047,7 +3059,7 @@ async function confirmBeastRampage(container: HTMLElement, seatId = "hierophant"
 }
 
 describe("M5.4 Mariner Beast and Market board controls", () => {
-  it("A: clicks a Beast to select its Sea and does not select after a threshold drag", async () => {
+  it("A: clicks a Beast to select the Beast and does not select after a threshold drag", async () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     const piece = beastPiece(container, DEN_A);
     (piece as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
@@ -3055,7 +3067,13 @@ describe("M5.4 Mariner Beast and Market board controls", () => {
       piece.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: 15, clientY: 15, pointerId: 2, isPrimary: true }));
       window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: 15, clientY: 15, pointerId: 2 }));
     });
-    expect(container.querySelector("[data-board-overlay-inspector]")?.textContent).toContain("The Sunken Fleet");
+    const inspector = container.querySelector("[data-board-overlay-inspector]")?.textContent ?? "";
+    expect(inspector).toContain("Kraken-kin");
+    expect(inspector).toMatch(/Distrusting/);
+    expect(inspector).toContain("The Sunken Fleet");
+    expect(inspector).not.toMatch(/Create Beast/);
+    expect(piece.getAttribute("data-beast-selected")).toBe("true");
+    expect(container.querySelector("[data-beast-selection-halo]")).not.toBeNull();
     await act(async () => {
       button(container, "Close").click();
     });
@@ -3216,7 +3234,7 @@ describe("M5.4 Mariner Beast and Market board controls", () => {
     container.remove();
   });
 
-  it("G: nesting Beast context offers only Remove and is not draggable", async () => {
+  it("G: nesting Beast context offers Remove plus Nest relocation alternatives and is draggable", async () => {
     const nested = withBeast(initializedMariner(), {
       ...baselineBeast(initializedMariner()),
       condition: "friendly_nesting",
@@ -3224,10 +3242,12 @@ describe("M5.4 Mariner Beast and Market board controls", () => {
     });
     const { container, root } = renderSurface(nested, WIZARD);
     const piece = beastPiece(container, DEN_A);
-    expect(piece.getAttribute("data-draggable-beast")).not.toBe("true");
+    expect(piece.getAttribute("data-draggable-beast")).toBe("true");
     const menu = openBeastContext(container, DEN_A);
     expect(menu.querySelector('[data-context-action="move-beast"]')).toBeNull();
     expect(menu.querySelector('[data-context-action="nest-beast"]')).toBeNull();
+    expect(menu.querySelector('[data-context-action="relocate-nest-elsewhere"]')).not.toBeNull();
+    expect(menu.querySelector('[data-context-action="leave-nest-to-sea"]')).not.toBeNull();
     expect(menu.querySelector('[data-context-action="remove-beast"]')).not.toBeNull();
     root.unmount();
     container.remove();
@@ -3696,35 +3716,25 @@ describe("M5.4 UX B2 Beast placement and Market physical interaction", () => {
     again.container.remove();
   });
 
-  it("H: Rare Market supply opens a description prompt, requires trimmed text, and keeps pointerdown expected Market", async () => {
+  it("H: Rare Market supply commits undescribed Rare immediately without a description prompt", async () => {
     const start = initializedMariner();
+    const undescribed = createUndescribedRareMarinerMarket();
     const { container, root } = renderSurface(start, WIZARD);
     await dragTrayPiece(container, "rare-market", isleHit(container, "orrery"), 216);
-    expect(mockMutations["m3Commands.setMarinerIsleMarket"]).not.toHaveBeenCalled();
-    const prompt = container.querySelector("[data-rarity-prompt]") as HTMLElement | null;
-    expect(prompt).not.toBeNull();
-    expect(prompt?.textContent).toMatch(/Describe Rarity/);
-    const field = prompt?.querySelector('input[aria-label="Rarity description"]') as HTMLInputElement;
-    expect(button(prompt!, "Confirm").disabled).toBe(true);
-    setInput(field, "   ");
-    expect(button(prompt!, "Confirm").disabled).toBe(true);
-    rerenderSurface(root, withIsleMarket(start, "orrery", { present: true, rarity: "drifted" }));
-    setInput(field, "  moon silk  ");
-    await act(async () => { button(prompt!, "Confirm").click(); });
+    expect(container.querySelector("[data-rarity-prompt]")).toBeNull();
+    expect(container.querySelector("[data-rarity-editor]")).toBeNull();
     expect(mockMutations["m3Commands.setMarinerIsleMarket"].mock.calls[0][0]).toMatchObject({
       boardIsleId: "orrery",
       expectedMarket: { present: false },
-      market: { present: true, rarity: "moon silk" },
+      market: undescribed,
     });
 
     await dragTrayPiece(container, "rare-market", isleHit(container, "ishana"), 217);
-    const transformPrompt = container.querySelector("[data-rarity-prompt]") as HTMLElement;
-    setInput(transformPrompt.querySelector('input[aria-label="Rarity description"]') as HTMLInputElement, "tide glass");
-    await act(async () => { button(transformPrompt, "Confirm").click(); });
+    expect(container.querySelector("[data-rarity-prompt]")).toBeNull();
     expect(mockMutations["m3Commands.setMarinerIsleMarket"].mock.calls[1][0]).toMatchObject({
       boardIsleId: "ishana",
       expectedMarket: { present: true, rarity: null },
-      market: { present: true, rarity: "tide glass" },
+      market: undescribed,
     });
 
     await dragTrayPiece(container, "rare-market", isleHit(container, "scuttleport"), 218);
@@ -3863,6 +3873,361 @@ describe("M5.4 UX B2 Beast placement and Market physical interaction", () => {
     await act(async () => { contextAction(container, "remove-beast").click(); });
     await act(async () => { button(container.querySelector("[data-beast-remove-confirm]") as HTMLElement, "Remove").click(); });
     expect(mockMutations["m3Commands.removeMarinerBeast"]).toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("M5.4 UX B2 Beast selection, Nesting relocation, and Rare Market", () => {
+  it("A: Druntyr Friendly/Nesting Beast accepts pointerdown and retains Isle source plus snapshot", async () => {
+    const start = withFriendlyNestingOnIsle(initializedMariner(), "druntyr");
+    const { container, root } = renderSurface(start, WIZARD);
+    const piece = beastPiece(container, DEN_A);
+    expect(piece.getAttribute("data-draggable-beast")).toBe("true");
+    await hoverBeastDragOver(container, DEN_A, isleHit(container, "orrery"), 301);
+    expect(isleDropState(container, "druntyr")).toBe("source");
+    expect(isleDropState(container, "orrery")).toMatch(/^(available|hover)$/);
+    expect(isleDropState(container, "ishana")).toBe("blocked");
+    rerenderSurface(root, withIsleMarket(start, "orrery", { present: true, rarity: null }));
+    expect(isleDropState(container, "orrery")).toMatch(/^(available|hover)$/);
+    root.unmount();
+    container.remove();
+  });
+
+  it("B: click on Druntyr Beast selects the Beast, shows Beast inspector and halo, and drag suppresses click", async () => {
+    const start = withFriendlyNestingOnIsle(initializedMariner(), "druntyr");
+    const { container, root } = renderSurface(start, WIZARD);
+    const piece = beastPiece(container, DEN_A);
+    (piece as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+    await act(async () => {
+      piece.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: 15, clientY: 15, pointerId: 302, isPrimary: true }));
+      window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: 15, clientY: 15, pointerId: 302 }));
+    });
+    const inspector = container.querySelector("[data-board-overlay-inspector]");
+    expect(inspector?.textContent).toContain("Kraken-kin");
+    expect(inspector?.textContent).toMatch(/Friendly \/ Nesting/);
+    expect(inspector?.textContent).toMatch(/water/i);
+    expect(inspector?.textContent).toContain("Kraken");
+    expect(inspector?.textContent).toMatch(/Druntyr|World druntyr/i);
+    expect(inspector?.textContent).not.toMatch(/Isle inspector/);
+    expect(piece.getAttribute("data-beast-selected")).toBe("true");
+    expect(container.querySelector("[data-beast-selection-halo]")).not.toBeNull();
+    await act(async () => { button(container, "Close").click(); });
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => isleHit(container, "orrery"),
+    });
+    await act(async () => {
+      piece.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: 15, clientY: 15, pointerId: 303, isPrimary: true }));
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 30, clientY: 15, pointerId: 303 }));
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 210, clientY: 210, pointerId: 303 }));
+      window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: 210, clientY: 210, pointerId: 303 }));
+      piece.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 210, clientY: 210 }));
+    });
+    expect(container.querySelector("[data-board-overlay-inspector]")).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("C: Isle -> Isle Nesting drag uses relocateMarinerNestingBeast with pointerdown expected state", async () => {
+    const start = withFriendlyNestingOnIsle(initializedMariner(), "sage_atoll");
+    const nestExpected = expectedForNestBeast(captureOperabilityBoard(start), DEN_A, "orrery");
+    const { container, root } = renderSurface(start, WIZARD);
+    await dragBeastPiece(container, DEN_A, isleHit(container, "orrery"), 304);
+    expect(mockMutations["m3Commands.relocateMarinerNestingBeast"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.updateMarinerBeast"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.nestMarinerBeast"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.moveMarinerBeast"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.relocateMarinerNestingBeast"].mock.calls[0][0]).toMatchObject({
+      denizenId: DEN_A,
+      expectedBeast: {
+        denizenId: DEN_A,
+        condition: "friendly_nesting",
+        location: { kind: "board_isle", boardIsleId: "sage_atoll" },
+      },
+      destination: {
+        kind: "board_isle",
+        boardIsleId: "orrery",
+        expectedMarket: nestExpected.expectedMarket,
+        expectedRavageStormCount: nestExpected.expectedRavageStormCount,
+        expectedNestingBeastDenizenId: nestExpected.expectedNestingBeastDenizenId,
+      },
+    });
+    await dragBeastPiece(container, DEN_A, isleHit(container, "sage_atoll"), 305);
+    await dragBeastPiece(container, DEN_A, isleHit(container, "scuttleport"), 306);
+    await dragBeastPiece(container, DEN_A, document.body, 307);
+    expect(mockMutations["m3Commands.relocateMarinerNestingBeast"]).toHaveBeenCalledTimes(1);
+    root.unmount();
+    container.remove();
+  });
+
+  it("D: Isle -> Sea Nesting drag uses relocateMarinerNestingBeast and keeps the Isle expected Beast", async () => {
+    const start = withFriendlyNestingOnIsle(initializedMariner(), "sage_atoll");
+    const { container, root } = renderSurface(start, WIZARD);
+    await dragBeastPiece(container, DEN_A, seaHit(container, "wizard_strait"), 308);
+    expect(mockMutations["m3Commands.relocateMarinerNestingBeast"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.moveMarinerBeast"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.updateMarinerBeast"]).not.toHaveBeenCalled();
+    const payload = mockMutations["m3Commands.relocateMarinerNestingBeast"].mock.calls[0][0];
+    expect(payload).toMatchObject({
+      denizenId: DEN_A,
+      expectedBeast: {
+        denizenId: DEN_A,
+        condition: "friendly_nesting",
+        location: { kind: "board_isle", boardIsleId: "sage_atoll" },
+      },
+      destination: {
+        kind: "sea_region",
+        regionId: "wizard_strait",
+        rampageResolution: null,
+      },
+    });
+    expect(payload.destination.expectedStormCounts).toEqual(
+      expectedForMoveBeast(captureOperabilityBoard(start), DEN_A, "wizard_strait", "wizard_strait").expectedStormCounts,
+    );
+    root.unmount();
+    container.remove();
+  });
+
+  it("E: Isle -> Sea predicted Rampage opens the existing chooser and submits relocate with the original snapshot", async () => {
+    const start = surroundRegion(withFriendlyNestingOnIsle(initializedMariner(), "sage_atoll"), "koiran_reef");
+    const expectedStorms = expectedForMoveBeast(
+      captureOperabilityBoard(start),
+      DEN_A,
+      "koiran_reef",
+      "koiran_reef",
+    ).expectedStormCounts;
+    const drifted: MarinerState = {
+      ...start,
+      seaRegions: start.seaRegions.map((region) =>
+        region.regionId === "wizard_strait" ? { ...region, stormCount: 1 } : region
+      ),
+    };
+    const { container, root } = renderSurface(start, WIZARD);
+    await dragBeastPiece(container, DEN_A, seaHit(container, "koiran_reef"), 309);
+    expect(mockMutations["m3Commands.relocateMarinerNestingBeast"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.moveMarinerBeast"]).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-beast-rampage-chooser]")).not.toBeNull();
+    rerenderSurface(root, drifted);
+    await confirmBeastRampage(container);
+    expect(mockMutations["m3Commands.relocateMarinerNestingBeast"].mock.calls[0][0]).toMatchObject({
+      denizenId: DEN_A,
+      expectedBeast: {
+        denizenId: DEN_A,
+        condition: "friendly_nesting",
+        location: { kind: "board_isle", boardIsleId: "sage_atoll" },
+      },
+      destination: {
+        kind: "sea_region",
+        regionId: "koiran_reef",
+        expectedStormCounts: expectedStorms,
+        rampageResolution: {
+          denizenId: DEN_A,
+          destinationSeatId: "hierophant",
+        },
+      },
+    });
+    expect(mockMutations["m3Commands.moveMarinerBeast"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("F: Friendly/Nesting drag highlights all Seas and structurally valid Isles without recommended-adjacent SOURCE guidance", async () => {
+    const start = withFriendlyNestingOnIsle(
+      withNestingBeastOnIsle(initializedMariner(), "far_reach"),
+      "sage_atoll",
+    );
+    const { container, root } = renderSurface(start, WIZARD);
+    await hoverBeastDragOver(container, DEN_A, isleHit(container, "orrery"), 310);
+    expect(isleDropState(container, "sage_atoll")).toBe("source");
+    expect(isleDropFamily(container, "orrery")).toBe("nest");
+    expect(isleDropState(container, "orrery")).toMatch(/^(available|hover)$/);
+    expect(isleDropState(container, "orrery")).not.toBe("recommended");
+    expect(isleDropState(container, "scuttleport")).toBe("blocked");
+    expect(isleDropState(container, "ishana")).toBe("blocked");
+    expect(isleDropState(container, "druntyr")).toBe("blocked");
+    expect(isleDropState(container, "far_reach")).toBe("blocked");
+    expect(seaDropState(container, "wizard_strait")).toMatch(/^(available|hover)$/);
+    expect(seaDropState(container, "sidereal_sea")).toBe("available");
+    expect(seaDropState(container, "sunken_fleet")).toBe("available");
+    expect(seaDropState(container, "wizard_strait")).not.toBe("recommended");
+    root.unmount();
+    container.remove();
+  });
+
+  it("G: Friendly/Nesting right-click keeps Remove and opens Move Nest / Leave Nest choosers with blocked reasons", async () => {
+    const start = withFriendlyNestingOnIsle(
+      withNestingBeastOnIsle(initializedMariner(), "far_reach"),
+      "sage_atoll",
+    );
+    const { container, root } = renderSurface(start, WIZARD);
+    const menu = openBeastContext(container, DEN_A);
+    expect(menu.textContent).toContain("Remove Beast");
+    expect(menu.textContent).toMatch(/Move Nest elsewhere/);
+    expect(menu.textContent).toMatch(/Leave Nest to Sea/);
+    expect(menu.querySelector('[data-context-action="move-beast"]')).toBeNull();
+    await act(async () => { contextAction(container, "relocate-nest-elsewhere").click(); });
+    const nestChooser = container.querySelector("[data-beast-relocate-nest-chooser]") as HTMLElement | null;
+    expect(nestChooser).not.toBeNull();
+    const orrery = nestChooser?.querySelector('[data-elsewhere-isle-id="orrery"]') as HTMLButtonElement | null;
+    const scuttleport = nestChooser?.querySelector('[data-elsewhere-isle-id="scuttleport"]') as HTMLButtonElement | null;
+    const ishana = nestChooser?.querySelector('[data-elsewhere-isle-id="ishana"]') as HTMLButtonElement | null;
+    const druntyr = nestChooser?.querySelector('[data-elsewhere-isle-id="druntyr"]') as HTMLButtonElement | null;
+    const farReach = nestChooser?.querySelector('[data-elsewhere-isle-id="far_reach"]') as HTMLButtonElement | null;
+    const sourceIsle = nestChooser?.querySelector('[data-elsewhere-isle-id="sage_atoll"]') as HTMLButtonElement | null;
+    expect(sourceIsle).toBeNull();
+    expect(orrery?.disabled).toBe(false);
+    expect(scuttleport?.disabled).toBe(true);
+    expect(ishana?.disabled).toBe(true);
+    expect(druntyr?.disabled).toBe(true);
+    expect(farReach?.disabled).toBe(true);
+    expect(scuttleport?.getAttribute("data-disabled-reason")).toBe("Market present");
+    expect(ishana?.getAttribute("data-disabled-reason")).toBe("Market present");
+    expect(druntyr?.getAttribute("data-disabled-reason")).toBe("Ravaged");
+    expect(farReach?.getAttribute("data-disabled-reason")).toBe("Beast already Nesting here");
+    expect(scuttleport?.textContent).toMatch(/Market present/);
+    expect(druntyr?.textContent).toMatch(/Ravaged/);
+    expect(farReach?.textContent).toMatch(/Beast already Nesting here/);
+    await act(async () => { button(nestChooser!, "Cancel").click(); });
+
+    openBeastContext(container, DEN_A);
+    await act(async () => { contextAction(container, "leave-nest-to-sea").click(); });
+    const seaChooser = container.querySelector("[data-beast-leave-nest-chooser]") as HTMLElement | null;
+    expect(seaChooser).not.toBeNull();
+    expect(seaChooser?.querySelector('[data-elsewhere-region-id="wizard_strait"]')).not.toBeNull();
+    expect(seaChooser?.querySelector('[data-elsewhere-region-id="sidereal_sea"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("H: Rare Market drop commits sentinel immediately, transforms ordinary, and no-ops same Rare", async () => {
+    const start = initializedMariner();
+    const undescribed = createUndescribedRareMarinerMarket();
+    const { container, root } = renderSurface(start, WIZARD);
+    await dragTrayPiece(container, "rare-market", isleHit(container, "orrery"), 311);
+    expect(container.querySelector("[data-rarity-prompt]")).toBeNull();
+    expect(container.querySelector("[data-rarity-editor]")).toBeNull();
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"].mock.calls[0][0]).toMatchObject({
+      boardIsleId: "orrery",
+      expectedMarket: { present: false },
+      market: undescribed,
+    });
+    await dragTrayPiece(container, "rare-market", isleHit(container, "ishana"), 312);
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"].mock.calls[1][0]).toMatchObject({
+      boardIsleId: "ishana",
+      expectedMarket: { present: true, rarity: null },
+      market: undescribed,
+    });
+    await dragTrayPiece(container, "rare-market", isleHit(container, "scuttleport"), 313);
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"]).toHaveBeenCalledTimes(2);
+    const nested = withNestingBeastOnIsle(initializedMariner(), "sage_atoll");
+    rerenderSurface(root, nested);
+    await dragTrayPiece(container, "rare-market", isleHit(container, "sage_atoll"), 314);
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"]).toHaveBeenCalledTimes(2);
+    root.unmount();
+    container.remove();
+  });
+
+  it("I: sentinel Rare Market never renders the reserved prose and still shows the rare cue", () => {
+    const start = withIsleMarket(initializedMariner(), "orrery", createUndescribedRareMarinerMarket());
+    const { container, root } = renderSurface(start, WIZARD);
+    const piece = marketPiece(container, "orrery");
+    expect(piece.getAttribute("data-rarity")).toBe("true");
+    expect(piece.querySelector('[data-rarity-cue="true"]')).not.toBeNull();
+    expect(piece.textContent).toContain("Rare Market");
+    expect(container.textContent).not.toContain(MARINER_UNDESCRIBED_RARITY_SENTINEL);
+    expect(isleHit(container, "orrery").getAttribute("aria-label")).not.toContain(MARINER_UNDESCRIBED_RARITY_SENTINEL);
+    expect(isleHit(container, "orrery").getAttribute("aria-label")).toMatch(/Rare Market/);
+    flushSync(() => {
+      isleHit(container, "orrery").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    const inspector = container.querySelector("[data-board-overlay-inspector]")?.textContent ?? "";
+    expect(inspector).toMatch(/Rarity:\s*not described yet/);
+    expect(inspector).not.toContain(MARINER_UNDESCRIBED_RARITY_SENTINEL);
+    const rarityField = container.querySelector('input[aria-label="Isle Rarity"]') as HTMLInputElement | null;
+    expect(rarityField?.value ?? "").not.toContain(MARINER_UNDESCRIBED_RARITY_SENTINEL);
+    expect(rarityField?.value ?? "").toBe("");
+    root.unmount();
+    container.remove();
+  });
+
+  it("J: context Rarity actions distinguish Add, Describe, and Edit", async () => {
+    const start = initializedMariner();
+    const { container, root } = renderSurface(start, WIZARD);
+    openIsleContext(container, "ishana");
+    expect(container.querySelector('[data-context-action="add-rarity"]')?.textContent).toMatch(/Add Rarity/);
+    expect(container.querySelector('[data-context-action="edit-rarity"]')).toBeNull();
+    expect(container.querySelector('[data-context-action="describe-rarity"]')).toBeNull();
+
+    openIsleContext(container, "scuttleport");
+    expect(container.querySelector('[data-context-action="edit-rarity"]')?.textContent).toMatch(/Edit Rarity/);
+    expect(container.querySelector('[data-context-action="describe-rarity"]')).toBeNull();
+    await act(async () => { contextAction(container, "edit-rarity").click(); });
+    const edit = container.querySelector("[data-rarity-editor]") as HTMLElement;
+    expect((edit.querySelector('input[aria-label="Rarity description"]') as HTMLInputElement).value).toBe("amber glass");
+    await act(async () => { button(edit, "Cancel").click(); });
+
+    rerenderSurface(root, withIsleMarket(start, "orrery", createUndescribedRareMarinerMarket()));
+    openIsleContext(container, "orrery");
+    expect(container.querySelector('[data-context-action="describe-rarity"]')?.textContent).toMatch(/Describe Rarity/);
+    expect(container.querySelector('[data-context-action="edit-rarity"]')).toBeNull();
+    expect(container.querySelector('[data-context-action="remove-rarity"]')).not.toBeNull();
+    expect(container.querySelector('[data-context-action="remove-market"]')).not.toBeNull();
+    await act(async () => { contextAction(container, "describe-rarity").click(); });
+    const describe = container.querySelector("[data-rarity-editor]") as HTMLElement;
+    expect((describe.querySelector('input[aria-label="Rarity description"]') as HTMLInputElement).value).toBe("");
+    expect(describe.textContent).not.toContain(MARINER_UNDESCRIBED_RARITY_SENTINEL);
+    root.unmount();
+    container.remove();
+  });
+
+  it("K: Rarity editor rejects reserved sentinel prose and accepts actual description", async () => {
+    const start = withIsleMarket(initializedMariner(), "orrery", createUndescribedRareMarinerMarket());
+    const { container, root } = renderSurface(start, WIZARD);
+    openIsleContext(container, "orrery");
+    await act(async () => { contextAction(container, "describe-rarity").click(); });
+    const editor = container.querySelector("[data-rarity-editor]") as HTMLElement;
+    const field = editor.querySelector('input[aria-label="Rarity description"]') as HTMLInputElement;
+    expect(isReservedMarinerRarityDescriptionInput(`  ${MARINER_UNDESCRIBED_RARITY_SENTINEL}  `)).toBe(true);
+    setInput(field, `  ${MARINER_UNDESCRIBED_RARITY_SENTINEL}  `);
+    await act(async () => { button(editor, "Save Rarity").click(); });
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"]).not.toHaveBeenCalled();
+    expect(editor.textContent).toMatch(/reserved|cannot be used/i);
+    setInput(field, "moon silk");
+    await act(async () => { button(editor, "Save Rarity").click(); });
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"].mock.calls[0][0]).toMatchObject({
+      boardIsleId: "orrery",
+      expectedMarket: createUndescribedRareMarinerMarket(),
+      market: { present: true, rarity: "moon silk" },
+    });
+    root.unmount();
+    container.remove();
+  });
+
+  it("L: Distrusting Beast, Market drag, and tray Storm still use their existing commands", async () => {
+    const start = initializedMariner();
+    const { container, root } = renderSurface(start, WIZARD);
+    await hoverBeastDragOver(container, DEN_A, seaHit(container, "wizard_strait"), 315);
+    expect(seaDropState(container, "wizard_strait")).toMatch(/^(recommended|hover)$/);
+    expect(seaDropState(container, "sidereal_sea")).toBe("available");
+    await dragBeastPiece(container, DEN_A, seaHit(container, "wizard_strait"), 316);
+    expect(mockMutations["m3Commands.moveMarinerBeast"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.relocateMarinerNestingBeast"]).not.toHaveBeenCalled();
+    await dragBeastPiece(container, DEN_A, isleHit(container, "orrery"), 317);
+    expect(mockMutations["m3Commands.nestMarinerBeast"]).toHaveBeenCalledTimes(1);
+    await dragMarketPiece(container, "ishana", isleHit(container, "orrery"), 318);
+    expect(mockMutations["m3Commands.moveMarinerMarket"]).toHaveBeenCalledTimes(1);
+    const sentinelStart = withIsleMarket(start, "orrery", createUndescribedRareMarinerMarket());
+    rerenderSurface(root, sentinelStart);
+    await dragMarketPiece(container, "orrery", isleHit(container, "far_reach"), 319);
+    expect(mockMutations["m3Commands.moveMarinerMarket"].mock.calls[1][0]).toMatchObject({
+      sourceBoardIsleId: "orrery",
+      destinationBoardIsleId: "far_reach",
+      expectedSourceMarket: createUndescribedRareMarinerMarket(),
+    });
+    expect(container.querySelector("[data-rarity-prompt]")).toBeNull();
+    await dragTrayPiece(container, "storm", seaHit(container, "wizard_strait"), 320);
+    expect(mockMutations["m3Commands.setMarinerSeaStormCount"]).toHaveBeenCalled();
     root.unmount();
     container.remove();
   });
