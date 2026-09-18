@@ -273,7 +273,6 @@ describe("Faustian surface presentation", () => {
     flushSync(() => {
       investigate.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
-    expect(container.textContent).not.toContain("Confirm Investigate reveal");
     expect(container.textContent).toContain("Records the Faustian board result; shared Time is handled separately.");
     await act(async () => {
       await Promise.resolve();

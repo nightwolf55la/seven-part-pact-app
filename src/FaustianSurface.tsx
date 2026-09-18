@@ -298,25 +298,50 @@ export default function FaustianSurface({
       )}
       <FaustianOccurrenceChooser play={play} />
 
-      <FaustianActions
-        faustian={faustian}
-        campaignId={campaignId}
-        lifecycleKind={lifecycleKind}
-        ageId={ageId}
-        faustianWizard={faustianWizard}
-        denizens={world?.denizens ?? []}
-        selectedCommunityId={selection?.kind === "community" ? selection.communityId : null}
-        presentation={presentation}
-      />
+      {lifecycleKind === "setup" ? (
+        <FaustianActions
+          faustian={faustian}
+          campaignId={campaignId}
+          lifecycleKind={lifecycleKind}
+          ageId={ageId}
+          faustianWizard={faustianWizard}
+          denizens={world?.denizens ?? []}
+          selectedCommunityId={selection?.kind === "community" ? selection.communityId : null}
+          presentation={presentation}
+        />
+      ) : (
+        <details className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+          <summary className="text-sm font-semibold cursor-pointer">Less-common board actions</summary>
+          <div className="mt-3">
+            <FaustianActions
+              faustian={faustian}
+              campaignId={campaignId}
+              lifecycleKind={lifecycleKind}
+              ageId={ageId}
+              faustianWizard={faustianWizard}
+              denizens={world?.denizens ?? []}
+              selectedCommunityId={selection?.kind === "community" ? selection.communityId : null}
+              presentation={presentation}
+            />
+          </div>
+        </details>
+      )}
 
-      <FaustianLifecycleActions
-        faustian={faustian}
-        campaignId={campaignId}
-        lifecycleKind={lifecycleKind}
-        wizards={wizards}
-        selectedCommunityId={selection?.kind === "community" ? selection.communityId : null}
-        presentation={presentation}
-      />
+      {lifecycleKind === "play" && (
+        <details className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
+          <summary className="text-sm font-semibold cursor-pointer">Twist and Machination lifecycle</summary>
+          <div className="mt-3">
+            <FaustianLifecycleActions
+              faustian={faustian}
+              campaignId={campaignId}
+              lifecycleKind={lifecycleKind}
+              wizards={wizards}
+              selectedCommunityId={selection?.kind === "community" ? selection.communityId : null}
+              presentation={presentation}
+            />
+          </div>
+        </details>
+      )}
 
       <FaustianAdvancedActions
         faustian={faustian}
