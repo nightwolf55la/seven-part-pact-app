@@ -274,9 +274,9 @@ export default function MarinerSurface({
   const createMarinerShip = useMutation(api.m3Commands.createMarinerShip);
   const moveMarinerBeast = useMutation(api.m3Commands.moveMarinerBeast);
   const nestMarinerBeast = useMutation(api.m3Commands.nestMarinerBeast);
-  const relocateMarinerNestingBeast = useMutation(
-    "m3Commands.relocateMarinerNestingBeast" as never,
-  ) as unknown as (payload: ReturnType<typeof buildRelocateMarinerNestingBeastPayload>) => Promise<unknown>;
+  const relocateMarinerNestingBeast = useMutation(api.m3Commands.relocateMarinerNestingBeast) as unknown as (
+    payload: ReturnType<typeof buildRelocateMarinerNestingBeastPayload>,
+  ) => Promise<unknown>;
   const moveMarinerMarket = useMutation(api.m3Commands.moveMarinerMarket);
   const recordMarinerRavageResult = useMutation(api.m3Commands.recordMarinerRavageResult);
 

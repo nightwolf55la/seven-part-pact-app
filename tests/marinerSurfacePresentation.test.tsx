@@ -5,6 +5,8 @@ import { resolve } from "node:path";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
+import { useMutation } from "convex/react";
+import { api } from "../convex/_generated/api.js";
 import {
   EMPTY_MARINER_STATE,
   MARINER_BOARD_ISLE_IDS,
@@ -173,10 +175,16 @@ const WIZARD = {
 const mockMutations: Record<string, ReturnType<typeof vi.fn>> = {};
 
 vi.mock("convex/react", () => ({
-  useMutation: (ref: string) => {
-    if (!mockMutations[ref]) mockMutations[ref] = vi.fn(async () => {});
-    return mockMutations[ref];
-  },
+  useMutation: vi.fn((ref: unknown) => {
+    const key = typeof ref === "string"
+      ? ref
+      : (ref !== null && typeof ref === "object" && "path" in ref && typeof (ref as { path: unknown }).path === "string"
+        ? (ref as { path: string }).path
+        : null);
+    if (key === null) throw new Error(`Unsupported mutation reference: ${JSON.stringify(ref)}`);
+    if (!mockMutations[key]) mockMutations[key] = vi.fn(async () => {});
+    return mockMutations[key];
+  }),
 }));
 
 vi.mock("../convex/_generated/api.js", () => ({
@@ -200,7 +208,7 @@ vi.mock("../convex/_generated/api.js", () => ({
       createMarinerShip: "m3Commands.createMarinerShip",
       moveMarinerBeast: "m3Commands.moveMarinerBeast",
       nestMarinerBeast: "m3Commands.nestMarinerBeast",
-      relocateMarinerNestingBeast: "m3Commands.relocateMarinerNestingBeast",
+      relocateMarinerNestingBeast: { path: "m3Commands.relocateMarinerNestingBeast" },
       recordMarinerRavageResult: "m3Commands.recordMarinerRavageResult",
       addLoreEntry: "m3Commands.addLoreEntry",
       reviseLoreEntry: "m3Commands.reviseLoreEntry",
@@ -534,6 +542,7 @@ function baselineBeast(mariner: MarinerState): MarinerBeastState {
 
 beforeEach(() => {
   for (const key of Object.keys(mockMutations)) delete mockMutations[key];
+  vi.mocked(useMutation).mockClear();
 });
 
 describe("Mariner surface setup", () => {
@@ -4553,6 +4562,124 @@ describe("M5.4 UX B2 drag lifecycle and Market-Nest conflict", () => {
     expect(rarity?.disabled).toBe(false);
     expect(rarity?.className).toMatch(/select-text/);
     expect(rarity?.className).not.toMatch(/select-none/);
+    root.unmount();
+    container.remove();
+  });
+});
+
+function stormPiece(container: HTMLElement, regionId: string): Element {
+  const piece = container.querySelector(`[data-piece="storm"][data-region-id="${regionId}"]`) as Element | null;
+  if (piece === null) throw new Error(`Missing Storm piece ${regionId}`);
+  return piece;
+}
+
+describe("M5.4 UX B2 post-drop interaction unlock", () => {
+  it("starts a Storm drag after a settled Market move without manufacturing a rerender", async () => {
+    const start = initializedMariner();
+    const { container, root } = renderSurface(start, WIZARD);
+    const deferred = deferMutation("m3Commands.moveMarinerMarket");
+    await beginPieceDrag(marketPiece(container, "ishana"), isleHit(container, "orrery"), 501);
+    expect(container.querySelector("[data-drag-ghost]")).not.toBeNull();
+    releasePointer(501);
+    expect(container.querySelector("[data-drag-ghost]")).toBeNull();
+    expect(mockMutations["m3Commands.moveMarinerMarket"]).toHaveBeenCalledTimes(1);
+    await act(async () => { deferred.resolve(); });
+    await flushScheduledClickSuppressionReset();
+    expect(mockMutations["m3Commands.moveMarinerMarket"]).toHaveBeenCalledTimes(1);
+
+    const beast = beastPiece(container, DEN_A);
+    await act(async () => {
+      beast.dispatchEvent(new PointerEvent("pointerdown", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 16,
+        clientY: 16,
+        pointerId: 502,
+        isPrimary: true,
+        button: 0,
+      }));
+      window.dispatchEvent(new PointerEvent("pointerup", {
+        bubbles: true,
+        clientX: 16,
+        clientY: 16,
+        pointerId: 502,
+      }));
+    });
+    expect(container.querySelector("[data-beast-inspector]")).not.toBeNull();
+    expect(beast.getAttribute("data-beast-selected")).toBe("true");
+
+    await beginPieceDrag(stormPiece(container, "sidereal_sea"), seaHit(container, "wizard_strait"), 503);
+    expect(container.querySelector("[data-drag-ghost]")).not.toBeNull();
+    expect(seaDropState(container, "sidereal_sea")).toBe("source");
+    root.unmount();
+    container.remove();
+  });
+
+  it("wires relocateMarinerNestingBeast through the generated FunctionReference, not a string", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const refs = vi.mocked(useMutation).mock.calls.map((call) => call[0]);
+    expect(refs).toContainEqual(api.m3Commands.relocateMarinerNestingBeast);
+    expect(refs).not.toContain("m3Commands.relocateMarinerNestingBeast");
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps Beast click and Storm drag working after a Nesting Beast relocation settles", async () => {
+    const start = withFriendlyNestingOnIsle(initializedMariner(), "sage_atoll");
+    const { container, root } = renderSurface(start, WIZARD);
+    const deferred = deferMutation("m3Commands.relocateMarinerNestingBeast");
+    await beginPieceDrag(beastPiece(container, DEN_A), isleHit(container, "orrery"), 504);
+    expect(container.querySelector("[data-drag-ghost]")).not.toBeNull();
+    releasePointer(504);
+    expect(container.querySelector("[data-drag-ghost]")).toBeNull();
+    expect(mockMutations["m3Commands.relocateMarinerNestingBeast"]).toHaveBeenCalledTimes(1);
+    await act(async () => { deferred.resolve(); });
+    await flushScheduledClickSuppressionReset();
+
+    const beast = beastPiece(container, DEN_A);
+    await act(async () => {
+      beast.dispatchEvent(new PointerEvent("pointerdown", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 16,
+        clientY: 16,
+        pointerId: 505,
+        isPrimary: true,
+        button: 0,
+      }));
+      window.dispatchEvent(new PointerEvent("pointerup", {
+        bubbles: true,
+        clientX: 16,
+        clientY: 16,
+        pointerId: 505,
+      }));
+    });
+    expect(container.querySelector("[data-beast-inspector]")).not.toBeNull();
+    expect(beast.getAttribute("data-beast-selected")).toBe("true");
+
+    await beginPieceDrag(stormPiece(container, "sidereal_sea"), seaHit(container, "wizard_strait"), 506);
+    expect(container.querySelector("[data-drag-ghost]")).not.toBeNull();
+    expect(seaDropState(container, "sidereal_sea")).toBe("source");
+    expect(mockMutations["m3Commands.relocateMarinerNestingBeast"]).toHaveBeenCalledTimes(1);
+    root.unmount();
+    container.remove();
+  });
+
+  it("starts a later Storm drag after a rejected Nesting Beast relocation", async () => {
+    const start = withFriendlyNestingOnIsle(initializedMariner(), "sage_atoll");
+    const { container, root } = renderSurface(start, WIZARD);
+    let reject!: (reason: Error) => void;
+    const promise = new Promise<void>((_, fail) => {
+      reject = (reason) => fail(reason);
+    });
+    mockMutations["m3Commands.relocateMarinerNestingBeast"].mockImplementation(() => promise);
+    await beginPieceDrag(beastPiece(container, DEN_A), isleHit(container, "orrery"), 507);
+    releasePointer(507);
+    expect(mockMutations["m3Commands.relocateMarinerNestingBeast"]).toHaveBeenCalledTimes(1);
+    await act(async () => { reject(new Error("relocation rejected")); });
+    await flushScheduledClickSuppressionReset();
+    await beginPieceDrag(stormPiece(container, "sidereal_sea"), seaHit(container, "wizard_strait"), 508);
+    expect(container.querySelector("[data-drag-ghost]")).not.toBeNull();
     root.unmount();
     container.remove();
   });
