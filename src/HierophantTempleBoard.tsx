@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 import {
   powerfulStatusLabel,
   type DenizenId,
@@ -14,6 +14,7 @@ import {
   type HierophantVisionsSupplicantPreview,
   type HierophantVisionsTemplePreview,
   type SorcererExternalPresence,
+  type HierophantBuiltinClassId,
 } from "../shared/domain";
 import type { NamedDenizen, NamedPlace } from "./hierophant-view-model";
 import {
@@ -34,6 +35,11 @@ import {
   shortTempleBoardLabel,
 } from "./hierophant-view-model";
 import { formatVisionsPreviewChoiceSummary } from "./hierophant-visions-preview";
+import {
+  HIEROPHANT_SUPPLY_CLASS_IDS,
+  resolveHierophantSupplyDestination,
+  type HierophantSupplyZone,
+} from "./hierophant-supply";
 
 export interface HierophantVisionsBoardChoices {
   readonly plan: HierophantVisionsPlan;
@@ -46,6 +52,16 @@ export interface HierophantVisionsBoardChoices {
   readonly onOrderSelect: (denizenId: DenizenId) => void;
   readonly onOrderUndo: () => void;
   readonly onOrderReset: () => void;
+}
+
+export interface HierophantSupplyBoardInteraction {
+  readonly activeClassId: string | null;
+  readonly hoverKey: string | null;
+  readonly blockNotice: { readonly templeId: string; readonly reason: string } | null;
+  readonly onBegin: (classId: HierophantBuiltinClassId) => void;
+  readonly onHover: (key: string | null) => void;
+  readonly onDeliver: (temple: HierophantTemple, zone: HierophantSupplyZone) => void;
+  readonly onCancel: () => void;
 }
 
 function activate(event: KeyboardEvent<Element>, action: () => void): void {
@@ -85,6 +101,73 @@ function ChoiceButton({
     >
       {label}
     </button>
+  );
+}
+
+function supplyHighlightClass(highlight: "recommended" | "alternative" | "reject" | null): string {
+  if (highlight === "recommended") return "ring-2 ring-amber-600 bg-amber-100/80 dark:ring-amber-300 dark:bg-amber-900/50";
+  if (highlight === "alternative") return "ring-1 ring-amber-400 bg-amber-50/70 dark:ring-amber-500 dark:bg-amber-950/40";
+  if (highlight === "reject") return "ring-2 ring-rose-600 bg-rose-100/80 dark:ring-rose-400 dark:bg-rose-950/50";
+  return "";
+}
+
+function SupplyDropZone({
+  temple,
+  zone,
+  supply,
+  children,
+  className = "",
+}: {
+  readonly temple: HierophantTemple;
+  readonly zone: HierophantSupplyZone;
+  readonly supply: HierophantSupplyBoardInteraction | null;
+  readonly children: ReactNode;
+  readonly className?: string;
+}) {
+  const dest = resolveHierophantSupplyDestination(temple, zone);
+  const key = `${temple.templeId}:${zone}`;
+  const active = supply !== null && supply.activeClassId !== null;
+  const hovering = active && supply.hoverKey === key;
+  const highlight = hovering && dest !== null ? dest.highlight : null;
+  const idleHint = active && dest !== null && dest.highlight === "recommended" && !hovering
+    ? "ring-1 ring-amber-300/80 dark:ring-amber-700/80"
+    : active && dest !== null && dest.highlight === "alternative" && !hovering
+      ? "ring-1 ring-amber-200/70 dark:ring-amber-800/70"
+      : "";
+  function deliver(): void {
+    if (!active) return;
+    supply.onDeliver(temple, zone);
+  }
+  return (
+    <div
+      data-supply-drop={zone}
+      className={`${className} ${supplyHighlightClass(highlight)} ${idleHint} rounded-md transition-shadow`}
+      onDragEnter={(event) => {
+        if (!active) return;
+        event.preventDefault();
+        supply.onHover(key);
+      }}
+      onDragOver={(event) => {
+        if (!active) return;
+        event.preventDefault();
+        supply.onHover(key);
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        if (supply?.hoverKey === key) supply.onHover(null);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        deliver();
+      }}
+      onClick={(event) => {
+        if (!active || dest === null) return;
+        event.stopPropagation();
+        deliver();
+      }}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -316,6 +399,7 @@ function TemplePiece({
   selected,
   onSelect,
   choices,
+  supply,
 }: {
   readonly temple: HierophantTemple;
   readonly hierophant: HierophantState;
@@ -326,6 +410,7 @@ function TemplePiece({
   readonly selected: boolean;
   readonly onSelect: () => void;
   readonly choices: HierophantVisionsBoardChoices;
+  readonly supply: HierophantSupplyBoardInteraction | null;
 }) {
   const isHestar = temple.kind === "hestar";
   const hosted = hostedSupplicants(hierophant.supplicants, { kind: "temple", templeId: temple.templeId });
@@ -471,8 +556,23 @@ function TemplePiece({
           </div>
         ))}
       </header>
-      {groups.filter((group) => group.people.length > 0 || group.key === "courtyard" || group.key === "agiary" || group.key === "hestar").map((group) => (
-        <section key={group.key} aria-label={group.label} className="text-sm">
+      {status.kind === "collapsed" && (
+        <SupplyDropZone temple={temple} zone="blocked" supply={supply}>
+          <p className="min-h-[1.75rem] text-xs font-semibold text-rose-800 dark:text-rose-200">
+            {supply?.blockNotice?.templeId === temple.templeId ? supply.blockNotice.reason : null}
+          </p>
+        </SupplyDropZone>
+      )}
+      {supply?.blockNotice?.templeId === temple.templeId && status.kind !== "collapsed" && (
+        <p className="text-xs font-semibold text-rose-800 dark:text-rose-200">{supply.blockNotice.reason}</p>
+      )}
+      {groups.filter((group) => group.people.length > 0 || group.key === "courtyard" || group.key === "agiary" || group.key === "hestar").map((group) => {
+        const zone: HierophantSupplyZone | null =
+          group.key === "courtyard" || group.key === "agiary" || group.key === "hestar"
+            ? group.key
+            : null;
+        const section = (
+        <section aria-label={group.label} className="text-sm">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{group.label}</h4>
           {group.people.length === 0 ? (
             <div
@@ -510,7 +610,14 @@ function TemplePiece({
             </ul>
           )}
         </section>
-      ))}
+        );
+        if (zone === null) return <div key={group.key}>{section}</div>;
+        return (
+          <SupplyDropZone key={group.key} temple={temple} zone={zone} supply={supply}>
+            {section}
+          </SupplyDropZone>
+        );
+      })}
       {prophets.length > 0 && (
       <section aria-label="Prophets" className="text-sm">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Prophets</h4>
@@ -567,6 +674,7 @@ export default function HierophantTempleBoard({
   selectedTempleId,
   onSelectTemple,
   choices,
+  supply,
 }: {
   readonly hierophant: HierophantState;
   readonly denizens: readonly NamedDenizen[];
@@ -575,6 +683,7 @@ export default function HierophantTempleBoard({
   readonly selectedTempleId: string | null;
   readonly onSelectTemple: (templeId: string) => void;
   readonly choices: HierophantVisionsBoardChoices;
+  readonly supply: HierophantSupplyBoardInteraction;
 }) {
   const plan = choices.plan;
   const byId = new Map(hierophant.temples.map((temple) => [temple.templeId, temple]));
@@ -603,6 +712,7 @@ export default function HierophantTempleBoard({
         selected={selectedTempleId === temple.templeId}
         onSelect={() => onSelectTemple(temple.templeId)}
         choices={choices}
+        supply={supply}
       />
     );
   }
@@ -666,6 +776,48 @@ export default function HierophantTempleBoard({
           {summary.join(" · ")}
         </p>
       )}
+      <section
+        aria-label="Supplicant supply"
+        className="rounded-lg border border-dashed border-amber-800/30 bg-amber-50/40 px-3 py-2 dark:border-amber-500/25 dark:bg-amber-950/20"
+      >
+        <h3 className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
+          Supplicant supply
+        </h3>
+        <ul className="flex flex-wrap gap-2">
+          {HIEROPHANT_SUPPLY_CLASS_IDS.map((classId) => {
+            const label = classLabel(classId, hierophant.campaignClasses);
+            const pressed = supply.activeClassId === classId;
+            return (
+              <li key={classId}>
+                <button
+                  type="button"
+                  draggable
+                  data-supply-class={classId}
+                  aria-label={`${label} supply`}
+                  aria-pressed={pressed}
+                  className={`rounded-lg border px-2 py-1.5 text-xs font-medium shadow-sm cursor-grab active:cursor-grabbing focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
+                    pressed
+                      ? "border-amber-800 bg-amber-800 text-amber-50 dark:border-amber-200 dark:bg-amber-200 dark:text-amber-950"
+                      : "border-amber-800/40 bg-amber-50 text-amber-950 dark:border-amber-600/50 dark:bg-amber-950/40 dark:text-amber-50"
+                  }`}
+                  onDragStart={() => { supply.onBegin(classId); }}
+                  onDragEnd={() => { supply.onCancel(); }}
+                  onClick={() => {
+                    if (pressed) supply.onCancel();
+                    else supply.onBegin(classId);
+                  }}
+                  onKeyDown={(event) => activate(event, () => {
+                    if (pressed) supply.onCancel();
+                    else supply.onBegin(classId);
+                  })}
+                >
+                  {label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
       {extras.length > 0 && (
         <section aria-label="Additional Temples" className="grid gap-3 md:grid-cols-2">
           {extras.map((temple) => (
@@ -680,6 +832,7 @@ export default function HierophantTempleBoard({
               selected={selectedTempleId === temple.templeId}
               onSelect={() => onSelectTemple(temple.templeId)}
               choices={choices}
+              supply={supply}
             />
           ))}
         </section>
