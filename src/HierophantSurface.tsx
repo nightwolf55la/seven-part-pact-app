@@ -21,6 +21,7 @@ import {
   type HierophantProphetHost,
   type SorcererExternalPresence,
   powerfulStatusLabel,
+  planHierophantVisions,
 } from "../shared/domain";
 import type { WorldReference } from "./WorldSurface";
 import LoreContextPanel from "./LoreContextPanel";
@@ -73,6 +74,8 @@ import {
   HESTAR_PROVIDE_DEFER_GUIDANCE,
   buildCreateHierophantSupplicantPayload,
   type StartingTempleBindings,
+  formatVisionsSupplicantLine,
+  formatVisionsTempleWarnings,
 } from "./hierophant-view-model";
 
 type HierophantTab = "overview" | "temples" | "people" | "cults" | "definitions";
@@ -858,9 +861,26 @@ export default function HierophantSurface({
               : undefined;
             const caps = templeEditCapabilities(selected);
             const receiveOpen = receiveDraft !== null && receiveDraft.templeId === selected.templeId;
+            const visions = planHierophantVisions(hierophant);
+            const selectedVisions = visions.temples.find((entry) => entry.templeId === selected.templeId);
+            const selectedPeople = visions.supplicants.filter((entry) => entry.templeId === selected.templeId);
+            const selectedWarnings = selectedVisions === undefined ? [] : formatVisionsTempleWarnings(selectedVisions);
             return (
               <aside aria-label="Selected Temple" className="mt-4 rounded-xl border border-amber-200 dark:border-amber-900 p-4 space-y-3">
                 <h3 className="text-sm font-semibold">{templeDisplayName(selected, world.places)}</h3>
+                {(selectedWarnings.length > 0 || selectedPeople.length > 0) && (
+                  <section aria-label="This Visions phase" className="rounded-lg border border-amber-200/80 dark:border-amber-900/60 p-2 space-y-1">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">This Visions phase</h4>
+                    {selectedWarnings.map((warning) => (
+                      <p key={warning} className="text-xs font-semibold text-rose-800 dark:text-rose-200">{warning}</p>
+                    ))}
+                    {selectedPeople.map((person) => (
+                      <p key={person.denizenId} className="text-xs text-slate-700 dark:text-slate-200">
+                        {denizenLabel(world.denizens, person.denizenId)} · {formatVisionsSupplicantLine(person)}
+                      </p>
+                    ))}
+                  </section>
+                )}
                 <p className="text-xs text-slate-500">{TIME_RECORDING_BOUNDARY}</p>
                 {selected.status === "active" && !receiveOpen && (
                   <button type="button" className={btnClass} onClick={() => openReceive(selected)}>

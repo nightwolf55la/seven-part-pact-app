@@ -1065,6 +1065,23 @@ export type {
 } from "./hierophant-state";
 export { EMPTY_HIEROPHANT_STATE } from "./hierophant-state";
 
+export type {
+  HierophantVisionsResource,
+  HierophantVisionsDemand,
+  HierophantVisionsSupport,
+  HierophantVisionsWoeProjection,
+  HierophantVisionsDeparture,
+  HierophantVisionsRequiredChoice,
+  HierophantVisionsBlocker,
+  HierophantVisionsResourceProjection,
+  HierophantVisionsTemplePreview,
+  HierophantVisionsSupplicantPreview,
+  HierophantVisionsChoices,
+  HierophantVisionsPlanKind,
+  HierophantVisionsPlan,
+} from "./hierophant-visions";
+export { planHierophantVisions, hierophantVisionsSupport } from "./hierophant-visions";
+
 export { validateHierophantStructure, validateHierophantReferenceIntegrity } from "./hierophant-validation";
 
 export type {
