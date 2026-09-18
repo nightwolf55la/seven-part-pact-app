@@ -54,6 +54,7 @@ export const ACTIVE_TWIST_SPOTLIGHT_LABEL =
 export const PRIVATE_TWIST_INSPECT_LABEL = "Inspect Twist privately";
 export const PRIVATE_TWIST_INSPECT_HINT =
   "Local-only view. Does not flip the card, send a command, or write an event.";
+export const FACEDOWN_SCHEME_SUPPLY_LABEL = "Facedown Scheme from Devil's Deck";
 
 export interface NamedWizardRef {
   readonly wizardId: string;
@@ -121,6 +122,8 @@ export interface FaustianCommunityPresentation {
   readonly associatedWizardLabel: string;
   readonly headerLabel: string;
   readonly schemes: FaustianFannedPilePresentation;
+  readonly schemeFaceUpCount: number;
+  readonly schemeFaceDownCount: number;
   readonly accomplices: FaustianFannedPilePresentation;
   readonly pawnCount: number;
   readonly pawnLabel: string;
@@ -174,10 +177,25 @@ export interface FaustianTwistSpotlightPresentation {
   readonly relationshipLabel: string;
 }
 
+export interface FaustianMissingSuitPresentation {
+  readonly suit: FaustianSuit;
+  readonly label: string;
+}
+
+export interface FaustianObligationCuePresentation {
+  readonly key: string;
+  readonly label: string;
+  readonly scheduleLabel: "upcoming" | "due_this_month" | "overdue";
+  readonly imminent: boolean;
+}
+
 export interface FaustianTablePresentation {
   readonly communities: readonly FaustianCommunityPresentation[];
   readonly faustianDeckCount: number;
   readonly devilDeckCount: number;
+  readonly devilDeckEmpty: boolean;
+  readonly missingSuits: readonly FaustianMissingSuitPresentation[];
+  readonly obligationCues: readonly FaustianObligationCuePresentation[];
   readonly suitSummaries: readonly FaustianSuitSummaryPresentation[];
   readonly twists: readonly FaustianTwistSpotlightPresentation[];
   readonly machinations: readonly FaustianMachinationPresentation[];
@@ -345,6 +363,8 @@ export function buildFaustianTablePresentation(args: {
       associatedWizardLabel: header.associatedWizardLabel,
       headerLabel: `${header.zodiacLabel} · ${header.populace} · ${header.associatedWizardLabel}`,
       schemes: fan(schemes, "Schemes"),
+      schemeFaceUpCount: state.schemes.filter((scheme) => scheme.facing === "face_up").length,
+      schemeFaceDownCount: state.schemes.filter((scheme) => scheme.facing === "face_down").length,
       accomplices: fan(accomplices, "Accomplices"),
       pawnCount: state.pawnCount,
       pawnLabel: state.pawnCount === 1 ? "1 Pawn" : `${state.pawnCount} Pawns`,
@@ -409,10 +429,29 @@ export function buildFaustianTablePresentation(args: {
     };
   });
 
+  const obligationCues = faustian.devilObligations.flatMap((obligation) => {
+    if (obligation.kind !== "wizard_owes_week_due_month") return [];
+    const scheduleLabel = faustianChallengeScheduleLabel(
+      obligation.dueMonthOrdinal,
+      currentMonthOrdinal as never,
+    );
+    return [{
+      key: `${obligation.wizardId}:${obligation.dueMonthOrdinal}`,
+      label: `${wizardName(wizards, obligation.wizardId)} owes ${obligation.weeks} week${obligation.weeks === 1 ? "" : "s"}`,
+      scheduleLabel,
+      imminent: scheduleLabel !== "upcoming",
+    }];
+  });
+
   return {
     communities,
     faustianDeckCount: faustian.faustianDeck.length,
     devilDeckCount: faustian.devilDeck.length,
+    devilDeckEmpty: faustian.devilDeck.length === 0,
+    missingSuits: suitSummaries
+      .filter((suit) => suit.faustianDeckCount === 0)
+      .map((suit) => ({ suit: suit.suit, label: suit.label })),
+    obligationCues,
     suitSummaries,
     twists,
     machinations,

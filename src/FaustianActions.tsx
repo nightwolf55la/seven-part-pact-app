@@ -31,7 +31,6 @@ import type { FaustianTablePresentation, FaustianWizardRef } from "./faustian-vi
 import {
   SHARED_TIME_BOUNDARY_COPY,
   cloneFaustianState,
-  communityAllAccomplices,
   isExactStructuralHelperFaustian,
   isExactUnarrangedFaustianBaseline,
   synthesizeFaustianAfterSchemeReveal,
@@ -201,7 +200,7 @@ export default function FaustianActions({
     <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3" aria-label="Faustian actions">
       <h3 className="text-sm font-semibold">Ordinary Faustian actions</h3>
       <p className="text-xs text-slate-500">
-        Selecting a Community inspects it. Start an action explicitly, then confirm or cancel.
+        Right-click a Community or card for common monthly actions. These controls are for less-common board edits.
         Captured intent is not rewritten when the table updates in realtime.
       </p>
 
@@ -254,63 +253,15 @@ export default function FaustianActions({
             disabled={pending || draft !== null}
             onClick={() => {
               setError(null);
-              const facedown = selectedLive.schemes.filter((scheme) => scheme.facing === "face_down");
-              const eligible = selectedLive.schemes
-                .filter((scheme) => facedown.length === 0 || scheme.facing === "face_up" || scheme.facing === "face_down")
-                .map((scheme) => scheme.cardId);
-              if (facedown.length === 0) {
-                setDraft({
-                  kind: "investigate",
-                  stage: "foil",
-                  communityId: startCommunity,
-                  expectedFaustian: cloneFaustianState(faustian),
-                  eligibleSchemeCardIds: eligible,
-                  selectedSchemeCardId: eligible[0] ?? "",
-                });
-                return;
-              }
-              setDraft({
-                kind: "investigate",
-                stage: "reveal",
-                communityId: startCommunity,
-                expectedFaustian: cloneFaustianState(faustian),
-                eligibleSchemeCardIds: eligible,
-                selectedSchemeCardId: "",
-              });
-            }}
-          >
-            Start Investigate
-          </button>
-          <button
-            type="button"
-            className={btn}
-            disabled={pending || draft !== null}
-            onClick={() => {
-              setError(null);
-              setDraft({
-                kind: "blackmail",
-                communityId: startCommunity,
-                expectedFaustian: cloneFaustianState(faustian),
-              });
-            }}
-          >
-            Start Blackmail
-          </button>
-          <button
-            type="button"
-            className={btn}
-            disabled={pending || draft !== null}
-            onClick={() => {
-              setError(null);
               setDraft({
                 kind: "place_schemes",
                 communityId: startCommunity,
                 expectedFaustian: cloneFaustianState(faustian),
-                requestedQuantity: 1,
+                requestedQuantity: 2,
               });
             }}
           >
-            Start Place Schemes
+            Place several Schemes
           </button>
           <button
             type="button"
@@ -367,27 +318,6 @@ export default function FaustianActions({
           >
             Start establish Conspiracy
           </button>
-          {communityAllAccomplices(faustian, startCommunity).map((card) => (
-            card.facing === "face_up" ? (
-              <button
-                key={card.cardId}
-                type="button"
-                className={btn}
-                disabled={pending || draft !== null}
-                onClick={() => {
-                  setError(null);
-                  setDraft({
-                    kind: "direct",
-                    accompliceCardId: card.cardId,
-                    sourceCommunityId: startCommunity,
-                    destinationCommunityId: "",
-                  });
-                }}
-              >
-                Start Direct {card.identityLabel}
-              </button>
-            ) : null
-          ))}
           {selectedLive.pawnCount > 0 && selectedLive.accompliceCardIds.length > 0 && (
             <button
               type="button"

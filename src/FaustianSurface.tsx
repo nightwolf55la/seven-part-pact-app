@@ -1,5 +1,6 @@
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { useMemo, useState, type KeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
 import {
+  type FaustianCardId,
   type FaustianCommunityId,
   type FaustianState,
   type SorcererExternalPresence,
@@ -11,7 +12,14 @@ import FaustianActions from "./FaustianActions";
 import FaustianAdvancedActions from "./FaustianAdvancedActions";
 import FaustianLifecycleActions from "./FaustianLifecycleActions";
 import {
+  FaustianOccurrenceChooser,
+  FaustianSchemeSupplyGhost,
+  FaustianTableContextMenu,
+  useFaustianTablePlay,
+} from "./FaustianTableInteraction";
+import {
   FAUSTIAN_TABLE_MIN_WIDTH_PX,
+  FACEDOWN_SCHEME_SUPPLY_LABEL,
   FACEDOWN_TWIST_LABEL,
   PRIVATE_TWIST_INSPECT_HINT,
   PRIVATE_TWIST_INSPECT_LABEL,
@@ -36,7 +44,6 @@ type Selection =
 type SupportingArea =
   | "faustian_deck"
   | "devil_deck"
-  | "suits"
   | "twists"
   | "machinations"
   | "defeated"
@@ -62,21 +69,32 @@ function PlayingCardToken({
   selected = false,
   onSelect,
   treatmentLabel = null,
+  onContextMenu,
+  foilAvailable = false,
+  onFoil,
 }: {
   readonly card: FaustianPublicCardPresentation;
   readonly selected?: boolean;
   readonly onSelect?: () => void;
   readonly treatmentLabel?: string | null;
+  readonly onContextMenu?: (event: ReactMouseEvent) => void;
+  readonly foilAvailable?: boolean;
+  readonly onFoil?: () => void;
 }) {
-  const interactive = onSelect !== undefined;
+  const interactive = onSelect !== undefined || onContextMenu !== undefined || onFoil !== undefined;
   return (
     <button
       type="button"
       disabled={!interactive}
-      onClick={onSelect}
+      onClick={() => {
+        if (onFoil !== undefined) onFoil();
+        else onSelect?.();
+      }}
+      onContextMenu={onContextMenu}
+      data-faustian-card={card.kind}
       aria-label={card.ariaLabel}
       title={card.publicLabel}
-      className={`relative shrink-0 w-[4.5rem] h-[6.25rem] rounded-md border text-[0.65rem] leading-tight px-1.5 py-1 text-left shadow-sm ${cardFaceClass(card)} ${
+      className={`relative shrink-0 w-[4.5rem] h-[6.25rem] rounded-md border text-[0.65rem] leading-tight px-1.5 py-1 text-left shadow-sm select-none ${cardFaceClass(card)} ${
         selected ? "ring-2 ring-teal-500" : ""
       } ${treatmentLabel !== null ? "ring-2 ring-amber-500" : ""} ${interactive ? "cursor-pointer" : "cursor-default"}`}
     >
@@ -91,6 +109,11 @@ function PlayingCardToken({
           {card.syndicateLabel ?? "Accomplice syndicate not transcribed"}
         </span>
       )}
+      {foilAvailable && (
+        <span className="absolute bottom-1 left-1 right-1 rounded bg-teal-700 px-1 text-[0.55rem] font-semibold text-white">
+          Foil
+        </span>
+      )}
     </button>
   );
 }
@@ -99,10 +122,16 @@ function FannedPile({
   cards,
   overflowLabel,
   onInspect,
+  onCardContextMenu,
+  foilEligible,
+  onFoil,
 }: {
   readonly cards: FaustianTablePresentation["communities"][number]["schemes"];
   readonly overflowLabel: string | null;
   readonly onInspect?: () => void;
+  readonly onCardContextMenu?: (card: FaustianPublicCardPresentation, event: ReactMouseEvent) => void;
+  readonly foilEligible?: (card: FaustianPublicCardPresentation) => boolean;
+  readonly onFoil?: (card: FaustianPublicCardPresentation) => void;
 }) {
   if (cards.totalCount === 0) {
     return <p className="text-[0.65rem] text-slate-400">None</p>;
@@ -112,7 +141,12 @@ function FannedPile({
       <div className="flex">
         {cards.visible.map((card, index) => (
           <div key={card.instanceKey} className={index === 0 ? "" : "-ml-6"}>
-            <PlayingCardToken card={card} />
+            <PlayingCardToken
+              card={card}
+              onContextMenu={onCardContextMenu === undefined ? undefined : (event) => onCardContextMenu(card, event)}
+              foilAvailable={foilEligible?.(card) === true}
+              onFoil={foilEligible?.(card) === true && onFoil !== undefined ? () => onFoil(card) : undefined}
+            />
           </div>
         ))}
       </div>
@@ -125,24 +159,32 @@ function FannedPile({
   );
 }
 
-function Area({
+function PhysicalZone({
   title,
+  zone,
   children,
+  attention = null,
   selected = false,
   onSelect,
+  className = "",
 }: {
   readonly title: string;
+  readonly zone: string;
   readonly children: React.ReactNode;
+  readonly attention?: string | null;
   readonly selected?: boolean;
   readonly onSelect?: () => void;
+  readonly className?: string;
 }) {
   return (
     <section
-      className={`rounded-lg border p-3 space-y-2 ${
-        selected ? "border-teal-600 dark:border-teal-400" : "border-slate-200 dark:border-slate-700"
-      }`}
+      data-faustian-zone={zone}
+      data-faustian-attention={attention ?? undefined}
+      className={`rounded-md bg-emerald-950/20 dark:bg-emerald-950/30 p-3 space-y-2 ${
+        selected ? "ring-2 ring-teal-500" : ""
+      } ${attention !== null ? "ring-1 ring-amber-500/80" : ""} ${className}`}
     >
-      <h3 className="text-sm font-semibold">
+      <h3 className="text-sm font-semibold tracking-wide">
         {onSelect !== undefined ? (
           <button type="button" className="cursor-pointer text-left" onClick={onSelect}>
             {title}
@@ -151,6 +193,25 @@ function Area({
       </h3>
       {children}
     </section>
+  );
+}
+
+function DeckStack({ count, emptyLabel }: { readonly count: number; readonly emptyLabel: string }) {
+  if (count === 0) {
+    return (
+      <div className="w-[4.5rem] h-[6.25rem] rounded-md border border-dashed border-amber-500/80 bg-emerald-950/10 text-[0.65rem] text-amber-200 flex items-center justify-center text-center px-1">
+        {emptyLabel}
+      </div>
+    );
+  }
+  return (
+    <div className="relative w-[4.5rem] h-[6.25rem]">
+      <div className="absolute inset-0 translate-x-1 translate-y-1 rounded-md border border-slate-950 bg-slate-900" />
+      <div className="absolute inset-0 rounded-md border border-slate-950 bg-slate-800 text-slate-100 text-[0.65rem] px-1.5 py-1 shadow-sm">
+        <span className="font-semibold block">Facedown</span>
+        <span className="block mt-1">{count}</span>
+      </div>
+    </div>
   );
 }
 
@@ -193,6 +254,7 @@ export default function FaustianSurface({
     () => faustianLoreSubjects(loreCompendium, faustianWizard),
     [loreCompendium, faustianWizard],
   );
+  const play = useFaustianTablePlay({ faustian, campaignId, wizards, lifecycleKind });
 
   const [selection, setSelection] = useState<Selection | null>(null);
   const [inspectorCommunityId, setInspectorCommunityId] = useState<FaustianCommunityId | null>(null);
@@ -216,14 +278,25 @@ export default function FaustianSurface({
     }
   }
 
+  function schemeCardId(card: FaustianPublicCardPresentation): FaustianCardId | null {
+    return card.facing === "face_up" && "cardId" in card ? card.cardId : null;
+  }
+
+  const dropReady = play.dragVisual?.hoveringCommunityId ?? null;
+
   return (
     <div className={`space-y-4 ${layout === "narrow" ? "text-sm" : ""}`}>
       <header className="space-y-1">
         <h2 className="text-lg font-semibold">Faustian Card Table</h2>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Selecting a Community or card inspects it. It does not start an action.
+          Left-click inspects. Right-click acts on that Community or card. Drag a facedown Scheme from Devil&apos;s Deck onto a Community to place one.
         </p>
       </header>
+
+      {play.error !== null && (
+        <p className="text-xs text-red-700 dark:text-red-300" role="alert">{play.error}</p>
+      )}
+      <FaustianOccurrenceChooser play={play} />
 
       <FaustianActions
         faustian={faustian}
@@ -253,65 +326,285 @@ export default function FaustianSurface({
         monthOrdinal={monthOrdinal}
       />
 
-      <div className="overflow-x-auto">
-        <div
-          className="grid grid-cols-3 gap-3"
-          style={{ minWidth: FAUSTIAN_TABLE_MIN_WIDTH_PX }}
-          aria-label="Faustian Community tableau"
-        >
-          {presentation.communities.map((community) => {
-            const selected = selection?.kind === "community" && selection.communityId === community.communityId;
-            return (
-              <article
-                key={community.communityId}
-                tabIndex={0}
-                onClick={() => selectCommunity(community.communityId)}
-                onKeyDown={(event) => onCommunityKey(event, community.communityId)}
-                aria-label={community.headerLabel}
-                className={`rounded-xl border p-3 space-y-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-400 ${
-                  selected ? "border-teal-600 bg-teal-50/40 dark:bg-teal-950/20" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-                }`}
+      <div
+        data-faustian-table
+        className={`space-y-3 ${play.dragging ? "select-none" : ""}`}
+      >
+        {presentation.obligationCues.filter((cue) => cue.imminent).length > 0 && (
+          <div className="flex flex-wrap gap-1" data-faustian-zone="obligations">
+            {presentation.obligationCues.filter((cue) => cue.imminent).map((cue) => (
+              <span
+                key={cue.key}
+                className="rounded-full bg-amber-700 text-white text-[0.65rem] font-medium px-2 py-0.5"
               >
-                <header className="border-b border-slate-200 dark:border-slate-700 pb-2">
-                  <p className="text-sm font-semibold">{community.zodiacLabel}</p>
-                  <p className="text-xs text-slate-600 dark:text-slate-300">{community.populace}</p>
-                  <p className="text-xs text-slate-500">{community.associatedWizardLabel}</p>
-                </header>
-                <div className="space-y-2">
-                  <div>
-                    <p className="text-[0.65rem] uppercase tracking-wide text-slate-500">Schemes</p>
-                    <FannedPile
-                      cards={community.schemes}
-                      overflowLabel={community.schemes.overflowLabel}
-                      onInspect={() => {
-                        selectCommunity(community.communityId);
-                        setInspectorCommunityId(community.communityId);
-                      }}
-                    />
+                {cue.label}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className={`flex items-start gap-3 ${layout === "narrow" ? "flex-col" : "flex-row"}`}>
+          <div className="overflow-x-auto min-w-0 flex-1">
+            <div
+              data-faustian-zone="community-tableau"
+              className="grid grid-cols-3 gap-3"
+              style={{ minWidth: FAUSTIAN_TABLE_MIN_WIDTH_PX }}
+              aria-label="Faustian Community tableau"
+            >
+              {presentation.communities.map((community) => {
+                const selected = selection?.kind === "community" && selection.communityId === community.communityId;
+                const hovering = dropReady === community.communityId;
+                return (
+                  <article
+                    key={community.communityId}
+                    tabIndex={0}
+                    data-faustian-community={community.communityId}
+                    data-faustian-community-drop={community.communityId}
+                    onClick={() => selectCommunity(community.communityId)}
+                    onKeyDown={(event) => onCommunityKey(event, community.communityId)}
+                    onContextMenu={(event) => play.openCommunityMenu(community.communityId, event)}
+                    aria-label={community.headerLabel}
+                    className={`rounded-xl border p-3 space-y-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-400 select-none ${
+                      selected ? "border-teal-600 bg-teal-50/40 dark:bg-teal-950/20" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
+                    } ${play.dragging ? "ring-1 ring-teal-400/70" : ""} ${hovering ? "bg-teal-100/80 dark:bg-teal-900/40 ring-2 ring-teal-500" : ""}`}
+                  >
+                    <header className="border-b border-slate-200 dark:border-slate-700 pb-2">
+                      <p className="text-sm font-semibold">{community.zodiacLabel}</p>
+                      <p className="text-xs text-slate-600 dark:text-slate-300">{community.populace}</p>
+                      <p className="text-xs text-slate-500">{community.associatedWizardLabel}</p>
+                    </header>
+                    <div className="space-y-2">
+                      <div>
+                        <p className="text-[0.65rem] uppercase tracking-wide text-slate-500">
+                          Schemes · {community.schemeFaceUpCount} up / {community.schemeFaceDownCount} down
+                        </p>
+                        <FannedPile
+                          cards={community.schemes}
+                          overflowLabel={community.schemes.overflowLabel}
+                          onInspect={() => {
+                            selectCommunity(community.communityId);
+                            setInspectorCommunityId(community.communityId);
+                          }}
+                          onCardContextMenu={(card, event) => {
+                            play.openSchemeMenu(community.communityId, schemeCardId(card), card.facing, event);
+                          }}
+                          foilEligible={(card) => play.foilEligible(community.communityId, schemeCardId(card))}
+                          onFoil={(card) => {
+                            const cardId = schemeCardId(card);
+                            if (cardId !== null) play.onFoil(community.communityId, cardId);
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <p className="text-[0.65rem] uppercase tracking-wide text-slate-500">Accomplices</p>
+                        <FannedPile
+                          cards={community.accomplices}
+                          overflowLabel={community.accomplices.overflowLabel}
+                          onInspect={() => {
+                            selectCommunity(community.communityId);
+                            setInspectorCommunityId(community.communityId);
+                          }}
+                          onCardContextMenu={(card, event) => {
+                            const cardId = schemeCardId(card);
+                            if (cardId !== null) play.openAccompliceMenu(community.communityId, cardId, event);
+                          }}
+                        />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1">
+                        {Array.from({ length: Math.min(community.pawnCount, 6) }, (_, index) => (
+                          <span
+                            key={index}
+                            className="inline-block h-3 w-3 rounded-full bg-stone-700 border border-stone-900"
+                            aria-hidden="true"
+                          />
+                        ))}
+                        <p className="text-xs font-medium" aria-label={community.pawnLabel}>{community.pawnLabel}</p>
+                      </div>
+                      {community.conspiracies.length > 0 && (
+                        <ul className="text-xs space-y-0.5">
+                          {community.conspiracies.map((conspiracy) => (
+                            <li key={conspiracy.denizenId} className="inline-flex items-center gap-1">
+                              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-rose-800" aria-hidden="true" />
+                              Conspiracy: {conspiracy.name}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+
+          <PhysicalZone
+            zone="machinations"
+            title="Devil's Machinations"
+            selected={selection?.kind === "supporting" && selection.area === "machinations"}
+            onSelect={() => setSelection({ kind: "supporting", area: "machinations" })}
+            className={layout === "narrow" ? "w-full" : "w-[16.5rem] shrink-0"}
+          >
+            {presentation.twists.length === 0 ? (
+              <p className="text-xs text-slate-400">No Active Twist</p>
+            ) : (
+              <div className="space-y-1">
+                {presentation.twists.map((spotlight) => (
+                  <div key={spotlight.machinationInstanceKey} className="space-y-1">
+                    <p className="text-xs" aria-label={spotlight.ariaLabel}>{spotlight.publicLabel}</p>
+                    <p className="text-[0.65rem] text-slate-500">{spotlight.relationshipLabel}</p>
+                    {spotlight.inspectablePrivately && (
+                      <button
+                        type="button"
+                        className={ghostBtn}
+                        aria-label={PRIVATE_TWIST_INSPECT_LABEL}
+                        onClick={() => setPrivateTwistIndex(spotlight.index)}
+                      >
+                        {PRIVATE_TWIST_INSPECT_LABEL}
+                      </button>
+                    )}
                   </div>
-                  <div>
-                    <p className="text-[0.65rem] uppercase tracking-wide text-slate-500">Accomplices</p>
-                    <FannedPile
-                      cards={community.accomplices}
-                      overflowLabel={community.accomplices.overflowLabel}
-                      onInspect={() => {
-                        selectCommunity(community.communityId);
-                        setInspectorCommunityId(community.communityId);
-                      }}
-                    />
-                  </div>
-                  <p className="text-xs font-medium" aria-label={community.pawnLabel}>{community.pawnLabel}</p>
-                  {community.conspiracies.length > 0 && (
-                    <ul className="text-xs space-y-0.5">
-                      {community.conspiracies.map((conspiracy) => (
-                        <li key={conspiracy.denizenId}>Conspiracy: {conspiracy.name}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </article>
-            );
-          })}
+                ))}
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {presentation.machinations.map((entry) => (
+                <PlayingCardToken
+                  key={entry.card.instanceKey}
+                  card={entry.card}
+                  treatmentLabel={entry.treatmentLabel}
+                  selected={selection?.kind === "twist" && presentation.twists.some((spotlight) => spotlight.machinationInstanceKey === entry.card.instanceKey && selection.index === spotlight.index)}
+                  onSelect={entry.isActiveTwist
+                    ? () => {
+                      const spotlight = presentation.twists.find((item) => item.machinationInstanceKey === entry.card.instanceKey);
+                      if (spotlight !== undefined) setSelection({ kind: "twist", index: spotlight.index });
+                    }
+                    : undefined}
+                />
+              ))}
+              {presentation.machinations.length === 0 && <p className="text-xs text-slate-400">None</p>}
+            </div>
+            {presentation.pendingChallenges.length > 0 && (
+              <ul className="text-xs space-y-1">
+                {presentation.pendingChallenges.map((challenge) => (
+                  <li key={challenge.challengeId} className="rounded bg-amber-950/40 px-2 py-1">
+                    {challenge.kindLabel}
+                    {" · "}
+                    {challenge.scheduleLabel.replace(/_/g, " ")}
+                    {" · "}
+                    {challenge.groups.filter((group) => group.status === "pending").length} pending
+                  </li>
+                ))}
+              </ul>
+            )}
+          </PhysicalZone>
+        </div>
+
+        <div className={`grid gap-3 ${layout === "narrow" ? "grid-cols-1" : "grid-cols-2 lg:grid-cols-4"}`}>
+          <PhysicalZone
+            zone="faustian-deck"
+            title={`Faustian's Deck (${presentation.faustianDeckCount})`}
+            selected={selection?.kind === "supporting" && selection.area === "faustian_deck"}
+            onSelect={() => setSelection({ kind: "supporting", area: "faustian_deck" })}
+          >
+            <DeckStack count={presentation.faustianDeckCount} emptyLabel="Empty" />
+            {presentation.missingSuits.length > 0 && (
+              <p className="text-[0.65rem] text-amber-800 dark:text-amber-200">
+                Missing suit pressure: {presentation.missingSuits.map((suit) => suit.label).join(", ")}
+              </p>
+            )}
+          </PhysicalZone>
+          <PhysicalZone
+            zone="devil-deck"
+            title={`Devil's Deck (${presentation.devilDeckCount})`}
+            attention={presentation.devilDeckEmpty ? "empty-deck" : null}
+            selected={selection?.kind === "supporting" && selection.area === "devil_deck"}
+            onSelect={() => setSelection({ kind: "supporting", area: "devil_deck" })}
+          >
+            <button
+              type="button"
+              data-faustian-scheme-supply
+              aria-label={FACEDOWN_SCHEME_SUPPLY_LABEL}
+              onPointerDown={play.startSchemeSupplyDrag}
+              className="cursor-grab active:cursor-grabbing select-none text-left"
+            >
+              <DeckStack count={presentation.devilDeckCount} emptyLabel="Empty" />
+            </button>
+            <p className="text-[0.65rem] text-slate-500">Drag a facedown Scheme onto a Community.</p>
+          </PhysicalZone>
+          <PhysicalZone
+            zone="defeated"
+            title="Defeated Schemes"
+            selected={selection?.kind === "supporting" && selection.area === "defeated"}
+            onSelect={() => setSelection({ kind: "supporting", area: "defeated" })}
+          >
+            <div className="flex flex-wrap gap-2">
+              {presentation.defeatedSchemes.map((card) => <PlayingCardToken key={card.instanceKey} card={card} />)}
+              {presentation.defeatedSchemes.length === 0 && <p className="text-xs text-slate-400">Empty pile</p>}
+            </div>
+          </PhysicalZone>
+          {presentation.heldCards.length > 0 && (
+            <PhysicalZone
+              zone="held"
+              title="Held cards"
+              selected={selection?.kind === "supporting" && selection.area === "held"}
+              onSelect={() => setSelection({ kind: "supporting", area: "held" })}
+            >
+              <div className="flex flex-wrap gap-2">
+                {presentation.heldCards.map((card) => <PlayingCardToken key={card.instanceKey} card={card} />)}
+              </div>
+            </PhysicalZone>
+          )}
+          {presentation.entrustedCards.length > 0 && (
+            <PhysicalZone
+              zone="entrusted"
+              title="Entrusted cards"
+              selected={selection?.kind === "supporting" && selection.area === "entrusted"}
+              onSelect={() => setSelection({ kind: "supporting", area: "entrusted" })}
+            >
+              <ul className="space-y-2">
+                {presentation.entrustedCards.map((card) => (
+                  <li key={card.instanceKey} className="flex items-center gap-2">
+                    <PlayingCardToken card={card} />
+                    <span className="text-xs">{card.locationLabel}</span>
+                  </li>
+                ))}
+              </ul>
+            </PhysicalZone>
+          )}
+          {presentation.possessionCards.length > 0 && (
+            <PhysicalZone
+              zone="possession"
+              title="Possession cards"
+              selected={selection?.kind === "supporting" && selection.area === "possession"}
+              onSelect={() => setSelection({ kind: "supporting", area: "possession" })}
+            >
+              <ul className="space-y-2">
+                {presentation.possessionCards.map((card) => (
+                  <li key={card.instanceKey} className="flex items-center gap-2">
+                    <PlayingCardToken card={card} />
+                    <span className="text-xs">{card.locationLabel}</span>
+                  </li>
+                ))}
+              </ul>
+            </PhysicalZone>
+          )}
+          {presentation.domainPlacements.length > 0 && (
+            <PhysicalZone
+              zone="domain"
+              title="Domain-placement cards"
+              selected={selection?.kind === "supporting" && selection.area === "domain"}
+              onSelect={() => setSelection({ kind: "supporting", area: "domain" })}
+            >
+              <ul className="space-y-2">
+                {presentation.domainPlacements.map((card) => (
+                  <li key={card.instanceKey} className="flex items-center gap-2">
+                    <PlayingCardToken card={card} />
+                    <span className="text-xs">{card.locationLabel}</span>
+                  </li>
+                ))}
+              </ul>
+            </PhysicalZone>
+          )}
         </div>
       </div>
 
@@ -324,131 +617,47 @@ export default function FaustianSurface({
           <div>
             <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">Schemes</p>
             <div className="flex flex-wrap gap-2">
-              {inspectorSchemes.map((card) => <PlayingCardToken key={card.instanceKey} card={card} />)}
+              {inspectorSchemes.map((card) => (
+                <PlayingCardToken
+                  key={card.instanceKey}
+                  card={card}
+                  onContextMenu={(event) => play.openSchemeMenu(inspectorCommunity.communityId, schemeCardId(card), card.facing, event)}
+                  foilAvailable={play.foilEligible(inspectorCommunity.communityId, schemeCardId(card))}
+                  onFoil={() => {
+                    const cardId = schemeCardId(card);
+                    if (cardId !== null) play.onFoil(inspectorCommunity.communityId, cardId);
+                  }}
+                />
+              ))}
               {inspectorSchemes.length === 0 && <p className="text-xs text-slate-400">None</p>}
             </div>
           </div>
           <div>
             <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">Accomplices</p>
             <div className="flex flex-wrap gap-2">
-              {inspectorAccomplices.map((card) => <PlayingCardToken key={card.instanceKey} card={card} />)}
+              {inspectorAccomplices.map((card) => (
+                <PlayingCardToken
+                  key={card.instanceKey}
+                  card={card}
+                  onContextMenu={(event) => {
+                    const cardId = schemeCardId(card);
+                    if (cardId !== null) play.openAccompliceMenu(inspectorCommunity.communityId, cardId, event);
+                  }}
+                />
+              ))}
               {inspectorAccomplices.length === 0 && <p className="text-xs text-slate-400">None</p>}
             </div>
           </div>
         </section>
       )}
 
-      <div className={`grid gap-3 ${layout === "narrow" ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2"}`}>
-        <Area title={`Faustian's Deck (${presentation.faustianDeckCount})`} selected={selection?.kind === "supporting" && selection.area === "faustian_deck"} onSelect={() => setSelection({ kind: "supporting", area: "faustian_deck" })}>
-          <p className="text-xs text-slate-500">Unrevealed draw pile. Identities are not shown.</p>
-        </Area>
-        <Area title={`Devil's Deck (${presentation.devilDeckCount})`} selected={selection?.kind === "supporting" && selection.area === "devil_deck"} onSelect={() => setSelection({ kind: "supporting", area: "devil_deck" })}>
-          <p className="text-xs text-slate-500">Unrevealed draw pile. Identities are not shown.</p>
-        </Area>
-        <Area title="Suit summary" selected={selection?.kind === "supporting" && selection.area === "suits"} onSelect={() => setSelection({ kind: "supporting", area: "suits" })}>
-          <ul className="text-xs grid grid-cols-2 gap-1">
-            {presentation.suitSummaries.map((suit) => (
-              <li key={suit.suit}>{suit.label}: {suit.faustianDeckCount} in Faustian's Deck</li>
-            ))}
-          </ul>
-        </Area>
-        <Area title="Active Twist reference" selected={selection?.kind === "supporting" && selection.area === "twists"} onSelect={() => setSelection({ kind: "supporting", area: "twists" })}>
-          {presentation.twists.length === 0 ? (
-            <p className="text-xs text-slate-400">None</p>
-          ) : (
-            <div className="space-y-2">
-              <p className="text-xs text-slate-500">
-                Each Active Twist is one physical card in Devil&apos;s Machinations. This panel is a spotlight, not a second copy.
-              </p>
-              {presentation.twists.map((spotlight) => (
-                <div key={spotlight.machinationInstanceKey} className="space-y-1">
-                  <p
-                    className="text-xs"
-                    aria-label={spotlight.ariaLabel}
-                  >
-                    {spotlight.publicLabel}
-                  </p>
-                  <p className="text-[0.65rem] text-slate-500">{spotlight.relationshipLabel}</p>
-                  {spotlight.inspectablePrivately && (
-                    <button
-                      type="button"
-                      className={ghostBtn}
-                      aria-label={PRIVATE_TWIST_INSPECT_LABEL}
-                      onClick={() => setPrivateTwistIndex(spotlight.index)}
-                    >
-                      {PRIVATE_TWIST_INSPECT_LABEL}
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </Area>
-        <Area title="Devil's Machinations" selected={selection?.kind === "supporting" && selection.area === "machinations"} onSelect={() => setSelection({ kind: "supporting", area: "machinations" })}>
-          <div className="flex flex-wrap gap-2">
-            {presentation.machinations.map((entry) => (
-              <PlayingCardToken
-                key={entry.card.instanceKey}
-                card={entry.card}
-                treatmentLabel={entry.treatmentLabel}
-                selected={selection?.kind === "twist" && presentation.twists.some((spotlight) => spotlight.machinationInstanceKey === entry.card.instanceKey && selection.index === spotlight.index)}
-                onSelect={entry.isActiveTwist
-                  ? () => {
-                    const spotlight = presentation.twists.find((item) => item.machinationInstanceKey === entry.card.instanceKey);
-                    if (spotlight !== undefined) setSelection({ kind: "twist", index: spotlight.index });
-                  }
-                  : undefined}
-              />
-            ))}
-            {presentation.machinations.length === 0 && <p className="text-xs text-slate-400">None</p>}
-          </div>
-        </Area>
-        <Area title="Defeated Schemes" selected={selection?.kind === "supporting" && selection.area === "defeated"} onSelect={() => setSelection({ kind: "supporting", area: "defeated" })}>
-          <div className="flex flex-wrap gap-2">
-            {presentation.defeatedSchemes.map((card) => <PlayingCardToken key={card.instanceKey} card={card} />)}
-            {presentation.defeatedSchemes.length === 0 && <p className="text-xs text-slate-400">None</p>}
-          </div>
-        </Area>
-        <Area title="Held cards" selected={selection?.kind === "supporting" && selection.area === "held"} onSelect={() => setSelection({ kind: "supporting", area: "held" })}>
-          <div className="flex flex-wrap gap-2">
-            {presentation.heldCards.map((card) => <PlayingCardToken key={card.instanceKey} card={card} />)}
-            {presentation.heldCards.length === 0 && <p className="text-xs text-slate-400">None</p>}
-          </div>
-        </Area>
-        <Area title="Entrusted cards" selected={selection?.kind === "supporting" && selection.area === "entrusted"} onSelect={() => setSelection({ kind: "supporting", area: "entrusted" })}>
-          <ul className="space-y-2">
-            {presentation.entrustedCards.map((card) => (
-              <li key={card.instanceKey} className="flex items-center gap-2">
-                <PlayingCardToken card={card} />
-                <span className="text-xs">{card.locationLabel}</span>
-              </li>
-            ))}
-            {presentation.entrustedCards.length === 0 && <p className="text-xs text-slate-400">None</p>}
-          </ul>
-        </Area>
-        <Area title="Possession cards" selected={selection?.kind === "supporting" && selection.area === "possession"} onSelect={() => setSelection({ kind: "supporting", area: "possession" })}>
-          <ul className="space-y-2">
-            {presentation.possessionCards.map((card) => (
-              <li key={card.instanceKey} className="flex items-center gap-2">
-                <PlayingCardToken card={card} />
-                <span className="text-xs">{card.locationLabel}</span>
-              </li>
-            ))}
-            {presentation.possessionCards.length === 0 && <p className="text-xs text-slate-400">None</p>}
-          </ul>
-        </Area>
-        <Area title="Domain-placement cards" selected={selection?.kind === "supporting" && selection.area === "domain"} onSelect={() => setSelection({ kind: "supporting", area: "domain" })}>
-          <ul className="space-y-2">
-            {presentation.domainPlacements.map((card) => (
-              <li key={card.instanceKey} className="flex items-center gap-2">
-                <PlayingCardToken card={card} />
-                <span className="text-xs">{card.locationLabel}</span>
-              </li>
-            ))}
-            {presentation.domainPlacements.length === 0 && <p className="text-xs text-slate-400">None</p>}
-          </ul>
-        </Area>
-        <Area title="Sorcerer presence" selected={selection?.kind === "supporting" && selection.area === "sorcerer"} onSelect={() => setSelection({ kind: "supporting", area: "sorcerer" })}>
+      {(presentation.devilSchemeResearchers.length > 0 || presentation.disruptiveArcanists.length > 0) && (
+        <PhysicalZone
+          zone="sorcerer"
+          title="Sorcerer presence"
+          selected={selection?.kind === "supporting" && selection.area === "sorcerer"}
+          onSelect={() => setSelection({ kind: "supporting", area: "sorcerer" })}
+        >
           <div className="space-y-2">
             <p className="text-xs font-medium">Researchers at Devil's Schemes</p>
             {presentation.devilSchemeResearchers.length === 0 ? (
@@ -475,8 +684,8 @@ export default function FaustianSurface({
               </ul>
             )}
           </div>
-        </Area>
-      </div>
+        </PhysicalZone>
+      )}
 
       {privateTwist !== null && (
         <section className="rounded-lg border border-amber-700 p-3 space-y-2" aria-label="Private Twist inspection">
@@ -492,7 +701,12 @@ export default function FaustianSurface({
         </section>
       )}
 
-      <Area title="Lore" selected={selection?.kind === "supporting" && selection.area === "lore"} onSelect={() => setSelection({ kind: "supporting", area: "lore" })}>
+      <PhysicalZone
+        zone="lore"
+        title="Lore"
+        selected={selection?.kind === "supporting" && selection.area === "lore"}
+        onSelect={() => setSelection({ kind: "supporting", area: "lore" })}
+      >
         {loreSubjects.length === 0 ? (
           <p className="text-xs text-slate-400">No existing Faustian Lore subject is bound for this campaign.</p>
         ) : (
@@ -508,7 +722,10 @@ export default function FaustianSurface({
             ))}
           </div>
         )}
-      </Area>
+      </PhysicalZone>
+
+      <FaustianTableContextMenu play={play} />
+      <FaustianSchemeSupplyGhost visual={play.dragVisual} />
     </div>
   );
 }

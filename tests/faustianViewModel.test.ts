@@ -466,3 +466,48 @@ describe("machination outcome draft payload", () => {
     });
   });
 });
+
+describe("zero-click table cues", () => {
+  it("marks an empty Devil Deck and missing Faustian-Deck suits as table pressure", () => {
+    const emptyDevil = populatedFaustian();
+    expect(emptyDevil.devilDeck).toHaveLength(1);
+    const noHearts: FaustianState = {
+      ...emptyDevil,
+      devilDeck: [],
+      faustianDeck: emptyDevil.faustianDeck.filter((cardId) => !cardId.startsWith("hearts_")),
+    };
+    const presentation = buildFaustianTablePresentation({ faustian: noHearts });
+    expect(presentation.devilDeckEmpty).toBe(true);
+    expect(presentation.devilDeckCount).toBe(0);
+    expect(presentation.missingSuits.map((suit) => suit.suit)).toEqual(["hearts"]);
+    expect(presentation.missingSuits[0]?.label).toMatch(/hearts/i);
+  });
+
+  it("surfaces due-now Devil obligations without requiring Advanced / Correct", () => {
+    const faustian: FaustianState = {
+      ...populatedFaustian(),
+      devilObligations: [{
+        kind: "wizard_owes_week_due_month",
+        wizardId: WIZ_A as never,
+        dueMonthOrdinal: 3 as never,
+        weeks: 2,
+      }],
+    };
+    const presentation = buildFaustianTablePresentation({
+      faustian,
+      wizards: [{ wizardId: WIZ_A, name: "Mara" }],
+      currentMonthOrdinal: 3,
+    });
+    expect(presentation.obligationCues).toHaveLength(1);
+    expect(presentation.obligationCues[0]?.label).toContain("Mara");
+    expect(presentation.obligationCues[0]?.scheduleLabel).toBe("due_this_month");
+    expect(presentation.obligationCues[0]?.imminent).toBe(true);
+  });
+
+  it("counts face-up vs facedown Schemes per Community for glanceable facing", () => {
+    const presentation = buildFaustianTablePresentation({ faustian: populatedFaustian() });
+    const aries = presentation.communities[0]!;
+    expect(aries.schemeFaceUpCount).toBe(2);
+    expect(aries.schemeFaceDownCount).toBe(2);
+  });
+});

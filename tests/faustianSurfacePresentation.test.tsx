@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
-import { createElement } from "react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import {
@@ -147,6 +147,10 @@ function click(container: HTMLElement, label: string): void {
   });
 }
 
+beforeEach(() => {
+  for (const key of Object.keys(mockMutations)) delete mockMutations[key];
+});
+
 describe("Faustian surface presentation", () => {
   it("renders the 3-column Community tableau with identity headers and piece areas", () => {
     const { container } = renderSurface();
@@ -157,7 +161,6 @@ describe("Faustian surface presentation", () => {
     expect(container.textContent).toContain("Faustian's Deck");
     expect(container.textContent).toContain("Devil's Deck");
     expect(container.textContent).toContain("Active Twist");
-    expect(container.textContent).toContain("Held cards");
     expect(container.querySelector("[aria-label='Faustian Community tableau']")).not.toBeNull();
     const tableau = container.querySelector("[aria-label='Faustian Community tableau']") as HTMLElement;
     expect(tableau.style.minWidth).toBe(`${FAUSTIAN_TABLE_MIN_WIDTH_PX}px`);
@@ -256,16 +259,27 @@ describe("Faustian surface presentation", () => {
     expect(container.textContent).not.toContain("Confirm");
   });
 
-  it("starts Investigate only from an explicit action control", () => {
+  it("starts Investigate only from an explicit Community action", async () => {
     const { container } = renderSurface();
     const aries = container.querySelector("[aria-label='Aries · monks/pilgrims · Hierophant']") as HTMLElement;
     flushSync(() => {
       aries.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
-    click(container, "Start Investigate");
-    expect(container.textContent).toContain("Confirm Investigate reveal");
+    expect(container.textContent).not.toContain("Confirm Investigate reveal");
+    flushSync(() => {
+      aries.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 20, clientY: 20, button: 2 }));
+    });
+    const investigate = container.querySelector('[data-context-action="investigate"]') as HTMLButtonElement;
+    flushSync(() => {
+      investigate.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(container.textContent).not.toContain("Confirm Investigate reveal");
     expect(container.textContent).toContain("Records the Faustian board result; shared Time is handled separately.");
-    expect(Object.values(mockMutations).every((fn) => fn.mock.calls.length === 0)).toBe(true);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(mockMutations["m3Commands.revealFaustianCommunitySchemes"]).toHaveBeenCalled();
   });
 
   it("continues Investigate to foil choice without a reveal command when only face-up Schemes exist", () => {
@@ -289,19 +303,24 @@ describe("Faustian surface presentation", () => {
     const { container } = renderSurface({ faustian });
     const aries = container.querySelector("[aria-label='Aries · monks/pilgrims · Hierophant']") as HTMLElement;
     flushSync(() => {
-      aries.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      aries.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 20, clientY: 20, button: 2 }));
     });
-    click(container, "Start Investigate");
+    const investigate = container.querySelector('[data-context-action="investigate"]') as HTMLButtonElement;
+    flushSync(() => {
+      investigate.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
     expect(container.textContent).not.toContain("Confirm Investigate reveal");
-    expect(container.textContent).toContain("Confirm foil");
+    expect(container.textContent).not.toContain("Confirm foil");
     expect(container.textContent).toContain("Two of Hearts");
     expect(Object.values(mockMutations).every((fn) => fn.mock.calls.length === 0)).toBe(true);
   });
 
   it("presents an Active Twist as one Machinations card plus a reference, not two copies", () => {
     const { container } = renderSurface();
-    expect(container.textContent).toContain("Active Twist reference");
-    expect(container.textContent).toContain("spotlight, not a second copy");
+    expect(container.textContent).toContain("Active Twist");
+    const machinations = container.querySelector('[data-faustian-zone="machinations"]');
+    expect(machinations).not.toBeNull();
+    expect(machinations?.textContent).toMatch(/spotlight|same physical card/i);
     const machinationCards = Array.from(container.querySelectorAll("button")).filter((button) =>
       (button.getAttribute("aria-label") ?? "").includes("Active Twist")
       && (button.getAttribute("aria-label") ?? "").includes("Machination"),
@@ -312,6 +331,58 @@ describe("Faustian surface presentation", () => {
       && button.className.includes("w-[4.5rem]"),
     );
     expect(twistCardCopies).toHaveLength(0);
+  });
+
+  it("renders one card table with decks, Machinations, and Defeated visible without an inspector", () => {
+    const { container } = renderSurface();
+    const table = container.querySelector("[data-faustian-table]");
+    expect(table).not.toBeNull();
+    expect(table?.querySelector('[data-faustian-zone="community-tableau"]')).not.toBeNull();
+    expect(table?.querySelector('[data-faustian-zone="machinations"]')).not.toBeNull();
+    expect(table?.querySelector('[data-faustian-zone="faustian-deck"]')?.textContent).toMatch(/\d+/);
+    expect(table?.querySelector('[data-faustian-zone="devil-deck"]')?.textContent).toMatch(/\d+/);
+    expect(table?.querySelector('[data-faustian-zone="defeated"]')).not.toBeNull();
+    expect(container.querySelector("[aria-label='Aries inspector']")).toBeNull();
+    expect(container.textContent).toContain("Two of Hearts");
+    expect(container.textContent).toContain(FACEDOWN_SCHEME_LABEL);
+    expect(container.textContent).toContain("1 Pawn");
+    expect(container.querySelector('[data-faustian-scheme-supply]')).not.toBeNull();
+  });
+
+  it("shows pending Machination challenge attention on the table without opening a form", () => {
+    let faustian = crowdedAries();
+    faustian = {
+      ...faustian,
+      pendingMachinationChallenges: [{
+        challengeId: "fpmc_00000000-0000-0000-0000-000000000001" as never,
+        kind: "one_pair",
+        sourceMonthOrdinal: 2 as never,
+        dueMonthOrdinal: 3 as never,
+        scoringHandCardIds: [SCHEME_A],
+        groups: [{
+          groupId: "fpmg_00000000-0000-0000-0000-000000000001" as never,
+          responsibleWizardId: null,
+          originalCardIds: [SCHEME_A],
+          status: "pending",
+          completedByWizardId: null,
+          completedMonthOrdinal: null,
+        }],
+        outcomeDependentTwistCardIds: [TWIST],
+      }],
+    };
+    const { container } = renderSurface({ faustian });
+    const machinations = container.querySelector('[data-faustian-zone="machinations"]');
+    expect(machinations?.textContent).toMatch(/One Pair/);
+    expect(machinations?.textContent).toMatch(/pending/i);
+    expect(container.querySelector("[data-faustian-warning-grid]")).toBeNull();
+  });
+
+  it("marks an empty Devil Deck on the physical supply, not a warning grid", () => {
+    const { container } = renderSurface({ faustian: EMPTY_FAUSTIAN_STATE });
+    const devil = container.querySelector('[data-faustian-zone="devil-deck"]');
+    expect(devil?.getAttribute("data-faustian-attention")).toBe("empty-deck");
+    expect(devil?.textContent).toMatch(/empty/i);
+    expect(container.querySelector("[data-faustian-warning-grid]")).toBeNull();
   });
 });
 
