@@ -255,6 +255,22 @@ describe("Scheme supply drag", () => {
     expect(container.querySelector("[data-faustian-drag-ghost]")).toBeNull();
   });
 
+  it("cancels placement when the pointer is cancelled over a Community", async () => {
+    const { container } = renderSurface();
+    const aries = communityEl(container, "aries");
+    const supply = container.querySelector("[data-faustian-scheme-supply]") as Element;
+    (supply as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => aries });
+    await act(async () => {
+      supply.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: 15, clientY: 15, pointerId: 77, isPrimary: true }));
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 40, clientY: 15, pointerId: 77 }));
+      window.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true, clientX: 210, clientY: 210, pointerId: 77 }));
+    });
+    await flushPlay();
+    expect(mockMutations["m3Commands.placeFaustianSchemes"]?.mock.calls.length ?? 0).toBe(0);
+    expect(container.querySelector("[data-faustian-drag-ghost]")).toBeNull();
+  });
+
   it("resets the drag ghost when placement is rejected", async () => {
     mockMutations["m3Commands.placeFaustianSchemes"] = vi.fn(async () => {
       throw new Error("Devil's Deck does not contain enough cards for the requested quantity");

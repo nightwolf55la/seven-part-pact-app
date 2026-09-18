@@ -254,7 +254,7 @@ export function useFaustianTablePlay(args: {
       });
     };
 
-    const onPointerUp = (event: PointerEvent) => {
+    const endDrag = (event: PointerEvent, commit: boolean) => {
       const session = dragRef.current;
       if (session === null || event.pointerId !== session.pointerId) return;
       const expectedFaustian = session.expectedFaustian;
@@ -262,17 +262,20 @@ export function useFaustianTablePlay(args: {
       const dropId = findFaustianCommunityDropId(document.elementFromPoint(event.clientX, event.clientY));
       dragRef.current = null;
       setDragVisual(null);
-      if (!wasDragging || dropId === null) return;
+      if (!commit || !wasDragging || dropId === null) return;
       void placeOneScheme(dropId, expectedFaustian);
     };
 
+    const onPointerUp = (event: PointerEvent) => endDrag(event, true);
+    const onPointerCancel = (event: PointerEvent) => endDrag(event, false);
+
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp);
-    window.addEventListener("pointercancel", onPointerUp);
+    window.addEventListener("pointercancel", onPointerCancel);
     return () => {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
-      window.removeEventListener("pointercancel", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerCancel);
     };
   }, [placeOneScheme]);
 
