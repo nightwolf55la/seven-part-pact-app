@@ -83,7 +83,53 @@ export type FaustianContextMenu =
     readonly cardId: FaustianCardId;
     readonly clientX: number;
     readonly clientY: number;
+  }
+  | {
+    readonly kind: "pawn";
+    readonly communityId: FaustianCommunityId;
+    readonly clientX: number;
+    readonly clientY: number;
+    readonly expectedFaustian: FaustianState;
+  }
+  | {
+    readonly kind: "disrupt-pick";
+    readonly communityId: FaustianCommunityId;
+    readonly clientX: number;
+    readonly clientY: number;
+    readonly expectedFaustian: FaustianState;
+  }
+  | {
+    readonly kind: "twist";
+    readonly cardId: FaustianCardId;
+    readonly facing: "face_up" | "face_down";
+    readonly reserved: boolean;
+    readonly clientX: number;
+    readonly clientY: number;
+  }
+  | {
+    readonly kind: "machinations";
+    readonly clientX: number;
+    readonly clientY: number;
+  }
+  | {
+    readonly kind: "obligation";
+    readonly wizardId: string;
+    readonly dueMonthOrdinal: number;
+    readonly weeks: number;
+    readonly clientX: number;
+    readonly clientY: number;
+  }
+  | {
+    readonly kind: "complete-wizard-pick";
+    readonly challengeId: string;
+    readonly groupId: string;
+    readonly clientX: number;
+    readonly clientY: number;
   };
+
+export type FaustianLifecycleLaunch =
+  | { readonly kind: "machination_outcome" }
+  | { readonly kind: "finalize_challenge"; readonly challengeId: string };
 
 export interface FaustianSchemeSupplyDragVisual {
   readonly clientX: number;
@@ -111,18 +157,24 @@ export function useFaustianTablePlay(args: {
   readonly wizards: readonly NamedWizardRef[];
   readonly lifecycleKind: "setup" | "play";
 }) {
-  const { faustian, campaignId, lifecycleKind } = args;
+  const { faustian, campaignId, lifecycleKind, wizards } = args;
   const revealSchemes = useMutation(api.m3Commands.revealFaustianCommunitySchemes);
   const foilScheme = useMutation(api.m3Commands.foilFaustianCommunityScheme);
   const blackmail = useMutation(api.m3Commands.blackmailFaustianCommunity);
   const placeSchemes = useMutation(api.m3Commands.placeFaustianSchemes);
   const recordScheme = useMutation(api.m3Commands.recordFaustianSchemeOccurred);
   const directAccomplice = useMutation(api.m3Commands.directFaustianAccomplice);
+  const disruptPawn = useMutation(api.m3Commands.disruptFaustianPawn);
+  const discloseTwist = useMutation(api.m3Commands.discloseFaustianTwist);
+  const recordTwist = useMutation(api.m3Commands.recordFaustianTwistOccurred);
+  const completeResponse = useMutation(api.m3Commands.completeFaustianMachinationResponse);
+  const fulfillObligation = useMutation(api.m3Commands.fulfillFaustianDueMonthObligation);
 
   const [contextMenu, setContextMenu] = useState<FaustianContextMenu | null>(null);
   const [dragVisual, setDragVisual] = useState<FaustianSchemeSupplyDragVisual | null>(null);
   const [investigating, setInvestigating] = useState<InvestigateDraft | null>(null);
   const [occurrence, setOccurrence] = useState<OccurrenceDraft | null>(null);
+  const [lifecycleLaunch, setLifecycleLaunch] = useState<FaustianLifecycleLaunch | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -194,6 +246,64 @@ export function useFaustianTablePlay(args: {
       kind: "accomplice",
       communityId,
       cardId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+    });
+  }, []);
+
+  const openPawnMenu = useCallback((communityId: FaustianCommunityId, event: ReactMouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({
+      kind: "pawn",
+      communityId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      expectedFaustian: captureFaustianSnapshot(faustianRef.current),
+    });
+  }, []);
+
+  const openTwistMenu = useCallback((
+    cardId: FaustianCardId,
+    facing: "face_up" | "face_down",
+    reserved: boolean,
+    event: ReactMouseEvent,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({
+      kind: "twist",
+      cardId,
+      facing,
+      reserved,
+      clientX: event.clientX,
+      clientY: event.clientY,
+    });
+  }, []);
+
+  const openMachinationsMenu = useCallback((event: ReactMouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({
+      kind: "machinations",
+      clientX: event.clientX,
+      clientY: event.clientY,
+    });
+  }, []);
+
+  const openObligationMenu = useCallback((
+    wizardId: string,
+    dueMonthOrdinal: number,
+    weeks: number,
+    event: ReactMouseEvent,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({
+      kind: "obligation",
+      wizardId,
+      dueMonthOrdinal,
+      weeks,
       clientX: event.clientX,
       clientY: event.clientY,
     });
@@ -439,10 +549,129 @@ export function useFaustianTablePlay(args: {
     });
   }, [campaignId, directAccomplice, run]);
 
+  const communityAccompliceIds = useCallback((communityId: FaustianCommunityId, snapshot: FaustianState): FaustianCardId[] => {
+    return [...(snapshot.communities.find((community) => community.communityId === communityId)?.accompliceCardIds ?? [])];
+  }, []);
+
+  const onDisrupt = useCallback((communityId: FaustianCommunityId, snapshot: FaustianState, clientX: number, clientY: number) => {
+    const community = snapshot.communities.find((entry) => entry.communityId === communityId);
+    if (community === undefined || community.pawnCount < 1) return;
+    const accompliceCardIds = communityAccompliceIds(communityId, snapshot);
+    if (accompliceCardIds.length === 0) return;
+    setContextMenu(null);
+    if (accompliceCardIds.length === 1) {
+      void run(async () => {
+        await disruptPawn({
+          commandId: commandId(),
+          expectedCampaignId: campaignId,
+          communityId,
+          accompliceCardId: accompliceCardIds[0],
+        });
+      });
+      return;
+    }
+    setContextMenu({ kind: "disrupt-pick", communityId, clientX, clientY, expectedFaustian: snapshot });
+  }, [campaignId, communityAccompliceIds, disruptPawn, run]);
+
+  const onDisruptAccomplice = useCallback((communityId: FaustianCommunityId, accompliceCardId: FaustianCardId) => {
+    setContextMenu(null);
+    void run(async () => {
+      await disruptPawn({
+        commandId: commandId(),
+        expectedCampaignId: campaignId,
+        communityId,
+        accompliceCardId,
+      });
+    });
+  }, [campaignId, disruptPawn, run]);
+
+  const onDiscloseTwist = useCallback((cardId: FaustianCardId) => {
+    setContextMenu(null);
+    void run(async () => {
+      await discloseTwist({
+        commandId: commandId(),
+        expectedCampaignId: campaignId,
+        twistCardId: cardId,
+      });
+    });
+  }, [campaignId, discloseTwist, run]);
+
+  const onTwistOccurred = useCallback((cardId: FaustianCardId) => {
+    setContextMenu(null);
+    void run(async () => {
+      await recordTwist({
+        commandId: commandId(),
+        expectedCampaignId: campaignId,
+        twistCardId: cardId,
+      });
+    });
+  }, [campaignId, recordTwist, run]);
+
+  const onMachinationOutcome = useCallback(() => {
+    setContextMenu(null);
+    setLifecycleLaunch({ kind: "machination_outcome" });
+  }, []);
+
+  const completingWizardId = useCallback((responsibleWizardId: string | null): string | null => {
+    if (responsibleWizardId !== null && responsibleWizardId !== "") return responsibleWizardId;
+    if (wizards.length === 1) return wizards[0]?.wizardId ?? null;
+    return null;
+  }, [wizards]);
+
+  const onCompleteResponse = useCallback((
+    challengeId: string,
+    groupId: string,
+    responsibleWizardId: string | null,
+    clientX?: number,
+    clientY?: number,
+  ) => {
+    const wizardId = completingWizardId(responsibleWizardId);
+    if (wizardId === null) {
+      setContextMenu({
+        kind: "complete-wizard-pick",
+        challengeId,
+        groupId,
+        clientX: clientX ?? 24,
+        clientY: clientY ?? 24,
+      });
+      return;
+    }
+    setContextMenu(null);
+    void run(async () => {
+      await completeResponse({
+        commandId: commandId(),
+        expectedCampaignId: campaignId,
+        challengeId,
+        groupId,
+        completedByWizardId: wizardId,
+      });
+    });
+  }, [campaignId, completeResponse, completingWizardId, run]);
+
+  const onFinalizeChallenge = useCallback((challengeId: string) => {
+    setContextMenu(null);
+    setLifecycleLaunch({ kind: "finalize_challenge", challengeId });
+  }, []);
+
+  const onFulfillObligation = useCallback((wizardId: string, dueMonthOrdinal: number) => {
+    setContextMenu(null);
+    void run(async () => {
+      await fulfillObligation({
+        commandId: commandId(),
+        expectedCampaignId: campaignId,
+        wizardId,
+        dueMonthOrdinal,
+        weeks: 1,
+      });
+    });
+  }, [campaignId, fulfillObligation, run]);
+
   const foilEligible = useCallback((communityId: FaustianCommunityId, cardId: FaustianCardId | null): boolean => {
     if (investigating === null || cardId === null) return false;
     return investigating.communityId === communityId && investigating.eligibleSchemeCardIds.includes(cardId);
   }, [investigating]);
+
+  const clearLifecycleLaunch = useCallback(() => setLifecycleLaunch(null), []);
 
   return {
     contextMenu,
@@ -450,6 +679,7 @@ export function useFaustianTablePlay(args: {
     dragging: dragVisual !== null,
     investigating,
     occurrence,
+    lifecycleLaunch,
     error,
     pending,
     closeMenu,
@@ -457,6 +687,10 @@ export function useFaustianTablePlay(args: {
     openCommunityMenu,
     openSchemeMenu,
     openAccompliceMenu,
+    openPawnMenu,
+    openTwistMenu,
+    openMachinationsMenu,
+    openObligationMenu,
     startSchemeSupplyDrag,
     onPlaceScheme,
     onBlackmail,
@@ -464,10 +698,21 @@ export function useFaustianTablePlay(args: {
     onFoil,
     onResolveMachinations,
     onDirectDestination,
+    onDisrupt,
+    onDisruptAccomplice,
+    onDiscloseTwist,
+    onTwistOccurred,
+    onMachinationOutcome,
+    onCompleteResponse,
+    onFinalizeChallenge,
+    onFulfillObligation,
     setContextMenu,
     setOccurrence,
     confirmOccurrence,
     foilEligible,
+    clearLifecycleLaunch,
+    communityAccompliceIds,
+    wizardChoices: wizards,
   };
 }
 
@@ -515,6 +760,8 @@ export function FaustianTableContextMenu({
 
   let items: ReactNode = null;
   if (menu.kind === "community") {
+    const community = menu.expectedFaustian.communities.find((entry) => entry.communityId === menu.communityId);
+    const canDisrupt = (community?.pawnCount ?? 0) > 0 && (community?.accompliceCardIds.length ?? 0) > 0;
     items = (
       <>
         <button type="button" role="menuitem" className={MENU_BTN} data-context-action="place-scheme" onClick={() => play.onPlaceScheme(menu)}>
@@ -526,6 +773,17 @@ export function FaustianTableContextMenu({
         <button type="button" role="menuitem" className={MENU_BTN} data-context-action="investigate" onClick={() => play.onInvestigate(menu)}>
           Investigate
         </button>
+        {canDisrupt && (
+          <button
+            type="button"
+            role="menuitem"
+            className={MENU_BTN}
+            data-context-action="disrupt-pawn"
+            onClick={() => play.onDisrupt(menu.communityId, menu.expectedFaustian, menu.clientX, menu.clientY)}
+          >
+            Disrupt Pawn
+          </button>
+        )}
       </>
     );
   } else if (menu.kind === "scheme") {
@@ -571,7 +829,7 @@ export function FaustianTableContextMenu({
         Direct…
       </button>
     );
-  } else {
+  } else if (menu.kind === "direct-pick") {
     items = FAUSTIAN_COMMUNITY_IDS.filter((communityId) => communityId !== menu.communityId).map((communityId) => (
       <button
         key={communityId}
@@ -583,6 +841,85 @@ export function FaustianTableContextMenu({
         onClick={() => play.onDirectDestination(menu.cardId, communityId)}
       >
         Direct to {faustianCommunityHeader(communityId).zodiacLabel}
+      </button>
+    ));
+  } else if (menu.kind === "pawn") {
+    const canDisrupt = play.communityAccompliceIds(menu.communityId, menu.expectedFaustian).length > 0
+      && (menu.expectedFaustian.communities.find((entry) => entry.communityId === menu.communityId)?.pawnCount ?? 0) > 0;
+    items = canDisrupt ? (
+      <button
+        type="button"
+        role="menuitem"
+        className={MENU_BTN}
+        data-context-action="disrupt-pawn"
+        onClick={() => play.onDisrupt(menu.communityId, menu.expectedFaustian, menu.clientX, menu.clientY)}
+      >
+        Disrupt Pawn
+      </button>
+    ) : (
+      <p className="px-2 py-1 text-[11px] text-slate-500">No Pawn to disrupt</p>
+    );
+  } else if (menu.kind === "disrupt-pick") {
+    items = play.communityAccompliceIds(menu.communityId, menu.expectedFaustian).map((cardId) => (
+      <button
+        key={cardId}
+        type="button"
+        role="menuitem"
+        className={MENU_BTN}
+        data-context-action="disrupt-accomplice"
+        data-card-id={cardId}
+        onClick={() => play.onDisruptAccomplice(menu.communityId, cardId)}
+      >
+        Disrupt with {faustianFaceUpIdentityLabel(cardId)}
+      </button>
+    ));
+  } else if (menu.kind === "twist") {
+    items = (
+      <>
+        {!menu.reserved && (
+          <button type="button" role="menuitem" className={MENU_BTN} data-context-action="disclose-twist" onClick={() => play.onDiscloseTwist(menu.cardId)}>
+            Disclose / Replace Twist
+          </button>
+        )}
+        {!menu.reserved && menu.facing === "face_up" && (
+          <button type="button" role="menuitem" className={MENU_BTN} data-context-action="twist-occurred" onClick={() => play.onTwistOccurred(menu.cardId)}>
+            Record Twist Occurred
+          </button>
+        )}
+        {menu.reserved && (
+          <p className="px-2 py-1 text-[11px] text-slate-500">Reserved Twist</p>
+        )}
+      </>
+    );
+  } else if (menu.kind === "machinations") {
+    items = (
+      <button type="button" role="menuitem" className={MENU_BTN} data-context-action="machination-outcome" onClick={() => play.onMachinationOutcome()}>
+        Record Machination Outcome
+      </button>
+    );
+  } else if (menu.kind === "obligation") {
+    items = (
+      <button
+        type="button"
+        role="menuitem"
+        className={MENU_BTN}
+        data-context-action="fulfill-obligation"
+        onClick={() => play.onFulfillObligation(menu.wizardId, menu.dueMonthOrdinal)}
+      >
+        Record 1 week fulfilled
+      </button>
+    );
+  } else {
+    items = play.wizardChoices.map((wizard) => (
+      <button
+        key={wizard.wizardId}
+        type="button"
+        role="menuitem"
+        className={MENU_BTN}
+        data-context-action="complete-wizard"
+        onClick={() => play.onCompleteResponse(menu.challengeId, menu.groupId, wizard.wizardId)}
+      >
+        Complete as {wizard.name}
       </button>
     ));
   }

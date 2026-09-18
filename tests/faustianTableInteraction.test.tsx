@@ -465,3 +465,163 @@ describe("Accomplice Direct", () => {
     )).toBe(false);
   });
 });
+
+const WIZARD_A = "wiz_00000000-0000-0000-0000-00000000000a";
+const CHALLENGE_ID = "fpmc_00000000-0000-0000-0000-000000000001";
+const GROUP_ID = "fpmg_00000000-0000-0000-0000-000000000001";
+
+function withPendingChallenge(faustian: FaustianState): FaustianState {
+  return {
+    ...faustian,
+    pendingMachinationChallenges: [{
+      challengeId: CHALLENGE_ID as never,
+      kind: "one_pair",
+      sourceMonthOrdinal: 2 as never,
+      dueMonthOrdinal: 3 as never,
+      scoringHandCardIds: [SCHEME_A],
+      groups: [{
+        groupId: GROUP_ID as never,
+        responsibleWizardId: null,
+        originalCardIds: [SCHEME_A],
+        status: "pending",
+        completedByWizardId: null,
+        completedMonthOrdinal: null,
+      }],
+      outcomeDependentTwistCardIds: [TWIST],
+    }],
+    setAsideHand: [SCHEME_A],
+  };
+}
+
+describe("object-attached remaining lifecycle", () => {
+  it("disrupts the only local Accomplice from the Pawn tray without a Community selector", async () => {
+    const { container } = renderSurface();
+    openContextOn(container.querySelector('[data-faustian-pawn-tray="aries"]') as Element);
+    expect(container.querySelector("[data-faustian-context-menu]")?.textContent).not.toMatch(/Community/);
+    clickAction(container, "disrupt-pawn");
+    await flushPlay();
+    expect(mockMutations["m3Commands.disruptFaustianPawn"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.disruptFaustianPawn"]!.mock.calls[0]?.[0]).toMatchObject({
+      communityId: "aries",
+      accompliceCardId: ACCOMPLICE,
+    });
+  });
+
+  it("asks only which Accomplice when more than one can Disrupt", async () => {
+    const start = withAries(playTable(), {
+      pawnCount: 1,
+      schemes: [{ cardId: SCHEME_A, facing: "face_up" }],
+      accompliceCardIds: [ACCOMPLICE, ACCOMPLICE_B],
+    });
+    const { container } = renderSurface({ faustian: start });
+    openContextOn(container.querySelector('[data-faustian-pawn-tray="aries"]') as Element);
+    clickAction(container, "disrupt-pawn");
+    expect(mockMutations["m3Commands.disruptFaustianPawn"]?.mock.calls.length ?? 0).toBe(0);
+    const pick = container.querySelector(`[data-context-action="disrupt-accomplice"][data-card-id="${ACCOMPLICE_B}"]`) as HTMLButtonElement;
+    flushSync(() => {
+      pick.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flushPlay();
+    expect(mockMutations["m3Commands.disruptFaustianPawn"]!.mock.calls[0]?.[0]).toMatchObject({
+      communityId: "aries",
+      accompliceCardId: ACCOMPLICE_B,
+    });
+  });
+
+  it("discloses the right-clicked Twist without exposing a facedown identity", async () => {
+    const { container } = renderSurface();
+    const twist = Array.from(container.querySelectorAll('[data-faustian-card="machination"]')).find((el) =>
+      (el.getAttribute("aria-label") ?? "").includes("Active Twist"),
+    );
+    openContextOn(twist as Element);
+    const menu = container.querySelector("[data-faustian-context-menu]");
+    expect(menu?.textContent).not.toMatch(/Ace of Spades|spades_ace/i);
+    clickAction(container, "disclose-twist");
+    await flushPlay();
+    expect(mockMutations["m3Commands.discloseFaustianTwist"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.discloseFaustianTwist"]!.mock.calls[0]?.[0]).toMatchObject({
+      twistCardId: TWIST,
+    });
+  });
+
+  it("records Twist occurred from a revealed Twist", async () => {
+    const start = {
+      ...playTable(),
+      machinations: [{ cardId: TWIST, facing: "face_up" as const }],
+    };
+    const { container } = renderSurface({ faustian: start });
+    const twist = Array.from(container.querySelectorAll('[data-faustian-card="machination"]')).find((el) =>
+      (el.getAttribute("aria-label") ?? "").includes("Ace of Spades"),
+    );
+    openContextOn(twist as Element);
+    clickAction(container, "twist-occurred");
+    await flushPlay();
+    expect(mockMutations["m3Commands.recordFaustianTwistOccurred"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.recordFaustianTwistOccurred"]!.mock.calls[0]?.[0]).toMatchObject({
+      twistCardId: TWIST,
+    });
+  });
+
+  it("opens Record Machination Outcome from the Machinations zone without deciding the result", () => {
+    const start = {
+      ...playTable(),
+      machinations: [
+        { cardId: TWIST, facing: "face_up" as const },
+        { cardId: SCHEME_C, facing: "face_up" as const },
+      ],
+    };
+    const { container } = renderSurface({ faustian: start });
+    openContextOn(container.querySelector('[data-faustian-zone="machinations"]') as Element);
+    clickAction(container, "machination-outcome");
+    expect(mockMutations["m3Commands.recordFaustianMachinationOutcome"]?.mock.calls.length ?? 0).toBe(0);
+    expect(container.textContent).toContain("Confirm Machination Outcome");
+    expect(container.querySelector("[data-faustian-attached-lifecycle]")).not.toBeNull();
+  });
+
+  it("completes a pending response from the challenge object when the Wizard is known", async () => {
+    const { container } = renderSurface({ faustian: withPendingChallenge(playTable()), monthOrdinal: 3 });
+    const complete = container.querySelector('[data-context-action="complete-response"]') as HTMLButtonElement;
+    flushSync(() => {
+      complete.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flushPlay();
+    expect(mockMutations["m3Commands.completeFaustianMachinationResponse"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.completeFaustianMachinationResponse"]!.mock.calls[0]?.[0]).toMatchObject({
+      challengeId: CHALLENGE_ID,
+      groupId: GROUP_ID,
+      completedByWizardId: WIZARD_A,
+    });
+  });
+
+  it("opens Finalize from the challenge object and does not auto-finalize", () => {
+    const { container } = renderSurface({ faustian: withPendingChallenge(playTable()), monthOrdinal: 3 });
+    const finalize = container.querySelector('[data-context-action="finalize-challenge"]') as HTMLButtonElement;
+    flushSync(() => {
+      finalize.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(mockMutations["m3Commands.finalizeFaustianMachinationChallenge"]?.mock.calls.length ?? 0).toBe(0);
+    expect(container.textContent).toContain("Confirm Finalize Challenge");
+  });
+
+  it("records one due-month week from the visible obligation cue", async () => {
+    const start: FaustianState = {
+      ...playTable(),
+      devilObligations: [{
+        kind: "wizard_owes_week_due_month",
+        wizardId: WIZARD_A as never,
+        dueMonthOrdinal: 3 as never,
+        weeks: 2,
+      }],
+    };
+    const { container } = renderSurface({ faustian: start, monthOrdinal: 3 });
+    openContextOn(container.querySelector("[data-faustian-obligation]") as Element);
+    clickAction(container, "fulfill-obligation");
+    await flushPlay();
+    expect(mockMutations["m3Commands.fulfillFaustianDueMonthObligation"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.fulfillFaustianDueMonthObligation"]!.mock.calls[0]?.[0]).toMatchObject({
+      wizardId: WIZARD_A,
+      dueMonthOrdinal: 3,
+      weeks: 1,
+    });
+  });
+});

@@ -500,6 +500,8 @@ describe("zero-click table cues", () => {
     });
     expect(presentation.obligationCues).toHaveLength(1);
     expect(presentation.obligationCues[0]?.label).toContain("Mara");
+    expect(presentation.obligationCues[0]?.wizardId).toBe(WIZ_A);
+    expect(presentation.obligationCues[0]?.weeks).toBe(2);
     expect(presentation.obligationCues[0]?.scheduleLabel).toBe("due_this_month");
     expect(presentation.obligationCues[0]?.imminent).toBe(true);
   });

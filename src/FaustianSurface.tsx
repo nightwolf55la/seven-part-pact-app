@@ -171,6 +171,7 @@ function PhysicalZone({
   attention = null,
   selected = false,
   onSelect,
+  onContextMenu,
   className = "",
 }: {
   readonly title: string;
@@ -179,12 +180,14 @@ function PhysicalZone({
   readonly attention?: string | null;
   readonly selected?: boolean;
   readonly onSelect?: () => void;
+  readonly onContextMenu?: (event: ReactMouseEvent) => void;
   readonly className?: string;
 }) {
   return (
     <section
       data-faustian-zone={zone}
       data-faustian-attention={attention ?? undefined}
+      onContextMenu={onContextMenu}
       className={`rounded-md bg-emerald-950/50 p-2.5 space-y-2 border border-emerald-900/80 ${
         selected ? "ring-2 ring-amber-400/80" : ""
       } ${attention !== null ? "ring-1 ring-amber-400/90" : ""} ${className}`}
@@ -313,7 +316,8 @@ export default function FaustianSurface({
               <span
                 key={cue.key}
                 data-faustian-obligation={cue.key}
-                className="inline-block rounded-full bg-amber-800/90 text-amber-50 text-[0.65rem] font-medium px-2 py-0.5"
+                className="inline-block rounded-full bg-amber-800/90 text-amber-50 text-[0.65rem] font-medium px-2 py-0.5 cursor-pointer"
+                onContextMenu={(event) => play.openObligationMenu(cue.wizardId, cue.dueMonthOrdinal, cue.weeks, event)}
               >
                 {cue.label}
               </span>
@@ -392,6 +396,7 @@ export default function FaustianSurface({
                         className="flex flex-wrap items-center gap-1"
                         data-faustian-pawn-tray={community.communityId}
                         aria-label={community.pawnLabel}
+                        onContextMenu={(event) => play.openPawnMenu(community.communityId, event)}
                       >
                         {Array.from({ length: Math.min(community.pawnCount, 6) }, (_, index) => (
                           <span
@@ -433,6 +438,7 @@ export default function FaustianSurface({
             title="Devil's Machinations"
             selected={selection?.kind === "supporting" && selection.area === "machinations"}
             onSelect={() => setSelection({ kind: "supporting", area: "machinations" })}
+            onContextMenu={(event) => play.openMachinationsMenu(event)}
             attention={presentation.pendingChallenges.some((challenge) => challenge.groups.some((group) => group.status === "pending")) ? "pending-challenge" : null}
             className={layout === "narrow" ? "w-full" : "w-[16.5rem] shrink-0"}
           >
@@ -458,20 +464,26 @@ export default function FaustianSurface({
               </div>
             )}
             <div className="flex flex-wrap gap-2">
-              {presentation.machinations.map((entry) => (
-                <PlayingCardToken
-                  key={entry.card.instanceKey}
-                  card={entry.card}
-                  treatmentLabel={entry.treatmentLabel}
-                  selected={selection?.kind === "twist" && presentation.twists.some((spotlight) => spotlight.machinationInstanceKey === entry.card.instanceKey && selection.index === spotlight.index)}
-                  onSelect={entry.isActiveTwist
-                    ? () => {
-                      const spotlight = presentation.twists.find((item) => item.machinationInstanceKey === entry.card.instanceKey);
-                      if (spotlight !== undefined) setSelection({ kind: "twist", index: spotlight.index });
-                    }
-                    : undefined}
-                />
-              ))}
+              {presentation.machinations.map((entry, index) => {
+                const live = faustian.machinations[index];
+                return (
+                  <PlayingCardToken
+                    key={entry.card.instanceKey}
+                    card={entry.card}
+                    treatmentLabel={entry.treatmentLabel}
+                    selected={selection?.kind === "twist" && presentation.twists.some((spotlight) => spotlight.machinationInstanceKey === entry.card.instanceKey && selection.index === spotlight.index)}
+                    onSelect={entry.isActiveTwist
+                      ? () => {
+                        const spotlight = presentation.twists.find((item) => item.machinationInstanceKey === entry.card.instanceKey);
+                        if (spotlight !== undefined) setSelection({ kind: "twist", index: spotlight.index });
+                      }
+                      : undefined}
+                    onContextMenu={entry.isActiveTwist && live !== undefined
+                      ? (event) => play.openTwistMenu(live.cardId, live.facing, entry.isReservedTwist, event)
+                      : undefined}
+                  />
+                );
+              })}
               {presentation.machinations.length === 0 && <p className="text-xs text-emerald-200/50">None</p>}
             </div>
             {presentation.pendingChallenges.length > 0 && (
@@ -487,6 +499,31 @@ export default function FaustianSurface({
                     {challenge.scheduleLabel.replace(/_/g, " ")}
                     {" · "}
                     {challenge.groups.filter((group) => group.status === "pending").length} pending
+                    {challenge.groups.filter((group) => group.status === "pending").map((group) => (
+                      <button
+                        key={group.groupId}
+                        type="button"
+                        className={`${ghostBtn} ml-1 mt-1`}
+                        data-context-action="complete-response"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          play.onCompleteResponse(challenge.challengeId, group.groupId, group.responsibleWizardId, event.clientX, event.clientY);
+                        }}
+                      >
+                        Complete Response
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className={`${ghostBtn} ml-1 mt-1`}
+                      data-context-action="finalize-challenge"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        play.onFinalizeChallenge(challenge.challengeId);
+                      }}
+                    >
+                      Finalize…
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -759,19 +796,16 @@ export default function FaustianSurface({
       )}
 
       {lifecycleKind === "play" && (
-        <details className="rounded-lg border border-slate-200 dark:border-slate-700 p-3" data-faustian-lifecycle-less-common>
-          <summary className="text-sm font-semibold cursor-pointer">Less-common Scheme destinations and lifecycle</summary>
-          <div className="mt-3">
-            <FaustianLifecycleActions
-              faustian={faustian}
-              campaignId={campaignId}
-              lifecycleKind={lifecycleKind}
-              wizards={wizards}
-              selectedCommunityId={selection?.kind === "community" ? selection.communityId : null}
-              presentation={presentation}
-            />
-          </div>
-        </details>
+        <FaustianLifecycleActions
+          faustian={faustian}
+          campaignId={campaignId}
+          lifecycleKind={lifecycleKind}
+          wizards={wizards}
+          selectedCommunityId={selection?.kind === "community" ? selection.communityId : null}
+          presentation={presentation}
+          launch={play.lifecycleLaunch}
+          onLaunchConsumed={play.clearLifecycleLaunch}
+        />
       )}
 
       <FaustianAdvancedActions

@@ -153,6 +153,7 @@ export interface FaustianMachinationPresentation {
 export interface FaustianPendingChallengeGroupPresentation {
   readonly groupId: string;
   readonly status: "pending" | "completed";
+  readonly responsibleWizardId: string | null;
   readonly responsibleWizardName: string | null;
   readonly completedByWizardName: string | null;
 }
@@ -185,6 +186,9 @@ export interface FaustianMissingSuitPresentation {
 export interface FaustianObligationCuePresentation {
   readonly key: string;
   readonly label: string;
+  readonly wizardId: string;
+  readonly dueMonthOrdinal: number;
+  readonly weeks: number;
   readonly scheduleLabel: "upcoming" | "due_this_month" | "overdue";
   readonly imminent: boolean;
 }
@@ -438,6 +442,9 @@ export function buildFaustianTablePresentation(args: {
     return [{
       key: `${obligation.wizardId}:${obligation.dueMonthOrdinal}`,
       label: `${wizardName(wizards, obligation.wizardId)} owes ${obligation.weeks} week${obligation.weeks === 1 ? "" : "s"}`,
+      wizardId: obligation.wizardId,
+      dueMonthOrdinal: obligation.dueMonthOrdinal,
+      weeks: obligation.weeks,
       scheduleLabel,
       imminent: scheduleLabel !== "upcoming",
     }];
@@ -482,6 +489,7 @@ export function buildFaustianTablePresentation(args: {
       groups: challenge.groups.map((group) => ({
         groupId: group.groupId,
         status: group.status,
+        responsibleWizardId: group.responsibleWizardId,
         responsibleWizardName: group.responsibleWizardId === null ? null : wizardName(wizards, group.responsibleWizardId),
         completedByWizardName: group.completedByWizardId === null ? null : wizardName(wizards, group.completedByWizardId),
       })),
