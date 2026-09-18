@@ -564,7 +564,7 @@ export function formatVisionsSupplicantLine(
   if (preview.departure.kind === "cult_threshold") {
     parts.push("Cult resolution required");
   }
-  if (preview.choiceRequired && preview.demand.kind === "artisan") {
+  if (variant === "detail" && preview.choiceRequired && preview.demand.kind === "artisan") {
     parts.push("Artisan choice needed");
   }
   return parts.join(" · ");

@@ -1,12 +1,16 @@
 import type { KeyboardEvent } from "react";
 import {
-  planHierophantVisions,
   powerfulStatusLabel,
+  type DenizenId,
   type HierophantProphet,
   type HierophantState,
   type HierophantSupplicant,
   type HierophantTemple,
+  type HierophantTempleId,
+  type HierophantVisionsChoices,
   type HierophantVisionsPlan,
+  type HierophantVisionsRequiredChoice,
+  type HierophantVisionsResource,
   type HierophantVisionsSupplicantPreview,
   type HierophantVisionsTemplePreview,
   type SorcererExternalPresence,
@@ -15,6 +19,7 @@ import type { NamedDenizen, NamedPlace } from "./hierophant-view-model";
 import {
   classLabel,
   denizenLabel,
+  formatVisionsResourceName,
   formatVisionsSupplicantLine,
   formatVisionsTempleWarnings,
   hostedProphets,
@@ -26,15 +31,61 @@ import {
   templeDoctrineSummary,
   templeResearchers,
   templeSupportedClassLabels,
-  deriveHierophantVisionsContext,
   shortTempleBoardLabel,
 } from "./hierophant-view-model";
+import { formatVisionsPreviewChoiceSummary } from "./hierophant-visions-preview";
+
+export interface HierophantVisionsBoardChoices {
+  readonly plan: HierophantVisionsPlan;
+  readonly openChoices: readonly HierophantVisionsRequiredChoice[];
+  readonly previewChoices: HierophantVisionsChoices;
+  readonly orderDraft: readonly DenizenId[];
+  readonly onArtisanPayment: (denizenId: DenizenId, resource: HierophantVisionsResource) => void;
+  readonly onHestarFallback: (denizenId: DenizenId, useHestar: boolean) => void;
+  readonly onHestarDonor: (denizenId: DenizenId, templeId: HierophantTempleId) => void;
+  readonly onOrderSelect: (denizenId: DenizenId) => void;
+  readonly onOrderUndo: () => void;
+  readonly onOrderReset: () => void;
+}
 
 function activate(event: KeyboardEvent<Element>, action: () => void): void {
   if (event.key === "Enter" || event.key === " ") {
     event.preventDefault();
     action();
   }
+}
+
+function ChoiceButton({
+  label,
+  pressed,
+  recommended = false,
+  onChoose,
+}: {
+  readonly label: string;
+  readonly pressed: boolean;
+  readonly recommended?: boolean;
+  readonly onChoose: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      className={`rounded-md px-2 py-1 text-xs font-semibold cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
+        pressed
+          ? "border-2 border-amber-800 bg-amber-800 text-amber-50 dark:border-amber-200 dark:bg-amber-200 dark:text-amber-950"
+          : recommended
+            ? "border-2 border-amber-700 bg-amber-100 text-amber-950 dark:border-amber-300 dark:bg-amber-900/60 dark:text-amber-50"
+            : "border border-amber-800/40 bg-white text-amber-950 dark:border-amber-500/50 dark:bg-slate-900 dark:text-amber-50"
+      }`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onChoose();
+      }}
+      onKeyDown={(event) => activate(event, onChoose)}
+    >
+      {label}
+    </button>
+  );
 }
 
 function boardStatus(temple: HierophantTemple): { readonly label: string; readonly kind: "active" | "blasphemous" | "collapsed" } {
@@ -131,13 +182,31 @@ function SupplicantPiece({
   preview,
   denizens,
   campaignClasses,
+  artisanChoice,
+  artisanSelected,
+  hestarFallback,
+  hestarFallbackSelected,
+  orderIndex,
+  orderSelectable,
   onSelectTemple,
+  onArtisanPayment,
+  onHestarFallback,
+  onOrderSelect,
 }: {
   readonly person: HierophantSupplicant;
   readonly preview: HierophantVisionsSupplicantPreview | undefined;
   readonly denizens: readonly NamedDenizen[];
   readonly campaignClasses: HierophantState["campaignClasses"];
+  readonly artisanChoice: Extract<HierophantVisionsRequiredChoice, { kind: "artisan_payment" }> | undefined;
+  readonly artisanSelected: HierophantVisionsResource | undefined;
+  readonly hestarFallback: Extract<HierophantVisionsRequiredChoice, { kind: "hestar_fallback" }> | undefined;
+  readonly hestarFallbackSelected: boolean | undefined;
+  readonly orderIndex: number | null;
+  readonly orderSelectable: boolean;
   readonly onSelectTemple: () => void;
+  readonly onArtisanPayment: (resource: HierophantVisionsResource) => void;
+  readonly onHestarFallback: (useHestar: boolean) => void;
+  readonly onOrderSelect: () => void;
 }) {
   const name = denizenLabel(denizens, person.denizenId);
   const klass = classLabel(person.classId, campaignClasses);
@@ -151,36 +220,88 @@ function SupplicantPiece({
     `Woe ${person.woe}`,
     support,
     line,
+    orderIndex === null ? null : `Visions order ${orderIndex}`,
   ].filter((part): part is string => part !== null && part !== "").join(", ");
+  const primaryAction = orderSelectable && orderIndex === null ? onOrderSelect : onSelectTemple;
+  const primaryLabel = orderSelectable && orderIndex === null
+    ? `Add ${name} to Visions order`
+    : accessible;
   return (
     <li>
-      <button
-        type="button"
-        className={`w-full text-left rounded-lg border px-2 py-1.5 shadow-sm cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
+      <div
+        className={`rounded-lg border px-2 py-1.5 shadow-sm ${
           danger
             ? "border-rose-400 bg-rose-50 dark:border-rose-500 dark:bg-rose-950/40"
             : "border-amber-800/40 bg-amber-50 dark:border-amber-600/50 dark:bg-amber-950/30"
         }`}
-        aria-label={accessible}
-        onClick={onSelectTemple}
-        onKeyDown={(event) => activate(event, onSelectTemple)}
       >
-        <div className="font-medium leading-tight">{name}</div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-          <span>{klass}</span>
-          {support !== null && (
-            <span className="rounded-sm border border-amber-800/40 px-1 uppercase tracking-wide text-[10px] font-semibold">
-              {support}
-            </span>
+        <button
+          type="button"
+          className="w-full text-left cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+          aria-label={primaryLabel}
+          onClick={primaryAction}
+          onKeyDown={(event) => activate(event, primaryAction)}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="font-medium leading-tight">{name}</div>
+            {orderIndex !== null && (
+              <span
+                className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-800 px-1 text-[11px] font-bold text-amber-50 dark:bg-amber-200 dark:text-amber-950"
+                aria-label={`Visions order ${orderIndex}`}
+              >
+                {orderIndex}
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+            <span>{klass}</span>
+            {support !== null && (
+              <span className="rounded-sm border border-amber-800/40 px-1 uppercase tracking-wide text-[10px] font-semibold">
+                {support}
+              </span>
+            )}
+          </div>
+          <div className="mt-1">
+            <WoePips woe={person.woe} projectedTo={projectedTo} />
+          </div>
+          {line !== null && (
+            <p className="mt-1 text-xs text-slate-700 dark:text-slate-200">{line}</p>
           )}
-        </div>
-        <div className="mt-1">
-          <WoePips woe={person.woe} projectedTo={projectedTo} />
-        </div>
-        {line !== null && (
-          <p className="mt-1 text-xs text-slate-700 dark:text-slate-200">{line}</p>
+        </button>
+        {artisanChoice !== undefined && (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-medium">Pay with:</span>
+            {artisanChoice.options.map((resource) => (
+              <ChoiceButton
+                key={resource}
+                label={formatVisionsResourceName(resource)}
+                pressed={artisanSelected === resource}
+                onChoose={() => onArtisanPayment(resource)}
+              />
+            ))}
+          </div>
         )}
-      </button>
+        {hestarFallback !== undefined && (
+          <div className="mt-2 flex flex-col gap-1">
+            <span className="text-xs font-medium">
+              Use Hestar's {formatVisionsResourceName(hestarFallback.resource)}?
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              <ChoiceButton
+                label="Use Hestar"
+                recommended
+                pressed={hestarFallbackSelected === true}
+                onChoose={() => onHestarFallback(true)}
+              />
+              <ChoiceButton
+                label="Don't"
+                pressed={hestarFallbackSelected === false}
+                onChoose={() => onHestarFallback(false)}
+              />
+            </div>
+          </div>
+        )}
+      </div>
     </li>
   );
 }
@@ -194,6 +315,7 @@ function TemplePiece({
   plan,
   selected,
   onSelect,
+  choices,
 }: {
   readonly temple: HierophantTemple;
   readonly hierophant: HierophantState;
@@ -203,6 +325,7 @@ function TemplePiece({
   readonly plan: HierophantVisionsPlan;
   readonly selected: boolean;
   readonly onSelect: () => void;
+  readonly choices: HierophantVisionsBoardChoices;
 }) {
   const isHestar = temple.kind === "hestar";
   const hosted = hostedSupplicants(hierophant.supplicants, { kind: "temple", templeId: temple.templeId });
@@ -213,28 +336,31 @@ function TemplePiece({
   const status = boardStatus(temple);
   const name = templeDisplayName(temple, places);
   const templePreview: HierophantVisionsTemplePreview | undefined = plan.temples.find((entry) => entry.templeId === temple.templeId);
-  const fallbackChoice = plan.requiredChoices.find(
+  const fallbackChoice = choices.openChoices.find(
     (choice) => choice.kind === "hestar_fallback" && choice.templeId === temple.templeId,
   );
-  const donorChoice = plan.requiredChoices.find(
-    (choice) => choice.kind === "hestar_donor" && choice.templeId === temple.templeId,
+  const donorChoices = choices.openChoices.filter(
+    (choice): choice is Extract<HierophantVisionsRequiredChoice, { kind: "hestar_donor" }> =>
+      choice.kind === "hestar_donor" && choice.templeId === temple.templeId,
   );
-  const donorLabels = donorChoice?.kind === "hestar_donor"
-    ? donorChoice.eligibleDonorTempleIds.map((templeId) => {
-        const donor = hierophant.temples.find((entry) => entry.templeId === templeId);
-        return shortTempleBoardLabel(donor === undefined ? templeId : templeDisplayName(donor, places));
-      })
-    : [];
+  const donorLabels = donorChoices.flatMap((choice) =>
+    choice.eligibleDonorTempleIds.map((templeId) => {
+      const donor = hierophant.temples.find((entry) => entry.templeId === templeId);
+      return shortTempleBoardLabel(donor === undefined ? templeId : templeDisplayName(donor, places));
+    }),
+  );
   const warnings = templePreview === undefined
     ? []
     : formatVisionsTempleWarnings(templePreview, {
         hestarFallbackResource: fallbackChoice?.kind === "hestar_fallback" ? fallbackChoice.resource : undefined,
-        donorAmount: donorChoice?.kind === "hestar_donor" ? donorChoice.amount : undefined,
-        donorResource: donorChoice?.kind === "hestar_donor" ? donorChoice.resource : undefined,
-        donorLabels,
+        donorAmount: donorChoices[0]?.amount,
+        donorResource: donorChoices[0]?.resource,
+        donorLabels: [...new Set(donorLabels)],
       });
   const supportedClasses = templeSupportedClassLabels(temple, hierophant.campaignDoctrines, hierophant.campaignClasses);
   const previews = new Map(plan.supplicants.map((entry) => [entry.denizenId, entry]));
+  const orderChoice = choices.openChoices.find((choice) => choice.kind === "supplicant_order");
+  const orderParticipants = orderChoice?.kind === "supplicant_order" ? orderChoice.participantIds : [];
   return (
     <article
       data-temple-id={temple.templeId}
@@ -323,6 +449,27 @@ function TemplePiece({
             ))}
           </ul>
         )}
+        {donorChoices.map((choice) => (
+          <div key={choice.denizenId} className="flex flex-col gap-1">
+            <span className="text-xs font-medium">
+              Take {choice.amount} {formatVisionsResourceName(choice.resource)} from:
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {choice.eligibleDonorTempleIds.map((templeId) => {
+                const donor = hierophant.temples.find((entry) => entry.templeId === templeId);
+                const label = shortTempleBoardLabel(donor === undefined ? templeId : templeDisplayName(donor, places));
+                return (
+                  <ChoiceButton
+                    key={templeId}
+                    label={label}
+                    pressed={choices.previewChoices.hestarDonors?.[choice.denizenId] === templeId}
+                    onChoose={() => choices.onHestarDonor(choice.denizenId, templeId)}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </header>
       {groups.filter((group) => group.people.length > 0 || group.key === "courtyard" || group.key === "agiary" || group.key === "hestar").map((group) => (
         <section key={group.key} aria-label={group.label} className="text-sm">
@@ -341,7 +488,23 @@ function TemplePiece({
                   preview={previews.get(person.denizenId)}
                   denizens={denizens}
                   campaignClasses={hierophant.campaignClasses}
+                  artisanChoice={choices.openChoices.find((choice): choice is Extract<HierophantVisionsRequiredChoice, { kind: "artisan_payment" }> =>
+                    choice.kind === "artisan_payment" && choice.denizenId === person.denizenId
+                  )}
+                  artisanSelected={choices.previewChoices.artisanPayments?.[person.denizenId]}
+                  hestarFallback={choices.openChoices.find((choice): choice is Extract<HierophantVisionsRequiredChoice, { kind: "hestar_fallback" }> =>
+                    choice.kind === "hestar_fallback" && choice.denizenId === person.denizenId
+                  )}
+                  hestarFallbackSelected={choices.previewChoices.hestarFallback?.[person.denizenId]}
+                  orderIndex={(() => {
+                    const index = choices.orderDraft.indexOf(person.denizenId);
+                    return index === -1 ? null : index + 1;
+                  })()}
+                  orderSelectable={orderParticipants.includes(person.denizenId)}
                   onSelectTemple={onSelect}
+                  onArtisanPayment={(resource) => choices.onArtisanPayment(person.denizenId, resource)}
+                  onHestarFallback={(useHestar) => choices.onHestarFallback(person.denizenId, useHestar)}
+                  onOrderSelect={() => choices.onOrderSelect(person.denizenId)}
                 />
               ))}
             </ul>
@@ -403,6 +566,7 @@ export default function HierophantTempleBoard({
   presence,
   selectedTempleId,
   onSelectTemple,
+  choices,
 }: {
   readonly hierophant: HierophantState;
   readonly denizens: readonly NamedDenizen[];
@@ -410,13 +574,62 @@ export default function HierophantTempleBoard({
   readonly presence: readonly SorcererExternalPresence[];
   readonly selectedTempleId: string | null;
   readonly onSelectTemple: (templeId: string) => void;
+  readonly choices: HierophantVisionsBoardChoices;
 }) {
-  const plan = planHierophantVisions(hierophant, {}, deriveHierophantVisionsContext(denizens));
+  const plan = choices.plan;
   const byId = new Map(hierophant.temples.map((temple) => [temple.templeId, temple]));
   const hestar = byId.get("hestar");
   const extras = supplementaryTemples(hierophant.temples);
+  const orderChoice = choices.openChoices.find((choice) => choice.kind === "supplicant_order");
+  const summary = formatVisionsPreviewChoiceSummary(choices.openChoices, {
+    ...choices.previewChoices,
+    supplicantOrder: choices.orderDraft,
+  }, {
+    denizenName: (id) => denizenLabel(denizens, id),
+    templeName: (id) => {
+      const temple = byId.get(id as HierophantTempleId);
+      return temple === undefined ? id : templeDisplayName(temple, places);
+    },
+  });
+  function renderTemple(temple: HierophantTemple) {
+    return (
+      <TemplePiece
+        temple={temple}
+        hierophant={hierophant}
+        denizens={denizens}
+        places={places}
+        presence={presence}
+        plan={plan}
+        selected={selectedTempleId === temple.templeId}
+        onSelect={() => onSelectTemple(temple.templeId)}
+        choices={choices}
+      />
+    );
+  }
   return (
     <div className="flex flex-col gap-3">
+      {orderChoice?.kind === "supplicant_order" && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50/80 px-3 py-2 text-sm dark:border-amber-800 dark:bg-amber-950/40">
+          <span className="font-medium">Choose Visions order</span>
+          <span className="text-xs text-slate-600 dark:text-slate-300">Click the marked pieces in sequence.</span>
+          <button
+            type="button"
+            className="text-xs font-medium rounded-md px-2 py-1 border border-amber-800/40 cursor-pointer"
+            aria-label="Undo last Visions order"
+            onClick={choices.onOrderUndo}
+          >
+            Undo last
+          </button>
+          <button
+            type="button"
+            className="text-xs font-medium rounded-md px-2 py-1 border border-amber-800/40 cursor-pointer"
+            aria-label="Reset Visions order"
+            onClick={choices.onOrderReset}
+          >
+            Reset
+          </button>
+        </div>
+      )}
       <div
         className="grid gap-3 md:grid-cols-[1fr_1.15fr_1fr] md:grid-rows-2"
         aria-label="Temples of the Hierophant"
@@ -426,31 +639,13 @@ export default function HierophantTempleBoard({
           if (temple === undefined) return null;
           return (
             <div key={temple.templeId} className={index === 0 ? "md:col-start-1 md:row-start-1" : "md:col-start-3 md:row-start-1"}>
-              <TemplePiece
-                temple={temple}
-                hierophant={hierophant}
-                denizens={denizens}
-                places={places}
-                presence={presence}
-                plan={plan}
-                selected={selectedTempleId === temple.templeId}
-                onSelect={() => onSelectTemple(temple.templeId)}
-              />
+              {renderTemple(temple)}
             </div>
           );
         })}
         {hestar !== undefined && (
           <div className="md:col-start-2 md:row-start-1 md:row-span-2">
-            <TemplePiece
-              temple={hestar}
-              hierophant={hierophant}
-              denizens={denizens}
-              places={places}
-              presence={presence}
-              plan={plan}
-              selected={selectedTempleId === "hestar"}
-              onSelect={() => onSelectTemple("hestar")}
-            />
+            {renderTemple(hestar)}
           </div>
         )}
         {startingOrdinaryTempleIds().slice(2).map((templeId, index) => {
@@ -458,20 +653,19 @@ export default function HierophantTempleBoard({
           if (temple === undefined) return null;
           return (
             <div key={temple.templeId} className={index === 0 ? "md:col-start-1 md:row-start-2" : "md:col-start-3 md:row-start-2"}>
-              <TemplePiece
-                temple={temple}
-                hierophant={hierophant}
-                denizens={denizens}
-                places={places}
-                presence={presence}
-                plan={plan}
-                selected={selectedTempleId === temple.templeId}
-                onSelect={() => onSelectTemple(temple.templeId)}
-              />
+              {renderTemple(temple)}
             </div>
           );
         })}
       </div>
+      {summary.length > 0 && (
+        <p
+          className="text-xs text-slate-600 dark:text-slate-300"
+          aria-label="Visions preview choices"
+        >
+          {summary.join(" · ")}
+        </p>
+      )}
       {extras.length > 0 && (
         <section aria-label="Additional Temples" className="grid gap-3 md:grid-cols-2">
           {extras.map((temple) => (
@@ -485,6 +679,7 @@ export default function HierophantTempleBoard({
               plan={plan}
               selected={selectedTempleId === temple.templeId}
               onSelect={() => onSelectTemple(temple.templeId)}
+              choices={choices}
             />
           ))}
         </section>
