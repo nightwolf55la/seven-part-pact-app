@@ -1,5 +1,7 @@
 import {
+  HIEROPHANT_BUILTIN_DOCTRINE_DEFINITIONS,
   hierophantBuiltinDoctrineDefinition,
+  isValidHierophantBuiltinBlasphemyId,
   isValidHierophantBuiltinClassId,
   isValidHierophantBuiltinDoctrineId,
 } from "./hierophant-catalogs";
@@ -11,6 +13,7 @@ import type {
   HierophantState,
   HierophantSupplicant,
   HierophantTemple,
+  OrdinaryTempleDoctrineState,
 } from "./hierophant-state";
 
 export type HierophantVisionsResource = "abundance" | "conviction";
@@ -51,6 +54,14 @@ export type HierophantVisionsRequiredChoice =
       readonly resource: HierophantVisionsResource;
       readonly amount: number;
       readonly options: readonly [true, false];
+    }
+  | {
+      readonly kind: "hestar_donor";
+      readonly denizenId: DenizenId;
+      readonly templeId: "hestar";
+      readonly resource: HierophantVisionsResource;
+      readonly amount: number;
+      readonly eligibleDonorTempleIds: readonly Exclude<HierophantTempleId, "hestar">[];
     }
   | {
       readonly kind: "supplicant_order";
@@ -95,6 +106,24 @@ export type HierophantVisionsBlocker =
       readonly denizenId: DenizenId;
       readonly templeId: HierophantTempleId;
       readonly classId: HierophantClassId;
+    }
+  | {
+      readonly kind: "reliable_prophet_production";
+      readonly templeId: HierophantTempleId;
+      readonly prophetDenizenIds: readonly DenizenId[];
+      readonly productions: readonly {
+        readonly denizenId: DenizenId;
+        readonly resource: HierophantVisionsResource;
+        readonly amount: number;
+      }[];
+    }
+  | {
+      readonly kind: "hestar_share_unresolved";
+      readonly denizenId: DenizenId;
+      readonly templeId: "hestar";
+      readonly resource: HierophantVisionsResource;
+      readonly amount: number;
+      readonly reason: "no_eligible_donor" | "donor_combination_unapproved";
     };
 
 export interface HierophantVisionsResourceProjection {
@@ -112,6 +141,8 @@ export interface HierophantVisionsTemplePreview {
     readonly consequence: "collapse" | "blasphemy";
   } | null;
   readonly hestarFallback: "not_needed" | "choice_required" | "applied" | "declined";
+  readonly hestarDonor: "not_needed" | "choice_required" | "applied";
+  readonly reliableProphetProduction: boolean;
   readonly orderChoiceRequired: boolean;
   readonly unresolved: boolean;
 }
@@ -132,7 +163,12 @@ export interface HierophantVisionsSupplicantPreview {
 export interface HierophantVisionsChoices {
   readonly artisanPayments?: Readonly<Partial<Record<string, HierophantVisionsResource>>>;
   readonly hestarFallback?: Readonly<Partial<Record<string, boolean>>>;
+  readonly hestarDonors?: Readonly<Partial<Record<string, HierophantTempleId>>>;
   readonly supplicantOrder?: readonly DenizenId[];
+}
+
+export interface HierophantVisionsContext {
+  readonly reliableProphetDenizenIds?: readonly DenizenId[];
 }
 
 export type HierophantVisionsPlanKind =
@@ -199,6 +235,26 @@ function supportedClassIdsForDoctrine(
   return campaign === undefined ? null : campaign.supportedClassIds;
 }
 
+export function hierophantDoctrinePairSupportedClassIds(
+  doctrine: OrdinaryTempleDoctrineState,
+  campaignDoctrines: readonly HierophantCampaignDoctrine[],
+): readonly string[] | null {
+  if (doctrine.kind === "unset") return null;
+  if (doctrine.kind === "doctrine") {
+    return supportedClassIdsForDoctrine(doctrine.doctrineId, campaignDoctrines);
+  }
+  if (isValidHierophantBuiltinBlasphemyId(doctrine.blasphemyId)) {
+    const pair = HIEROPHANT_BUILTIN_DOCTRINE_DEFINITIONS.find(
+      (entry) => entry.pairedBlasphemy.id === doctrine.blasphemyId,
+    );
+    return pair === undefined ? null : pair.supportedClassIds;
+  }
+  const campaign = campaignDoctrines.find(
+    (entry) => entry.blasphemy !== null && entry.blasphemy.blasphemyId === doctrine.blasphemyId,
+  );
+  return campaign === undefined ? null : campaign.supportedClassIds;
+}
+
 export function hierophantVisionsSupport(
   temple: HierophantTemple,
   classId: HierophantClassId,
@@ -207,12 +263,51 @@ export function hierophantVisionsSupport(
   if (temple.status === "collapsed") return "not_applicable";
   if (temple.kind === "hestar") return "supported";
   if (temple.doctrine.kind === "unset") return "not_determined";
-  if (temple.doctrine.kind === "blasphemy") return "unsupported";
-  const supported = supportedClassIdsForDoctrine(temple.doctrine.doctrineId, campaignDoctrines);
+  const supported = hierophantDoctrinePairSupportedClassIds(temple.doctrine, campaignDoctrines);
   if (supported === null) return "not_determined";
   if (supported.includes(classId)) return "supported";
   if (isValidHierophantBuiltinClassId(classId)) return "unsupported";
   return "not_determined";
+}
+
+function isBlasphemousOrdinary(temple: HierophantTemple): boolean {
+  return temple.kind === "ordinary" && temple.doctrine.kind === "blasphemy";
+}
+
+function templeMayShareWithHestar(temple: HierophantTemple): boolean {
+  return temple.kind === "ordinary" && temple.status === "active" && !isBlasphemousOrdinary(temple);
+}
+
+function eligibleHestarDonorIds(
+  temples: readonly HierophantTemple[],
+  stocks: ReadonlyMap<HierophantTempleId, MutableStock>,
+  resource: HierophantVisionsResource,
+  amount: number,
+): Exclude<HierophantTempleId, "hestar">[] {
+  const ids: Exclude<HierophantTempleId, "hestar">[] = [];
+  for (const temple of temples) {
+    if (temple.kind !== "ordinary" || !templeMayShareWithHestar(temple)) continue;
+    const stock = stocks.get(temple.templeId);
+    if (stock === undefined || stockOf(stock, resource) < amount) continue;
+    ids.push(temple.templeId);
+  }
+  return ids.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
+function hasPartialHestarDonor(
+  temples: readonly HierophantTemple[],
+  stocks: ReadonlyMap<HierophantTempleId, MutableStock>,
+  resource: HierophantVisionsResource,
+  amount: number,
+): boolean {
+  for (const temple of temples) {
+    if (!templeMayShareWithHestar(temple)) continue;
+    const stock = stocks.get(temple.templeId);
+    if (stock === undefined) continue;
+    const have = stockOf(stock, resource);
+    if (have > 0 && have < amount) return true;
+  }
+  return false;
 }
 
 function classCostFor(classId: HierophantClassId): ClassifiedSupplicant["classCost"] {
@@ -399,6 +494,7 @@ function applyPaid(entry: ClassifiedSupplicant, working: WorkingPreview): void {
 export function planHierophantVisions(
   hierophant: HierophantState,
   choices: HierophantVisionsChoices = {},
+  context: HierophantVisionsContext = {},
 ): HierophantVisionsPlan {
   const templeById = new Map(hierophant.temples.map((temple) => [temple.templeId, temple]));
   const hestar = templeById.get("hestar");
@@ -429,6 +525,13 @@ export function planHierophantVisions(
   const hestarChoiceIds = new Set<string>();
   const hestarAppliedIds = new Set<string>();
   const hestarDeclinedIds = new Set<string>();
+  const hestarDonorChoiceIds = new Set<string>();
+  const hestarDonorAppliedIds = new Set<string>();
+  const hestarClaims: Array<{
+    readonly denizenId: DenizenId;
+    readonly resource: HierophantVisionsResource;
+    readonly amount: number;
+  }> = [];
   const shortageTemples = new Map<string, { resource: HierophantVisionsResource; consequence: "collapse" | "blasphemy" }>();
 
   for (const entry of classified) {
@@ -548,11 +651,60 @@ export function planHierophantVisions(
         continue;
       }
 
+      if (temple.kind === "hestar") {
+        const donors = eligibleHestarDonorIds(
+          hierophant.temples,
+          startingStock,
+          row.payment.resource,
+          row.payment.amount,
+        );
+        const chosen = choices.hestarDonors?.[row.entry.person.denizenId];
+        if (chosen !== undefined && donors.includes(chosen as Exclude<HierophantTempleId, "hestar">)) {
+          hestarDonorAppliedIds.add(row.entry.person.denizenId);
+        } else if (donors.length > 0) {
+          preview.choiceRequired = true;
+          hestarDonorChoiceIds.add(row.entry.person.denizenId);
+          requiredChoices.push({
+            kind: "hestar_donor",
+            denizenId: row.entry.person.denizenId,
+            templeId: "hestar",
+            resource: row.payment.resource,
+            amount: row.payment.amount,
+            eligibleDonorTempleIds: donors,
+          });
+        } else {
+          preview.blockerKind = "hestar_share_unresolved";
+          blockers.push({
+            kind: "hestar_share_unresolved",
+            denizenId: row.entry.person.denizenId,
+            templeId: "hestar",
+            resource: row.payment.resource,
+            amount: row.payment.amount,
+            reason: hasPartialHestarDonor(
+              hierophant.temples,
+              startingStock,
+              row.payment.resource,
+              row.payment.amount,
+            )
+              ? "donor_combination_unapproved"
+              : "no_eligible_donor",
+          });
+        }
+        continue;
+      }
+
       const hestarHave = hestar === undefined ? 0 : (
         row.payment.resource === "abundance" ? hestar.abundance : hestar.conviction
       );
-      const hestarCanPay = temple.kind !== "hestar" && hestarHave >= row.payment.amount;
+      const hestarCanPay = templeMayShareWithHestar(temple) && hestarHave >= row.payment.amount;
       const fallbackChoice = choices.hestarFallback?.[row.entry.person.denizenId];
+      if (hestarCanPay && fallbackChoice !== false) {
+        hestarClaims.push({
+          denizenId: row.entry.person.denizenId,
+          resource: row.payment.resource,
+          amount: row.payment.amount,
+        });
+      }
       if (hestarCanPay && fallbackChoice === undefined) {
         preview.choiceRequired = true;
         hestarChoiceIds.add(row.entry.person.denizenId);
@@ -619,6 +771,17 @@ export function planHierophantVisions(
     }
   }
 
+  if (hestar !== undefined) {
+    for (const resource of ["abundance", "conviction"] as const) {
+      const claims = hestarClaims.filter((claim) => claim.resource === resource);
+      const need = claims.reduce((sum, claim) => sum + claim.amount, 0);
+      const have = resource === "abundance" ? hestar.abundance : hestar.conviction;
+      if (claims.length > 1 && have < need) {
+        for (const claim of claims) orderSensitiveIds.push(claim.denizenId);
+      }
+    }
+  }
+
   const orderParticipants = uniqueIds(orderSensitiveIds);
   const orderSupplied = orderCovers(choices.supplicantOrder, orderParticipants);
   if (orderParticipants.length > 1 && !orderSupplied) {
@@ -631,13 +794,21 @@ export function planHierophantVisions(
 
   const pendingArtisan = requiredChoices.some((choice) => choice.kind === "artisan_payment");
   const pendingHestar = requiredChoices.some((choice) => choice.kind === "hestar_fallback");
+  const pendingHestarDonor = requiredChoices.some((choice) => choice.kind === "hestar_donor");
   const pendingOrder = requiredChoices.some((choice) => choice.kind === "supplicant_order");
+  const pendingDonorTempleIds = new Set(
+    requiredChoices.flatMap((choice) => choice.kind === "hestar_donor" ? choice.eligibleDonorTempleIds : []),
+  );
   const structuralBlockers = blockers.filter((blocker) =>
     blocker.kind === "support_not_determined"
     || blocker.kind === "collapsed_temple"
     || blocker.kind === "unknown_class_cost",
   );
-  const canSimulateGlobally = !pendingArtisan && !pendingHestar && !pendingOrder && structuralBlockers.length === 0;
+  const canSimulateGlobally = !pendingArtisan
+    && !pendingHestar
+    && !pendingHestarDonor
+    && !pendingOrder
+    && structuralBlockers.length === 0;
   const orderSet = new Set(orderParticipants);
 
   const endingStock = new Map<HierophantTempleId, MutableStock>();
@@ -651,11 +822,23 @@ export function planHierophantVisions(
     if (local === undefined) return false;
     const payment = resolvedPayment(entry, local, choices);
     if (payment === "artisan" || payment === "unknown" || payment === null) return false;
-    const useHestar = allowHestar
-      && choices.hestarFallback?.[entry.person.denizenId] === true
-      && entry.temple.kind !== "hestar"
+    const chosenDonor = choices.hestarDonors?.[entry.person.denizenId];
+    const donorTemple = chosenDonor === undefined ? undefined : templeById.get(chosenDonor);
+    const useDonor = allowHestar
+      && entry.temple.kind === "hestar"
+      && donorTemple !== undefined
+      && templeMayShareWithHestar(donorTemple)
       && stockOf(local, payment.resource) < payment.amount;
-    const sourceId = useHestar && hestar !== undefined ? hestar.templeId : entry.temple.templeId;
+    const useHestar = allowHestar
+      && !useDonor
+      && choices.hestarFallback?.[entry.person.denizenId] === true
+      && templeMayShareWithHestar(entry.temple)
+      && stockOf(local, payment.resource) < payment.amount;
+    const sourceId = useDonor && chosenDonor !== undefined
+      ? chosenDonor
+      : useHestar && hestar !== undefined
+        ? hestar.templeId
+        : entry.temple.templeId;
     const source = endingStock.get(sourceId);
     if (source === undefined) return false;
     if (!spendStock(source, payment.resource, payment.amount)) {
@@ -711,6 +894,8 @@ export function planHierophantVisions(
       processOrder.push(...resourceAffecting);
     }
     for (const entry of processOrder) {
+      const preview = working.get(entry.person.denizenId);
+      if (preview?.blockerKind === "hestar_share_unresolved") continue;
       payEntry(entry, true);
     }
   } else {
@@ -720,10 +905,54 @@ export function planHierophantVisions(
       if (
         preview.blockerKind === "resource_shortage_collapse"
         || preview.blockerKind === "resource_shortage_blasphemy"
+        || preview.blockerKind === "hestar_share_unresolved"
       ) {
         continue;
       }
       payEntry(entry, false);
+    }
+  }
+
+  const reliableProphetIds = new Set(context.reliableProphetDenizenIds ?? []);
+  const reliableProphetsByTemple = new Map<HierophantTempleId, DenizenId[]>();
+  for (const prophet of hierophant.prophets) {
+    if (prophet.host.kind !== "temple") continue;
+    if (!reliableProphetIds.has(prophet.denizenId)) continue;
+    const hosted = reliableProphetsByTemple.get(prophet.host.templeId) ?? [];
+    hosted.push(prophet.denizenId);
+    reliableProphetsByTemple.set(prophet.host.templeId, hosted);
+  }
+  const prophetProductionTemples = new Set<HierophantTempleId>();
+  for (const [templeId, prophetIds] of reliableProphetsByTemple) {
+    const productions: Array<{
+      readonly denizenId: DenizenId;
+      readonly resource: HierophantVisionsResource;
+      readonly amount: number;
+    }> = [];
+    for (const entry of classified) {
+      if (entry.temple.templeId !== templeId) continue;
+      const preview = working.get(entry.person.denizenId);
+      if (preview === undefined || preview.departure.kind !== "benefaction") continue;
+      productions.push({
+        denizenId: entry.person.denizenId,
+        resource: preview.departure.resource,
+        amount: preview.departure.amount,
+      });
+    }
+    if (productions.length === 0) continue;
+    productions.sort((a, b) => (a.denizenId < b.denizenId ? -1 : a.denizenId > b.denizenId ? 1 : 0));
+    prophetProductionTemples.add(templeId);
+    blockers.push({
+      kind: "reliable_prophet_production",
+      templeId,
+      prophetDenizenIds: uniqueIds(prophetIds),
+      productions,
+    });
+    for (const production of productions) {
+      const preview = working.get(production.denizenId);
+      if (preview !== undefined && preview.blockerKind === null) {
+        preview.blockerKind = "reliable_prophet_production";
+      }
     }
   }
 
@@ -735,18 +964,28 @@ export function planHierophantVisions(
     const hostedHestarChoice = hostedEntries.some((entry) => hestarChoiceIds.has(entry.person.denizenId));
     const hostedHestarApplied = hostedEntries.some((entry) => hestarAppliedIds.has(entry.person.denizenId));
     const hostedHestarDeclined = hostedEntries.some((entry) => hestarDeclinedIds.has(entry.person.denizenId));
+    const hostedHestarDonorChoice = hostedEntries.some((entry) => hestarDonorChoiceIds.has(entry.person.denizenId));
+    const hostedHestarDonorApplied = hostedEntries.some((entry) => hestarDonorAppliedIds.has(entry.person.denizenId));
     const orderChoiceRequired = hostedEntries.some((entry) => orderSet.has(entry.person.denizenId))
       && pendingOrder;
     const hostedPending = hostedEntries.some((entry) => entryIsResourcePending(entry));
     const hestarCoupled = temple.kind === "hestar" && (pendingHestar || (!canSimulateGlobally && hestarAppliedIds.size > 0));
-    const resourcesSettled = shortage === null && !hostedPending && !orderChoiceRequired && !hestarCoupled;
+    const hestarDonorCoupled = pendingHestarDonor
+      && (temple.kind === "hestar" || pendingDonorTempleIds.has(temple.templeId));
+    const reliableProphetProduction = prophetProductionTemples.has(temple.templeId);
+    const resourcesSettled = shortage === null
+      && !hostedPending
+      && !orderChoiceRequired
+      && !hestarCoupled
+      && !hestarDonorCoupled
+      && !reliableProphetProduction;
     const abundanceAfterFinal = resourcesSettled ? after.abundance : null;
     const convictionAfterFinal = resourcesSettled ? after.conviction : null;
 
     const unresolved = hostedEntries.some((entry) => {
       const preview = working.get(entry.person.denizenId);
       return preview !== undefined && (preview.choiceRequired || preview.blockerKind !== null);
-    }) || orderChoiceRequired || shortage !== null;
+    }) || orderChoiceRequired || shortage !== null || reliableProphetProduction;
 
     return {
       templeId: temple.templeId,
@@ -768,6 +1007,12 @@ export function planHierophantVisions(
           : hostedHestarDeclined
             ? "declined"
             : "not_needed",
+      hestarDonor: hostedHestarDonorChoice
+        ? "choice_required"
+        : hostedHestarDonorApplied
+          ? "applied"
+          : "not_needed",
+      reliableProphetProduction,
       orderChoiceRequired,
       unresolved,
     };

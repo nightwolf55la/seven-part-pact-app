@@ -571,6 +571,7 @@ describe("Hierophant zero-click monthly board", () => {
     expect(krolis.textContent).toContain("Cult resolution required");
     expect(krolis.querySelector('[aria-label="Holiday marked"]')).not.toBeNull();
     expect(krolis.textContent).toContain("Prophet Ilya");
+    expect(krolis.textContent).not.toContain("Reliable Prophet production resolution required");
     expect(krolis.textContent).toContain("Lina the Seer");
     expect(ushin.textContent).toContain("Collapsed");
     expect(ushin.textContent).toContain("Blasphemous");
@@ -591,6 +592,99 @@ describe("Hierophant zero-click monthly board", () => {
     );
     expect(details).toBeDefined();
     expect(details?.open).toBeFalsy();
+    root.unmount();
+    container.remove();
+  });
+
+  it("shows Blasphemous pair support and Supported/Unsupported from the planner", () => {
+    const blasphemousState = {
+      ...monthlyState,
+      temples: monthlyState.temples.map((temple) =>
+        temple.templeId === "krolis"
+          ? { ...temple, doctrine: { kind: "blasphemy" as const, blasphemyId: "old_land_demands_blood" as const } }
+          : temple,
+      ),
+      prophets: [],
+      supplicants: [
+        {
+          denizenId: "den_ann" as never,
+          classId: "peasant" as const,
+          woe: 3,
+          host: { kind: "temple" as const, templeId: "krolis" as const, area: "courtyard" as const },
+        },
+        {
+          denizenId: "den_gentry" as never,
+          classId: "gentry" as const,
+          woe: 2,
+          host: { kind: "temple" as const, templeId: "krolis" as const, area: "courtyard" as const },
+        },
+      ],
+    };
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    flushSync(() => {
+      root.render(createElement(HierophantSurface, {
+        hierophant: blasphemousState as typeof EMPTY_HIEROPHANT_STATE,
+        world: monthlyWorld,
+        campaignId: CAMPAIGN_ID,
+      }));
+    });
+    const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
+    expect(krolis.textContent).toContain("Blasphemous");
+    expect(krolis.textContent).toContain("Supports Artisan, Peasant");
+    expect(krolis.textContent).toContain("Supported");
+    expect(krolis.textContent).toContain("Unsupported");
+    expect(krolis.textContent).toContain("-1 Abundance");
+    expect(krolis.querySelector('[aria-label="Woe 3 → 2"]')).not.toBeNull();
+    expect(krolis.querySelector('[aria-label="Abundance 5, this Visions phase -1 → 4"]')).not.toBeNull();
+    expect(krolis.textContent).not.toContain("Hestar choice needed");
+    root.unmount();
+    container.remove();
+  });
+
+  it("shows a Reliable Prophet production warning only when Benefaction is projected", () => {
+    const reliableWorld: WorldReference = {
+      ...monthlyWorld,
+      denizens: monthlyWorld.denizens.map((denizen) =>
+        denizen.denizenId === "den_prophet"
+          ? {
+              ...denizen,
+              powerfulProfile: {
+                taxonomies: [{ kind: "builtin", taxonomyId: "prophet" }],
+                status: { kind: "standard", value: "reliable" },
+                goal: null,
+                methods: [],
+                truths: [],
+              },
+            }
+          : denizen,
+      ),
+    };
+    const producing = {
+      ...monthlyState,
+      supplicants: [
+        {
+          denizenId: "den_ann" as never,
+          classId: "peasant" as const,
+          woe: 1,
+          host: { kind: "temple" as const, templeId: "krolis" as const, area: "courtyard" as const },
+        },
+      ],
+    };
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    flushSync(() => {
+      root.render(createElement(HierophantSurface, {
+        hierophant: producing as typeof EMPTY_HIEROPHANT_STATE,
+        world: reliableWorld,
+        campaignId: CAMPAIGN_ID,
+      }));
+    });
+    const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
+    expect(krolis.textContent).toContain("Reliable Prophet production resolution required");
+    expect(krolis.textContent).toContain("Departs");
     root.unmount();
     container.remove();
   });

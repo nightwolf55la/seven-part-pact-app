@@ -26,6 +26,7 @@ import {
   templeDoctrineSummary,
   templeResearchers,
   templeSupportedClassLabels,
+  deriveHierophantVisionsContext,
 } from "./hierophant-view-model";
 
 function activate(event: KeyboardEvent<Element>, action: () => void): void {
@@ -391,7 +392,7 @@ export default function HierophantTempleBoard({
   readonly selectedTempleId: string | null;
   readonly onSelectTemple: (templeId: string) => void;
 }) {
-  const plan = planHierophantVisions(hierophant);
+  const plan = planHierophantVisions(hierophant, {}, deriveHierophantVisionsContext(denizens));
   const byId = new Map(hierophant.temples.map((temple) => [temple.templeId, temple]));
   const hestar = byId.get("hestar");
   const extras = supplementaryTemples(hierophant.temples);

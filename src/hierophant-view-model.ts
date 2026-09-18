@@ -15,6 +15,8 @@ import {
   isValidHierophantStartingTempleId,
   isValidPactSeatId,
   pactSeatDisplayName,
+  hierophantDoctrinePairSupportedClassIds,
+  type DenizenId,
   type HierophantCampaignClass,
   type HierophantCampaignDoctrine,
   type HierophantCult,
@@ -26,6 +28,7 @@ import {
   type HierophantTemple,
   type HierophantTempleArea,
   type HierophantTempleStatus,
+  type HierophantVisionsContext,
   type HierophantVisionsDemand,
   type HierophantVisionsResource,
   type HierophantVisionsSupplicantPreview,
@@ -469,15 +472,17 @@ const BASE_CLASS_BENEFACTION: Record<string, Exclude<HierophantBenefactionRefere
   pariah: { kind: "conviction", amount: 2 },
 };
 
-function supportedClassIdsForDoctrine(
-  doctrineId: string,
-  campaignDoctrines: readonly HierophantCampaignDoctrine[],
-): readonly string[] | null {
-  if (isValidHierophantBuiltinDoctrineId(doctrineId)) {
-    return hierophantBuiltinDoctrineDefinition(doctrineId).supportedClassIds;
+export function deriveHierophantVisionsContext(
+  denizens: readonly NamedDenizen[],
+): HierophantVisionsContext {
+  const reliableProphetDenizenIds: DenizenId[] = [];
+  for (const denizen of denizens) {
+    const status = denizen.powerfulProfile?.status;
+    if (status?.kind === "standard" && status.value === "reliable") {
+      reliableProphetDenizenIds.push(denizen.denizenId as DenizenId);
+    }
   }
-  const campaign = campaignDoctrines.find((entry) => entry.doctrineId === doctrineId);
-  return campaign === undefined ? null : campaign.supportedClassIds;
+  return { reliableProphetDenizenIds };
 }
 
 export function deriveSupplicantSupport(
@@ -485,11 +490,10 @@ export function deriveSupplicantSupport(
   classId: string,
   campaignDoctrines: readonly HierophantCampaignDoctrine[],
 ): HierophantSupportDisplay {
-  if (temple.kind === "hestar") return "supported";
   if (temple.status === "collapsed") return "not_applicable";
+  if (temple.kind === "hestar") return "supported";
   if (temple.doctrine.kind === "unset") return "not_determined";
-  if (temple.doctrine.kind === "blasphemy") return "not_applicable";
-  const supported = supportedClassIdsForDoctrine(temple.doctrine.doctrineId, campaignDoctrines);
+  const supported = hierophantDoctrinePairSupportedClassIds(temple.doctrine, campaignDoctrines);
   if (supported === null) return "not_determined";
   if (supported.includes(classId)) return "supported";
   if (isValidHierophantBuiltinClassId(classId)) return "unsupported";
@@ -527,8 +531,7 @@ export function templeSupportedClassLabels(
   campaignClasses: readonly HierophantCampaignClass[],
 ): readonly string[] {
   if (temple.kind === "hestar") return [];
-  if (temple.doctrine.kind !== "doctrine") return [];
-  const ids = supportedClassIdsForDoctrine(temple.doctrine.doctrineId, campaignDoctrines);
+  const ids = hierophantDoctrinePairSupportedClassIds(temple.doctrine, campaignDoctrines);
   if (ids === null) return [];
   return ids.map((classId) => classLabel(classId, campaignClasses));
 }
@@ -568,7 +571,9 @@ export function formatVisionsTempleWarnings(preview: HierophantVisionsTemplePrev
   if (preview.shortage?.consequence === "collapse") warnings.push("Shortage · Collapse");
   if (preview.shortage?.consequence === "blasphemy") warnings.push("Shortage · Blasphemy");
   if (preview.hestarFallback === "choice_required") warnings.push("Hestar choice needed");
+  if (preview.hestarDonor === "choice_required") warnings.push("Hestar donor choice needed");
   if (preview.orderChoiceRequired) warnings.push("Order choice needed");
+  if (preview.reliableProphetProduction) warnings.push("Reliable Prophet production resolution required");
   return warnings;
 }
 
