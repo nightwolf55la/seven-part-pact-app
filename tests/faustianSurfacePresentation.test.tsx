@@ -383,6 +383,46 @@ describe("Faustian surface presentation", () => {
     expect(devil?.textContent).toMatch(/empty/i);
     expect(container.querySelector("[data-faustian-warning-grid]")).toBeNull();
   });
+
+  it("renders the physical table before Less-common and Advanced play controls", () => {
+    const { container } = renderSurface();
+    const table = container.querySelector("[data-faustian-table]");
+    const less = Array.from(container.querySelectorAll("summary")).find((el) =>
+      (el.textContent ?? "").includes("Less-common"),
+    );
+    const advanced = Array.from(container.querySelectorAll("summary")).find((el) =>
+      (el.textContent ?? "").includes("Advanced"),
+    );
+    expect(table).not.toBeNull();
+    expect(less).toBeDefined();
+    expect(advanced).toBeDefined();
+    expect(table!.compareDocumentPosition(less!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(table!.compareDocumentPosition(advanced!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("hides empty Lore from the primary table and keeps Communities free of up/down field copy", () => {
+    const { container } = renderSurface();
+    expect(container.querySelector('[data-faustian-zone="lore"]')).toBeNull();
+    const aries = container.querySelector('[data-faustian-community="aries"]');
+    expect(aries?.textContent).not.toMatch(/up\s*\/\s*.*down/i);
+    expect(aries?.textContent).not.toMatch(/\d+\s+up\s*\/\s*\d+\s+down/i);
+  });
+
+  it("keeps replaced ordinary Start controls out of the play surface", () => {
+    const { container } = renderSurface();
+    const aries = container.querySelector("[aria-label='Aries · monks/pilgrims · Hierophant']") as HTMLElement;
+    flushSync(() => {
+      aries.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(container.textContent).not.toContain("Start Investigate");
+    expect(container.textContent).not.toContain("Start Blackmail");
+    expect(container.textContent).not.toContain("Start Direct Accomplice");
+    expect(container.textContent).not.toContain("Confirm Investigate reveal");
+    expect(container.textContent).not.toContain("Confirm Blackmail");
+    expect(container.textContent).not.toContain("Confirm Direct Accomplice");
+    expect(container.querySelector("[data-faustian-table]")?.textContent).not.toContain("Place several Schemes");
+    expect(container.textContent).toContain("Place several Schemes");
+  });
 });
 
 describe("unused community id type", () => {

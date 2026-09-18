@@ -105,7 +105,7 @@ function PlayingCardToken({
       )}
       <span className="font-semibold block">{card.publicLabel}</span>
       {card.facing === "face_up" && card.kind === "accomplice" && (
-        <span className="block text-[0.6rem] text-slate-600 dark:text-amber-200/80 mt-1">
+        <span className="block text-[0.6rem] text-amber-200/80 mt-1">
           {card.syndicateLabel ?? "Accomplice syndicate not transcribed"}
         </span>
       )}
@@ -134,7 +134,12 @@ function FannedPile({
   readonly onFoil?: (card: FaustianPublicCardPresentation) => void;
 }) {
   if (cards.totalCount === 0) {
-    return <p className="text-[0.65rem] text-slate-400">None</p>;
+    return (
+      <div
+        className="w-[2.75rem] h-[3.75rem] rounded-sm border border-dashed border-emerald-700/50 bg-emerald-950/20"
+        aria-hidden="true"
+      />
+    );
   }
   return (
     <div className="flex flex-col gap-1">
@@ -180,9 +185,9 @@ function PhysicalZone({
     <section
       data-faustian-zone={zone}
       data-faustian-attention={attention ?? undefined}
-      className={`rounded-md bg-emerald-950/20 dark:bg-emerald-950/30 p-3 space-y-2 ${
-        selected ? "ring-2 ring-teal-500" : ""
-      } ${attention !== null ? "ring-1 ring-amber-500/80" : ""} ${className}`}
+      className={`rounded-md bg-emerald-950/50 p-2.5 space-y-2 border border-emerald-900/80 ${
+        selected ? "ring-2 ring-amber-400/80" : ""
+      } ${attention !== null ? "ring-1 ring-amber-400/90" : ""} ${className}`}
     >
       <h3 className="text-sm font-semibold tracking-wide">
         {onSelect !== undefined ? (
@@ -207,9 +212,9 @@ function DeckStack({ count, emptyLabel }: { readonly count: number; readonly emp
   return (
     <div className="relative w-[4.5rem] h-[6.25rem]">
       <div className="absolute inset-0 translate-x-1 translate-y-1 rounded-md border border-slate-950 bg-slate-900" />
-      <div className="absolute inset-0 rounded-md border border-slate-950 bg-slate-800 text-slate-100 text-[0.65rem] px-1.5 py-1 shadow-sm">
+      <div className="absolute inset-0 rounded-md border border-slate-950 bg-slate-800 text-slate-100 text-[0.65rem] px-1.5 py-1 shadow-md">
         <span className="font-semibold block">Facedown</span>
-        <span className="block mt-1">{count}</span>
+        <span className="block mt-1 tabular-nums">{count}</span>
       </div>
     </div>
   );
@@ -298,69 +303,17 @@ export default function FaustianSurface({
       )}
       <FaustianOccurrenceChooser play={play} />
 
-      {lifecycleKind === "setup" ? (
-        <FaustianActions
-          faustian={faustian}
-          campaignId={campaignId}
-          lifecycleKind={lifecycleKind}
-          ageId={ageId}
-          faustianWizard={faustianWizard}
-          denizens={world?.denizens ?? []}
-          selectedCommunityId={selection?.kind === "community" ? selection.communityId : null}
-          presentation={presentation}
-        />
-      ) : (
-        <details className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
-          <summary className="text-sm font-semibold cursor-pointer">Less-common board actions</summary>
-          <div className="mt-3">
-            <FaustianActions
-              faustian={faustian}
-              campaignId={campaignId}
-              lifecycleKind={lifecycleKind}
-              ageId={ageId}
-              faustianWizard={faustianWizard}
-              denizens={world?.denizens ?? []}
-              selectedCommunityId={selection?.kind === "community" ? selection.communityId : null}
-              presentation={presentation}
-            />
-          </div>
-        </details>
-      )}
-
-      {lifecycleKind === "play" && (
-        <details className="rounded-lg border border-slate-200 dark:border-slate-700 p-3">
-          <summary className="text-sm font-semibold cursor-pointer">Twist and Machination lifecycle</summary>
-          <div className="mt-3">
-            <FaustianLifecycleActions
-              faustian={faustian}
-              campaignId={campaignId}
-              lifecycleKind={lifecycleKind}
-              wizards={wizards}
-              selectedCommunityId={selection?.kind === "community" ? selection.communityId : null}
-              presentation={presentation}
-            />
-          </div>
-        </details>
-      )}
-
-      <FaustianAdvancedActions
-        faustian={faustian}
-        campaignId={campaignId}
-        wizards={wizards}
-        denizens={world?.denizens ?? []}
-        monthOrdinal={monthOrdinal}
-      />
-
       <div
         data-faustian-table
-        className={`space-y-3 ${play.dragging ? "select-none" : ""}`}
+        className={`rounded-xl bg-emerald-950 text-emerald-50 p-3 space-y-3 shadow-inner ${play.dragging ? "select-none" : ""}`}
       >
         {presentation.obligationCues.filter((cue) => cue.imminent).length > 0 && (
           <div className="flex flex-wrap gap-1" data-faustian-zone="obligations">
             {presentation.obligationCues.filter((cue) => cue.imminent).map((cue) => (
               <span
                 key={cue.key}
-                className="rounded-full bg-amber-700 text-white text-[0.65rem] font-medium px-2 py-0.5"
+                data-faustian-obligation={cue.key}
+                className="inline-block rounded-full bg-amber-800/90 text-amber-50 text-[0.65rem] font-medium px-2 py-0.5"
               >
                 {cue.label}
               </span>
@@ -389,19 +342,19 @@ export default function FaustianSurface({
                     onKeyDown={(event) => onCommunityKey(event, community.communityId)}
                     onContextMenu={(event) => play.openCommunityMenu(community.communityId, event)}
                     aria-label={community.headerLabel}
-                    className={`rounded-xl border p-3 space-y-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-400 select-none ${
-                      selected ? "border-teal-600 bg-teal-50/40 dark:bg-teal-950/20" : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
-                    } ${play.dragging ? "ring-1 ring-teal-400/70" : ""} ${hovering ? "bg-teal-100/80 dark:bg-teal-900/40 ring-2 ring-teal-500" : ""}`}
+                    className={`rounded-lg border p-2.5 space-y-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400/80 select-none ${
+                      selected ? "border-amber-400 bg-emerald-900/80" : "border-emerald-800/80 bg-emerald-950/70"
+                    } ${play.dragging ? "ring-1 ring-amber-300/40" : ""} ${hovering ? "bg-emerald-800 ring-2 ring-amber-400" : ""}`}
                   >
-                    <header className="border-b border-slate-200 dark:border-slate-700 pb-2">
-                      <p className="text-sm font-semibold">{community.zodiacLabel}</p>
-                      <p className="text-xs text-slate-600 dark:text-slate-300">{community.populace}</p>
-                      <p className="text-xs text-slate-500">{community.associatedWizardLabel}</p>
+                    <header className="space-y-0.5">
+                      <p className="text-sm font-semibold tracking-wide text-amber-100">{community.zodiacLabel}</p>
+                      <p className="text-[0.7rem] text-emerald-100/80">{community.populace}</p>
+                      <p className="text-[0.65rem] text-emerald-200/60">{community.associatedWizardLabel}</p>
                     </header>
                     <div className="space-y-2">
                       <div>
-                        <p className="text-[0.65rem] uppercase tracking-wide text-slate-500">
-                          Schemes · {community.schemeFaceUpCount} up / {community.schemeFaceDownCount} down
+                        <p className="sr-only">
+                          {community.schemeFaceUpCount} revealed, {community.schemeFaceDownCount} facedown Schemes
                         </p>
                         <FannedPile
                           cards={community.schemes}
@@ -421,7 +374,7 @@ export default function FaustianSurface({
                         />
                       </div>
                       <div>
-                        <p className="text-[0.65rem] uppercase tracking-wide text-slate-500">Accomplices</p>
+                        <p className="sr-only">Accomplices</p>
                         <FannedPile
                           cards={community.accomplices}
                           overflowLabel={community.accomplices.overflowLabel}
@@ -435,22 +388,35 @@ export default function FaustianSurface({
                           }}
                         />
                       </div>
-                      <div className="flex flex-wrap items-center gap-1">
+                      <div
+                        className="flex flex-wrap items-center gap-1"
+                        data-faustian-pawn-tray={community.communityId}
+                        aria-label={community.pawnLabel}
+                      >
                         {Array.from({ length: Math.min(community.pawnCount, 6) }, (_, index) => (
                           <span
                             key={index}
-                            className="inline-block h-3 w-3 rounded-full bg-stone-700 border border-stone-900"
+                            data-faustian-pawn
+                            className="inline-block h-4 w-4 rounded-full bg-stone-300 border border-stone-900 shadow-sm"
                             aria-hidden="true"
                           />
                         ))}
-                        <p className="text-xs font-medium" aria-label={community.pawnLabel}>{community.pawnLabel}</p>
+                        {community.pawnCount > 6 && (
+                          <span className="text-[0.65rem] text-emerald-100/80">+{community.pawnCount - 6}</span>
+                        )}
+                        {community.pawnCount === 0 && (
+                          <span className="text-[0.65rem] text-emerald-200/40">No Pawns</span>
+                        )}
+                        {community.pawnCount > 0 && (
+                          <span className="text-[0.65rem] text-emerald-100/80">{community.pawnLabel}</span>
+                        )}
                       </div>
                       {community.conspiracies.length > 0 && (
                         <ul className="text-xs space-y-0.5">
                           {community.conspiracies.map((conspiracy) => (
-                            <li key={conspiracy.denizenId} className="inline-flex items-center gap-1">
-                              <span className="inline-block h-2.5 w-2.5 rounded-sm bg-rose-800" aria-hidden="true" />
-                              Conspiracy: {conspiracy.name}
+                            <li key={conspiracy.denizenId} className="inline-flex items-center gap-1 text-rose-100">
+                              <span className="inline-block h-3 w-3 rounded-sm bg-rose-700 border border-rose-950 shadow-sm" aria-hidden="true" />
+                              {conspiracy.name}
                             </li>
                           ))}
                         </ul>
@@ -467,16 +433,16 @@ export default function FaustianSurface({
             title="Devil's Machinations"
             selected={selection?.kind === "supporting" && selection.area === "machinations"}
             onSelect={() => setSelection({ kind: "supporting", area: "machinations" })}
+            attention={presentation.pendingChallenges.some((challenge) => challenge.groups.some((group) => group.status === "pending")) ? "pending-challenge" : null}
             className={layout === "narrow" ? "w-full" : "w-[16.5rem] shrink-0"}
           >
             {presentation.twists.length === 0 ? (
-              <p className="text-xs text-slate-400">No Active Twist</p>
+              <p className="text-xs text-emerald-200/50">No Active Twist</p>
             ) : (
               <div className="space-y-1">
                 {presentation.twists.map((spotlight) => (
-                  <div key={spotlight.machinationInstanceKey} className="space-y-1">
-                    <p className="text-xs" aria-label={spotlight.ariaLabel}>{spotlight.publicLabel}</p>
-                    <p className="text-[0.65rem] text-slate-500">{spotlight.relationshipLabel}</p>
+                  <div key={spotlight.machinationInstanceKey} className="space-y-1" aria-label={spotlight.ariaLabel}>
+                    <p className="text-[0.65rem] text-emerald-100/70">{spotlight.relationshipLabel}</p>
                     {spotlight.inspectablePrivately && (
                       <button
                         type="button"
@@ -506,12 +472,16 @@ export default function FaustianSurface({
                     : undefined}
                 />
               ))}
-              {presentation.machinations.length === 0 && <p className="text-xs text-slate-400">None</p>}
+              {presentation.machinations.length === 0 && <p className="text-xs text-emerald-200/50">None</p>}
             </div>
             {presentation.pendingChallenges.length > 0 && (
               <ul className="text-xs space-y-1">
                 {presentation.pendingChallenges.map((challenge) => (
-                  <li key={challenge.challengeId} className="rounded bg-amber-950/40 px-2 py-1">
+                    <li
+                      key={challenge.challengeId}
+                      data-faustian-challenge={challenge.challengeId}
+                      className="rounded bg-amber-950/70 px-2 py-1 text-amber-100"
+                    >
                     {challenge.kindLabel}
                     {" · "}
                     {challenge.scheduleLabel.replace(/_/g, " ")}
@@ -533,7 +503,7 @@ export default function FaustianSurface({
           >
             <DeckStack count={presentation.faustianDeckCount} emptyLabel="Empty" />
             {presentation.missingSuits.length > 0 && (
-              <p className="text-[0.65rem] text-amber-800 dark:text-amber-200">
+              <p className="text-[0.65rem] text-amber-200">
                 Missing suit pressure: {presentation.missingSuits.map((suit) => suit.label).join(", ")}
               </p>
             )}
@@ -554,7 +524,7 @@ export default function FaustianSurface({
             >
               <DeckStack count={presentation.devilDeckCount} emptyLabel="Empty" />
             </button>
-            <p className="text-[0.65rem] text-slate-500">Drag a facedown Scheme onto a Community.</p>
+            <p className="text-[0.65rem] text-emerald-100/70">Drag a facedown Scheme onto a Community.</p>
           </PhysicalZone>
           <PhysicalZone
             zone="defeated"
@@ -562,9 +532,21 @@ export default function FaustianSurface({
             selected={selection?.kind === "supporting" && selection.area === "defeated"}
             onSelect={() => setSelection({ kind: "supporting", area: "defeated" })}
           >
-            <div className="flex flex-wrap gap-2">
-              {presentation.defeatedSchemes.map((card) => <PlayingCardToken key={card.instanceKey} card={card} />)}
-              {presentation.defeatedSchemes.length === 0 && <p className="text-xs text-slate-400">Empty pile</p>}
+            <div className="relative h-[6.25rem]">
+              {presentation.defeatedSchemes.length === 0 && (
+                <div className="w-[4.5rem] h-[6.25rem] rounded-md border border-dashed border-emerald-700/60 text-[0.65rem] text-emerald-200/60 flex items-center justify-center text-center px-1">
+                  Empty pile
+                </div>
+              )}
+              {presentation.defeatedSchemes.map((card, index) => (
+                <div
+                  key={card.instanceKey}
+                  className="absolute top-0"
+                  style={{ left: `${Math.min(index, 4) * 10}px`, zIndex: index }}
+                >
+                  <PlayingCardToken card={card} />
+                </div>
+              ))}
             </div>
           </PhysicalZone>
           {presentation.heldCards.length > 0 && (
@@ -726,15 +708,13 @@ export default function FaustianSurface({
         </section>
       )}
 
-      <PhysicalZone
-        zone="lore"
-        title="Lore"
-        selected={selection?.kind === "supporting" && selection.area === "lore"}
-        onSelect={() => setSelection({ kind: "supporting", area: "lore" })}
-      >
-        {loreSubjects.length === 0 ? (
-          <p className="text-xs text-slate-400">No existing Faustian Lore subject is bound for this campaign.</p>
-        ) : (
+      {loreSubjects.length > 0 && (
+        <PhysicalZone
+          zone="lore"
+          title="Lore"
+          selected={selection?.kind === "supporting" && selection.area === "lore"}
+          onSelect={() => setSelection({ kind: "supporting", area: "lore" })}
+        >
           <div className="space-y-3">
             {loreSubjects.map((subject) => (
               <LoreContextPanel
@@ -746,8 +726,61 @@ export default function FaustianSurface({
               />
             ))}
           </div>
-        )}
-      </PhysicalZone>
+        </PhysicalZone>
+      )}
+
+      {lifecycleKind === "setup" ? (
+        <FaustianActions
+          faustian={faustian}
+          campaignId={campaignId}
+          lifecycleKind={lifecycleKind}
+          ageId={ageId}
+          faustianWizard={faustianWizard}
+          denizens={world?.denizens ?? []}
+          selectedCommunityId={selection?.kind === "community" ? selection.communityId : null}
+          presentation={presentation}
+        />
+      ) : (
+        <details className="rounded-lg border border-slate-200 dark:border-slate-700 p-3" data-faustian-less-common>
+          <summary className="text-sm font-semibold cursor-pointer">Less-common board actions</summary>
+          <div className="mt-3">
+            <FaustianActions
+              faustian={faustian}
+              campaignId={campaignId}
+              lifecycleKind={lifecycleKind}
+              ageId={ageId}
+              faustianWizard={faustianWizard}
+              denizens={world?.denizens ?? []}
+              selectedCommunityId={selection?.kind === "community" ? selection.communityId : null}
+              presentation={presentation}
+            />
+          </div>
+        </details>
+      )}
+
+      {lifecycleKind === "play" && (
+        <details className="rounded-lg border border-slate-200 dark:border-slate-700 p-3" data-faustian-lifecycle-less-common>
+          <summary className="text-sm font-semibold cursor-pointer">Less-common Scheme destinations and lifecycle</summary>
+          <div className="mt-3">
+            <FaustianLifecycleActions
+              faustian={faustian}
+              campaignId={campaignId}
+              lifecycleKind={lifecycleKind}
+              wizards={wizards}
+              selectedCommunityId={selection?.kind === "community" ? selection.communityId : null}
+              presentation={presentation}
+            />
+          </div>
+        </details>
+      )}
+
+      <FaustianAdvancedActions
+        faustian={faustian}
+        campaignId={campaignId}
+        wizards={wizards}
+        denizens={world?.denizens ?? []}
+        monthOrdinal={monthOrdinal}
+      />
 
       <FaustianTableContextMenu play={play} />
       <FaustianSchemeSupplyGhost visual={play.dragVisual} />
