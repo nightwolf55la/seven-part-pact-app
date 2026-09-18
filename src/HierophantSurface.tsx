@@ -961,6 +961,7 @@ export default function HierophantSurface({
                 supplyClassRef.current = classId;
                 setSupplyClassId(classId);
                 setSupplyHoverKey(null);
+                setSupplyBlock(null);
               },
               onHover: (key) => {
                 setSupplyHoverKey(key);

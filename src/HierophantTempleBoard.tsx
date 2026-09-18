@@ -557,8 +557,13 @@ function TemplePiece({
         ))}
       </header>
       {status.kind === "collapsed" && (
-        <SupplyDropZone temple={temple} zone="blocked" supply={supply}>
-          <p className="min-h-[1.75rem] text-xs font-semibold text-rose-800 dark:text-rose-200">
+        <SupplyDropZone
+          temple={temple}
+          zone="blocked"
+          supply={supply}
+          className={supply?.activeClassId !== null ? "min-h-[1.75rem]" : ""}
+        >
+          <p className="text-xs font-semibold text-rose-800 dark:text-rose-200">
             {supply?.blockNotice?.templeId === temple.templeId ? supply.blockNotice.reason : null}
           </p>
         </SupplyDropZone>
