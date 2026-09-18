@@ -46,6 +46,7 @@ import {
   captureOperabilityBoard,
   expectedForCreateShip,
   expectedForMoveBeast,
+  expectedForMoveMarket,
   expectedForMoveShip,
   expectedForNestBeast,
 } from "../src/mariner-view-model";
@@ -184,6 +185,7 @@ vi.mock("../convex/_generated/api.js", () => ({
       setMarinerRouteOccupancy: "m3Commands.setMarinerRouteOccupancy",
       setMarinerSeaStormCount: "m3Commands.setMarinerSeaStormCount",
       setMarinerIsleMarket: "m3Commands.setMarinerIsleMarket",
+      moveMarinerMarket: "m3Commands.moveMarinerMarket",
       setMarinerIsleRavage: "m3Commands.setMarinerIsleRavage",
       addMarinerBeast: "m3Commands.addMarinerBeast",
       updateMarinerBeast: "m3Commands.updateMarinerBeast",
@@ -456,7 +458,7 @@ function routeDropState(container: HTMLElement, routeId: string): string | null 
 
 async function dragTrayPiece(
   container: HTMLElement,
-  piece: "ship" | "raider" | "storm" | "market",
+  piece: "ship" | "raider" | "storm" | "market" | "rare-market",
   dropTarget: Element | null,
   pointerId = 61,
 ): Promise<void> {
@@ -827,7 +829,7 @@ describe("Mariner source-map piece presentation", () => {
     expect(withRarity?.getAttribute("data-rarity")).toBe("true");
     expect(withRarity?.getAttribute("aria-label")).toBe("Market with a Rarity");
     expect(withRarity?.querySelector('[data-rarity-cue="true"]')).not.toBeNull();
-    expect(withRarity?.textContent).toContain("Rarity");
+    expect(withRarity?.textContent).toContain("Rare Market");
     expect(withoutRarity?.getAttribute("data-rarity")).toBe("false");
     expect(withoutRarity?.getAttribute("aria-label")).toBe("Market");
     expect(withoutRarity?.querySelector('[data-rarity-cue="true"]')).toBeNull();
@@ -3093,10 +3095,9 @@ describe("M5.4 Mariner Beast and Market board controls", () => {
     container.remove();
   });
 
-  it("C: same-source, nonadjacent, and off-map Beast drops do not mutate", async () => {
+  it("C: same-source and off-map Beast drops do not mutate", async () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     await dragBeastPiece(container, DEN_A, seaHit(container, "sunken_fleet"), 84);
-    await dragBeastPiece(container, DEN_A, seaHit(container, "sidereal_sea"), 85);
     await dragBeastPiece(container, DEN_A, document.body, 86);
     expect(mockMutations["m3Commands.moveMarinerBeast"]).not.toHaveBeenCalled();
     expect(mockMutations["m3Commands.nestMarinerBeast"]).not.toHaveBeenCalled();
@@ -3295,7 +3296,7 @@ describe("M5.4 Mariner Beast and Market board controls", () => {
       market: { present: true, rarity: null },
     });
 
-    await dragTrayPiece(container, "market", isleHit(container, "scuttleport"), 95);
+    await dragTrayPiece(container, "market", isleHit(container, "ishana"), 95);
     expect(mockMutations["m3Commands.setMarinerIsleMarket"]).toHaveBeenCalledTimes(1);
 
     await dragTrayPiece(container, "market", document.body, 96);
@@ -3400,8 +3401,9 @@ async function hoverTrayDragOverIsle(
   container: HTMLElement,
   hoverIsleId: string,
   pointerId = 99,
+  piece: "market" | "rare-market" = "market",
 ): Promise<void> {
-  const tray = container.querySelector('[data-tray-piece="market"]') as Element;
+  const tray = container.querySelector(`[data-tray-piece="${piece}"]`) as Element;
   const dest = isleHit(container, hoverIsleId);
   (tray as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
   Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => dest });
@@ -3418,3 +3420,450 @@ async function hoverTrayDragOverIsle(
     window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 210, clientY: 210, pointerId }));
   });
 }
+
+function seaDropState(container: HTMLElement, regionId: string): string | null {
+  return seaHit(container, regionId).getAttribute("data-sea-drop");
+}
+
+function isleDropFamily(container: HTMLElement, boardIsleId: string): string | null {
+  return isleHit(container, boardIsleId).getAttribute("data-isle-drop-family");
+}
+
+function marketPiece(container: HTMLElement, boardIsleId: string): Element {
+  const piece = container.querySelector(`[data-piece="market"][data-isle-id="${boardIsleId}"]`) as Element | null;
+  if (piece === null) throw new Error(`Missing Market piece ${boardIsleId}`);
+  return piece;
+}
+
+async function dragMarketPiece(
+  container: HTMLElement,
+  sourceIsleId: string,
+  dropTarget: Element | null,
+  pointerId = 111,
+): Promise<void> {
+  const piece = marketPiece(container, sourceIsleId);
+  (piece as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+  Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => dropTarget });
+  await act(async () => {
+    piece.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      clientX: 15,
+      clientY: 15,
+      pointerId,
+      isPrimary: true,
+      button: 0,
+    }));
+    window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 30, clientY: 15, pointerId }));
+    window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 210, clientY: 210, pointerId }));
+    window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: 210, clientY: 210, pointerId }));
+  });
+}
+
+function withBeastInRegion(regionId: "scuttle_channel"): MarinerState {
+  const start = initializedMariner();
+  return withBeast(start, {
+    ...baselineBeast(start),
+    location: { kind: "sea_region", regionId },
+  });
+}
+
+describe("M5.4 UX B2 Beast placement and Market physical interaction", () => {
+  it("A: Beast Sea highlights distinguish adjacent recommendation from other valid seas, and both accept drop", async () => {
+    const start = initializedMariner();
+    const adjacentExpected = expectedForMoveBeast(captureOperabilityBoard(start), DEN_A, "sunken_fleet", "wizard_strait");
+    const otherExpected = expectedForMoveBeast(captureOperabilityBoard(start), DEN_A, "sunken_fleet", "sidereal_sea");
+    const { container, root } = renderSurface(start, WIZARD);
+    await hoverBeastDragOver(container, DEN_A, seaHit(container, "wizard_strait"), 201);
+    expect(seaDropState(container, "sunken_fleet")).toBe("source");
+    expect(seaDropState(container, "wizard_strait")).toMatch(/^(recommended|hover)$/);
+    expect(seaDropState(container, "thyrian_sea")).toBe("recommended");
+    expect(seaDropState(container, "sidereal_sea")).toBe("available");
+    expect(seaDropState(container, "sidereal_sea")).not.toBe("blocked");
+    await dragBeastPiece(container, DEN_A, seaHit(container, "wizard_strait"), 202);
+    expect(mockMutations["m3Commands.moveMarinerBeast"].mock.calls[0][0]).toMatchObject({
+      denizenId: DEN_A,
+      sourceRegionId: "sunken_fleet",
+      destinationRegionId: "wizard_strait",
+      expectedBeast: adjacentExpected.expectedBeast,
+      rampageResolution: null,
+    });
+    await dragBeastPiece(container, DEN_A, seaHit(container, "sidereal_sea"), 203);
+    expect(mockMutations["m3Commands.moveMarinerBeast"].mock.calls[1][0]).toMatchObject({
+      denizenId: DEN_A,
+      sourceRegionId: "sunken_fleet",
+      destinationRegionId: "sidereal_sea",
+      expectedBeast: otherExpected.expectedBeast,
+      rampageResolution: null,
+    });
+    const beforeSame = mockMutations["m3Commands.moveMarinerBeast"].mock.calls.length;
+    await dragBeastPiece(container, DEN_A, seaHit(container, "sunken_fleet"), 204);
+    expect(mockMutations["m3Commands.moveMarinerBeast"]).toHaveBeenCalledTimes(beforeSame);
+    root.unmount();
+    container.remove();
+  });
+
+  it("B: Beast Nest highlights use a distinct family, recommend adjacent Isles, and nest on any structurally valid Isle", async () => {
+    const start = initializedMariner();
+    const adjacentExpected = expectedForNestBeast(captureOperabilityBoard(start), DEN_A, "orrery");
+    const otherExpected = expectedForNestBeast(captureOperabilityBoard(start), DEN_A, "sage_atoll");
+    const { container, root } = renderSurface(start, WIZARD);
+    await hoverBeastDragOver(container, DEN_A, isleHit(container, "sage_atoll"), 205);
+    expect(isleDropFamily(container, "orrery")).toBe("nest");
+    expect(isleDropState(container, "orrery")).toBe("recommended");
+    expect(isleDropFamily(container, "sage_atoll")).toBe("nest");
+    expect(isleDropState(container, "sage_atoll")).toMatch(/^(available|hover)$/);
+    expect(isleDropState(container, "scuttleport")).toBe("blocked");
+    expect(isleDropState(container, "ishana")).toBe("blocked");
+    expect(isleDropState(container, "druntyr")).toBe("blocked");
+    await dragBeastPiece(container, DEN_A, isleHit(container, "orrery"), 206);
+    expect(mockMutations["m3Commands.nestMarinerBeast"].mock.calls[0][0]).toMatchObject({
+      denizenId: DEN_A,
+      boardIsleId: "orrery",
+      expectedMarket: adjacentExpected.expectedMarket,
+      expectedNestingBeastDenizenId: adjacentExpected.expectedNestingBeastDenizenId,
+    });
+    await dragBeastPiece(container, DEN_A, isleHit(container, "sage_atoll"), 207);
+    expect(mockMutations["m3Commands.nestMarinerBeast"].mock.calls[1][0]).toMatchObject({
+      denizenId: DEN_A,
+      boardIsleId: "sage_atoll",
+      expectedMarket: otherExpected.expectedMarket,
+      expectedNestingBeastDenizenId: otherExpected.expectedNestingBeastDenizenId,
+    });
+    await dragBeastPiece(container, DEN_A, isleHit(container, "scuttleport"), 208);
+    expect(mockMutations["m3Commands.nestMarinerBeast"]).toHaveBeenCalledTimes(2);
+    root.unmount();
+    container.remove();
+  });
+
+  it("C: Scuttle Channel recommended Nest keeps every adjacent Isle visible, including blocked reasons", async () => {
+    const start = withBeastInRegion("scuttle_channel");
+    const { container, root } = renderSurface(start, WIZARD);
+    const menu = openBeastContext(container, DEN_A);
+    expect(menu.querySelector('[data-context-section="recommended-nest"]')).not.toBeNull();
+    const scuttleport = menu.querySelector('[data-context-action="nest-beast"][data-isle-id="scuttleport"]') as HTMLButtonElement | null;
+    const ishana = menu.querySelector('[data-context-action="nest-beast"][data-isle-id="ishana"]') as HTMLButtonElement | null;
+    const druntyr = menu.querySelector('[data-context-action="nest-beast"][data-isle-id="druntyr"]') as HTMLButtonElement | null;
+    expect(scuttleport).not.toBeNull();
+    expect(ishana).not.toBeNull();
+    expect(druntyr).not.toBeNull();
+    expect(scuttleport?.disabled).toBe(true);
+    expect(ishana?.disabled).toBe(true);
+    expect(druntyr?.disabled).toBe(true);
+    expect(scuttleport?.getAttribute("data-disabled-reason")).toBe("Market present");
+    expect(ishana?.getAttribute("data-disabled-reason")).toBe("Market present");
+    expect(druntyr?.getAttribute("data-disabled-reason")).toBe("Ravaged");
+    expect(scuttleport?.textContent).toMatch(/Market present/);
+    expect(druntyr?.textContent).toMatch(/Ravaged/);
+    root.unmount();
+    container.remove();
+  });
+
+  it("D: Move/Nest elsewhere choosers are action-triggered and keep the menu-open snapshot after drift", async () => {
+    const start = initializedMariner();
+    const moveExpected = expectedForMoveBeast(captureOperabilityBoard(start), DEN_A, "sunken_fleet", "sidereal_sea");
+    const nestExpected = expectedForNestBeast(captureOperabilityBoard(start), DEN_A, "sage_atoll");
+    const drifted: MarinerState = {
+      ...start,
+      seaRegions: start.seaRegions.map((region) =>
+        region.regionId === "wizard_strait" ? { ...region, stormCount: 2 } : region
+      ),
+      boardIsles: start.boardIsles.map((isle) =>
+        isle.boardIsleId === "sage_atoll" ? { ...isle, market: { present: true, rarity: "drifted" } } : isle
+      ),
+    };
+    const { container, root } = renderSurface(start, WIZARD);
+    openBeastContext(container, DEN_A);
+    expect(container.querySelector("[data-beast-move-elsewhere-chooser]")).toBeNull();
+    await act(async () => { contextAction(container, "move-beast-elsewhere").click(); });
+    const moveChooser = container.querySelector("[data-beast-move-elsewhere-chooser]") as HTMLElement | null;
+    expect(moveChooser).not.toBeNull();
+    expect(container.querySelector("[data-mariner-context-menu]")).toBeNull();
+    expect(moveChooser?.querySelector('[data-elsewhere-region-id="wizard_strait"]')).toBeNull();
+    expect(moveChooser?.querySelector('[data-elsewhere-region-id="sidereal_sea"]')).not.toBeNull();
+    rerenderSurface(root, drifted);
+    await act(async () => {
+      (container.querySelector('[data-elsewhere-region-id="sidereal_sea"]') as HTMLButtonElement).click();
+    });
+    expect(mockMutations["m3Commands.moveMarinerBeast"].mock.calls[0][0]).toMatchObject({
+      denizenId: DEN_A,
+      sourceRegionId: "sunken_fleet",
+      destinationRegionId: "sidereal_sea",
+      expectedBeast: moveExpected.expectedBeast,
+      expectedStormCounts: moveExpected.expectedStormCounts,
+    });
+    expect(mockMutations["m3Commands.moveMarinerBeast"].mock.calls[0][0].expectedStormCounts).not.toEqual(
+      expectedForMoveBeast(captureOperabilityBoard(drifted), DEN_A, "sunken_fleet", "sidereal_sea").expectedStormCounts,
+    );
+
+    rerenderSurface(root, start);
+    openBeastContext(container, DEN_A);
+    expect(container.querySelector("[data-beast-nest-elsewhere-chooser]")).toBeNull();
+    await act(async () => { contextAction(container, "nest-beast-elsewhere").click(); });
+    const nestChooser = container.querySelector("[data-beast-nest-elsewhere-chooser]") as HTMLElement | null;
+    expect(nestChooser).not.toBeNull();
+    expect(nestChooser?.querySelector('[data-elsewhere-isle-id="orrery"]')).toBeNull();
+    const sage = nestChooser?.querySelector('[data-elsewhere-isle-id="sage_atoll"]') as HTMLButtonElement | null;
+    expect(sage?.disabled).toBe(false);
+    const blocked = nestChooser?.querySelector('[data-elsewhere-isle-id="scuttleport"]') as HTMLButtonElement | null;
+    expect(blocked?.disabled).toBe(true);
+    expect(blocked?.getAttribute("data-disabled-reason")).toBe("Market present");
+    rerenderSurface(root, drifted);
+    await act(async () => {
+      (container.querySelector('[data-elsewhere-isle-id="sage_atoll"]') as HTMLButtonElement).click();
+    });
+    expect(mockMutations["m3Commands.nestMarinerBeast"].mock.calls[0][0]).toMatchObject({
+      denizenId: DEN_A,
+      boardIsleId: "sage_atoll",
+      expectedMarket: nestExpected.expectedMarket,
+    });
+    root.unmount();
+    container.remove();
+  });
+
+  it("E: a nonadjacent Beast move that predicts Rampage defers and keeps the original snapshot", async () => {
+    const start = surroundRegion(initializedMariner(), "sidereal_sea");
+    const expected = expectedForMoveBeast(captureOperabilityBoard(start), DEN_A, "sunken_fleet", "sidereal_sea");
+    const drifted: MarinerState = {
+      ...start,
+      seaRegions: start.seaRegions.map((region) =>
+        region.regionId === "wizard_strait" ? { ...region, stormCount: 1 } : region
+      ),
+    };
+    const { container, root } = renderSurface(start, WIZARD);
+    await dragBeastPiece(container, DEN_A, seaHit(container, "sidereal_sea"), 209);
+    expect(mockMutations["m3Commands.moveMarinerBeast"]).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-beast-rampage-chooser]")).not.toBeNull();
+    rerenderSurface(root, drifted);
+    await confirmBeastRampage(container);
+    expect(mockMutations["m3Commands.moveMarinerBeast"].mock.calls[0][0]).toMatchObject({
+      denizenId: DEN_A,
+      sourceRegionId: "sunken_fleet",
+      destinationRegionId: "sidereal_sea",
+      expectedBeast: expected.expectedBeast,
+      expectedStormCounts: expected.expectedStormCounts,
+      rampageResolution: {
+        denizenId: DEN_A,
+        destinationSeatId: "hierophant",
+      },
+    });
+    root.unmount();
+    container.remove();
+  });
+
+  it("F: Market and Rare Market supply pieces are both visible with a distinct rare marker", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const ordinary = container.querySelector('[data-tray-piece="market"]');
+    const rare = container.querySelector('[data-tray-piece="rare-market"]');
+    expect(ordinary?.textContent).toMatch(/Market/);
+    expect(ordinary?.textContent).not.toMatch(/Rare/);
+    expect(rare?.textContent).toMatch(/Rare Market/);
+    expect(ordinary?.querySelector('[data-rarity-cue="true"]')).toBeNull();
+    expect(rare?.querySelector('[data-rarity-cue="true"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("G: ordinary supply Market places, transforms Rare, no-ops same-type, and blocks Nesting Beast", async () => {
+    const start = initializedMariner();
+    const { container, root } = renderSurface(start, WIZARD);
+    await hoverTrayDragOverIsle(container, "scuttleport", 210);
+    expect(isleDropState(container, "scuttleport")).toMatch(/^(available|hover)$/);
+    expect(isleDropFamily(container, "scuttleport")).toBe("market");
+    await dragTrayPiece(container, "market", isleHit(container, "orrery"), 211);
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"].mock.calls[0][0]).toMatchObject({
+      boardIsleId: "orrery",
+      expectedMarket: { present: false },
+      market: { present: true, rarity: null },
+    });
+    await dragTrayPiece(container, "market", isleHit(container, "scuttleport"), 212);
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"].mock.calls[1][0]).toMatchObject({
+      boardIsleId: "scuttleport",
+      expectedMarket: { present: true, rarity: "amber glass" },
+      market: { present: true, rarity: null },
+    });
+    await dragTrayPiece(container, "market", isleHit(container, "ishana"), 213);
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"]).toHaveBeenCalledTimes(2);
+    root.unmount();
+    container.remove();
+
+    const nested = withNestingBeastOnIsle(initializedMariner(), "sage_atoll");
+    const again = renderSurface(nested, WIZARD);
+    await hoverTrayDragOverIsle(again.container, "sage_atoll", 214);
+    expect(isleDropState(again.container, "sage_atoll")).toBe("blocked");
+    await dragTrayPiece(again.container, "market", isleHit(again.container, "sage_atoll"), 215);
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"]).toHaveBeenCalledTimes(2);
+    again.root.unmount();
+    again.container.remove();
+  });
+
+  it("H: Rare Market supply opens a description prompt, requires trimmed text, and keeps pointerdown expected Market", async () => {
+    const start = initializedMariner();
+    const { container, root } = renderSurface(start, WIZARD);
+    await dragTrayPiece(container, "rare-market", isleHit(container, "orrery"), 216);
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"]).not.toHaveBeenCalled();
+    const prompt = container.querySelector("[data-rarity-prompt]") as HTMLElement | null;
+    expect(prompt).not.toBeNull();
+    expect(prompt?.textContent).toMatch(/Describe Rarity/);
+    const field = prompt?.querySelector('input[aria-label="Rarity description"]') as HTMLInputElement;
+    expect(button(prompt!, "Confirm").disabled).toBe(true);
+    setInput(field, "   ");
+    expect(button(prompt!, "Confirm").disabled).toBe(true);
+    rerenderSurface(root, withIsleMarket(start, "orrery", { present: true, rarity: "drifted" }));
+    setInput(field, "  moon silk  ");
+    await act(async () => { button(prompt!, "Confirm").click(); });
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"].mock.calls[0][0]).toMatchObject({
+      boardIsleId: "orrery",
+      expectedMarket: { present: false },
+      market: { present: true, rarity: "moon silk" },
+    });
+
+    await dragTrayPiece(container, "rare-market", isleHit(container, "ishana"), 217);
+    const transformPrompt = container.querySelector("[data-rarity-prompt]") as HTMLElement;
+    setInput(transformPrompt.querySelector('input[aria-label="Rarity description"]') as HTMLInputElement, "tide glass");
+    await act(async () => { button(transformPrompt, "Confirm").click(); });
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"].mock.calls[1][0]).toMatchObject({
+      boardIsleId: "ishana",
+      expectedMarket: { present: true, rarity: null },
+      market: { present: true, rarity: "tide glass" },
+    });
+
+    await dragTrayPiece(container, "rare-market", isleHit(container, "scuttleport"), 218);
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"]).toHaveBeenCalledTimes(2);
+    expect(container.querySelector("[data-rarity-prompt]")).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("I: existing Market drag uses one moveMarinerMarket call and keeps the pointerdown snapshot", async () => {
+    const start = initializedMariner();
+    const ordinaryExpected = expectedForMoveMarket(captureOperabilityBoard(start), "ishana", "orrery");
+    const rareExpected = expectedForMoveMarket(captureOperabilityBoard(start), "scuttleport", "sage_atoll");
+    const { container, root } = renderSurface(start, WIZARD);
+    await dragMarketPiece(container, "ishana", isleHit(container, "orrery"), 220);
+    expect(mockMutations["m3Commands.moveMarinerMarket"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.moveMarinerMarket"].mock.calls[0][0]).toMatchObject({
+      sourceBoardIsleId: "ishana",
+      destinationBoardIsleId: "orrery",
+      expectedSourceMarket: ordinaryExpected.expectedSourceMarket,
+      expectedDestinationMarket: ordinaryExpected.expectedDestinationMarket,
+      expectedDestinationNestingBeastDenizenId: ordinaryExpected.expectedDestinationNestingBeastDenizenId,
+    });
+
+    await dragMarketPiece(container, "scuttleport", isleHit(container, "sage_atoll"), 221);
+    expect(mockMutations["m3Commands.moveMarinerMarket"].mock.calls[1][0]).toMatchObject({
+      sourceBoardIsleId: "scuttleport",
+      destinationBoardIsleId: "sage_atoll",
+      expectedSourceMarket: { present: true, rarity: "amber glass" },
+      expectedDestinationMarket: rareExpected.expectedDestinationMarket,
+      expectedDestinationNestingBeastDenizenId: rareExpected.expectedDestinationNestingBeastDenizenId,
+    });
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"]).not.toHaveBeenCalled();
+
+    const piece = marketPiece(container, "ishana");
+    (piece as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => isleHit(container, "far_reach"),
+    });
+    await act(async () => {
+      piece.dispatchEvent(new PointerEvent("pointerdown", {
+        bubbles: true,
+        clientX: 15,
+        clientY: 15,
+        pointerId: 222,
+        isPrimary: true,
+        button: 0,
+      }));
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 30, clientY: 15, pointerId: 222 }));
+    });
+    rerenderSurface(root, withIsleMarket(withIsleMarket(start, "ishana", { present: true, rarity: "drifted pearl" }), "far_reach", { present: true, rarity: null }));
+    await act(async () => {
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 210, clientY: 210, pointerId: 222 }));
+      window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: 210, clientY: 210, pointerId: 222 }));
+    });
+    expect(mockMutations["m3Commands.moveMarinerMarket"].mock.calls[2][0]).toMatchObject({
+      sourceBoardIsleId: "ishana",
+      destinationBoardIsleId: "far_reach",
+      expectedSourceMarket: { present: true, rarity: null },
+      expectedDestinationMarket: { present: false },
+    });
+    expect(mockMutations["m3Commands.setMarinerIsleMarket"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("J: Market click inspects, drag relocates without selecting, and right-click opens context without drag", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const piece = marketPiece(container, "ishana");
+    (piece as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+    await act(async () => {
+      piece.dispatchEvent(new PointerEvent("pointerdown", {
+        bubbles: true,
+        clientX: 20,
+        clientY: 20,
+        pointerId: 223,
+        isPrimary: true,
+        button: 0,
+      }));
+      window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: 20, clientY: 20, pointerId: 223 }));
+      piece.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 20, clientY: 20 }));
+    });
+    expect(container.querySelector("[data-board-overlay-inspector]")?.textContent).toMatch(/World ishana|Ishana/i);
+    await act(async () => { button(container, "Close").click(); });
+    expect(container.querySelector("[data-board-overlay-inspector]")).toBeNull();
+
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => isleHit(container, "orrery"),
+    });
+    await act(async () => {
+      piece.dispatchEvent(new PointerEvent("pointerdown", {
+        bubbles: true,
+        clientX: 15,
+        clientY: 15,
+        pointerId: 224,
+        isPrimary: true,
+        button: 0,
+      }));
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 30, clientY: 15, pointerId: 224 }));
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 210, clientY: 210, pointerId: 224 }));
+      window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: 210, clientY: 210, pointerId: 224 }));
+      piece.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 210, clientY: 210 }));
+    });
+    expect(mockMutations["m3Commands.moveMarinerMarket"]).toHaveBeenCalledTimes(1);
+    expect(container.querySelector("[data-board-overlay-inspector]")).toBeNull();
+
+    openContextOn(marketPiece(container, "ishana"), 70, 36);
+    expect(container.querySelector("[data-mariner-context-menu]")?.getAttribute("data-context-menu-kind")).toBe("isle");
+    expect(container.querySelector('[data-context-action="add-rarity"]')).not.toBeNull();
+    expect(mockMutations["m3Commands.moveMarinerMarket"]).toHaveBeenCalledTimes(1);
+    root.unmount();
+    container.remove();
+  });
+
+  it("K: Ship/Raider/Storm tray, hover menus, and Beast Add/Remove remain intact", async () => {
+    const start = initializedMariner();
+    const { container, root } = renderSurface(start, WIZARD);
+    expect(container.querySelector("[data-hover-command-menu]")).toBeNull();
+    expect(container.querySelector('[data-tray-piece="ship"]')).not.toBeNull();
+    expect(container.querySelector('[data-tray-piece="raider"]')).not.toBeNull();
+    expect(container.querySelector('[data-tray-piece="storm"]')).not.toBeNull();
+    await dragTrayPiece(container, "storm", seaHit(container, "wizard_strait"), 225);
+    expect(mockMutations["m3Commands.setMarinerSeaStormCount"]).toHaveBeenCalled();
+    expect(mockMutations["m3Commands.moveMarinerStorm"]).not.toHaveBeenCalled();
+    openSeaContext(container, "wizard_strait");
+    await act(async () => { contextAction(container, "add-beast").click(); });
+    const chooser = container.querySelector("[data-beast-add-chooser]") as HTMLElement;
+    setSelect(select(chooser, "Add Beast Denizen"), DEN_B);
+    await act(async () => { button(chooser, "Add Beast").click(); });
+    expect(mockMutations["m3Commands.addMarinerBeast"]).toHaveBeenCalled();
+    expect(mockMutations["m3Commands.createMarinerBeast"]).not.toHaveBeenCalled();
+    openBeastContext(container, DEN_A);
+    await act(async () => { contextAction(container, "remove-beast").click(); });
+    await act(async () => { button(container.querySelector("[data-beast-remove-confirm]") as HTMLElement, "Remove").click(); });
+    expect(mockMutations["m3Commands.removeMarinerBeast"]).toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+});

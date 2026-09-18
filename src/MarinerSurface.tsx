@@ -140,6 +140,7 @@ import {
 } from "./mariner-operational-view";
 import {
   BeastAddChooser,
+  BeastElsewhereChooser,
   BeastRampageChooser,
   BeastRemoveConfirm,
   BoardDragGhost,
@@ -264,6 +265,7 @@ export default function MarinerSurface({
   const createMarinerShip = useMutation(api.m3Commands.createMarinerShip);
   const moveMarinerBeast = useMutation(api.m3Commands.moveMarinerBeast);
   const nestMarinerBeast = useMutation(api.m3Commands.nestMarinerBeast);
+  const moveMarinerMarket = useMutation(api.m3Commands.moveMarinerMarket);
   const recordMarinerRavageResult = useMutation(api.m3Commands.recordMarinerRavageResult);
 
   const initialized = isMarinerInitialized(mariner);
@@ -301,8 +303,10 @@ export default function MarinerSurface({
     addMarinerBeast,
     removeMarinerBeast,
     setMarinerIsleMarket,
+    moveMarinerMarket,
     onSelectRegion: (regionId) => setSelection({ kind: "region", regionId }),
     onSelectRoute: (routeId) => setSelection({ kind: "route", routeId }),
+    onSelectIsle: (boardIsleId) => setSelection({ kind: "isle", boardIsleId }),
   });
 
   function beginStormGuide(sourceRegionId: MarinerSeaRegionId): void {
@@ -471,6 +475,7 @@ export default function MarinerSurface({
               onBeginRaider={board.beginTrayRaiderPointer}
               onBeginStorm={board.beginTrayStormPointer}
               onBeginMarket={board.beginTrayMarketPointer}
+              onBeginRareMarket={board.beginTrayRareMarketPointer}
             />
             <p data-board-instruction className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">
               Drag from the tray to place or replace • Drag pieces to move • Right-click for actions • R reverses a selected Raider • Delete removes • Raider arrows point toward their destination
@@ -491,6 +496,8 @@ export default function MarinerSurface({
             onRemoveStorm={() => { void board.contextRemoveStorm(); }}
             onMoveBeast={(regionId) => { void board.contextMoveBeast(regionId); }}
             onNestBeast={(boardIsleId) => { void board.contextNestBeast(boardIsleId); }}
+            onMoveBeastElsewhere={() => board.contextBeginBeastElsewhere("move")}
+            onNestBeastElsewhere={() => board.contextBeginBeastElsewhere("nest")}
             onRemoveBeast={() => board.contextBeginRemoveBeast()}
             onAddBeast={() => board.contextBeginAddBeast()}
             onAddMarket={() => { void board.contextAddMarket(); }}
@@ -532,6 +539,17 @@ export default function MarinerSurface({
               pending={pending}
               onCancel={board.cancelPendingRarityEditor}
               onSubmit={(description) => { void board.submitPendingRarity(description); }}
+            />
+          )}
+          {board.pendingBeastElsewhere !== null && (
+            <BeastElsewhereChooser
+              pendingIntent={board.pendingBeastElsewhere}
+              mariner={mariner}
+              world={world}
+              pending={pending}
+              onCancel={board.cancelPendingBeastElsewhere}
+              onChooseSea={(regionId) => { void board.chooseBeastElsewhereSea(regionId); }}
+              onChooseIsle={(boardIsleId) => { void board.chooseBeastElsewhereIsle(boardIsleId); }}
             />
           )}
           {board.pendingShipRampage !== null && (
@@ -1154,6 +1172,7 @@ function MarinerMap({
               key={sea.regionId}
               data-map-layer="sea-hit"
               data-region-id={sea.regionId}
+              data-sea-drop={dragDest ?? undefined}
               data-storm-guide-dest={guideDest ?? undefined}
               role="button"
               tabIndex={0}
@@ -1358,13 +1377,20 @@ function MarinerMap({
           const convenience = isle.shapes.length === 1;
           const hit = marinerOverlayPointToBoard(isle.hit.cx, isle.hit.cy);
           const dropHint = board.isleDropHighlight(isle.boardIsleId);
+          const dropFamily = board.isleDropFamily(isle.boardIsleId);
           const showIsleDrop = dropHint === "hover" || dropHint === "recommended" || dropHint === "available";
+          const isleDropColor = dropFamily === "nest"
+            ? (dropHint === "available" ? "#fdba74" : "#c2410c")
+            : dropFamily === "market"
+              ? (dropHint === "available" ? "#fbbf24" : "#b45309")
+              : "#0f766e";
           return (
             <g
               key={isle.boardIsleId}
               data-map-layer="isle"
               data-isle-id={isle.boardIsleId}
               data-isle-drop={dropHint ?? undefined}
+              data-isle-drop-family={dropFamily ?? undefined}
               role="button"
               tabIndex={0}
               aria-pressed={selected}
@@ -1393,7 +1419,7 @@ function MarinerMap({
                 data-isle-shore-glow
                 data-focus-ring
                 filter="url(#mariner-isle-shore-glow)"
-                color={showIsleDrop && !selected ? "#0f766e" : MARINER_ISLE_SELECTION_GLOW[isle.boardIsleId]}
+                color={showIsleDrop && !selected ? isleDropColor : MARINER_ISLE_SELECTION_GLOW[isle.boardIsleId]}
                 pointerEvents="none"
               >
                 <use href={href} data-source-geometry={symbolId} fill="none" stroke="none" />
@@ -1533,11 +1559,15 @@ function MarinerMap({
                   <g
                     data-piece="market"
                     data-isle-id={isle.boardIsleId}
+                    data-draggable-market="true"
                     data-rarity={hasRarity ? "true" : "false"}
                     aria-label={hasRarity ? "Market with a Rarity" : "Market"}
                     transform={`translate(${isle.slots.market.x} ${isle.slots.market.y})`}
+                    style={{ cursor: "grab" }}
+                    onPointerDown={(event) => board.beginBoardMarketPointer(isle.boardIsleId, event)}
                     onClick={(event) => {
                       event.stopPropagation();
+                      if (board.consumeSuppressClick()) return;
                       onSelect({ kind: "isle", boardIsleId: isle.boardIsleId });
                     }}
                     onContextMenu={(event) => board.openIsleContextMenu(isle.boardIsleId, event)}
@@ -1554,7 +1584,7 @@ function MarinerMap({
                       />
                     )}
                     <text x={0} y={16} textAnchor="middle" fontSize={8} fill="#78350f">
-                      {hasRarity ? "Market · Rarity" : "Market"}
+                      {hasRarity ? "Rare Market" : "Market"}
                     </text>
                   </g>
                 )}
@@ -2085,7 +2115,14 @@ function IsleInspector({
       <p className="text-sm">Board: {boardIsleDisplayName(boardIsleId)}</p>
       <p className="text-sm">World Isle: {worldIsleName(world.isles, current.worldIsleId)}</p>
       <p className="text-sm">Adjacent occupied Routes: {operational.adjacentOccupiedCount}</p>
-      <p className="text-sm">Market: {current.market.present ? `present${current.market.rarity ? ` · Rarity ${current.market.rarity}` : ""}` : "absent"}</p>
+      <p className="text-sm">
+        Market: {current.market.present
+          ? (current.market.rarity !== null ? "Rare Market" : "Market")
+          : "absent"}
+      </p>
+      {current.market.present && current.market.rarity !== null && (
+        <p className="text-sm text-slate-600 dark:text-slate-300">Market Rarity: {current.market.rarity}</p>
+      )}
       <p className="text-sm">Ravage Storms: {current.ravageStormCount}</p>
       <p className="text-sm">Friendly / Nesting Beast: {nested.map((beast) => denizenName(world.denizens, beast.denizenId)).join(", ") || "none"}</p>
       {conflict && (

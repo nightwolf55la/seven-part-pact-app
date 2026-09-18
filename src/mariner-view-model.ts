@@ -682,6 +682,49 @@ export function buildSetMarinerIsleMarketPayload(args: {
   };
 }
 
+export function expectedForMoveMarket(
+  board: MarinerOperabilityBoardSnapshot,
+  sourceBoardIsleId: MarinerBoardIsleId,
+  destinationBoardIsleId: MarinerBoardIsleId,
+) {
+  const source = board.boardIsles.find((isle) => isle.boardIsleId === sourceBoardIsleId);
+  const destination = board.boardIsles.find((isle) => isle.boardIsleId === destinationBoardIsleId);
+  const nesting = nestingBeastsOnIsle(board.beasts, destinationBoardIsleId)[0];
+  return {
+    expectedSourceMarket: source?.market ?? { present: false as const },
+    expectedDestinationMarket: destination?.market ?? { present: false as const },
+    expectedDestinationNestingBeastDenizenId: nesting?.denizenId ?? null,
+  };
+}
+
+export function buildMoveMarinerMarketPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly sourceBoardIsleId: MarinerBoardIsleId;
+  readonly destinationBoardIsleId: MarinerBoardIsleId;
+  readonly expectedSourceMarket: MarinerIsleMarket;
+  readonly expectedDestinationMarket: MarinerIsleMarket;
+  readonly expectedDestinationNestingBeastDenizenId: string | null;
+}): {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly sourceBoardIsleId: MarinerBoardIsleId;
+  readonly destinationBoardIsleId: MarinerBoardIsleId;
+  readonly expectedSourceMarket: MarinerIsleMarket;
+  readonly expectedDestinationMarket: MarinerIsleMarket;
+  readonly expectedDestinationNestingBeastDenizenId: string | null;
+} {
+  return {
+    commandId: args.commandId,
+    expectedCampaignId: args.expectedCampaignId,
+    sourceBoardIsleId: args.sourceBoardIsleId,
+    destinationBoardIsleId: args.destinationBoardIsleId,
+    expectedSourceMarket: args.expectedSourceMarket,
+    expectedDestinationMarket: args.expectedDestinationMarket,
+    expectedDestinationNestingBeastDenizenId: args.expectedDestinationNestingBeastDenizenId,
+  };
+}
+
 export function buildSetMarinerIsleRavagePayload(args: {
   readonly commandId: string;
   readonly expectedCampaignId: string;
