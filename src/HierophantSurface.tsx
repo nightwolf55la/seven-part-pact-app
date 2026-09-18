@@ -22,6 +22,10 @@ import {
   type SorcererExternalPresence,
   powerfulStatusLabel,
   planHierophantVisions,
+  type HierophantVisionsChoices,
+  type HierophantVisionsResource,
+  type DenizenId,
+  type HierophantTempleId,
 } from "../shared/domain";
 import type { WorldReference } from "./WorldSurface";
 import LoreContextPanel from "./LoreContextPanel";
@@ -79,6 +83,14 @@ import {
   formatVisionsTempleWarnings,
   shortTempleBoardLabel,
 } from "./hierophant-view-model";
+import {
+  appendVisionsOrder,
+  completeVisionsOrder,
+  retainValidHierophantVisionsChoices,
+  undoLastVisionsOrder,
+  visionsChoicesEqual,
+  visionsRequiredChoiceKey,
+} from "./hierophant-visions-preview";
 
 type HierophantTab = "overview" | "temples" | "people" | "cults" | "definitions";
 
@@ -154,6 +166,9 @@ export default function HierophantSurface({
   const [setupBindings, setSetupBindings] = useState<StartingTempleBindings>({});
   const [editor, setEditor] = useState<Record<string, unknown> | null>(null);
   const [selectedTempleId, setSelectedTempleId] = useState<string | null>(null);
+  const [previewChoices, setPreviewChoices] = useState<HierophantVisionsChoices>({});
+  const [orderDraft, setOrderDraft] = useState<readonly DenizenId[]>([]);
+  const [visionsChoiceKey, setVisionsChoiceKey] = useState("");
   const [receiveDraft, setReceiveDraft] = useState<{
     commandId: string;
     denizenId: string;
@@ -760,6 +775,39 @@ export default function HierophantSurface({
   }
 
   const unusedCollectives = availableCultCollectives(world.denizens, usedCultIds);
+  const visionsContext = deriveHierophantVisionsContext(world.denizens);
+  const unconstrainedVisions = planHierophantVisions(hierophant, {}, visionsContext);
+  const nextVisionsKey = visionsRequiredChoiceKey(unconstrainedVisions.requiredChoices);
+  if (nextVisionsKey !== visionsChoiceKey) {
+    setVisionsChoiceKey(nextVisionsKey);
+    const pruned = retainValidHierophantVisionsChoices(unconstrainedVisions.requiredChoices, {
+      ...previewChoices,
+      supplicantOrder: orderDraft,
+    });
+    const nextStored: HierophantVisionsChoices = {
+      ...(pruned.artisanPayments === undefined ? {} : { artisanPayments: pruned.artisanPayments }),
+      ...(pruned.hestarFallback === undefined ? {} : { hestarFallback: pruned.hestarFallback }),
+      ...(pruned.hestarDonors === undefined ? {} : { hestarDonors: pruned.hestarDonors }),
+    };
+    if (!visionsChoicesEqual(previewChoices, nextStored)) {
+      setPreviewChoices(nextStored);
+    }
+    const orderChoice = unconstrainedVisions.requiredChoices.find((choice) => choice.kind === "supplicant_order");
+    const allowed = new Set(orderChoice?.kind === "supplicant_order" ? orderChoice.participantIds : []);
+    const nextDraft = orderChoice === undefined ? [] : orderDraft.filter((id) => allowed.has(id));
+    if (nextDraft.length !== orderDraft.length || (orderChoice === undefined && orderDraft.length > 0)) {
+      setOrderDraft(nextDraft);
+    }
+  }
+  const orderParticipants = unconstrainedVisions.requiredChoices.find((choice) => choice.kind === "supplicant_order");
+  const completeOrder = orderParticipants?.kind === "supplicant_order"
+    ? completeVisionsOrder(orderDraft, orderParticipants.participantIds)
+    : undefined;
+  const effectiveVisionsChoices = retainValidHierophantVisionsChoices(unconstrainedVisions.requiredChoices, {
+    ...previewChoices,
+    supplicantOrder: completeOrder,
+  });
+  const visionsPlan = planHierophantVisions(hierophant, effectiveVisionsChoices, visionsContext);
 
   return (
     <section className="bg-white dark:bg-slate-900 rounded-xl border border-amber-200/70 dark:border-amber-900/40 shadow-sm p-6">
@@ -856,6 +904,42 @@ export default function HierophantSurface({
             onSelectTemple={(templeId) => {
               setSelectedTempleId(templeId);
             }}
+            choices={{
+              plan: visionsPlan,
+              openChoices: unconstrainedVisions.requiredChoices,
+              previewChoices: effectiveVisionsChoices,
+              orderDraft,
+              onArtisanPayment: (denizenId, resource: HierophantVisionsResource) => {
+                setPreviewChoices((current) => ({
+                  ...current,
+                  artisanPayments: { ...current.artisanPayments, [denizenId]: resource },
+                }));
+              },
+              onHestarFallback: (denizenId, useHestar) => {
+                setPreviewChoices((current) => ({
+                  ...current,
+                  hestarFallback: { ...current.hestarFallback, [denizenId]: useHestar },
+                }));
+              },
+              onHestarDonor: (denizenId, templeId: HierophantTempleId) => {
+                setPreviewChoices((current) => ({
+                  ...current,
+                  hestarDonors: { ...current.hestarDonors, [denizenId]: templeId },
+                }));
+              },
+              onOrderSelect: (denizenId: DenizenId) => {
+                const participants = orderParticipants?.kind === "supplicant_order"
+                  ? orderParticipants.participantIds
+                  : [];
+                setOrderDraft((current) => appendVisionsOrder(current, denizenId, participants));
+              },
+              onOrderUndo: () => {
+                setOrderDraft((current) => undoLastVisionsOrder(current));
+              },
+              onOrderReset: () => {
+                setOrderDraft([]);
+              },
+            }}
           />
           {(() => {
             const selected = selectedTempleId === null
@@ -867,7 +951,7 @@ export default function HierophantSurface({
               : undefined;
             const caps = templeEditCapabilities(selected);
             const receiveOpen = receiveDraft !== null && receiveDraft.templeId === selected.templeId;
-            const visions = planHierophantVisions(hierophant, {}, deriveHierophantVisionsContext(world.denizens));
+            const visions = visionsPlan;
             const selectedVisions = visions.temples.find((entry) => entry.templeId === selected.templeId);
             const selectedPeople = visions.supplicants.filter((entry) => entry.templeId === selected.templeId);
             const selectedWarnings = selectedVisions === undefined
