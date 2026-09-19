@@ -60,10 +60,38 @@ export interface FaustianCardSourceReference {
   readonly rank: FaustianRank;
   readonly rankLabel: string;
   readonly suitLabel: string;
+  readonly rankSuitGlyph: string;
   readonly faceUpIdentityLabel: string;
   readonly scheme: FaustianSchemeReference;
   readonly twist: FaustianTwistReference;
   readonly accomplice: FaustianAccompliceReference;
+}
+
+export const FAUSTIAN_RANK_GLYPHS: Record<FaustianRank, string> = {
+  ace: "A",
+  "2": "2",
+  "3": "3",
+  "4": "4",
+  "5": "5",
+  "6": "6",
+  "7": "7",
+  "8": "8",
+  "9": "9",
+  "10": "10",
+  jack: "J",
+  queen: "Q",
+  king: "K",
+};
+
+export const FAUSTIAN_SUIT_GLYPHS: Record<FaustianSuit, string> = {
+  spades: "♠",
+  clubs: "♣",
+  diamonds: "♦",
+  hearts: "♥",
+};
+
+export function faustianRankSuitGlyph(rank: FaustianRank, suit: FaustianSuit): string {
+  return `${FAUSTIAN_RANK_GLYPHS[rank]}${FAUSTIAN_SUIT_GLYPHS[suit]}`;
 }
 
 export const FAUSTIAN_RANK_LABELS: Record<FaustianRank, string> = {
@@ -136,6 +164,7 @@ export const FAUSTIAN_CARD_SOURCE_REFERENCES: readonly FaustianCardSourceReferen
     rank: card.rank,
     rankLabel: FAUSTIAN_RANK_LABELS[card.rank],
     suitLabel: FAUSTIAN_SUIT_LABELS[card.suit],
+    rankSuitGlyph: faustianRankSuitGlyph(card.rank, card.suit),
     faceUpIdentityLabel: faceUpIdentityLabel(card.rank, card.suit),
     scheme: OMITTED_SCHEME,
     twist: OMITTED_TWIST,

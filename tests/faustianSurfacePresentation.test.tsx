@@ -310,7 +310,7 @@ describe("Faustian surface presentation", () => {
     });
     expect(container.textContent).not.toContain("Confirm Investigate reveal");
     expect(container.textContent).not.toContain("Confirm foil");
-    expect(container.textContent).toContain("Two of Hearts");
+    expect(container.textContent).toContain("2♥");
     expect(Object.values(mockMutations).every((fn) => fn.mock.calls.length === 0)).toBe(true);
   });
 
@@ -342,7 +342,7 @@ describe("Faustian surface presentation", () => {
     expect(table?.querySelector('[data-faustian-zone="devil-deck"]')?.textContent).toMatch(/\d+/);
     expect(table?.querySelector('[data-faustian-zone="defeated"]')).not.toBeNull();
     expect(container.querySelector("[aria-label='Aries inspector']")).toBeNull();
-    expect(container.textContent).toContain("Two of Hearts");
+    expect(container.textContent).toContain("2♥");
     expect(container.textContent).toContain(FACEDOWN_SCHEME_LABEL);
     expect(container.textContent).toContain("1 Pawn");
     expect(container.querySelector('[data-faustian-scheme-supply]')).not.toBeNull();
@@ -422,6 +422,89 @@ describe("Faustian surface presentation", () => {
     expect(container.textContent).not.toContain("Confirm Direct Accomplice");
     expect(container.querySelector("[data-faustian-table]")?.textContent).not.toContain("Place several Schemes");
     expect(container.textContent).toContain("Place several Schemes");
+  });
+
+  it("opens Community detail in the primary inspector rail on left-click", () => {
+    const { container } = renderSurface();
+    const aries = container.querySelector("[aria-label='Aries · monks/pilgrims · Hierophant']") as HTMLElement;
+    flushSync(() => {
+      aries.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    const inspector = container.querySelector("[data-faustian-inspector]");
+    expect(inspector).not.toBeNull();
+    expect(inspector?.textContent).toMatch(/Aries/);
+    expect(inspector?.textContent).toMatch(/monks\/pilgrims/);
+    expect(inspector?.textContent).toMatch(/Hierophant/);
+    expect(inspector?.textContent).toMatch(/1 Pawn|Pawn/);
+    expect(container.querySelector("[data-faustian-primary-rail]")?.contains(inspector)).toBe(true);
+    expect(Object.values(mockMutations).every((fn) => fn.mock.calls.length === 0)).toBe(true);
+  });
+
+  it("opens face-up card detail in the inspector without mutating canonical state", () => {
+    const { container } = renderSurface();
+    const faceUp = Array.from(container.querySelectorAll('[data-faustian-card="scheme"]')).find((el) =>
+      (el.textContent ?? "").includes("2♥"),
+    ) as HTMLElement;
+    flushSync(() => {
+      faceUp.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    const inspector = container.querySelector("[data-faustian-inspector]");
+    expect(inspector?.textContent).toMatch(/2♥/);
+    expect(inspector?.textContent).toMatch(/Two of Hearts/);
+    expect(inspector?.textContent).toMatch(/Scheme/);
+    expect(Object.values(mockMutations).every((fn) => fn.mock.calls.length === 0)).toBe(true);
+  });
+
+  it("reveals a Twist privately inside the inspector rail without flipping the table card", () => {
+    const { container } = renderSurface();
+    const callsBefore = Object.values(mockMutations).reduce((sum, fn) => sum + fn.mock.calls.length, 0);
+    click(container, PRIVATE_TWIST_INSPECT_LABEL);
+    const inspector = container.querySelector("[data-faustian-inspector]");
+    expect(inspector?.textContent).toContain("Private Twist inspection");
+    expect(inspector?.textContent).toMatch(/A♠|Ace of Spades/);
+    expect(inspector?.textContent).toContain("Local-only view");
+    expect(container.querySelector("[data-faustian-primary-rail]")?.contains(inspector)).toBe(true);
+    const stillFacedown = Array.from(container.querySelectorAll("[aria-label]")).some(
+      (el) => el.getAttribute("aria-label") === FACEDOWN_TWIST_LABEL,
+    );
+    expect(stillFacedown).toBe(true);
+    const tableTwist = Array.from(container.querySelectorAll('[data-faustian-card="machination"]')).find((el) =>
+      (el.getAttribute("aria-label") ?? "").includes("Active Twist"),
+    );
+    expect(tableTwist?.textContent ?? "").not.toMatch(/A♠|Ace of Spades/);
+    const callsAfter = Object.values(mockMutations).reduce((sum, fn) => sum + fn.mock.calls.length, 0);
+    expect(callsAfter).toBe(callsBefore);
+    flushSync(() => {
+      const close = Array.from(container.querySelectorAll("button")).find((button) =>
+        (button.textContent ?? "").includes("Close private view"),
+      );
+      close?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(container.querySelector("[data-faustian-inspector]")?.textContent ?? "").not.toContain("Private Twist inspection");
+    expect(Array.from(container.querySelectorAll("[aria-label]")).some(
+      (el) => el.getAttribute("aria-label") === FACEDOWN_TWIST_LABEL,
+    )).toBe(true);
+  });
+
+  it("keeps Faustian's Deck and Devil's Deck visible together in the primary rail", () => {
+    const { container } = renderSurface();
+    const rail = container.querySelector("[data-faustian-primary-rail]");
+    expect(rail?.querySelector('[data-faustian-zone="faustian-deck"]')).not.toBeNull();
+    expect(rail?.querySelector('[data-faustian-zone="devil-deck"]')).not.toBeNull();
+    expect(rail?.querySelector('[data-faustian-zone="machinations"]')).not.toBeNull();
+    expect(rail?.querySelector("[data-faustian-inspector]")).not.toBeNull();
+    expect(rail?.querySelector('[data-faustian-zone="faustian-deck"]')?.textContent).toMatch(/\d+/);
+    expect(rail?.querySelector('[data-faustian-zone="devil-deck"]')?.textContent).toMatch(/\d+/);
+  });
+
+  it("does not render dashed empty card silhouettes in unoccupied Communities", () => {
+    const { container } = renderSurface();
+    const pisces = container.querySelector('[data-faustian-community="pisces"]');
+    expect(pisces).not.toBeNull();
+    expect(pisces?.querySelector("[data-faustian-empty-slot]")).toBeNull();
+    expect(pisces?.innerHTML ?? "").not.toMatch(/border-dashed/);
+    const aries = container.querySelector('[data-faustian-community="aries"]');
+    expect(aries?.querySelectorAll("[data-faustian-card]").length).toBeGreaterThan(0);
   });
 });
 

@@ -36,8 +36,16 @@ import {
 
 export type { FaustianWizardRef };
 
+type InspectorTarget =
+  | { readonly kind: "community"; readonly communityId: FaustianCommunityId }
+  | { readonly kind: "card"; readonly card: FaustianPublicCardPresentation; readonly communityId?: FaustianCommunityId }
+  | { readonly kind: "private_twist"; readonly index: number }
+  | { readonly kind: "faustian_deck" }
+  | { readonly kind: "devil_deck" };
+
 type Selection =
   | { readonly kind: "community"; readonly communityId: FaustianCommunityId }
+  | { readonly kind: "card"; readonly instanceKey: string }
   | { readonly kind: "twist"; readonly index: number }
   | { readonly kind: "supporting"; readonly area: SupportingArea };
 
@@ -61,7 +69,14 @@ function cardFaceClass(card: FaustianPublicCardPresentation): string {
   if (card.facing === "face_down") {
     return "bg-slate-800 text-slate-100 border-slate-950";
   }
-  return "bg-amber-50 dark:bg-amber-950/40 text-slate-900 dark:text-amber-50 border-amber-700/40";
+  return "bg-white text-slate-950 border-slate-800";
+}
+
+function suitGlyphClass(card: FaustianPublicCardPresentation): string {
+  if (card.facing === "face_down") return "text-slate-100";
+  const suit = card.cardId.slice(0, card.cardId.indexOf("_"));
+  if (suit === "hearts" || suit === "diamonds") return "text-red-800";
+  return "text-slate-950";
 }
 
 function PlayingCardToken({
@@ -71,7 +86,6 @@ function PlayingCardToken({
   treatmentLabel = null,
   onContextMenu,
   foilAvailable = false,
-  onFoil,
 }: {
   readonly card: FaustianPublicCardPresentation;
   readonly selected?: boolean;
@@ -79,38 +93,41 @@ function PlayingCardToken({
   readonly treatmentLabel?: string | null;
   readonly onContextMenu?: (event: ReactMouseEvent) => void;
   readonly foilAvailable?: boolean;
-  readonly onFoil?: () => void;
 }) {
-  const interactive = onSelect !== undefined || onContextMenu !== undefined || onFoil !== undefined;
+  const interactive = onSelect !== undefined || onContextMenu !== undefined;
+  const revealed = card.facing === "face_up";
   return (
     <button
       type="button"
       disabled={!interactive}
-      onClick={() => {
-        if (onFoil !== undefined) onFoil();
-        else onSelect?.();
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect?.();
       }}
       onContextMenu={onContextMenu}
       data-faustian-card={card.kind}
       aria-label={card.ariaLabel}
-      title={card.publicLabel}
-      className={`relative shrink-0 w-[4.5rem] h-[6.25rem] rounded-md border text-[0.65rem] leading-tight px-1.5 py-1 text-left shadow-sm select-none ${cardFaceClass(card)} ${
+      title={card.facing === "face_down" ? card.publicLabel : `${card.publicLabel} ${card.identityLabel}`}
+      className={`relative shrink-0 w-[4.5rem] h-[6.25rem] rounded-md border leading-tight px-1.5 py-1 text-left shadow-sm select-none ${cardFaceClass(card)} ${
         selected ? "ring-2 ring-teal-500" : ""
       } ${treatmentLabel !== null ? "ring-2 ring-amber-500" : ""} ${interactive ? "cursor-pointer" : "cursor-default"}`}
     >
       {treatmentLabel !== null && (
-        <span className="absolute -top-2 left-1 rounded bg-amber-600 px-1 text-[0.55rem] font-semibold text-white">
+        <span className="absolute -top-2 left-1 rounded bg-amber-700 px-1 text-[0.55rem] font-semibold text-white">
           {treatmentLabel}
         </span>
       )}
-      <span className="font-semibold block">{card.publicLabel}</span>
-      {card.facing === "face_up" && card.kind === "accomplice" && (
-        <span className="block text-[0.6rem] text-amber-200/80 mt-1">
-          {card.syndicateLabel ?? "Accomplice syndicate not transcribed"}
-        </span>
+      {revealed ? (
+        <>
+          <span className={`block text-lg font-bold leading-none ${suitGlyphClass(card)}`}>{card.publicLabel}</span>
+          <span className="block mt-1 text-[0.58rem] font-semibold uppercase tracking-wide text-slate-700">{card.roleKindLabel}</span>
+          <span className="block text-[0.58rem] leading-tight text-slate-800">{card.glanceLine}</span>
+        </>
+      ) : (
+        <span className="font-semibold block text-[0.65rem]">{card.publicLabel}</span>
       )}
       {foilAvailable && (
-        <span className="absolute bottom-1 left-1 right-1 rounded bg-teal-700 px-1 text-[0.55rem] font-semibold text-white">
+        <span className="absolute bottom-1 left-1 right-1 rounded bg-teal-800 px-1 text-[0.55rem] font-semibold text-white">
           Foil
         </span>
       )}
@@ -122,24 +139,21 @@ function FannedPile({
   cards,
   overflowLabel,
   onInspect,
+  onCardSelect,
+  selectedInstanceKey,
   onCardContextMenu,
   foilEligible,
-  onFoil,
 }: {
   readonly cards: FaustianTablePresentation["communities"][number]["schemes"];
   readonly overflowLabel: string | null;
   readonly onInspect?: () => void;
+  readonly onCardSelect?: (card: FaustianPublicCardPresentation) => void;
+  readonly selectedInstanceKey?: string | null;
   readonly onCardContextMenu?: (card: FaustianPublicCardPresentation, event: ReactMouseEvent) => void;
   readonly foilEligible?: (card: FaustianPublicCardPresentation) => boolean;
-  readonly onFoil?: (card: FaustianPublicCardPresentation) => void;
 }) {
   if (cards.totalCount === 0) {
-    return (
-      <div
-        className="w-[2.75rem] h-[3.75rem] rounded-sm border border-dashed border-emerald-700/50 bg-emerald-950/20"
-        aria-hidden="true"
-      />
-    );
+    return null;
   }
   return (
     <div className="flex flex-col gap-1">
@@ -148,9 +162,10 @@ function FannedPile({
           <div key={card.instanceKey} className={index === 0 ? "" : "-ml-6"}>
             <PlayingCardToken
               card={card}
+              selected={selectedInstanceKey === card.instanceKey}
+              onSelect={onCardSelect === undefined ? undefined : () => onCardSelect(card)}
               onContextMenu={onCardContextMenu === undefined ? undefined : (event) => onCardContextMenu(card, event)}
               foilAvailable={foilEligible?.(card) === true}
-              onFoil={foilEligible?.(card) === true && onFoil !== undefined ? () => onFoil(card) : undefined}
             />
           </div>
         ))}
@@ -223,6 +238,44 @@ function DeckStack({ count, emptyLabel }: { readonly count: number; readonly emp
   );
 }
 
+function InspectedCardDetail({
+  card,
+  community,
+  onClose,
+}: {
+  readonly card: FaustianPublicCardPresentation;
+  readonly community: FaustianTablePresentation["communities"][number] | null;
+  readonly onClose: () => void;
+}) {
+  return (
+    <>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">Card detail</h3>
+        <button type="button" className={ghostBtn} onClick={onClose}>Close inspector</button>
+      </div>
+      <PlayingCardToken card={card} selected />
+      {card.facing === "face_up" ? (
+        <div className="space-y-1 text-xs text-emerald-50">
+          <p className="text-lg font-bold leading-none">{card.rankSuitGlyph}</p>
+          <p>{card.identityLabel}</p>
+          <p>{card.roleKindLabel} · {card.glanceLine}</p>
+          {community !== null && <p>{community.headerLabel}</p>}
+          {card.kind === "accomplice" && (
+            <p>{card.syndicateLabel ?? "Accomplice syndicate wording is not transcribed here."}</p>
+          )}
+          <p className="text-emerald-200/80">{card.sourceOmission}</p>
+        </div>
+      ) : (
+        <div className="space-y-1 text-xs text-emerald-50">
+          <p>{card.publicLabel}</p>
+          {community !== null && <p>{community.headerLabel}</p>}
+          <p className="text-emerald-200/80">Identity stays hidden unless private inspection is allowed.</p>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function FaustianSurface({
   faustian,
   campaignId,
@@ -265,18 +318,28 @@ export default function FaustianSurface({
   const play = useFaustianTablePlay({ faustian, campaignId, wizards, lifecycleKind });
 
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [inspectorCommunityId, setInspectorCommunityId] = useState<FaustianCommunityId | null>(null);
-  const [privateTwistIndex, setPrivateTwistIndex] = useState<number | null>(null);
+  const [inspector, setInspector] = useState<InspectorTarget | null>(null);
 
-  const inspectorCommunity = inspectorCommunityId === null
+  const inspectorCommunityId = inspector?.kind === "community" ? inspector.communityId : inspector?.kind === "card" ? inspector.communityId : undefined;
+  const inspectorCommunity = inspectorCommunityId === undefined
     ? null
     : presentation.communities.find((community) => community.communityId === inspectorCommunityId) ?? null;
-  const inspectorSchemes = inspectorCommunityId === null ? [] : communityAllSchemes(faustian, inspectorCommunityId);
-  const inspectorAccomplices = inspectorCommunityId === null ? [] : communityAllAccomplices(faustian, inspectorCommunityId);
-  const privateTwist = privateTwistIndex === null ? null : privateTwistInspection(faustian, privateTwistIndex);
+  const inspectorSchemes = inspectorCommunityId === undefined ? [] : communityAllSchemes(faustian, inspectorCommunityId);
+  const inspectorAccomplices = inspectorCommunityId === undefined ? [] : communityAllAccomplices(faustian, inspectorCommunityId);
+  const privateTwist = inspector?.kind === "private_twist" ? privateTwistInspection(faustian, inspector.index) : null;
+
+  function inspectCommunity(communityId: FaustianCommunityId): void {
+    setSelection({ kind: "community", communityId });
+    setInspector({ kind: "community", communityId });
+  }
+
+  function inspectCard(card: FaustianPublicCardPresentation, communityId?: FaustianCommunityId): void {
+    setSelection({ kind: "card", instanceKey: card.instanceKey });
+    setInspector({ kind: "card", card, communityId });
+  }
 
   function selectCommunity(communityId: FaustianCommunityId): void {
-    setSelection({ kind: "community", communityId });
+    inspectCommunity(communityId);
   }
 
   function onCommunityKey(event: KeyboardEvent<HTMLElement>, communityId: FaustianCommunityId): void {
@@ -363,18 +426,13 @@ export default function FaustianSurface({
                         <FannedPile
                           cards={community.schemes}
                           overflowLabel={community.schemes.overflowLabel}
-                          onInspect={() => {
-                            selectCommunity(community.communityId);
-                            setInspectorCommunityId(community.communityId);
-                          }}
+                          selectedInstanceKey={selection?.kind === "card" ? selection.instanceKey : null}
+                          onInspect={() => inspectCommunity(community.communityId)}
+                          onCardSelect={(card) => inspectCard(card, community.communityId)}
                           onCardContextMenu={(card, event) => {
                             play.openSchemeMenu(community.communityId, schemeCardId(card), card.facing, event);
                           }}
                           foilEligible={(card) => play.foilEligible(community.communityId, schemeCardId(card))}
-                          onFoil={(card) => {
-                            const cardId = schemeCardId(card);
-                            if (cardId !== null) play.onFoil(community.communityId, cardId);
-                          }}
                         />
                       </div>
                       <div>
@@ -382,10 +440,9 @@ export default function FaustianSurface({
                         <FannedPile
                           cards={community.accomplices}
                           overflowLabel={community.accomplices.overflowLabel}
-                          onInspect={() => {
-                            selectCommunity(community.communityId);
-                            setInspectorCommunityId(community.communityId);
-                          }}
+                          selectedInstanceKey={selection?.kind === "card" ? selection.instanceKey : null}
+                          onInspect={() => inspectCommunity(community.communityId)}
+                          onCardSelect={(card) => inspectCard(card, community.communityId)}
                           onCardContextMenu={(card, event) => {
                             const cardId = schemeCardId(card);
                             if (cardId !== null) play.openAccompliceMenu(community.communityId, cardId, event);
@@ -409,9 +466,6 @@ export default function FaustianSurface({
                         {community.pawnCount > 6 && (
                           <span className="text-[0.65rem] text-emerald-100/80">+{community.pawnCount - 6}</span>
                         )}
-                        {community.pawnCount === 0 && (
-                          <span className="text-[0.65rem] text-emerald-200/40">No Pawns</span>
-                        )}
                         {community.pawnCount > 0 && (
                           <span className="text-[0.65rem] text-emerald-100/80">{community.pawnLabel}</span>
                         )}
@@ -433,267 +487,343 @@ export default function FaustianSurface({
             </div>
           </div>
 
-          <PhysicalZone
-            zone="machinations"
-            title="Devil's Machinations"
-            selected={selection?.kind === "supporting" && selection.area === "machinations"}
-            onSelect={() => setSelection({ kind: "supporting", area: "machinations" })}
-            onContextMenu={(event) => play.openMachinationsMenu(event)}
-            attention={presentation.pendingChallenges.some((challenge) => challenge.groups.some((group) => group.status === "pending")) ? "pending-challenge" : null}
-            className={layout === "narrow" ? "w-full" : "w-[16.5rem] shrink-0"}
+          <div
+            data-faustian-primary-rail
+            className={`space-y-3 ${layout === "narrow" ? "w-full" : "w-[19rem] shrink-0"}`}
           >
-            {presentation.twists.length === 0 ? (
-              <p className="text-xs text-emerald-200/50">No Active Twist</p>
-            ) : (
-              <div className="space-y-1">
-                {presentation.twists.map((spotlight) => (
-                  <div key={spotlight.machinationInstanceKey} className="space-y-1" aria-label={spotlight.ariaLabel}>
-                    <p className="text-[0.65rem] text-emerald-100/70">{spotlight.relationshipLabel}</p>
-                    {spotlight.inspectablePrivately && (
-                      <button
-                        type="button"
-                        className={ghostBtn}
-                        aria-label={PRIVATE_TWIST_INSPECT_LABEL}
-                        onClick={() => setPrivateTwistIndex(spotlight.index)}
-                      >
-                        {PRIVATE_TWIST_INSPECT_LABEL}
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex flex-wrap gap-2">
-              {presentation.machinations.map((entry, index) => {
-                const live = faustian.machinations[index];
-                return (
-                  <PlayingCardToken
-                    key={entry.card.instanceKey}
-                    card={entry.card}
-                    treatmentLabel={entry.treatmentLabel}
-                    selected={selection?.kind === "twist" && presentation.twists.some((spotlight) => spotlight.machinationInstanceKey === entry.card.instanceKey && selection.index === spotlight.index)}
-                    onSelect={entry.isActiveTwist
-                      ? () => {
-                        const spotlight = presentation.twists.find((item) => item.machinationInstanceKey === entry.card.instanceKey);
-                        if (spotlight !== undefined) setSelection({ kind: "twist", index: spotlight.index });
-                      }
-                      : undefined}
-                    onContextMenu={entry.isActiveTwist && live !== undefined
-                      ? (event) => play.openTwistMenu(live.cardId, live.facing, entry.isReservedTwist, event)
-                      : undefined}
-                  />
-                );
-              })}
-              {presentation.machinations.length === 0 && <p className="text-xs text-emerald-200/50">None</p>}
+            <div className="grid grid-cols-2 gap-2">
+              <PhysicalZone
+                zone="faustian-deck"
+                title={`Faustian's Deck (${presentation.faustianDeckCount})`}
+                selected={selection?.kind === "supporting" && selection.area === "faustian_deck"}
+                onSelect={() => {
+                  setSelection({ kind: "supporting", area: "faustian_deck" });
+                  setInspector({ kind: "faustian_deck" });
+                }}
+              >
+                <DeckStack count={presentation.faustianDeckCount} emptyLabel="Empty" />
+                {presentation.missingSuits.length > 0 && (
+                  <p className="text-[0.65rem] text-amber-200">
+                    Missing suit pressure: {presentation.missingSuits.map((suit) => suit.label).join(", ")}
+                  </p>
+                )}
+              </PhysicalZone>
+              <PhysicalZone
+                zone="devil-deck"
+                title={`Devil's Deck (${presentation.devilDeckCount})`}
+                attention={presentation.devilDeckEmpty ? "empty-deck" : null}
+                selected={selection?.kind === "supporting" && selection.area === "devil_deck"}
+                onSelect={() => {
+                  setSelection({ kind: "supporting", area: "devil_deck" });
+                  setInspector({ kind: "devil_deck" });
+                }}
+              >
+                <button
+                  type="button"
+                  data-faustian-scheme-supply
+                  aria-label={FACEDOWN_SCHEME_SUPPLY_LABEL}
+                  onPointerDown={play.startSchemeSupplyDrag}
+                  className="cursor-grab active:cursor-grabbing select-none text-left touch-none"
+                >
+                  <DeckStack count={presentation.devilDeckCount} emptyLabel="Empty" />
+                </button>
+                <p className="text-[0.65rem] text-emerald-100/70">Drag onto a Community.</p>
+              </PhysicalZone>
             </div>
-            {presentation.pendingChallenges.length > 0 && (
-              <ul className="text-xs space-y-1">
-                {presentation.pendingChallenges.map((challenge) => (
+
+            <PhysicalZone
+              zone="machinations"
+              title="Devil's Machinations"
+              selected={selection?.kind === "supporting" && selection.area === "machinations"}
+              onSelect={() => setSelection({ kind: "supporting", area: "machinations" })}
+              onContextMenu={(event) => play.openMachinationsMenu(event)}
+              attention={presentation.pendingChallenges.some((challenge) => challenge.groups.some((group) => group.status === "pending")) ? "pending-challenge" : null}
+            >
+              {presentation.twists.length === 0 ? (
+                <p className="text-xs text-emerald-200/50">No Active Twist</p>
+              ) : (
+                <div className="space-y-1">
+                  {presentation.twists.map((spotlight) => (
+                    <div key={spotlight.machinationInstanceKey} className="space-y-1" aria-label={spotlight.ariaLabel}>
+                      <p className="text-[0.65rem] text-emerald-100/70">{spotlight.relationshipLabel}</p>
+                      {spotlight.inspectablePrivately && (
+                        <button
+                          type="button"
+                          className={ghostBtn}
+                          aria-label={PRIVATE_TWIST_INSPECT_LABEL}
+                          onClick={() => {
+                            setSelection({ kind: "twist", index: spotlight.index });
+                            setInspector({ kind: "private_twist", index: spotlight.index });
+                          }}
+                        >
+                          {PRIVATE_TWIST_INSPECT_LABEL}
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {presentation.machinations.map((entry, index) => {
+                  const live = faustian.machinations[index];
+                  return (
+                    <PlayingCardToken
+                      key={entry.card.instanceKey}
+                      card={entry.card}
+                      treatmentLabel={entry.treatmentLabel}
+                      selected={
+                        (selection?.kind === "card" && selection.instanceKey === entry.card.instanceKey)
+                        || (selection?.kind === "twist" && presentation.twists.some((spotlight) => spotlight.machinationInstanceKey === entry.card.instanceKey && selection.index === spotlight.index))
+                      }
+                      onSelect={() => inspectCard(entry.card)}
+                      onContextMenu={entry.isActiveTwist && live !== undefined
+                        ? (event) => play.openTwistMenu(live.cardId, live.facing, entry.isReservedTwist, event)
+                        : undefined}
+                    />
+                  );
+                })}
+                {presentation.machinations.length === 0 && <p className="text-xs text-emerald-200/50">None</p>}
+              </div>
+              {presentation.pendingChallenges.length > 0 && (
+                <ul className="text-xs space-y-1">
+                  {presentation.pendingChallenges.map((challenge) => (
                     <li
                       key={challenge.challengeId}
                       data-faustian-challenge={challenge.challengeId}
                       className="rounded bg-amber-950/70 px-2 py-1 text-amber-100"
                     >
-                    {challenge.kindLabel}
-                    {" · "}
-                    {challenge.scheduleLabel.replace(/_/g, " ")}
-                    {" · "}
-                    {challenge.groups.filter((group) => group.status === "pending").length} pending
-                    {challenge.groups.filter((group) => group.status === "pending").map((group) => (
+                      {challenge.kindLabel}
+                      {" · "}
+                      {challenge.scheduleLabel.replace(/_/g, " ")}
+                      {" · "}
+                      {challenge.groups.filter((group) => group.status === "pending").length} pending
+                      {challenge.groups.filter((group) => group.status === "pending").map((group) => (
+                        <button
+                          key={group.groupId}
+                          type="button"
+                          className={`${ghostBtn} ml-1 mt-1`}
+                          data-context-action="complete-response"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            play.onCompleteResponse(challenge.challengeId, group.groupId, group.responsibleWizardId, event.clientX, event.clientY);
+                          }}
+                        >
+                          Complete Response
+                        </button>
+                      ))}
                       <button
-                        key={group.groupId}
                         type="button"
                         className={`${ghostBtn} ml-1 mt-1`}
-                        data-context-action="complete-response"
+                        data-context-action="finalize-challenge"
                         onClick={(event) => {
                           event.stopPropagation();
-                          play.onCompleteResponse(challenge.challengeId, group.groupId, group.responsibleWizardId, event.clientX, event.clientY);
+                          play.onFinalizeChallenge(challenge.challengeId);
                         }}
                       >
-                        Complete Response
+                        Finalize…
                       </button>
-                    ))}
-                    <button
-                      type="button"
-                      className={`${ghostBtn} ml-1 mt-1`}
-                      data-context-action="finalize-challenge"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        play.onFinalizeChallenge(challenge.challengeId);
-                      }}
-                    >
-                      Finalize…
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </PhysicalZone>
-        </div>
-
-        <div className={`grid gap-3 ${layout === "narrow" ? "grid-cols-1" : "grid-cols-2 lg:grid-cols-4"}`}>
-          <PhysicalZone
-            zone="faustian-deck"
-            title={`Faustian's Deck (${presentation.faustianDeckCount})`}
-            selected={selection?.kind === "supporting" && selection.area === "faustian_deck"}
-            onSelect={() => setSelection({ kind: "supporting", area: "faustian_deck" })}
-          >
-            <DeckStack count={presentation.faustianDeckCount} emptyLabel="Empty" />
-            {presentation.missingSuits.length > 0 && (
-              <p className="text-[0.65rem] text-amber-200">
-                Missing suit pressure: {presentation.missingSuits.map((suit) => suit.label).join(", ")}
-              </p>
-            )}
-          </PhysicalZone>
-          <PhysicalZone
-            zone="devil-deck"
-            title={`Devil's Deck (${presentation.devilDeckCount})`}
-            attention={presentation.devilDeckEmpty ? "empty-deck" : null}
-            selected={selection?.kind === "supporting" && selection.area === "devil_deck"}
-            onSelect={() => setSelection({ kind: "supporting", area: "devil_deck" })}
-          >
-            <button
-              type="button"
-              data-faustian-scheme-supply
-              aria-label={FACEDOWN_SCHEME_SUPPLY_LABEL}
-              onPointerDown={play.startSchemeSupplyDrag}
-              className="cursor-grab active:cursor-grabbing select-none text-left touch-none"
-            >
-              <DeckStack count={presentation.devilDeckCount} emptyLabel="Empty" />
-            </button>
-            <p className="text-[0.65rem] text-emerald-100/70">Drag a facedown Scheme onto a Community.</p>
-          </PhysicalZone>
-          <PhysicalZone
-            zone="defeated"
-            title="Defeated Schemes"
-            selected={selection?.kind === "supporting" && selection.area === "defeated"}
-            onSelect={() => setSelection({ kind: "supporting", area: "defeated" })}
-          >
-            <div className="relative h-[6.25rem]">
-              {presentation.defeatedSchemes.length === 0 && (
-                <div className="w-[4.5rem] h-[6.25rem] rounded-md border border-dashed border-emerald-700/60 text-[0.65rem] text-emerald-200/60 flex items-center justify-center text-center px-1">
-                  Empty pile
-                </div>
+                    </li>
+                  ))}
+                </ul>
               )}
-              {presentation.defeatedSchemes.map((card, index) => (
-                <div
-                  key={card.instanceKey}
-                  className="absolute top-0"
-                  style={{ left: `${Math.min(index, 4) * 10}px`, zIndex: index }}
-                >
-                  <PlayingCardToken card={card} />
+            </PhysicalZone>
+
+            <section
+              data-faustian-inspector
+              aria-label={inspectorCommunity !== null ? `${inspectorCommunity.zodiacLabel} inspector` : "Faustian inspector"}
+              className="rounded-md bg-emerald-950/50 p-2.5 space-y-2 border border-emerald-800"
+            >
+              {inspector?.kind === "private_twist" && privateTwist !== null && (
+                <>
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold">Private Twist inspection</h3>
+                    <button type="button" className={ghostBtn} onClick={() => setInspector(null)}>Close private view</button>
+                  </div>
+                  <p className="text-[0.7rem] text-emerald-100/80">{PRIVATE_TWIST_INSPECT_HINT}</p>
+                  <PlayingCardToken card={privateTwist} />
+                  <p className="text-xs text-emerald-50">{privateTwist.rankSuitGlyph} · {privateTwist.identityLabel}</p>
+                  <p className="text-[0.65rem] text-emerald-200/80">{privateTwist.glanceLine}</p>
+                  <p className="text-[0.65rem] text-emerald-200/70">{privateTwist.sourceOmission}</p>
+                  <p className="text-[0.65rem] text-emerald-200/60">Ordinary table still shows: {FACEDOWN_TWIST_LABEL}</p>
+                </>
+              )}
+              {inspector?.kind === "community" && inspectorCommunity !== null && (
+                <>
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold">{inspectorCommunity.headerLabel} — full inspector</h3>
+                    <button type="button" className={ghostBtn} onClick={() => setInspector(null)}>Close inspector</button>
+                  </div>
+                  <p className="text-[0.7rem] text-emerald-100/80">
+                    {inspectorCommunity.schemeFaceUpCount} revealed Schemes · {inspectorCommunity.schemeFaceDownCount} facedown · {inspectorCommunity.pawnLabel}
+                  </p>
+                  <div>
+                    <p className="text-[0.65rem] uppercase tracking-wide text-emerald-200/70 mb-1">Schemes</p>
+                    <div className="flex flex-wrap gap-2">
+                      {inspectorSchemes.map((card) => (
+                        <PlayingCardToken
+                          key={card.instanceKey}
+                          card={card}
+                          selected={selection?.kind === "card" && selection.instanceKey === card.instanceKey}
+                          onSelect={() => inspectCard(card, inspectorCommunity.communityId)}
+                          onContextMenu={(event) => play.openSchemeMenu(inspectorCommunity.communityId, schemeCardId(card), card.facing, event)}
+                          foilAvailable={play.foilEligible(inspectorCommunity.communityId, schemeCardId(card))}
+                        />
+                      ))}
+                      {inspectorSchemes.length === 0 && <p className="text-xs text-emerald-200/50">None</p>}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[0.65rem] uppercase tracking-wide text-emerald-200/70 mb-1">Accomplices</p>
+                    <div className="flex flex-wrap gap-2">
+                      {inspectorAccomplices.map((card) => (
+                        <PlayingCardToken
+                          key={card.instanceKey}
+                          card={card}
+                          selected={selection?.kind === "card" && selection.instanceKey === card.instanceKey}
+                          onSelect={() => inspectCard(card, inspectorCommunity.communityId)}
+                          onContextMenu={(event) => {
+                            const cardId = schemeCardId(card);
+                            if (cardId !== null) play.openAccompliceMenu(inspectorCommunity.communityId, cardId, event);
+                          }}
+                        />
+                      ))}
+                      {inspectorAccomplices.length === 0 && <p className="text-xs text-emerald-200/50">None</p>}
+                    </div>
+                  </div>
+                  {inspectorCommunity.conspiracies.length > 0 && (
+                    <p className="text-xs text-rose-100">
+                      Conspiracy: {inspectorCommunity.conspiracies.map((entry) => entry.name).join(", ")}
+                    </p>
+                  )}
+                </>
+              )}
+              {inspector?.kind === "card" && (
+                <InspectedCardDetail
+                  card={inspector.card}
+                  community={inspectorCommunity}
+                  onClose={() => setInspector(null)}
+                />
+              )}
+              {inspector?.kind === "faustian_deck" && (
+                <>
+                  <h3 className="text-sm font-semibold">Faustian&apos;s Deck</h3>
+                  <p className="text-xs text-emerald-50">{presentation.faustianDeckCount} cards remaining</p>
+                  <ul className="text-xs space-y-0.5">
+                    {presentation.suitSummaries.map((suit) => (
+                      <li key={suit.suit}>{suit.label}: {suit.faustianDeckCount}</li>
+                    ))}
+                  </ul>
+                  {presentation.missingSuits.length > 0 && (
+                    <p className="text-[0.7rem] text-amber-200">
+                      Missing suit pressure: {presentation.missingSuits.map((suit) => suit.label).join(", ")}
+                    </p>
+                  )}
+                  <p className="text-[0.65rem] text-emerald-200/70">Composition only. Top-card order is not shown.</p>
+                </>
+              )}
+              {inspector?.kind === "devil_deck" && (
+                <>
+                  <h3 className="text-sm font-semibold">Devil&apos;s Deck</h3>
+                  <p className="text-xs text-emerald-50">{presentation.devilDeckCount} facedown Schemes</p>
+                  <p className="text-[0.65rem] text-emerald-200/70">Supply for placing Schemes. Identities stay hidden.</p>
+                </>
+              )}
+              {inspector === null && (
+                <p className="text-xs text-emerald-100/80">Left-click a Community or card to inspect. Right-click to act.</p>
+              )}
+            </section>
+
+            <PhysicalZone
+                zone="defeated"
+                title="Defeated Schemes"
+                selected={selection?.kind === "supporting" && selection.area === "defeated"}
+                onSelect={() => setSelection({ kind: "supporting", area: "defeated" })}
+              >
+                {presentation.defeatedSchemes.length === 0 ? (
+                  <p className="text-xs text-emerald-200/60">None</p>
+                ) : (
+                  <div className="relative h-[6.25rem]">
+                    {presentation.defeatedSchemes.map((card, index) => (
+                      <div
+                        key={card.instanceKey}
+                        className="absolute top-0"
+                        style={{ left: `${Math.min(index, 4) * 10}px`, zIndex: index }}
+                      >
+                        <PlayingCardToken card={card} selected={selection?.kind === "card" && selection.instanceKey === card.instanceKey} onSelect={() => inspectCard(card)} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </PhysicalZone>
+            {presentation.heldCards.length > 0 && (
+              <PhysicalZone
+                zone="held"
+                title="Held cards"
+                selected={selection?.kind === "supporting" && selection.area === "held"}
+                onSelect={() => setSelection({ kind: "supporting", area: "held" })}
+              >
+                <div className="flex flex-wrap gap-2">
+                  {presentation.heldCards.map((card) => (
+                    <PlayingCardToken key={card.instanceKey} card={card} selected={selection?.kind === "card" && selection.instanceKey === card.instanceKey} onSelect={() => inspectCard(card)} />
+                  ))}
                 </div>
-              ))}
-            </div>
-          </PhysicalZone>
-          {presentation.heldCards.length > 0 && (
-            <PhysicalZone
-              zone="held"
-              title="Held cards"
-              selected={selection?.kind === "supporting" && selection.area === "held"}
-              onSelect={() => setSelection({ kind: "supporting", area: "held" })}
-            >
-              <div className="flex flex-wrap gap-2">
-                {presentation.heldCards.map((card) => <PlayingCardToken key={card.instanceKey} card={card} />)}
-              </div>
-            </PhysicalZone>
-          )}
-          {presentation.entrustedCards.length > 0 && (
-            <PhysicalZone
-              zone="entrusted"
-              title="Entrusted cards"
-              selected={selection?.kind === "supporting" && selection.area === "entrusted"}
-              onSelect={() => setSelection({ kind: "supporting", area: "entrusted" })}
-            >
-              <ul className="space-y-2">
-                {presentation.entrustedCards.map((card) => (
-                  <li key={card.instanceKey} className="flex items-center gap-2">
-                    <PlayingCardToken card={card} />
-                    <span className="text-xs">{card.locationLabel}</span>
-                  </li>
-                ))}
-              </ul>
-            </PhysicalZone>
-          )}
-          {presentation.possessionCards.length > 0 && (
-            <PhysicalZone
-              zone="possession"
-              title="Possession cards"
-              selected={selection?.kind === "supporting" && selection.area === "possession"}
-              onSelect={() => setSelection({ kind: "supporting", area: "possession" })}
-            >
-              <ul className="space-y-2">
-                {presentation.possessionCards.map((card) => (
-                  <li key={card.instanceKey} className="flex items-center gap-2">
-                    <PlayingCardToken card={card} />
-                    <span className="text-xs">{card.locationLabel}</span>
-                  </li>
-                ))}
-              </ul>
-            </PhysicalZone>
-          )}
-          {presentation.domainPlacements.length > 0 && (
-            <PhysicalZone
-              zone="domain"
-              title="Domain-placement cards"
-              selected={selection?.kind === "supporting" && selection.area === "domain"}
-              onSelect={() => setSelection({ kind: "supporting", area: "domain" })}
-            >
-              <ul className="space-y-2">
-                {presentation.domainPlacements.map((card) => (
-                  <li key={card.instanceKey} className="flex items-center gap-2">
-                    <PlayingCardToken card={card} />
-                    <span className="text-xs">{card.locationLabel}</span>
-                  </li>
-                ))}
-              </ul>
-            </PhysicalZone>
-          )}
+              </PhysicalZone>
+            )}
+            {presentation.entrustedCards.length > 0 && (
+              <PhysicalZone
+                zone="entrusted"
+                title="Entrusted cards"
+                selected={selection?.kind === "supporting" && selection.area === "entrusted"}
+                onSelect={() => setSelection({ kind: "supporting", area: "entrusted" })}
+              >
+                <ul className="space-y-2">
+                  {presentation.entrustedCards.map((card) => (
+                    <li key={card.instanceKey} className="flex items-center gap-2">
+                      <PlayingCardToken card={card} selected={selection?.kind === "card" && selection.instanceKey === card.instanceKey} onSelect={() => inspectCard(card)} />
+                      <span className="text-xs">{card.locationLabel}</span>
+                    </li>
+                  ))}
+                </ul>
+              </PhysicalZone>
+            )}
+            {presentation.possessionCards.length > 0 && (
+              <PhysicalZone
+                zone="possession"
+                title="Possession cards"
+                selected={selection?.kind === "supporting" && selection.area === "possession"}
+                onSelect={() => setSelection({ kind: "supporting", area: "possession" })}
+              >
+                <ul className="space-y-2">
+                  {presentation.possessionCards.map((card) => (
+                    <li key={card.instanceKey} className="flex items-center gap-2">
+                      <PlayingCardToken card={card} selected={selection?.kind === "card" && selection.instanceKey === card.instanceKey} onSelect={() => inspectCard(card)} />
+                      <span className="text-xs">{card.locationLabel}</span>
+                    </li>
+                  ))}
+                </ul>
+              </PhysicalZone>
+            )}
+            {presentation.domainPlacements.length > 0 && (
+              <PhysicalZone
+                zone="domain"
+                title="Domain-placement cards"
+                selected={selection?.kind === "supporting" && selection.area === "domain"}
+                onSelect={() => setSelection({ kind: "supporting", area: "domain" })}
+              >
+                <ul className="space-y-2">
+                  {presentation.domainPlacements.map((card) => (
+                    <li key={card.instanceKey} className="flex items-center gap-2">
+                      <PlayingCardToken card={card} selected={selection?.kind === "card" && selection.instanceKey === card.instanceKey} onSelect={() => inspectCard(card)} />
+                      <span className="text-xs">{card.locationLabel}</span>
+                    </li>
+                  ))}
+                </ul>
+              </PhysicalZone>
+            )}
+          </div>
         </div>
       </div>
 
-      {inspectorCommunity !== null && (
-        <section className="rounded-lg border border-slate-300 dark:border-slate-600 p-3 space-y-3" aria-label={`${inspectorCommunity.zodiacLabel} inspector`}>
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold">{inspectorCommunity.headerLabel} — full inspector</h3>
-            <button type="button" className={ghostBtn} onClick={() => setInspectorCommunityId(null)}>Close inspector</button>
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">Schemes</p>
-            <div className="flex flex-wrap gap-2">
-              {inspectorSchemes.map((card) => (
-                <PlayingCardToken
-                  key={card.instanceKey}
-                  card={card}
-                  onContextMenu={(event) => play.openSchemeMenu(inspectorCommunity.communityId, schemeCardId(card), card.facing, event)}
-                  foilAvailable={play.foilEligible(inspectorCommunity.communityId, schemeCardId(card))}
-                  onFoil={() => {
-                    const cardId = schemeCardId(card);
-                    if (cardId !== null) play.onFoil(inspectorCommunity.communityId, cardId);
-                  }}
-                />
-              ))}
-              {inspectorSchemes.length === 0 && <p className="text-xs text-slate-400">None</p>}
-            </div>
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">Accomplices</p>
-            <div className="flex flex-wrap gap-2">
-              {inspectorAccomplices.map((card) => (
-                <PlayingCardToken
-                  key={card.instanceKey}
-                  card={card}
-                  onContextMenu={(event) => {
-                    const cardId = schemeCardId(card);
-                    if (cardId !== null) play.openAccompliceMenu(inspectorCommunity.communityId, cardId, event);
-                  }}
-                />
-              ))}
-              {inspectorAccomplices.length === 0 && <p className="text-xs text-slate-400">None</p>}
-            </div>
-          </div>
-        </section>
-      )}
 
       {(presentation.devilSchemeResearchers.length > 0 || presentation.disruptiveArcanists.length > 0) && (
         <PhysicalZone
@@ -731,19 +861,6 @@ export default function FaustianSurface({
         </PhysicalZone>
       )}
 
-      {privateTwist !== null && (
-        <section className="rounded-lg border border-amber-700 p-3 space-y-2" aria-label="Private Twist inspection">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold">Private Twist inspection</h3>
-            <button type="button" className={ghostBtn} onClick={() => setPrivateTwistIndex(null)}>Close private view</button>
-          </div>
-          <p className="text-xs text-slate-500">{PRIVATE_TWIST_INSPECT_HINT}</p>
-          <PlayingCardToken card={privateTwist} />
-          <p className="text-xs">{privateTwist.identityLabel}</p>
-          <p className="text-xs text-slate-500">{privateTwist.sourceOmission}</p>
-          <p className="text-xs text-slate-400">Ordinary table still shows: {FACEDOWN_TWIST_LABEL}</p>
-        </section>
-      )}
 
       {loreSubjects.length > 0 && (
         <PhysicalZone

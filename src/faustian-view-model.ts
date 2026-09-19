@@ -97,6 +97,9 @@ export interface FaustianRevealedCardPresentation {
   readonly ariaLabel: string;
   readonly instanceKey: string;
   readonly identityLabel: string;
+  readonly rankSuitGlyph: string;
+  readonly roleKindLabel: string;
+  readonly glanceLine: string;
   readonly sourceOmission: string;
   readonly syndicateLabel: string | null;
   readonly roleLabel: string | null;
@@ -251,24 +254,43 @@ function concealed(
   };
 }
 
+function roleKindLabel(kind: FaustianPublicCardKind): string {
+  if (kind === "scheme") return "Scheme";
+  if (kind === "accomplice") return "Accomplice";
+  if (kind === "twist") return "Twist";
+  if (kind === "machination") return "Machination";
+  if (kind === "defeated") return "Defeated";
+  if (kind === "held") return "Held";
+  if (kind === "entrusted") return "Entrusted";
+  if (kind === "possession") return "Possession";
+  return "Domain";
+}
+
 function revealed(
   kind: FaustianPublicCardKind,
   cardId: FaustianCardId,
   instanceKey: string,
   extraAria?: string,
+  glanceLine = "Face-up",
 ): FaustianRevealedCardPresentation {
   const reference = faustianCardSourceReference(cardId);
-  const publicLabel = reference.faceUpIdentityLabel;
+  const role = roleKindLabel(kind);
+  const glyph = reference.rankSuitGlyph;
+  const publicLabel = glyph;
   const syndicateLabel = kind === "accomplice" ? reference.accomplice.syndicate : null;
   const roleLabel = kind === "accomplice" ? reference.accomplice.role : null;
+  const detail = `${glyph} ${reference.faceUpIdentityLabel}`;
   return {
     kind,
     facing: "face_up",
     cardId,
     publicLabel,
-    ariaLabel: extraAria === undefined ? publicLabel : `${extraAria}: ${publicLabel}`,
+    ariaLabel: extraAria === undefined ? detail : `${extraAria}: ${detail}`,
     instanceKey,
-    identityLabel: publicLabel,
+    identityLabel: reference.faceUpIdentityLabel,
+    rankSuitGlyph: glyph,
+    roleKindLabel: role,
+    glanceLine,
     sourceOmission: FAUSTIAN_SOURCE_WORDING_OMISSION,
     syndicateLabel,
     roleLabel,
@@ -285,7 +307,7 @@ function schemePresentation(
   if (facing === "face_down") {
     return concealed("scheme", FACEDOWN_SCHEME_LABEL, instanceKey);
   }
-  return revealed("scheme", cardId, instanceKey, "Scheme");
+  return revealed("scheme", cardId, instanceKey, "Scheme", "Revealed");
 }
 
 export function researcherOperationalLabel(operationalThisMonth: boolean): string {
@@ -350,7 +372,13 @@ export function buildFaustianTablePresentation(args: {
       schemePresentation(scheme.cardId, scheme.facing, communityId, schemeIndex),
     );
     const accomplices = state.accompliceCardIds.map((cardId, accompliceIndex) =>
-      revealed("accomplice", cardId, `accomplice:${communityId}:${accompliceIndex}`, "Accomplice"),
+      revealed(
+        "accomplice",
+        cardId,
+        `accomplice:${communityId}:${accompliceIndex}`,
+        "Accomplice",
+        `In ${header.zodiacLabel}`,
+      ),
     );
     const conspiracies = faustian.conspiracies
       .filter((conspiracy) => conspiracy.communityId === communityId)
@@ -410,6 +438,7 @@ export function buildFaustianTablePresentation(args: {
         isReservedTwist
           ? `Machination · ${RESERVED_TWIST_TREATMENT_LABEL}`
           : isActiveTwist ? `Machination · ${ACTIVE_TWIST_TREATMENT_LABEL}` : "Machination",
+        isReservedTwist ? RESERVED_TWIST_TREATMENT_LABEL : isActiveTwist ? ACTIVE_TWIST_TREATMENT_LABEL : "In Machinations",
       ),
       isActiveTwist,
       isReservedTwist,
@@ -463,21 +492,21 @@ export function buildFaustianTablePresentation(args: {
     twists,
     machinations,
     defeatedSchemes: faustian.defeatedSchemes.map((cardId, index) =>
-      revealed("defeated", cardId, `defeated:${index}`, "Defeated Scheme"),
+      revealed("defeated", cardId, `defeated:${index}`, "Defeated Scheme", "Defeated pile"),
     ),
     heldCards: faustian.setAsideHand.map((cardId, index) =>
-      revealed("held", cardId, `held:${index}`, "Held card"),
+      revealed("held", cardId, `held:${index}`, "Held card", "Held aside"),
     ),
     entrustedCards: faustian.entrustedCards.map((card, index) => ({
-      ...revealed("entrusted", card.cardId, `entrusted:${index}`, "Entrusted card"),
+      ...revealed("entrusted", card.cardId, `entrusted:${index}`, "Entrusted card", `Entrusted to ${wizardName(wizards, card.wizardId)}`),
       locationLabel: `Entrusted to ${wizardName(wizards, card.wizardId)}`,
     })),
     possessionCards: faustian.possessions.map((card, index) => ({
-      ...revealed("possession", card.cardId, `possession:${index}`, "Possession card"),
+      ...revealed("possession", card.cardId, `possession:${index}`, "Possession card", `Possession of ${wizardName(wizards, card.wizardId)}`),
       locationLabel: `Possession of ${wizardName(wizards, card.wizardId)}`,
     })),
     domainPlacements: faustian.domainPlacements.map((card, index) => ({
-      ...revealed("domain", card.cardId, `domain:${index}`, "Domain-placed card"),
+      ...revealed("domain", card.cardId, `domain:${index}`, "Domain-placed card", `${pactSeatDisplayName(card.seatId as PactSeatId)} Domain`),
       locationLabel: `${pactSeatDisplayName(card.seatId as PactSeatId)} Domain`,
     })),
     pendingChallenges: faustian.pendingMachinationChallenges.map((challenge) => ({
@@ -526,7 +555,13 @@ export function communityAllAccomplices(
   const community = faustian.communities.find((entry) => entry.communityId === communityId);
   if (community === undefined) return [];
   return community.accompliceCardIds.map((cardId, index) =>
-    revealed("accomplice", cardId, `accomplice:${communityId}:${index}`, "Accomplice"),
+    revealed(
+      "accomplice",
+      cardId,
+      `accomplice:${communityId}:${index}`,
+      "Accomplice",
+      `In ${faustianCommunityHeader(communityId).zodiacLabel}`,
+    ),
   );
 }
 
@@ -536,7 +571,7 @@ export function privateTwistInspection(
 ): FaustianRevealedCardPresentation | null {
   const cardId = faustian.activeTwistCardIds[twistIndex];
   if (cardId === undefined) return null;
-  return revealed("twist", cardId, `private-twist:${twistIndex}`, "Private Twist view");
+  return revealed("twist", cardId, `private-twist:${twistIndex}`, "Private Twist view", "Private view");
 }
 
 export function presentationContainsSecretIdentity(

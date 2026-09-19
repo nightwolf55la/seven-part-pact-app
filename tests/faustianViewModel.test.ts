@@ -172,8 +172,8 @@ describe("represented card zones", () => {
     expect(presentation.devilDeckCount).toBe(1);
     expect(presentation.twists).toHaveLength(1);
     expect(presentation.machinations).toHaveLength(1);
-    expect(presentation.defeatedSchemes[0]?.publicLabel).toBe("King of Spades");
-    expect(presentation.heldCards[0]?.publicLabel).toBe("Nine of Spades");
+    expect(presentation.defeatedSchemes[0]?.publicLabel).toBe("K♠");
+    expect(presentation.heldCards[0]?.publicLabel).toBe("9♠");
     expect(presentation.entrustedCards[0]?.locationLabel).toBe("Entrusted to Mara");
     expect(presentation.possessionCards[0]?.locationLabel).toBe("Possession of Mara");
     expect(presentation.domainPlacements[0]?.locationLabel).toBe("Hierophant Domain");
@@ -511,5 +511,33 @@ describe("zero-click table cues", () => {
     const aries = presentation.communities[0]!;
     expect(aries.schemeFaceUpCount).toBe(2);
     expect(aries.schemeFaceDownCount).toBe(2);
+  });
+});
+
+describe("rank and suit glance presentation", () => {
+  it("uses concise rank plus suit glyphs on face-up cards with a short role and glance line", () => {
+    const presentation = buildFaustianTablePresentation({ faustian: populatedFaustian() });
+    const aries = presentation.communities[0]!;
+    const faceUpScheme = aries.schemes.visible.find((card) => card.facing === "face_up");
+    expect(faceUpScheme).toMatchObject({
+      facing: "face_up",
+      publicLabel: "2♥",
+      rankSuitGlyph: "2♥",
+      roleKindLabel: "Scheme",
+      glanceLine: "Revealed",
+      identityLabel: "Two of Hearts",
+    });
+    const accomplice = aries.accomplices.visible[0];
+    expect(accomplice).toMatchObject({
+      publicLabel: "7♦",
+      rankSuitGlyph: "7♦",
+      roleKindLabel: "Accomplice",
+      glanceLine: "In Aries",
+    });
+    const facedown = aries.schemes.visible.find((card) => card.facing === "face_down");
+    expect(facedown?.publicLabel).toBe(FACEDOWN_SCHEME_LABEL);
+    expect(facedown).not.toHaveProperty("rankSuitGlyph");
+    expect(presentation.defeatedSchemes[0]?.publicLabel).toBe("K♠");
+    expect(presentation.heldCards[0]?.publicLabel).toBe("9♠");
   });
 });
