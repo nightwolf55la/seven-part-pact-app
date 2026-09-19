@@ -43,6 +43,7 @@ vi.mock("../convex/_generated/api.js", () => ({
       createHierophantSupplicant: "m3Commands.createHierophantSupplicant",
       addSupplicant: "m3Commands.addSupplicant",
       updateSupplicant: "m3Commands.updateSupplicant",
+      updateDenizen: "m3Commands.updateDenizen",
       removeSupplicant: "m3Commands.removeSupplicant",
       addProphet: "m3Commands.addProphet",
       updateProphet: "m3Commands.updateProphet",
@@ -563,21 +564,27 @@ describe("Hierophant zero-click monthly board", () => {
     expect(hestar.textContent).toContain("Hestar");
     expect(ushin.textContent).toContain("Temple Ushin");
     expect(zephon.textContent).toContain("Temple Zephon");
-    expect(krolis.querySelector('[aria-label="Abundance 5, this Visions phase -2 → 3"]')).not.toBeNull();
+    expect(krolis.querySelector('[aria-label="Abundance 5, Next Visions -2 → 3"]')).not.toBeNull();
     expect(krolis.querySelector('[aria-label="Conviction 4"]')).not.toBeNull();
-    expect(krolis.textContent).toContain("Supports Artisan, Peasant");
-    expect(hestar.textContent).toContain("Supports all Classes");
+    expect(krolis.querySelector('[aria-label="Supports Artisan, Peasant"]')).not.toBeNull();
+    expect(krolis.querySelector('[data-class-badge="artisan"]')?.textContent).toBe("Artisan");
+    expect(krolis.querySelector('[data-class-badge="peasant"]')?.textContent).toBe("Peasant");
+    expect(hestar.textContent).toContain("Supports all");
     expect(krolis.textContent).toContain("Acolyte Ann");
     expect(krolis.textContent).toContain("Peasant");
-    expect(krolis.querySelector('[aria-label="Woe 3 → 2"]')).not.toBeNull();
+    expect(krolis.querySelector('[aria-label="Woe 3"]')).not.toBeNull();
+    expect(krolis.querySelector('[aria-label="Next Visions: Woe 3 → 2"]')).not.toBeNull();
     expect(krolis.textContent).toContain("Supported");
     expect(krolis.textContent).toContain("-1 Abundance");
-    expect(krolis.textContent).toContain("Woe 3 → 2");
-    expect(krolis.querySelector('[aria-label="Woe 7 → 6"]')).not.toBeNull();
+    expect(krolis.textContent).toContain("Next Visions: 3 → 2");
+    expect(krolis.querySelector('[aria-label="Woe 7"]')).not.toBeNull();
+    expect(krolis.querySelector('[aria-label="Next Visions: Woe 7 → 6"]')).not.toBeNull();
     expect(krolis.textContent).toContain("Woe 7");
     expect(krolis.textContent).toContain("Unsupported");
-    expect(krolis.textContent).toContain("Woe 4 → 5");
-    expect(krolis.textContent).toContain("Cult resolution required");
+    expect(krolis.textContent).toContain("Next Visions: 4 → 5");
+    expect(krolis.textContent).toContain("Cult departure due");
+    expect(krolis.textContent).not.toContain("Cult resolution required");
+    expect(krolis.textContent).not.toContain("Unnamed");
     expect(krolis.querySelector('[aria-label="Holiday marked"]')).not.toBeNull();
     expect(krolis.textContent).toContain("Prophet Ilya");
     expect(krolis.textContent).not.toContain("Reliable Prophet production resolution required");
@@ -641,12 +648,13 @@ describe("Hierophant zero-click monthly board", () => {
     });
     const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
     expect(krolis.textContent).toContain("Blasphemous");
-    expect(krolis.textContent).toContain("Supports Artisan, Peasant");
+    expect(krolis.querySelector('[aria-label="Supports Artisan, Peasant"]')).not.toBeNull();
     expect(krolis.textContent).toContain("Supported");
     expect(krolis.textContent).toContain("Unsupported");
     expect(krolis.textContent).toContain("-1 Abundance");
-    expect(krolis.querySelector('[aria-label="Woe 3 → 2"]')).not.toBeNull();
-    expect(krolis.querySelector('[aria-label="Abundance 5, this Visions phase -1 → 4"]')).not.toBeNull();
+    expect(krolis.querySelector('[aria-label="Woe 3"]')).not.toBeNull();
+    expect(krolis.querySelector('[aria-label="Next Visions: Woe 3 → 2"]')).not.toBeNull();
+    expect(krolis.querySelector('[aria-label="Abundance 5, Next Visions -1 → 4"]')).not.toBeNull();
     expect(krolis.textContent).not.toContain("Hestar choice needed");
     root.unmount();
     container.remove();
@@ -694,7 +702,7 @@ describe("Hierophant zero-click monthly board", () => {
     const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
     expect(krolis.textContent).toContain("Prophet affects this production · resolve at the table");
     expect(krolis.textContent).not.toContain("Reliable Prophet production resolution required");
-    expect(krolis.textContent).toContain("Departs");
+    expect(krolis.textContent).toContain("Next Visions: Benefaction");
     root.unmount();
     container.remove();
   });
@@ -926,12 +934,12 @@ describe("Hierophant Visions preview choices", () => {
     expect(krolis.querySelector('[aria-label="Abundance 3"]')).not.toBeNull();
     const before = mutationCallCount();
     flushSync(() => { conviction!.click(); });
-    expect(krolis.querySelector('[aria-label="Conviction 3, this Visions phase -1 → 2"]')).not.toBeNull();
+    expect(krolis.querySelector('[aria-label="Conviction 3, Next Visions -1 → 2"]')).not.toBeNull();
     expect(krolis.querySelector('[aria-label="Abundance 3"]')).not.toBeNull();
     expect(buttonWithText(krolis, "Conviction")?.getAttribute("aria-pressed")).toBe("true");
     expect(container.textContent).toContain("Mira pays Conviction");
     flushSync(() => { buttonWithText(krolis, "Abundance")!.click(); });
-    expect(krolis.querySelector('[aria-label="Abundance 3, this Visions phase -1 → 2"]')).not.toBeNull();
+    expect(krolis.querySelector('[aria-label="Abundance 3, Next Visions -1 → 2"]')).not.toBeNull();
     expect(krolis.querySelector('[aria-label="Conviction 3"]')).not.toBeNull();
     expect(container.textContent).toContain("Mira pays Abundance");
     expect(mutationCallCount()).toBe(before);
@@ -1020,7 +1028,7 @@ describe("Hierophant Visions preview choices", () => {
     expect(buttonWithText(hestar, "Notor")).toBeUndefined();
     flushSync(() => { buttonWithText(hestar, "Krolis")!.click(); });
     expect(buttonWithText(hestar, "Krolis")?.getAttribute("aria-pressed")).toBe("true");
-    expect(krolis.querySelector('[aria-label="Abundance 5, this Visions phase -1 → 4"]')).not.toBeNull();
+    expect(krolis.querySelector('[aria-label="Abundance 5, Next Visions -1 → 4"]')).not.toBeNull();
     expect(hestar.querySelector('[aria-label="Abundance 0"]')).not.toBeNull();
     expect(container.textContent).toContain("Hestar takes Abundance from Krolis");
     root.unmount();
@@ -1063,10 +1071,10 @@ describe("Hierophant Visions preview choices", () => {
     expect(container.querySelector('[aria-label="Visions order 1"]')).toBeNull();
     expect(container.querySelector('[aria-label="Visions order 2"]')).toBeNull();
     const addBell = Array.from(container.querySelectorAll("button")).find((button) =>
-      (button.getAttribute("aria-label") ?? "") === "Add Bell to Visions order",
+      (button.getAttribute("aria-label") ?? "").includes("Add Peasant Bell to Visions order"),
     );
     const addAster = Array.from(container.querySelectorAll("button")).find((button) =>
-      (button.getAttribute("aria-label") ?? "") === "Add Aster to Visions order",
+      (button.getAttribute("aria-label") ?? "").includes("Add Merchant Aster to Visions order"),
     );
     expect(addBell).toBeDefined();
     expect(addAster).toBeDefined();
@@ -1076,7 +1084,7 @@ describe("Hierophant Visions preview choices", () => {
     expect(ushin.querySelector('[aria-label="Abundance 5"]')).not.toBeNull();
     flushSync(() => { addAster!.click(); });
     expect(container.querySelector('[aria-label="Visions order 2"]')?.textContent).toContain("2");
-    expect(ushin.querySelector('[aria-label="Abundance 5, this Visions phase -1 → 4"]')).not.toBeNull();
+    expect(ushin.querySelector('[aria-label="Abundance 5, Next Visions -1 → 4"]')).not.toBeNull();
     expect(container.textContent).toContain("Order: Bell → Aster");
     const reset = Array.from(container.querySelectorAll("button")).find((button) =>
       (button.getAttribute("aria-label") ?? "") === "Reset Visions order",
@@ -1110,7 +1118,7 @@ describe("Hierophant Visions preview choices", () => {
     };
     const { container, root, rerender } = renderChoiceSurface(ambiguous as typeof EMPTY_HIEROPHANT_STATE);
     flushSync(() => { buttonWithText(container, "Conviction")!.click(); });
-    expect(container.querySelector('[data-temple-id="krolis"]')?.querySelector('[aria-label="Conviction 3, this Visions phase -1 → 2"]')).not.toBeNull();
+    expect(container.querySelector('[data-temple-id="krolis"]')?.querySelector('[aria-label="Conviction 3, Next Visions -1 → 2"]')).not.toBeNull();
     const unambiguous = {
       ...ambiguous,
       temples: ambiguous.temples.map((temple) =>
@@ -1120,7 +1128,7 @@ describe("Hierophant Visions preview choices", () => {
     rerender(unambiguous as typeof EMPTY_HIEROPHANT_STATE);
     const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
     expect(krolis.textContent).not.toContain("Pay with:");
-    expect(krolis.querySelector('[aria-label="Abundance 5, this Visions phase -1 → 4"]')).not.toBeNull();
+    expect(krolis.querySelector('[aria-label="Abundance 5, Next Visions -1 → 4"]')).not.toBeNull();
     expect(krolis.querySelector('[aria-label="Conviction 2"]')).not.toBeNull();
     rerender(ambiguous as typeof EMPTY_HIEROPHANT_STATE);
     const restored = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
@@ -1184,6 +1192,26 @@ describe("Hierophant Supplicant supply placement", () => {
       "pariah",
     ]);
     expect(supplyPiece(container, "peasant")?.getAttribute("aria-label")).toBe("Peasant supply");
+    root.unmount();
+    container.remove();
+  });
+
+  it("allows a native-order supply drop before React re-renders the pressed Class", () => {
+    mockMutations["m3Commands.createHierophantSupplicant"] = vi.fn(async () => {});
+    const { container, root } = renderChoiceSurface(supplyState as typeof EMPTY_HIEROPHANT_STATE);
+    const piece = supplyPiece(container, "peasant")!;
+    const zone = supplyDrop(container, "krolis", "courtyard")!;
+    piece.dispatchEvent(new Event("dragstart", { bubbles: true }));
+    const over = new Event("dragover", { bubbles: true, cancelable: true });
+    zone.dispatchEvent(over);
+    expect(over.defaultPrevented).toBe(true);
+    zone.dispatchEvent(new Event("drop", { bubbles: true, cancelable: true }));
+    piece.dispatchEvent(new Event("dragend", { bubbles: true }));
+    flushSync(() => {});
+    const form = receiveForm(container);
+    expect(form).not.toBeNull();
+    expect((form!.querySelector("select") as HTMLSelectElement).value).toBe("peasant");
+    expect((form!.querySelectorAll("select")[1] as HTMLSelectElement).value).toBe("courtyard");
     root.unmount();
     container.remove();
   });
@@ -1283,3 +1311,151 @@ function cancelReceiveIfOpen(container: HTMLElement): void {
   );
   cancel?.click();
 }
+
+describe("Hierophant physical piece controls", () => {
+  const pieceWorld: WorldReference = {
+    denizens: [
+      { denizenId: "den_ann", name: "Acolyte Ann", representation: "individual", description: null },
+      { denizenId: "den_blank", name: "Peasant", representation: "individual", description: null },
+      { denizenId: "den_ready", name: "Mercy", representation: "individual", description: null },
+    ],
+    isles: [],
+    places: [
+      { placeId: "plc_krolis", name: "Krolis Grounds", description: null, placement: { kind: "unspecified" } },
+    ],
+  };
+
+  const pieceState = {
+    ...EMPTY_HIEROPHANT_STATE,
+    temples: [
+      ordinaryBoardTemple("krolis"),
+      ordinaryBoardTemple("notor"),
+      hestarBoardTemple(),
+      ordinaryBoardTemple("ushin"),
+      ordinaryBoardTemple("zephon"),
+    ],
+    supplicants: [
+      {
+        denizenId: "den_ann" as never,
+        classId: "peasant" as const,
+        woe: 1,
+        host: { kind: "temple" as const, templeId: "krolis" as const, area: "courtyard" as const },
+      },
+      {
+        denizenId: "den_blank" as never,
+        classId: "peasant" as const,
+        woe: 5,
+        host: { kind: "temple" as const, templeId: "krolis" as const, area: "agiary" as const },
+      },
+      {
+        denizenId: "den_ready" as never,
+        classId: "artisan" as const,
+        woe: 0,
+        host: { kind: "temple" as const, templeId: "notor" as const, area: "courtyard" as const },
+      },
+    ],
+  };
+
+  function renderPieces() {
+    return renderChoiceSurface(pieceState as typeof EMPTY_HIEROPHANT_STATE, pieceWorld);
+  }
+
+  it("shows compact unnamed and named identities with separate Class and support badges", () => {
+    const { container, root } = renderPieces();
+    const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
+    const unnamed = container.querySelector('[data-supplicant-piece="den_blank"]') as HTMLElement;
+    expect(named.textContent).toContain("Peasant");
+    expect(named.textContent).toContain("Acolyte Ann");
+    expect(unnamed.textContent).toContain("Peasant");
+    expect(unnamed.textContent).not.toContain("Unnamed");
+    expect(unnamed.querySelector('[data-class-badge="peasant"]')).not.toBeNull();
+    expect(named.querySelector('[data-support-badge="supported"]')?.textContent).toBe("Supported");
+    expect(unnamed.querySelector('[data-support-badge="supported"]')?.textContent).toBe("Supported");
+    expect(container.querySelector('[aria-label="Supplicant supply"] [data-class-badge="gentry"]')).not.toBeNull();
+    expect(container.querySelector('[data-temple-id="krolis"] [aria-label="Supports Artisan, Peasant"] [data-class-badge="artisan"]')).not.toBeNull();
+    expect(container.querySelectorAll("[data-class-badge]").length).toBeGreaterThanOrEqual(7);
+    root.unmount();
+    container.remove();
+  });
+
+  it("shows current Woe separately from Next Visions and current threshold cues", () => {
+    const { container, root } = renderPieces();
+    const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
+    const unnamed = container.querySelector('[data-supplicant-piece="den_blank"]') as HTMLElement;
+    const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
+    expect(named.querySelector('[aria-label="Woe 1"]')).not.toBeNull();
+    expect(named.querySelector('[aria-label="Next Visions: Woe 1 → 0"]')).not.toBeNull();
+    expect(named.textContent).not.toMatch(/Woe 1 → 0/);
+    expect(ready.querySelector('[data-woe-threshold="benefaction"]')?.textContent).toBe("Ready for Benefaction");
+    expect(unnamed.querySelector('[data-woe-threshold="cult"]')?.textContent).toBe("Cult departure due");
+    expect(container.querySelector('[aria-label="Benefaction & Depart"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Depart for Cult"]')).toBeNull();
+    expect(container.textContent).not.toContain("To Hestar");
+    expect(container.textContent).not.toContain("From Hestar");
+    expect(container.querySelector("[data-supplicant-piece][draggable='true']")).toBeNull();
+    const advanced = Array.from(container.querySelectorAll("summary")).find((el) =>
+      el.textContent?.includes("Advanced / Correct Board"),
+    );
+    expect(advanced).toBeDefined();
+    root.unmount();
+    container.remove();
+  });
+
+  it("adjusts Woe by one through updateSupplicant without threshold mutations", async () => {
+    mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {});
+    mockMutations["m3Commands.removeSupplicant"] = vi.fn(async () => {});
+    mockMutations["m3Commands.establishCult"] = vi.fn(async () => {});
+    mockMutations["m3Commands.adjustTempleResources"] = vi.fn(async () => {});
+    const { container, root } = renderPieces();
+    const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
+    flushSync(() => { named.querySelector('[data-woe-pip="remove"]')!.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.updateSupplicant"]).toHaveBeenCalledTimes(1);
+    const args = mockMutations["m3Commands.updateSupplicant"].mock.calls[0][0];
+    expect(args.denizenId).toBe("den_ann");
+    expect(args.fields).toEqual({ woe: { expected: 1, value: 0 } });
+    expect(mockMutations["m3Commands.removeSupplicant"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.establishCult"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.adjustTempleResources"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("reveals keyboard-accessible resource +/-1 controls without collapsing the Temple", async () => {
+    mockMutations["m3Commands.adjustTempleResources"] = vi.fn(async () => {});
+    mockMutations["m3Commands.updateTemple"] = vi.fn(async () => {});
+    const { container, root } = renderPieces();
+    const decrease = container.querySelector('[aria-label="Decrease Temple Krolis Abundance"]') as HTMLButtonElement;
+    const increase = container.querySelector('[aria-label="Increase Temple Krolis Abundance"]') as HTMLButtonElement;
+    expect(decrease).not.toBeNull();
+    expect(increase).not.toBeNull();
+    flushSync(() => { increase.click(); });
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.adjustTempleResources"]).toHaveBeenCalledTimes(1);
+    const args = mockMutations["m3Commands.adjustTempleResources"].mock.calls[0][0];
+    expect(args.templeId).toBe("krolis");
+    expect(args.fields).toEqual({ abundance: { expected: 5, value: 6 } });
+    expect(mockMutations["m3Commands.updateTemple"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("does not mutate on resource hover and still receives unnamed supply pieces", async () => {
+    mockMutations["m3Commands.createHierophantSupplicant"] = vi.fn(async () => {});
+    mockMutations["m3Commands.adjustTempleResources"] = vi.fn(async () => {});
+    const { container, root } = renderPieces();
+    const counter = container.querySelector('[data-resource-counter="abundance"]') as HTMLElement;
+    flushSync(() => { counter.dispatchEvent(new Event("mouseenter", { bubbles: true })); });
+    expect(mockMutations["m3Commands.adjustTempleResources"]).not.toHaveBeenCalled();
+    dragSupplyTo(supplyPiece(container, "pariah")!, supplyDrop(container, "krolis", "courtyard")!);
+    const form = receiveForm(container)!;
+    expect((form.querySelector("select") as HTMLSelectElement).value).toBe("pariah");
+    flushSync(() => { form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.createHierophantSupplicant"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[0][0].name).toBe("Pariah");
+    root.unmount();
+    container.remove();
+  });
+});
+

@@ -79,10 +79,13 @@ import {
   HOLIDAY_DEFER_GUIDANCE,
   HESTAR_PROVIDE_DEFER_GUIDANCE,
   buildCreateHierophantSupplicantPayload,
+  persistableSupplicantName,
+  supplicantGivenName,
   type StartingTempleBindings,
   formatVisionsSupplicantLine,
   formatVisionsTempleWarnings,
   shortTempleBoardLabel,
+  woeThresholdCueLabel,
 } from "./hierophant-view-model";
 import {
   appendVisionsOrder,
@@ -178,6 +181,9 @@ export default function HierophantSurface({
   const [supplyHoverKey, setSupplyHoverKey] = useState<string | null>(null);
   const [supplyBlock, setSupplyBlock] = useState<{ templeId: string; reason: string } | null>(null);
   const supplyClassRef = useRef<string | null>(null);
+  const [selectedSupplicantId, setSelectedSupplicantId] = useState<string | null>(null);
+  const [supplicantNameDraft, setSupplicantNameDraft] = useState("");
+  const [supplicantWoeDraft, setSupplicantWoeDraft] = useState("");
   const [receiveDraft, setReceiveDraft] = useState<{
     commandId: string;
     denizenId: string;
@@ -200,6 +206,7 @@ export default function HierophantSurface({
   const createHierophantSupplicant = useMutation(api.m3Commands.createHierophantSupplicant);
   const addSupplicant = useMutation(api.m3Commands.addSupplicant);
   const updateSupplicant = useMutation(api.m3Commands.updateSupplicant);
+  const updateDenizen = useMutation(api.m3Commands.updateDenizen);
   const removeSupplicant = useMutation(api.m3Commands.removeSupplicant);
   const addProphet = useMutation(api.m3Commands.addProphet);
   const updateProphet = useMutation(api.m3Commands.updateProphet);
@@ -232,6 +239,19 @@ export default function HierophantSurface({
     try {
       await action();
       closeEditor();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Mutation failed.";
+      setError(message);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function runQuiet(action: () => Promise<void>): Promise<void> {
+    setPending(true);
+    setError(null);
+    try {
+      await action();
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Mutation failed.";
       setError(message);
@@ -282,7 +302,7 @@ export default function HierophantSurface({
       commandId: receiveDraft.commandId,
       expectedCampaignId: campaignId,
       denizenId: receiveDraft.denizenId,
-      name: receiveDraft.name,
+      name: persistableSupplicantName(receiveDraft.name, classLabel(receiveDraft.classId, hierophant.campaignClasses)),
       classId: receiveDraft.classId,
       woe,
       templeId: receiveDraft.templeId,
@@ -957,6 +977,7 @@ export default function HierophantSurface({
               activeClassId: supplyClassId,
               hoverKey: supplyHoverKey,
               blockNotice: supplyBlock,
+              peekActiveClassId: () => supplyClassRef.current,
               onBegin: (classId: HierophantBuiltinClassId) => {
                 supplyClassRef.current = classId;
                 setSupplyClassId(classId);
@@ -966,9 +987,9 @@ export default function HierophantSurface({
               onHover: (key) => {
                 setSupplyHoverKey(key);
               },
-              onDeliver: (temple, zone: HierophantSupplyZone) => {
-                const classId = supplyClassRef.current;
-                if (classId === null) return;
+              onDeliver: (temple, zone: HierophantSupplyZone, classIdFromDrag) => {
+                const classId = classIdFromDrag ?? supplyClassRef.current;
+                if (classId === null || classId === undefined) return;
                 const dest = resolveHierophantSupplyDestination(temple, zone);
                 if (dest === null) return;
                 if (dest.kind === "blocked") {
@@ -988,6 +1009,47 @@ export default function HierophantSurface({
                 supplyClassRef.current = null;
                 setSupplyClassId(null);
                 setSupplyHoverKey(null);
+              },
+            }}
+            pieces={{
+              selectedSupplicantId,
+              onSelectSupplicant: (denizenId) => {
+                const person = hierophant.supplicants.find((entry) => entry.denizenId === denizenId);
+                setSelectedSupplicantId(denizenId);
+                if (person === undefined) return;
+                const klass = classLabel(person.classId, hierophant.campaignClasses);
+                const stored = denizenLabel(world.denizens, denizenId);
+                setSupplicantNameDraft(supplicantGivenName(stored, klass) ?? "");
+                setSupplicantWoeDraft(String(person.woe));
+              },
+              onAdjustWoe: (denizenId, currentWoe, delta) => {
+                const next = currentWoe + delta;
+                if (next < 0) return;
+                void runQuiet(async () => {
+                  await updateSupplicant({
+                    commandId: newCommandId(),
+                    expectedCampaignId: campaignId,
+                    denizenId,
+                    fields: { woe: { expected: currentWoe, value: next } },
+                  });
+                });
+              },
+              onAdjustResource: (templeId, _templeName, resource, current, delta) => {
+                const next = current + delta;
+                if (next < 0) return;
+                const temple = hierophant.temples.find((entry) => entry.templeId === templeId);
+                if (temple === undefined) return;
+                void runQuiet(async () => {
+                  await adjustTempleResources(buildAdjustTempleResourcesPayload({
+                    commandId: newCommandId(),
+                    expectedCampaignId: campaignId,
+                    templeId,
+                    expectedAbundance: temple.abundance,
+                    abundance: resource === "abundance" ? next : temple.abundance,
+                    expectedConviction: temple.conviction,
+                    conviction: resource === "conviction" ? next : temple.conviction,
+                  }));
+                });
               },
             }}
           />
@@ -1028,9 +1090,94 @@ export default function HierophantSurface({
             return (
               <aside aria-label="Selected Temple" className="mt-4 rounded-xl border border-amber-200 dark:border-amber-900 p-4 space-y-3">
                 <h3 className="text-sm font-semibold">{templeDisplayName(selected, world.places)}</h3>
+                {(() => {
+                  const selectedPerson = selectedSupplicantId === null
+                    ? undefined
+                    : hierophant.supplicants.find((entry) =>
+                      entry.denizenId === selectedSupplicantId
+                      && entry.host.kind === "temple"
+                      && entry.host.templeId === selected.templeId
+                    );
+                  if (selectedPerson === undefined) return null;
+                  const klass = classLabel(selectedPerson.classId, hierophant.campaignClasses);
+                  const stored = denizenLabel(world.denizens, selectedPerson.denizenId);
+                  const given = supplicantGivenName(stored, klass);
+                  const cue = woeThresholdCueLabel(selectedPerson.woe);
+                  return (
+                    <section aria-label="Selected Supplicant" className="rounded-lg border border-amber-200/80 dark:border-amber-900/60 p-2 space-y-2">
+                      <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Selected Supplicant</h4>
+                      <p className="text-sm font-medium">{klass}{given === null ? "" : ` · ${given}`}</p>
+                      {cue !== null && (
+                        <p className="text-xs font-semibold text-rose-800 dark:text-rose-200">{cue}</p>
+                      )}
+                      <label className="block text-xs">
+                        Display name (optional)
+                        <input
+                          className={fieldClass}
+                          value={supplicantNameDraft}
+                          disabled={pending}
+                          aria-label="Supplicant display name"
+                          onChange={(event) => setSupplicantNameDraft(event.target.value)}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className={ghostBtn}
+                        disabled={pending}
+                        onClick={() => {
+                          const nextName = persistableSupplicantName(supplicantNameDraft, klass);
+                          if (nextName === stored) return;
+                          void runQuiet(async () => {
+                            await updateDenizen({
+                              commandId: newCommandId(),
+                              expectedCampaignId: campaignId,
+                              denizenId: selectedPerson.denizenId,
+                              fields: { name: { expected: stored, value: nextName } },
+                            });
+                          });
+                        }}
+                      >
+                        Record display name
+                      </button>
+                      <label className="block text-xs">
+                        Exact Woe
+                        <input
+                          className={fieldClass}
+                          value={supplicantWoeDraft}
+                          disabled={pending}
+                          aria-label="Exact Woe"
+                          onChange={(event) => setSupplicantWoeDraft(event.target.value)}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className={ghostBtn}
+                        disabled={pending}
+                        onClick={() => {
+                          const next = parseNonNegInt(supplicantWoeDraft);
+                          if (next === null) {
+                            setError("Woe must be a non-negative integer.");
+                            return;
+                          }
+                          if (next === selectedPerson.woe) return;
+                          void runQuiet(async () => {
+                            await updateSupplicant({
+                              commandId: newCommandId(),
+                              expectedCampaignId: campaignId,
+                              denizenId: selectedPerson.denizenId,
+                              fields: { woe: { expected: selectedPerson.woe, value: next } },
+                            });
+                          });
+                        }}
+                      >
+                        Record exact Woe
+                      </button>
+                    </section>
+                  );
+                })()}
                 {(selectedWarnings.length > 0 || selectedPeople.length > 0) && (
-                  <section aria-label="This Visions phase" className="rounded-lg border border-amber-200/80 dark:border-amber-900/60 p-2 space-y-1">
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">This Visions phase</h4>
+                  <section aria-label="Next Visions" className="rounded-lg border border-amber-200/80 dark:border-amber-900/60 p-2 space-y-1">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Next Visions</h4>
                     {selectedWarnings.map((warning) => (
                       <p key={warning} className="text-xs font-semibold text-rose-800 dark:text-rose-200">{warning}</p>
                     ))}
@@ -1057,11 +1204,12 @@ export default function HierophantSurface({
                   >
                     <h4 className="text-sm font-medium">Receive Supplicant</h4>
                     <label className="block text-xs">
-                      Name
+                      Display name (optional)
                       <input
                         className={fieldClass}
                         value={receiveDraft.name}
                         disabled={pending}
+                        aria-label="Supplicant display name"
                         onChange={(event) => setReceiveDraft({ ...receiveDraft, name: event.target.value })}
                       />
                     </label>
