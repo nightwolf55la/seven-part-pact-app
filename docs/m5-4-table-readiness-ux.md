@@ -8,7 +8,12 @@
 
 This is the durable UX register. Original human observations are preserved. Approved Batch 1 decisions are recorded as identified resolution notes rather than silent rewrites of those observations.
 
-Human verification is issue-specific. The 2026-09-18 real-browser / real-pointer retest verified the latest Mariner direct-manipulation work only. Do not mark unrelated issues VERIFIED without existing evidence.
+Human verification is issue-specific and date-specific:
+
+- **2026-09-18:** Mariner direct-manipulation human retest.
+- **2026-09-19:** remaining Batch-2 visual/layout human acceptance pass.
+
+Do not mark unrelated issues VERIFIED without existing evidence.
 
 CampaignState V5 remains PRE-ACTIVATION. No schema evolution. No migration. No Production deployment.
 
@@ -63,7 +68,7 @@ When a Mariner or Necromancer board item is selected, a dismissible right-side o
 
 Instruction line: Drag pieces to place or move • Right-click for actions • Click for details • Delete removes a selected piece.
 
-This remains Mariner-local. No generic drag-and-drop library, context-menu framework, or cross-Domain interaction subsystem. No rules automation. The 2026-09-18 human retest verified this Mariner interaction convention; it does not verify unrelated Batch-2 visual/layout, Necromancer, Compendium, or other-Domain issues.
+This remains Mariner-local. No generic drag-and-drop library, context-menu framework, or cross-Domain interaction subsystem. No rules automation. The 2026-09-18 human retest verified this Mariner interaction convention. Unrelated Batch-2 visual/layout issues were accepted later, on 2026-09-19. This convention record does not verify Batch 1 issues or deferred UX-005 / UX-006 / UX-011 / UX-015 / UX-020 / UX-021.
 
 ### Source visuals used
 
@@ -225,7 +230,7 @@ Supports: UX-001, UX-019.
 - **Likely scope:** SHARED
 - **Source/rules relevance:** No written-rule issue. Table-facing layout/application design.
 - **Suggested direction:** Make the PlayShell/board workspace desktop-first and width-responsive.
-- **Current status:** FIXED — NEEDS HUMAN RETEST
+- **Current status:** HUMAN VERIFIED
 - **Dependencies / duplicates:** Strongly affects UX-009, UX-010, UX-016, and UX-005.
 - **Approved batch:** Batch 2
 - **Resolution / implementation note:** Ordinary play (primary-only and dual-pane) uses `max-w-[1800px]`. Campaign Tools remain `max-w-5xl`. No navigation redesign.
@@ -303,7 +308,7 @@ Supports: UX-001, UX-019.
 - **Likely scope:** MARINER
 - **Source/rules relevance:** Presentation priority rather than a rule dispute.
 - **Suggested direction:** Compress the Ship/Sanctum summary substantially or place it below/alongside the map.
-- **Current status:** FIXED — NEEDS HUMAN RETEST
+- **Current status:** HUMAN VERIFIED
 - **Dependencies / duplicates:** Related to UX-008, UX-010, and UX-004.
 - **Approved batch:** Batch 2
 - **Resolution / implementation note:** Normal header is compact campaign labels (`Ship · Sanctum · Home: …`). Exceptional Ship/Sanctum mismatch remains conspicuous. Ship correction stays behind Advanced / Correct.
@@ -319,10 +324,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** MARINER
 - **Source/rules relevance:** SOURCE: Materials PowerPoint provides a deliberate spatial/map vocabulary. APPLICATION DESIGN: current SVG board preserves topology/state but not enough geographic presentation.
 - **Suggested direction:** Rework presentation around source map geometry/visual vocabulary after setup/workflow blockers.
-- **Current status:** FIXED — NEEDS HUMAN RETEST
+- **Current status:** HUMAN VERIFIED
 - **Dependencies / duplicates:** Strongly dependent on UX-004 and related to UX-009.
 - **Approved batch:** Batch 2
-- **Resolution / implementation note:** Batch 2 was later corrected to a PowerPoint-native exported SVG decorative base (`mariner-board.svg`) under live Isle/Route/Sea hit regions and state tokens. Human retest then found the exact source board substantially improved Mariner, but remaining visible interaction overlays still used approximate ellipse/path geometry. Visible Isle/Route overlays now reuse the same PowerPoint-native source objects via generated `mariner-interaction-geometry.svg` symbols (explicit Draft-4 shape mapping, not label parsing). A further human retest found occupied exact-source Routes filling connector wedges, compound Isle selection accumulating translucent overlap, and a redundant application "Archipelago of Isha" title colliding with source Druj-Lands framing. Occupied Routes are now stroke-only; Isle selection uses a composited SourceAlpha silhouette; Ravage uses the combined Isle mask; the duplicate app title was removed. A later human retest found exact board geometry good, but large Ship/Raider illustrations cluttered and drifted from Routes, and the selected-Isle hard ring was too thick/clipped. Occupancy is now route-first: exact source curve, thinner solid Ship/Raider stroke, plus a compact semantic marker positioned from exact Route path length/tangent. Isle selection is a soft source-shaped shoreline glow, with presentation-only per-Isle color and expanded filter bounds. A final human-retest micro-polish then gave the Ship marker a minimal sail so it still reads as a Ship at board scale, replaced the ambiguous Raider diamond with a compact directional marker aligned to the Route tangent, and tuned Isle shoreline glow/edge color into each Isle’s own fill family. A later human retest found the sail sitting on the wrong side of the mast and the Raider pennant pointing away from the raided Isle. APPLICATION DESIGN: the Ship pictogram is now rotated as a whole along the exact Route tangent with the sail drawn on the pictogram aft side (bow remains +X). That rotation is presentation-only; ordinary Ships still have no gameplay travel direction. The Raider marker uses the same exact-path tangent, then reverses it when that tangent points away from the authoritative `toward` endpoint. Accessible Raider labels stay destination-based. Exact Sea highlighting bounded by Routes and the outer map rim is feasible but deferred; it would need explicit closed presentation polygons and is not attempted here. Approximate geometry remains only for Sea hits, token anchors, and invisible convenience hits. Overlay inspector does not resize the map. Status remains FIXED — NEEDS HUMAN RETEST.
+- **Resolution / implementation note:** Batch 2 was later corrected to a PowerPoint-native exported SVG decorative base (`mariner-board.svg`) under live Isle/Route/Sea hit regions and state tokens. Human retest then found the exact source board substantially improved Mariner, but remaining visible interaction overlays still used approximate ellipse/path geometry. Visible Isle/Route overlays now reuse the same PowerPoint-native source objects via generated `mariner-interaction-geometry.svg` symbols (explicit Draft-4 shape mapping, not label parsing). A further human retest found occupied exact-source Routes filling connector wedges, compound Isle selection accumulating translucent overlap, and a redundant application "Archipelago of Isha" title colliding with source Druj-Lands framing. Occupied Routes are now stroke-only; Isle selection uses a composited SourceAlpha silhouette; Ravage uses the combined Isle mask; the duplicate app title was removed. A later human retest found exact board geometry good, but large Ship/Raider illustrations cluttered and drifted from Routes, and the selected-Isle hard ring was too thick/clipped. Occupancy is now route-first: exact source curve, thinner solid Ship/Raider stroke, plus a compact semantic marker positioned from exact Route path length/tangent. Isle selection is a soft source-shaped shoreline glow, with presentation-only per-Isle color and expanded filter bounds. A final human-retest micro-polish then gave the Ship marker a minimal sail so it still reads as a Ship at board scale, replaced the ambiguous Raider diamond with a compact directional marker aligned to the Route tangent, and tuned Isle shoreline glow/edge color into each Isle’s own fill family. A later human retest found the sail sitting on the wrong side of the mast and the Raider pennant pointing away from the raided Isle. APPLICATION DESIGN: the Ship pictogram is now rotated as a whole along the exact Route tangent with the sail drawn on the pictogram aft side (bow remains +X). That rotation is presentation-only; ordinary Ships still have no gameplay travel direction. The Raider marker uses the same exact-path tangent, then reverses it when that tangent points away from the authoritative `toward` endpoint. Accessible Raider labels stay destination-based. Exact Sea highlighting bounded by Routes and the outer map rim is feasible but deferred; it would need explicit closed presentation polygons and is not attempted here. Approximate geometry remains only for Sea hits, token anchors, and invisible convenience hits. Overlay inspector does not resize the map. Status is HUMAN VERIFIED (2026-09-19 remaining Batch-2 visual/layout human acceptance pass).
 
 ### UX-011
 
@@ -415,7 +420,7 @@ Supports: UX-001, UX-019.
 - **Likely scope:** NECROMANCER
 - **Source/rules relevance:** SOURCE: Materials depict the eleven Gates as recognizable gate/door shapes.
 - **Suggested direction:** Preserve current branching spatial logic while adopting source Gate silhouettes later.
-- **Current status:** FIXED — NEEDS HUMAN RETEST
+- **Current status:** HUMAN VERIFIED
 - **Dependencies / duplicates:** Strongly affected by UX-004.
 - **Approved batch:** Batch 2
 - **Resolution / implementation note:** Batch 2 was later corrected to a PowerPoint-native exported SVG decorative base (`necromancer-gates-board.svg`) under live Gate/path hit regions, Hostile/Destroyed hatch overlays, and state tokens. Prior reconstructed arches/tree/band labels are no longer the visual board. Human retest found exact Gate/path highlighting good, but mouse/keyboard selection drew a native black rectangular focus box around the SVG group. Native outline is suppressed; keyboard `focus-visible` now uses the same exact source Gate/path geometry as selection. Overlay inspector does not resize the board. No normal desktop horizontal scrollbar at 1600×1000. Gate IDs and persisted topology unchanged.
@@ -431,7 +436,7 @@ Supports: UX-001, UX-019.
 - **Likely scope:** NECROMANCER
 - **Source/rules relevance:** SOURCE: Codex describes the Necromancer's Depth as a Domain quantity.
 - **Suggested direction:** Hide internal owner IDs in normal play.
-- **Current status:** FIXED — NEEDS HUMAN RETEST
+- **Current status:** HUMAN VERIFIED
 - **Dependencies / duplicates:** Related to UX-021 and UX-020.
 - **Approved batch:** Batch 2
 - **Resolution / implementation note:** Normal presentation is compact `Depth` with a numeric stepper. Raw `wiz_...` owner IDs are not shown. Exceptional previous-owner state is described in human-readable terms.
@@ -447,7 +452,7 @@ Supports: UX-001, UX-019.
 - **Likely scope:** NECROMANCER
 - **Source/rules relevance:** No rules conflict. Interaction granularity.
 - **Suggested direction:** Compact single-value control with immediate server-authoritative commit.
-- **Current status:** FIXED — NEEDS HUMAN RETEST
+- **Current status:** HUMAN VERIFIED
 - **Dependencies / duplicates:** Specific example of UX-020.
 - **Approved batch:** Batch 2
 - **Resolution / implementation note:** Isolated Depth changes use the existing `set_necromancer_depth` operation immediately. No Save Depth button. Pending and stale/error remain visible. Does **not** close UX-020.
@@ -509,7 +514,7 @@ Supports: UX-001, UX-019.
 - **Likely scope:** LORE/COMPENDIUM
 - **Source/rules relevance:** No rules issue.
 - **Suggested direction:** Sticky pane or independently scrolling list/detail columns on desktop.
-- **Current status:** FIXED — NEEDS HUMAN RETEST
+- **Current status:** HUMAN VERIFIED
 - **Dependencies / duplicates:** UX-004's wider desktop workspace may improve layout.
 - **Approved batch:** Batch 2
 - **Resolution / implementation note:** Desktop reading pane is sticky with a viewport-relative max height; long entry content scrolls inside the pane. No Lore persistence change.
@@ -664,7 +669,7 @@ Treat that retest as HUMAN VERIFIED for:
 
 UX-025's implemented board presentation was successfully exercised in that retest. UX-025 remains **PARTIALLY ADDRESSED** because Map Stability and prevailing Wind remain unencoded in authoritative state.
 
-Do **not** infer that this retest re-ran unrelated older Batch-2 visual checks. UX-004, UX-009, UX-010, UX-016, UX-017, UX-018, and UX-022 remain FIXED — NEEDS HUMAN RETEST unless separately recorded. Batch 1 issues remain FIXED — NEEDS HUMAN RETEST. Deferred UX-005 / UX-006 / UX-011 / UX-015 / UX-020 / UX-021 remain deferred. No unrelated Necromancer, Compendium, or other-Domain human checks were performed in this retest.
+Do **not** infer that this 2026-09-18 retest re-ran unrelated older Batch-2 visual checks. Those seven Batch-2 visual/layout issues were accepted later, on **2026-09-19**. Batch 1 issues remain FIXED — NEEDS HUMAN RETEST. Deferred UX-005 / UX-006 / UX-011 / UX-015 / UX-020 / UX-021 remain deferred. No unrelated Necromancer, Compendium, or other-Domain human checks were performed in this 2026-09-18 retest.
 
 This is HUMAN verification, not an implementation-worker claim.
 
@@ -685,11 +690,27 @@ Batch 2's outstanding real-Convex integration boundary is closed. This is **real
 - `verifyMigration:verifyMigration` → `status: valid`; revision 7; historyControlStatus valid; checkpointStatus valid (0 checkpoints); 7 events / 7 revision records / 8 snapshots.
 - **Production not used.** No CampaignState schema change. No production source change.
 
-Do not treat this Preview proof as closing remaining Batch-2 visual/layout human retest or UX-025's unencoded Map Stability / prevailing Wind.
+Do not treat this Preview proof as closing UX-025's unencoded Map Stability / prevailing Wind, Batch 1 human retest, or deferred UX-005 / UX-006 / UX-011 / UX-015 / UX-020 / UX-021.
 
-## Remaining visual retest path
+### 2026-09-19 — remaining Batch-2 visual/layout acceptance (HUMAN)
 
-Older Batch 2 visual / layout checks at **1600×1000** full-screen desktop (also 1920×1080 if convenient). Use a disposable campaign. Do not inspect phones. These were **not** re-run in the 2026-09-18 Mariner interaction retest.
+The human completed the remaining Batch-2 visual / layout checks requested for this run and reported: **"Confirmed on all these."**
+
+Treat that acceptance as HUMAN VERIFIED for:
+
+- UX-004 overall desktop width / workspace use;
+- UX-009 Mariner map priority over Ship/Sanctum summary;
+- UX-010 Mariner source-shaped map appearance;
+- UX-016 Necromancer source-shaped Gates / branching / no bad focus box / no ordinary horizontal scrollbar;
+- UX-017 Necromancer Depth wording / no raw wizard UUID;
+- UX-018 compact direct Depth control / no Save Depth button;
+- UX-022 sticky Compendium detail pane / independently scrollable detail.
+
+This is HUMAN verification, not an implementation-worker claim. It does not re-verify the 2026-09-18 Mariner direct-manipulation work, does not close UX-025's unencoded Map Stability / prevailing Wind, and does not verify Batch 1 issues or deferred UX-005 / UX-006 / UX-011 / UX-015 / UX-020 / UX-021.
+
+## Accepted 2026-09-19 visual / layout path
+
+The remaining Batch-2 visual / layout checks at **1600×1000** full-screen desktop were completed and accepted by the human on **2026-09-19**. They were not part of the 2026-09-18 Mariner interaction retest. Recorded evidence of the accepted path:
 
 1. Open Mariner with nothing selected. Confirm the map dominates, geography is recognizable, Ship/Sanctum is compact, and there is no normal horizontal scrollbar.
 2. Select an Isle. Confirm the overlay inspector opens and the map does **not** shrink. Close with the button and with Escape.
@@ -700,7 +721,7 @@ Older Batch 2 visual / layout checks at **1600×1000** full-screen desktop (also
 7. Open Compendium, select a long entry, and scroll the subject list. Confirm the detail pane stays available and long text scrolls inside it.
 8. Glance Hierophant, Sorcerer, and Faustian at full desktop. Confirm no obvious regression from the wider PlayShell. Do not treat UX-005/006/011/020/021 as fixed.
 
-Do not claim human verification from implementation or browser inspection alone.
+This path is recorded as completed HUMAN verification on 2026-09-19, not an implementation-worker or browser-inspection claim.
 
 ## Implementation checkpoint log
 
