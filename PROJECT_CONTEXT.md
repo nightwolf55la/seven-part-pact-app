@@ -361,6 +361,8 @@ Full-screen desktop play canvas (~1800px), source-inspired live Mariner map and 
 
 Human 2026-09-18 real-browser / real-pointer retest of the latest Mariner direct-manipulation work: "It all looked good." That verifies UX-024 Storm drag, UX-026 contextual/direct board actions, Market+Nest representable-conflict behavior, direct Beast/Market manipulation, Rare Market immediate placement, Ship/Raider sanity, pointer-lifecycle correction, Friendly/Nesting Beast relocation via `api.m3Commands.relocateMarinerNestingBeast`, and post-mutation board usability. UX-025 remains PARTIALLY ADDRESSED: implemented board presentation was exercised, but Map Stability and prevailing Wind remain unencoded. Older Batch-2 visual/layout issues (UX-004/009/010/016/017/018/022) were not re-run in that retest. UX-005/006/011/020/021 remain later work.
 
+Real Convex cloud Preview integration is complete on preview `m5-4/table-readiness-ux-batch-2` / `dependable-loris-864` (not Development, not Production): disposable campaign `cmp_42854d1b-c91b-4c03-90db-522ad6fc4665`, directional Raider create, atomic Rare Market move, Nesting-Beast Isle→Isle relocation, authoritative readback, one idempotent replay, and `verifyMigration` valid at revision 7.
+
 #### Remaining M5.4 active-table work
 
 The remaining active-player Domain-operability work is:
@@ -420,7 +422,7 @@ Final hardening for trusted long-running campaigns: deployment/environment safet
 
 ### Current Next Action
 
-Faustian M5.4A-F is merged (PR #27). M5.4 Table-Readiness UI/UX Batch 1 is merged (PR #28) and still needs **human retest**. Batch 2 implementation is closed on `m5-4/table-readiness-ux-batch-2` with **Mariner direct-manipulation HUMAN VERIFIED** (2026-09-18). UX-025 remains PARTIALLY ADDRESSED. Older Batch-2 visual/layout issues still need human retest. Do not mark Batch 2 or M5.4 complete.
+Faustian M5.4A-F is merged (PR #27). M5.4 Table-Readiness UI/UX Batch 1 is merged (PR #28) and still needs **human retest**. Batch 2 implementation is closed on `m5-4/table-readiness-ux-batch-2` with **Mariner direct-manipulation HUMAN VERIFIED** (2026-09-18) and **real Convex cloud Preview integration** on `dependable-loris-864`. UX-025 remains PARTIALLY ADDRESSED. Older Batch-2 visual/layout issues still need human retest. Do not mark Batch 2 or M5.4 complete.
 
 Warlock/Sage remain deferred. CampaignState V5 remains PRE-ACTIVATION.
 

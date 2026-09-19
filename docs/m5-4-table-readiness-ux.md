@@ -668,6 +668,25 @@ Do **not** infer that this retest re-ran unrelated older Batch-2 visual checks. 
 
 This is HUMAN verification, not an implementation-worker claim.
 
+### 2026-09-19 — real Convex cloud Preview integration
+
+Batch 2's outstanding real-Convex integration boundary is closed. This is **real Convex cloud Preview integration**, not a Development deployment and not Production.
+
+- Convex cloud deployment type: **preview**
+- Preview name: `m5-4/table-readiness-ux-batch-2`
+- Live deployment slug: `dependable-loris-864` (`https://dependable-loris-864.convex.cloud`)
+- Earlier smoke-test slug `brave-firefly-257` was gone at recapture (`PreviewNotFound`); the same preview name was claimed again without `--preview-create`. All writes below ran on `dependable-loris-864`.
+- Disposable campaign `cmp_42854d1b-c91b-4c03-90db-522ad6fc4665` (documentary name **M5.4 B2 Preview Closure**), Quiet Mariner source setup, revision **0 → 7**.
+- Directional Raider: `createMarinerShip` `cmd_101c31bb-88cb-4035-a97d-a2a3c43de950` on Route `druntyr__thyras` with `destinationToward = { kind: "board_isle", boardIsleId: "druntyr" }`; revision **1 → 2**; occupancy `{ kind: "raider", toward: druntyr }`; `mariner_ship_created` v3 records `occupancyKind = raider`, `toward = druntyr`, no fabricated `sourceIsleId`; Activity: "Created a Raider".
+- Atomic Market move: Rare Market rarity `"Preview-closure amber glass"` via `setMarinerIsleMarket` then one `moveMarinerMarket` Scuttleport → Orrery (`cmd_0bf3c2cd-a719-4f2f-9dee-5d068c9033bf`); revision **3 → 4**; source `{ present: false }`; destination rarity preserved exactly; `mariner_market_moved` v1; Activity: "Moved Rare Market from Scuttleport to Orrery".
+- Nesting-Beast relocation: Denizen `den_b22ad3ba-3731-4dad-810b-d32674f7b43a`; `relocateMarinerNestingBeast` Druntyr → Ishana (`cmd_9c4381c5-42e4-4445-b751-a7927b9d2b87`); revision **6 → 7**; identity unchanged; condition `friendly_nesting` before and after; `mariner_nesting_beast_relocated` v1; Activity: "Moved Nesting Beast from Druntyr to Ishana".
+- Authoritative Preview readback from `m3Queries:getMarinerReference` on `dependable-loris-864` confirmed all three persisted facts.
+- Idempotent replay of the Raider `createMarinerShip` command ID/payload: campaign revision stayed **7**; mutation receipt remained revision **2**; no extra event or revision record.
+- `verifyMigration:verifyMigration` → `status: valid`; revision 7; historyControlStatus valid; checkpointStatus valid (0 checkpoints); 7 events / 7 revision records / 8 snapshots.
+- **Production not used.** No CampaignState schema change. No production source change.
+
+Do not treat this Preview proof as closing remaining Batch-2 visual/layout human retest or UX-025's unencoded Map Stability / prevailing Wind.
+
 ## Remaining visual retest path
 
 Older Batch 2 visual / layout checks at **1600×1000** full-screen desktop (also 1920×1080 if convenient). Use a disposable campaign. Do not inspect phones. These were **not** re-run in the 2026-09-18 Mariner interaction retest.
