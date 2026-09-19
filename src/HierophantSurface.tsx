@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { flushSync } from "react-dom";
 import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api.js";
 import {
@@ -99,6 +100,11 @@ import {
   resolveHierophantSupplyDestination,
   type HierophantSupplyZone,
 } from "./hierophant-supply";
+import {
+  createHierophantResourceIntentController,
+  type HierophantResourceIntentController,
+  type HierophantResourceKind,
+} from "./hierophant-resource-intent";
 
 type HierophantTab = "overview" | "temples" | "people" | "cults" | "definitions";
 
@@ -222,6 +228,42 @@ export default function HierophantSurface({
   const updateCampaignClass = useMutation(api.m3Commands.updateCampaignClass);
   const createCampaignDoctrine = useMutation(api.m3Commands.createCampaignDoctrine);
   const updateCampaignDoctrine = useMutation(api.m3Commands.updateCampaignDoctrine);
+
+  const templesRef = useRef(hierophant.temples);
+  templesRef.current = hierophant.temples;
+  const campaignIdRef = useRef(campaignId);
+  campaignIdRef.current = campaignId;
+  const adjustTempleResourcesRef = useRef(adjustTempleResources);
+  adjustTempleResourcesRef.current = adjustTempleResources;
+  const [, setResourceIntentGen] = useState(0);
+  const resourceIntentsRef = useRef<HierophantResourceIntentController | null>(null);
+  if (resourceIntentsRef.current === null) {
+    resourceIntentsRef.current = createHierophantResourceIntentController({
+      nextCommandId: newCommandId,
+      dispatch: async (intent) => {
+        const temple = templesRef.current.find((entry) => entry.templeId === intent.templeId);
+        if (temple === undefined) throw new Error("Temple not found.");
+        const resource: HierophantResourceKind = intent.resource;
+        await adjustTempleResourcesRef.current(buildAdjustTempleResourcesPayload({
+          commandId: intent.commandId,
+          expectedCampaignId: campaignIdRef.current,
+          templeId: intent.templeId,
+          expectedAbundance: resource === "abundance" ? intent.expected : temple.abundance,
+          abundance: resource === "abundance" ? intent.value : temple.abundance,
+          expectedConviction: resource === "conviction" ? intent.expected : temple.conviction,
+          conviction: resource === "conviction" ? intent.value : temple.conviction,
+        }));
+      },
+      onChange: () => {
+        flushSync(() => setResourceIntentGen((n) => n + 1));
+      },
+    });
+  }
+  const resourceIntents = resourceIntentsRef.current;
+  for (const temple of hierophant.temples) {
+    resourceIntents.observeAuthoritative(temple.templeId, "abundance", temple.abundance);
+    resourceIntents.observeAuthoritative(temple.templeId, "conviction", temple.conviction);
+  }
 
   const initialized = isHierophantInitialized(hierophant);
   const usedSupplicantIds = hierophant.supplicants.map((s) => s.denizenId as string);
@@ -1022,35 +1064,25 @@ export default function HierophantSurface({
                 setSupplicantNameDraft(supplicantGivenName(stored, klass) ?? "");
                 setSupplicantWoeDraft(String(person.woe));
               },
-              onAdjustWoe: (denizenId, currentWoe, delta) => {
-                const next = currentWoe + delta;
-                if (next < 0) return;
+              onSetWoe: (denizenId, currentWoe, nextWoe) => {
+                if (nextWoe === currentWoe || nextWoe < 0) return;
                 void runQuiet(async () => {
                   await updateSupplicant({
                     commandId: newCommandId(),
                     expectedCampaignId: campaignId,
                     denizenId,
-                    fields: { woe: { expected: currentWoe, value: next } },
+                    fields: { woe: { expected: currentWoe, value: nextWoe } },
                   });
                 });
               },
-              onAdjustResource: (templeId, _templeName, resource, current, delta) => {
-                const next = current + delta;
-                if (next < 0) return;
+              onAdjustResource: (templeId, resource, delta) => {
                 const temple = hierophant.temples.find((entry) => entry.templeId === templeId);
                 if (temple === undefined) return;
-                void runQuiet(async () => {
-                  await adjustTempleResources(buildAdjustTempleResourcesPayload({
-                    commandId: newCommandId(),
-                    expectedCampaignId: campaignId,
-                    templeId,
-                    expectedAbundance: temple.abundance,
-                    abundance: resource === "abundance" ? next : temple.abundance,
-                    expectedConviction: temple.conviction,
-                    conviction: resource === "conviction" ? next : temple.conviction,
-                  }));
-                });
+                const authoritative = resource === "abundance" ? temple.abundance : temple.conviction;
+                resourceIntentsRef.current?.enqueue(templeId, resource, delta, authoritative);
               },
+              resourceView: (templeId, resource, authoritative) =>
+                resourceIntents.view(templeId, resource, authoritative),
             }}
           />
           {(() => {

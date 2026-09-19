@@ -28,6 +28,7 @@ import {
   researcherOperationalLabel,
   startingOrdinaryTempleIds,
   supplementaryTemples,
+  personPieceName,
   supplicantGivenName,
   templeDisplayName,
   templeDoctrineSummary,
@@ -38,6 +39,7 @@ import {
 } from "./hierophant-view-model";
 import { formatVisionsPreviewChoiceSummary } from "./hierophant-visions-preview";
 import HierophantClassBadge from "./hierophant-class-badge";
+import type { HierophantResourceKind, HierophantResourcePoolView } from "./hierophant-resource-intent";
 import {
   HIEROPHANT_SUPPLY_CLASS_IDS,
   beginHierophantSupplyDrag,
@@ -82,14 +84,17 @@ export interface HierophantSupplyBoardInteraction {
 export interface HierophantPieceControls {
   readonly selectedSupplicantId: string | null;
   readonly onSelectSupplicant: (denizenId: string) => void;
-  readonly onAdjustWoe: (denizenId: string, currentWoe: number, delta: 1 | -1) => void;
+  readonly onSetWoe: (denizenId: string, currentWoe: number, nextWoe: number) => void;
   readonly onAdjustResource: (
     templeId: string,
-    templeName: string,
-    resource: "abundance" | "conviction",
-    current: number,
+    resource: HierophantResourceKind,
     delta: 1 | -1,
   ) => void;
+  readonly resourceView: (
+    templeId: string,
+    resource: HierophantResourceKind,
+    authoritative: number,
+  ) => HierophantResourcePoolView;
 }
 
 function SupplyClassPiece({
@@ -299,11 +304,11 @@ function prophetStatusText(denizens: readonly NamedDenizen[], denizenId: string)
 
 function ResourceCounter({
   label,
-  before,
   after,
   delta,
   templeId,
   templeName,
+  view,
   onAdjust,
 }: {
   readonly label: "Abundance" | "Conviction";
@@ -312,13 +317,15 @@ function ResourceCounter({
   readonly delta: number | null;
   readonly templeId: string;
   readonly templeName: string;
-  readonly onAdjust: (resource: "abundance" | "conviction", current: number, delta: 1 | -1) => void;
+  readonly view: HierophantResourcePoolView;
+  readonly onAdjust: (resource: HierophantResourceKind, delta: 1 | -1) => void;
 }) {
-  const resource = label === "Abundance" ? "abundance" : "conviction";
+  const resource: HierophantResourceKind = label === "Abundance" ? "abundance" : "conviction";
+  const shown = view.displayed;
   const forecast = after !== null && delta !== null && delta !== 0
     ? `${delta > 0 ? "+" : ""}${delta} → ${after}`
     : null;
-  const restLabel = `${label} ${before}`;
+  const restLabel = `${label} ${shown}`;
   const [revealed, setRevealed] = useState(false);
   const controlClass = `h-5 w-5 rounded border border-stone-600/40 text-xs font-bold transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
     revealed ? "opacity-100" : "opacity-0"
@@ -328,7 +335,11 @@ function ResourceCounter({
       data-resource-counter={resource}
       data-temple-resource={templeId}
       data-resource-controls={revealed ? "revealed" : "hidden"}
+      data-resource-pending={view.pending ? "true" : "false"}
+      aria-busy={view.pending}
       className={`relative flex min-w-[4.75rem] flex-col items-center rounded-lg border-2 px-2 py-1 shadow-sm ${
+        view.pending ? "ring-1 ring-amber-700/40 dark:ring-amber-300/30" : ""
+      } ${
         label === "Abundance"
           ? "border-amber-700 bg-amber-100 text-amber-950 dark:border-amber-500 dark:bg-amber-950/70 dark:text-amber-50"
           : "border-indigo-700 bg-indigo-100 text-indigo-950 dark:border-indigo-400 dark:bg-indigo-950/70 dark:text-indigo-50"
@@ -347,28 +358,42 @@ function ResourceCounter({
           type="button"
           className={`${controlClass} disabled:pointer-events-none`}
           aria-label={`Decrease ${templeName} ${label}`}
-          disabled={before <= 0}
+          disabled={shown <= 0}
           onClick={(event) => {
             event.stopPropagation();
-            if (before <= 0) return;
-            onAdjust(resource, before, -1);
+            if (shown <= 0) return;
+            onAdjust(resource, -1);
           }}
         >
           −
         </button>
-        <span className="text-xl font-bold tabular-nums leading-none">{before}</span>
+        <span className="relative inline-flex items-center justify-center">
+          <span data-resource-value="" className="text-xl font-bold tabular-nums leading-none">{shown}</span>
+          {view.pending && (
+            <span
+              className="absolute -right-1.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-amber-800 dark:bg-amber-200"
+              aria-hidden="true"
+            />
+          )}
+        </span>
         <button
           type="button"
           className={controlClass}
           aria-label={`Increase ${templeName} ${label}`}
           onClick={(event) => {
             event.stopPropagation();
-            onAdjust(resource, before, 1);
+            onAdjust(resource, 1);
           }}
         >
           +
         </button>
       </div>
+      {view.pending && <span className="sr-only">Saving {label}</span>}
+      {view.error !== null && (
+        <span data-resource-error="" className="mt-0.5 text-[10px] font-medium text-rose-800 dark:text-rose-200">
+          {view.error}
+        </span>
+      )}
       {forecast !== null && (
         <span className="mt-0.5 text-[10px] font-medium text-slate-600 dark:text-slate-300" data-resource-forecast="">
           Next Visions {forecast}
@@ -381,48 +406,82 @@ function ResourceCounter({
 function WoePips({
   woe,
   denizenId,
-  onAdjust,
+  subjectLabel,
+  onSet,
 }: {
   readonly woe: number;
   readonly denizenId: string;
-  readonly onAdjust: (currentWoe: number, delta: 1 | -1) => void;
+  readonly subjectLabel: string;
+  readonly onSet: (nextWoe: number) => void;
 }) {
   const visualRange = 5;
   const filled = Math.min(woe, visualRange);
-  const addIndex = woe < visualRange ? filled : null;
-  const removeIndex = filled > 0 ? filled - 1 : null;
+  const pipClass = (filledPip: boolean) =>
+    `inline-flex h-3 w-3 items-center justify-center rounded-full border border-stone-700 dark:border-stone-200 ${
+      filledPip ? "bg-stone-800 dark:bg-stone-100" : "bg-transparent"
+    }`;
   return (
-    <div className="inline-flex items-center gap-1.5" data-woe-pips={denizenId} aria-label={`Woe ${woe}`}>
+    <div className="inline-flex items-center gap-1" data-woe-pips={denizenId} aria-label={`Woe ${woe}`}>
+      <button
+        type="button"
+        data-woe-target="0"
+        aria-label={`Set ${subjectLabel} Woe to 0`}
+        aria-pressed={woe === 0}
+        className={`inline-flex h-4 min-w-4 items-center justify-center rounded-sm px-0.5 text-[10px] font-semibold tabular-nums cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
+          woe === 0 ? "bg-stone-800 text-stone-50 dark:bg-stone-100 dark:text-stone-900" : "text-stone-700 dark:text-stone-200"
+        }`}
+        onClick={(event) => {
+          event.stopPropagation();
+          onSet(0);
+        }}
+      >
+        0
+      </button>
       <span className="inline-flex items-center gap-0.5">
         {Array.from({ length: visualRange }, (_, index) => {
+          const target = index + 1;
           const filledPip = index < filled;
-          const isAdd = addIndex !== null && index === addIndex;
-          const isRemove = removeIndex !== null && index === removeIndex;
-          const pipClass = `inline-flex h-3 w-3 items-center justify-center rounded-full border border-stone-700 dark:border-stone-200 ${
-            filledPip ? "bg-stone-800 dark:bg-stone-100" : "bg-transparent"
-          }`;
-          if (isAdd || isRemove) {
-            const delta: 1 | -1 = isAdd ? 1 : -1;
-            const next = woe + delta;
-            return (
-              <button
-                key={index}
-                type="button"
-                data-woe-pip={isAdd ? "add" : "remove"}
-                className={`${pipClass} cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700`}
-                aria-label={isAdd ? `Increase Woe to ${next}` : `Decrease Woe to ${next}`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onAdjust(woe, delta);
-                }}
-                onKeyDown={(event) => activate(event, () => onAdjust(woe, delta))}
-              />
-            );
-          }
-          return <span key={index} className={pipClass} aria-hidden="true" />;
+          return (
+            <button
+              key={target}
+              type="button"
+              data-woe-target={target}
+              data-woe-filled={filledPip ? "true" : "false"}
+              aria-label={`Set ${subjectLabel} Woe to ${target}`}
+              aria-pressed={woe === target}
+              className={`${pipClass(filledPip)} cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onSet(target);
+              }}
+            />
+          );
         })}
       </span>
       <span className="text-xs tabular-nums font-medium">Woe {woe}</span>
+    </div>
+  );
+}
+
+function PersonPieceHeader({
+  type,
+  name,
+  typeClassName,
+}: {
+  readonly type: string;
+  readonly name: string | null;
+  readonly typeClassName: string;
+}) {
+  return (
+    <div data-piece-header="" className="flex items-baseline justify-between gap-2">
+      <span data-piece-type="" className={`text-[10px] font-bold uppercase tracking-wide ${typeClassName}`}>
+        {type}
+      </span>
+      {name !== null && (
+        <span data-piece-name="" className="min-w-0 truncate text-[11px] leading-tight text-slate-600 dark:text-slate-300">
+          {name}
+        </span>
+      )}
     </div>
   );
 }
@@ -440,7 +499,7 @@ function SupplicantPiece({
   orderSelectable,
   selected,
   onSelect,
-  onAdjustWoe,
+  onSetWoe,
   onArtisanPayment,
   onHestarFallback,
   onOrderSelect,
@@ -457,7 +516,7 @@ function SupplicantPiece({
   readonly orderSelectable: boolean;
   readonly selected: boolean;
   readonly onSelect: () => void;
-  readonly onAdjustWoe: (currentWoe: number, delta: 1 | -1) => void;
+  readonly onSetWoe: (nextWoe: number) => void;
   readonly onArtisanPayment: (resource: HierophantVisionsResource) => void;
   readonly onHestarFallback: (useHestar: boolean) => void;
   readonly onOrderSelect: () => void;
@@ -471,8 +530,9 @@ function SupplicantPiece({
   const threshold = woeThresholdCueLabel(person.woe);
   const danger = person.woe >= 5 || preview?.blockerKind !== null;
   const accessible = [
-    klass,
+    "Supplicant",
     givenName,
+    klass,
     `Woe ${person.woe}`,
     support,
     demand,
@@ -484,6 +544,7 @@ function SupplicantPiece({
     onSelect();
     if (orderSelectable && orderIndex === null) onOrderSelect();
   };
+  const subjectLabel = givenName ?? klass;
   const primaryLabel = orderSelectable && orderIndex === null
     ? `Add ${klass}${givenName === null ? "" : ` ${givenName}`} to Visions order`
     : accessible;
@@ -491,7 +552,7 @@ function SupplicantPiece({
     <li>
       <div
         data-supplicant-piece={person.denizenId}
-        className={`rounded-md border px-2 py-1 shadow-sm ${
+        className={`relative rounded-md border px-2 py-1 shadow-sm ${
           danger
             ? "border-rose-400 bg-rose-50 dark:border-rose-500 dark:bg-rose-950/40"
             : "border-amber-800/40 bg-amber-50 dark:border-amber-600/50 dark:bg-amber-950/30"
@@ -505,67 +566,73 @@ function SupplicantPiece({
           onClick={primaryAction}
           onKeyDown={(event) => activate(event, primaryAction)}
         >
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex min-w-0 flex-wrap items-center gap-1">
-              <HierophantClassBadge classId={person.classId} label={klass} />
-              <span className="text-sm font-medium leading-tight">{klass}</span>
-            </div>
-            {orderIndex !== null && (
-              <span
-                className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-800 px-1 text-[11px] font-bold text-amber-50 dark:bg-amber-200 dark:text-amber-950"
-                aria-label={`Visions order ${orderIndex}`}
-              >
-                {orderIndex}
-              </span>
-            )}
-          </div>
-          {givenName !== null && (
-            <p className="mt-0.5 text-[11px] leading-tight text-slate-600 dark:text-slate-300">{givenName}</p>
+          <PersonPieceHeader
+            type="Supplicant"
+            name={givenName}
+            typeClassName="text-amber-900 dark:text-amber-200"
+          />
+          {orderIndex !== null && (
+            <span
+              className="absolute right-1 top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-800 px-1 text-[11px] font-bold text-amber-50 dark:bg-amber-200 dark:text-amber-950"
+              aria-label={`Visions order ${orderIndex}`}
+            >
+              {orderIndex}
+            </span>
           )}
-          <div className="mt-0.5 flex flex-wrap items-center gap-1">
+        </button>
+        <div data-supplicant-identity="" className="mt-0.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-1">
+            <HierophantClassBadge classId={person.classId} label={klass} />
             {support !== null && (
               <span
                 data-support-badge={preview?.support}
-                className={`rounded-sm border px-1 uppercase tracking-wide text-[10px] font-semibold ${
+                className={`text-[11px] leading-tight ${
                   support === "Supported"
-                    ? "border-emerald-800/40 bg-emerald-50 text-emerald-950 dark:border-emerald-400/40 dark:bg-emerald-950/40 dark:text-emerald-50"
-                    : "border-stone-500/50 bg-stone-100 text-stone-800 dark:border-stone-400/40 dark:bg-stone-900 dark:text-stone-100"
+                    ? "font-semibold text-emerald-900 dark:text-emerald-100"
+                    : "font-medium text-stone-600 dark:text-stone-300"
                 }`}
               >
                 {support}
               </span>
             )}
           </div>
-        </button>
-        <div className="mt-1">
-          <WoePips woe={person.woe} denizenId={person.denizenId} onAdjust={onAdjustWoe} />
+          <WoePips
+            woe={person.woe}
+            denizenId={person.denizenId}
+            subjectLabel={subjectLabel}
+            onSet={onSetWoe}
+          />
         </div>
-        {projectedTo !== null && projectedTo !== person.woe && (
-          <p className="mt-0.5 text-[10px] text-slate-600 dark:text-slate-300" data-woe-forecast={person.denizenId} aria-label={`Next Visions: Woe ${person.woe} → ${projectedTo}`}>
-            Next Visions: {person.woe} → {projectedTo}
-          </p>
-        )}
-        {preview?.departure.kind === "benefaction" && (
-          <p className="mt-0.5 text-[10px] text-slate-600 dark:text-slate-300">
-            Next Visions: Benefaction
-          </p>
-        )}
-        {preview?.departure.kind === "cult_threshold" && person.woe < 5 && (
-          <p className="mt-0.5 text-[10px] text-slate-600 dark:text-slate-300">
-            Next Visions: Cult departure due
-          </p>
-        )}
-        {demand !== null && (
-          <p className="mt-0.5 text-[11px] text-slate-700 dark:text-slate-200">{demand}</p>
-        )}
-        {threshold !== null && (
-          <p
-            className="mt-0.5 text-[11px] font-semibold text-rose-900 dark:text-rose-100"
-            data-woe-threshold={person.woe === 0 ? "benefaction" : "cult"}
-          >
-            {threshold}
-          </p>
-        )}
+        {(projectedTo !== null && projectedTo !== person.woe) || demand !== null || threshold !== null || preview?.departure.kind === "benefaction" || (preview?.departure.kind === "cult_threshold" && person.woe < 5) ? (
+          <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0">
+            {projectedTo !== null && projectedTo !== person.woe && (
+              <p className="text-[10px] text-slate-600 dark:text-slate-300" data-woe-forecast={person.denizenId} aria-label={`Next Visions: Woe ${person.woe} → ${projectedTo}`}>
+                Next Visions: {person.woe} → {projectedTo}
+              </p>
+            )}
+            {preview?.departure.kind === "benefaction" && (
+              <p className="text-[10px] text-slate-600 dark:text-slate-300">
+                Next Visions: Benefaction
+              </p>
+            )}
+            {preview?.departure.kind === "cult_threshold" && person.woe < 5 && (
+              <p className="text-[10px] text-slate-600 dark:text-slate-300">
+                Next Visions: Cult departure due
+              </p>
+            )}
+            {demand !== null && (
+              <p className="text-[11px] text-slate-700 dark:text-slate-200">{demand}</p>
+            )}
+            {threshold !== null && (
+              <p
+                className="text-[11px] font-semibold text-rose-900 dark:text-rose-100"
+                data-woe-threshold={person.woe === 0 ? "benefaction" : "cult"}
+              >
+                {threshold}
+              </p>
+            )}
+          </div>
+        ) : null}
         {artisanChoice !== undefined && (
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <span className="text-xs font-medium">Pay with:</span>
@@ -720,7 +787,8 @@ function TemplePiece({
             delta={templePreview?.abundance.delta ?? null}
             templeId={temple.templeId}
             templeName={name}
-            onAdjust={(resource, current, delta) => pieces.onAdjustResource(temple.templeId, name, resource, current, delta)}
+            view={pieces.resourceView(temple.templeId, "abundance", temple.abundance)}
+            onAdjust={(resource, delta) => pieces.onAdjustResource(temple.templeId, resource, delta)}
           />
           <ResourceCounter
             label="Conviction"
@@ -729,7 +797,8 @@ function TemplePiece({
             delta={templePreview?.conviction.delta ?? null}
             templeId={temple.templeId}
             templeName={name}
-            onAdjust={(resource, current, delta) => pieces.onAdjustResource(temple.templeId, name, resource, current, delta)}
+            view={pieces.resourceView(temple.templeId, "conviction", temple.conviction)}
+            onAdjust={(resource, delta) => pieces.onAdjustResource(temple.templeId, resource, delta)}
           />
         </div>
         <div className="rounded-md border border-amber-900/20 bg-amber-50/80 px-2 py-1 dark:border-amber-200/20 dark:bg-amber-950/30">
@@ -845,7 +914,7 @@ function TemplePiece({
                     onSelect();
                     pieces.onSelectSupplicant(person.denizenId);
                   }}
-                  onAdjustWoe={(currentWoe, delta) => pieces.onAdjustWoe(person.denizenId, currentWoe, delta)}
+                  onSetWoe={(nextWoe) => pieces.onSetWoe(person.denizenId, person.woe, nextWoe)}
                   onArtisanPayment={(resource) => choices.onArtisanPayment(person.denizenId, resource)}
                   onHestarFallback={(useHestar) => choices.onHestarFallback(person.denizenId, useHestar)}
                   onOrderSelect={() => choices.onOrderSelect(person.denizenId)}
@@ -866,21 +935,28 @@ function TemplePiece({
       <section aria-label="Prophets" className="text-sm">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Prophets</h4>
         <ul className="flex flex-col gap-1 mt-1">
-            {prophets.map((prophet: HierophantProphet) => (
+            {prophets.map((prophet: HierophantProphet) => {
+              const prophetName = personPieceName(denizenLabel(denizens, prophet.denizenId));
+              return (
               <li key={prophet.denizenId}>
                 <button
                   type="button"
-                  className="w-full text-left rounded-lg border-2 border-violet-600 bg-violet-50 px-2 py-1.5 shadow-sm cursor-pointer dark:border-violet-400 dark:bg-violet-950/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700"
-                  aria-label={`${denizenLabel(denizens, prophet.denizenId)}, Prophet`}
+                  data-prophet-piece={prophet.denizenId}
+                  className="w-full text-left rounded-lg border-2 border-violet-600 bg-violet-50 px-2 py-1 shadow-sm cursor-pointer dark:border-violet-400 dark:bg-violet-950/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700"
+                  aria-label={`${prophetName ?? "Prophet"}, Prophet`}
                   onClick={onSelect}
                   onKeyDown={(event) => activate(event, onSelect)}
                 >
-                  <div className="text-[10px] font-bold uppercase tracking-wide text-violet-800 dark:text-violet-200">Prophet</div>
-                  <div className="font-medium">{denizenLabel(denizens, prophet.denizenId)}</div>
-                  <div className="text-xs">{prophetStatusText(denizens, prophet.denizenId)} · Temple host</div>
+                  <PersonPieceHeader
+                    type="Prophet"
+                    name={prophetName}
+                    typeClassName="text-violet-800 dark:text-violet-200"
+                  />
+                  <div className="text-[11px] leading-tight text-slate-600 dark:text-slate-300">{prophetStatusText(denizens, prophet.denizenId)} · Temple host</div>
                 </button>
               </li>
-            ))}
+              );
+            })}
         </ul>
       </section>
       )}
@@ -888,21 +964,28 @@ function TemplePiece({
       <section aria-label="Sorcerer Researcher" className="text-sm">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Researcher</h4>
         <ul className="flex flex-col gap-1 mt-1">
-            {researchers.map((researcher) => (
+            {researchers.map((researcher) => {
+              const researcherName = personPieceName(researcher.name);
+              return (
               <li
                 key={researcher.denizenId}
-                className="rounded-lg border-2 border-dashed border-slate-500 bg-slate-50 px-2 py-1.5 dark:border-slate-400 dark:bg-slate-900"
+                data-researcher-piece={researcher.denizenId}
+                className="rounded-lg border-2 border-dashed border-slate-500 bg-slate-50 px-2 py-1 dark:border-slate-400 dark:bg-slate-900"
               >
-                <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Researcher</div>
-                <div className="font-medium">{researcher.name}</div>
-                <div className="text-xs">
+                <PersonPieceHeader
+                  type="Researcher"
+                  name={researcherName}
+                  typeClassName="text-slate-500"
+                />
+                <div className="text-[11px] leading-tight text-slate-600 dark:text-slate-300">
                   {researcherOperationalLabel(researcher.operationalThisMonth)}
                   <span className="sr-only">
                     {researcher.operationalThisMonth ? " operational" : " not operational this month"}
                   </span>
                 </div>
               </li>
-            ))}
+              );
+            })}
         </ul>
       </section>
       )}

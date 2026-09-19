@@ -548,11 +548,17 @@ export function persistableSupplicantName(displayName: string, classDisplayName:
   return trimmed === "" ? classDisplayName : trimmed;
 }
 
-export function supplicantGivenName(storedName: string, classDisplayName: string): string | null {
+export function personPieceName(storedName: string): string | null {
   const trimmed = storedName.trim();
   if (trimmed === "" || trimmed === "Unknown Denizen" || trimmed === "Unresolved") return null;
-  if (trimmed.localeCompare(classDisplayName, undefined, { sensitivity: "accent" }) === 0) return null;
   return trimmed;
+}
+
+export function supplicantGivenName(storedName: string, classDisplayName: string): string | null {
+  const given = personPieceName(storedName);
+  if (given === null) return null;
+  if (given.localeCompare(classDisplayName, undefined, { sensitivity: "accent" }) === 0) return null;
+  return given;
 }
 
 export function woeThresholdCue(woe: number): "benefaction" | "cult" | null {
