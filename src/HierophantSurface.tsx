@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { flushSync } from "react-dom";
 import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api.js";
 import {
@@ -21,6 +22,12 @@ import {
   type HierophantProphetHost,
   type SorcererExternalPresence,
   powerfulStatusLabel,
+  planHierophantVisions,
+  type HierophantVisionsChoices,
+  type HierophantVisionsResource,
+  type DenizenId,
+  type HierophantTempleId,
+  type HierophantBuiltinClassId,
 } from "../shared/domain";
 import type { WorldReference } from "./WorldSurface";
 import LoreContextPanel from "./LoreContextPanel";
@@ -42,6 +49,7 @@ import {
   cultDogmaConvictionWarning,
   cultLeaderWarning,
   denizenLabel,
+  deriveHierophantVisionsContext,
   dogmaDisplay,
   hierophantSetupReady,
   hierophantSourceSetupReady,
@@ -72,8 +80,31 @@ import {
   HOLIDAY_DEFER_GUIDANCE,
   HESTAR_PROVIDE_DEFER_GUIDANCE,
   buildCreateHierophantSupplicantPayload,
+  persistableSupplicantName,
+  supplicantGivenName,
   type StartingTempleBindings,
+  formatVisionsSupplicantLine,
+  formatVisionsTempleWarnings,
+  shortTempleBoardLabel,
+  woeThresholdCueLabel,
 } from "./hierophant-view-model";
+import {
+  appendVisionsOrder,
+  completeVisionsOrder,
+  retainValidHierophantVisionsChoices,
+  undoLastVisionsOrder,
+  visionsChoicesEqual,
+  visionsRequiredChoiceKey,
+} from "./hierophant-visions-preview";
+import {
+  resolveHierophantSupplyDestination,
+  type HierophantSupplyZone,
+} from "./hierophant-supply";
+import {
+  createHierophantResourceIntentController,
+  type HierophantResourceIntentController,
+  type HierophantResourceKind,
+} from "./hierophant-resource-intent";
 
 type HierophantTab = "overview" | "temples" | "people" | "cults" | "definitions";
 
@@ -149,6 +180,16 @@ export default function HierophantSurface({
   const [setupBindings, setSetupBindings] = useState<StartingTempleBindings>({});
   const [editor, setEditor] = useState<Record<string, unknown> | null>(null);
   const [selectedTempleId, setSelectedTempleId] = useState<string | null>(null);
+  const [previewChoices, setPreviewChoices] = useState<HierophantVisionsChoices>({});
+  const [orderDraft, setOrderDraft] = useState<readonly DenizenId[]>([]);
+  const [visionsChoiceKey, setVisionsChoiceKey] = useState("");
+  const [supplyClassId, setSupplyClassId] = useState<string | null>(null);
+  const [supplyHoverKey, setSupplyHoverKey] = useState<string | null>(null);
+  const [supplyBlock, setSupplyBlock] = useState<{ templeId: string; reason: string } | null>(null);
+  const supplyClassRef = useRef<string | null>(null);
+  const [selectedSupplicantId, setSelectedSupplicantId] = useState<string | null>(null);
+  const [supplicantNameDraft, setSupplicantNameDraft] = useState("");
+  const [supplicantWoeDraft, setSupplicantWoeDraft] = useState("");
   const [receiveDraft, setReceiveDraft] = useState<{
     commandId: string;
     denizenId: string;
@@ -171,6 +212,7 @@ export default function HierophantSurface({
   const createHierophantSupplicant = useMutation(api.m3Commands.createHierophantSupplicant);
   const addSupplicant = useMutation(api.m3Commands.addSupplicant);
   const updateSupplicant = useMutation(api.m3Commands.updateSupplicant);
+  const updateDenizen = useMutation(api.m3Commands.updateDenizen);
   const removeSupplicant = useMutation(api.m3Commands.removeSupplicant);
   const addProphet = useMutation(api.m3Commands.addProphet);
   const updateProphet = useMutation(api.m3Commands.updateProphet);
@@ -186,6 +228,42 @@ export default function HierophantSurface({
   const updateCampaignClass = useMutation(api.m3Commands.updateCampaignClass);
   const createCampaignDoctrine = useMutation(api.m3Commands.createCampaignDoctrine);
   const updateCampaignDoctrine = useMutation(api.m3Commands.updateCampaignDoctrine);
+
+  const templesRef = useRef(hierophant.temples);
+  templesRef.current = hierophant.temples;
+  const campaignIdRef = useRef(campaignId);
+  campaignIdRef.current = campaignId;
+  const adjustTempleResourcesRef = useRef(adjustTempleResources);
+  adjustTempleResourcesRef.current = adjustTempleResources;
+  const [, setResourceIntentGen] = useState(0);
+  const resourceIntentsRef = useRef<HierophantResourceIntentController | null>(null);
+  if (resourceIntentsRef.current === null) {
+    resourceIntentsRef.current = createHierophantResourceIntentController({
+      nextCommandId: newCommandId,
+      dispatch: async (intent) => {
+        const temple = templesRef.current.find((entry) => entry.templeId === intent.templeId);
+        if (temple === undefined) throw new Error("Temple not found.");
+        const resource: HierophantResourceKind = intent.resource;
+        await adjustTempleResourcesRef.current(buildAdjustTempleResourcesPayload({
+          commandId: intent.commandId,
+          expectedCampaignId: campaignIdRef.current,
+          templeId: intent.templeId,
+          expectedAbundance: resource === "abundance" ? intent.expected : temple.abundance,
+          abundance: resource === "abundance" ? intent.value : temple.abundance,
+          expectedConviction: resource === "conviction" ? intent.expected : temple.conviction,
+          conviction: resource === "conviction" ? intent.value : temple.conviction,
+        }));
+      },
+      onChange: () => {
+        flushSync(() => setResourceIntentGen((n) => n + 1));
+      },
+    });
+  }
+  const resourceIntents = resourceIntentsRef.current;
+  for (const temple of hierophant.temples) {
+    resourceIntents.observeAuthoritative(temple.templeId, "abundance", temple.abundance);
+    resourceIntents.observeAuthoritative(temple.templeId, "conviction", temple.conviction);
+  }
 
   const initialized = isHierophantInitialized(hierophant);
   const usedSupplicantIds = hierophant.supplicants.map((s) => s.denizenId as string);
@@ -211,7 +289,23 @@ export default function HierophantSurface({
     }
   }
 
-  function openReceive(temple: HierophantTemple): void {
+  async function runQuiet(action: () => Promise<void>): Promise<void> {
+    setPending(true);
+    setError(null);
+    try {
+      await action();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Mutation failed.";
+      setError(message);
+    } finally {
+      setPending(false);
+    }
+  }
+
+  function openReceive(
+    temple: HierophantTemple,
+    seed?: { readonly classId?: string; readonly area?: "" | "courtyard" | "agiary" },
+  ): void {
     if (receiveDraft !== null && receiveDraft.templeId !== temple.templeId) {
       const existing = hierophant.temples.find((candidate) => candidate.templeId === receiveDraft.templeId);
       const name = existing === undefined ? receiveDraft.templeId : templeDisplayName(existing, world.places);
@@ -220,15 +314,16 @@ export default function HierophantSurface({
     }
     if (receiveDraft !== null) return;
     setError(null);
+    setSelectedTempleId(temple.templeId);
     setReceiveDraft({
       commandId: newCommandId(),
       denizenId: newDenizenId(),
       templeId: temple.templeId,
       expectedTempleStatus: temple.status,
       name: "",
-      classId: "peasant",
+      classId: seed?.classId ?? "peasant",
       woe: "0",
-      area: "",
+      area: temple.kind === "hestar" ? "" : (seed?.area ?? ""),
     });
   }
 
@@ -249,7 +344,7 @@ export default function HierophantSurface({
       commandId: receiveDraft.commandId,
       expectedCampaignId: campaignId,
       denizenId: receiveDraft.denizenId,
-      name: receiveDraft.name,
+      name: persistableSupplicantName(receiveDraft.name, classLabel(receiveDraft.classId, hierophant.campaignClasses)),
       classId: receiveDraft.classId,
       woe,
       templeId: receiveDraft.templeId,
@@ -755,6 +850,39 @@ export default function HierophantSurface({
   }
 
   const unusedCollectives = availableCultCollectives(world.denizens, usedCultIds);
+  const visionsContext = deriveHierophantVisionsContext(world.denizens);
+  const unconstrainedVisions = planHierophantVisions(hierophant, {}, visionsContext);
+  const nextVisionsKey = visionsRequiredChoiceKey(unconstrainedVisions.requiredChoices);
+  if (nextVisionsKey !== visionsChoiceKey) {
+    setVisionsChoiceKey(nextVisionsKey);
+    const pruned = retainValidHierophantVisionsChoices(unconstrainedVisions.requiredChoices, {
+      ...previewChoices,
+      supplicantOrder: orderDraft,
+    });
+    const nextStored: HierophantVisionsChoices = {
+      ...(pruned.artisanPayments === undefined ? {} : { artisanPayments: pruned.artisanPayments }),
+      ...(pruned.hestarFallback === undefined ? {} : { hestarFallback: pruned.hestarFallback }),
+      ...(pruned.hestarDonors === undefined ? {} : { hestarDonors: pruned.hestarDonors }),
+    };
+    if (!visionsChoicesEqual(previewChoices, nextStored)) {
+      setPreviewChoices(nextStored);
+    }
+    const orderChoice = unconstrainedVisions.requiredChoices.find((choice) => choice.kind === "supplicant_order");
+    const allowed = new Set(orderChoice?.kind === "supplicant_order" ? orderChoice.participantIds : []);
+    const nextDraft = orderChoice === undefined ? [] : orderDraft.filter((id) => allowed.has(id));
+    if (nextDraft.length !== orderDraft.length || (orderChoice === undefined && orderDraft.length > 0)) {
+      setOrderDraft(nextDraft);
+    }
+  }
+  const orderParticipants = unconstrainedVisions.requiredChoices.find((choice) => choice.kind === "supplicant_order");
+  const completeOrder = orderParticipants?.kind === "supplicant_order"
+    ? completeVisionsOrder(orderDraft, orderParticipants.participantIds)
+    : undefined;
+  const effectiveVisionsChoices = retainValidHierophantVisionsChoices(unconstrainedVisions.requiredChoices, {
+    ...previewChoices,
+    supplicantOrder: completeOrder,
+  });
+  const visionsPlan = planHierophantVisions(hierophant, effectiveVisionsChoices, visionsContext);
 
   return (
     <section className="bg-white dark:bg-slate-900 rounded-xl border border-amber-200/70 dark:border-amber-900/40 shadow-sm p-6">
@@ -845,22 +973,253 @@ export default function HierophantSurface({
             denizens={world.denizens}
             places={world.places}
             presence={sorcererPresence}
-            selectedTempleId={selectedTempleId ?? hierophant.temples[0]?.templeId ?? null}
+            selectedTempleId={selectedTempleId !== null && hierophant.temples.some((temple) => temple.templeId === selectedTempleId)
+              ? selectedTempleId
+              : null}
             onSelectTemple={(templeId) => {
               setSelectedTempleId(templeId);
             }}
+            choices={{
+              plan: visionsPlan,
+              openChoices: unconstrainedVisions.requiredChoices,
+              previewChoices: effectiveVisionsChoices,
+              orderDraft,
+              onArtisanPayment: (denizenId, resource: HierophantVisionsResource) => {
+                setPreviewChoices((current) => ({
+                  ...current,
+                  artisanPayments: { ...current.artisanPayments, [denizenId]: resource },
+                }));
+              },
+              onHestarFallback: (denizenId, useHestar) => {
+                setPreviewChoices((current) => ({
+                  ...current,
+                  hestarFallback: { ...current.hestarFallback, [denizenId]: useHestar },
+                }));
+              },
+              onHestarDonor: (denizenId, templeId: HierophantTempleId) => {
+                setPreviewChoices((current) => ({
+                  ...current,
+                  hestarDonors: { ...current.hestarDonors, [denizenId]: templeId },
+                }));
+              },
+              onOrderSelect: (denizenId: DenizenId) => {
+                const participants = orderParticipants?.kind === "supplicant_order"
+                  ? orderParticipants.participantIds
+                  : [];
+                setOrderDraft((current) => appendVisionsOrder(current, denizenId, participants));
+              },
+              onOrderUndo: () => {
+                setOrderDraft((current) => undoLastVisionsOrder(current));
+              },
+              onOrderReset: () => {
+                setOrderDraft([]);
+              },
+            }}
+            supply={{
+              activeClassId: supplyClassId,
+              hoverKey: supplyHoverKey,
+              blockNotice: supplyBlock,
+              peekActiveClassId: () => supplyClassRef.current,
+              onBegin: (classId: HierophantBuiltinClassId) => {
+                supplyClassRef.current = classId;
+                setSupplyClassId(classId);
+                setSupplyHoverKey(null);
+                setSupplyBlock(null);
+              },
+              onHover: (key) => {
+                setSupplyHoverKey(key);
+              },
+              onDeliver: (temple, zone: HierophantSupplyZone, classIdFromDrag) => {
+                const classId = classIdFromDrag ?? supplyClassRef.current;
+                if (classId === null || classId === undefined) return;
+                const dest = resolveHierophantSupplyDestination(temple, zone);
+                if (dest === null) return;
+                if (dest.kind === "blocked") {
+                  setSupplyBlock({ templeId: dest.templeId, reason: dest.reason });
+                  return;
+                }
+                setSupplyBlock(null);
+                openReceive(temple, {
+                  classId,
+                  area: dest.area === null ? "" : dest.area,
+                });
+                supplyClassRef.current = null;
+                setSupplyClassId(null);
+                setSupplyHoverKey(null);
+              },
+              onCancel: () => {
+                supplyClassRef.current = null;
+                setSupplyClassId(null);
+                setSupplyHoverKey(null);
+              },
+            }}
+            pieces={{
+              selectedSupplicantId,
+              onSelectSupplicant: (denizenId) => {
+                const person = hierophant.supplicants.find((entry) => entry.denizenId === denizenId);
+                setSelectedSupplicantId(denizenId);
+                if (person === undefined) return;
+                const klass = classLabel(person.classId, hierophant.campaignClasses);
+                const stored = denizenLabel(world.denizens, denizenId);
+                setSupplicantNameDraft(supplicantGivenName(stored, klass) ?? "");
+                setSupplicantWoeDraft(String(person.woe));
+              },
+              onSetWoe: (denizenId, currentWoe, nextWoe) => {
+                if (nextWoe === currentWoe || nextWoe < 0) return;
+                void runQuiet(async () => {
+                  await updateSupplicant({
+                    commandId: newCommandId(),
+                    expectedCampaignId: campaignId,
+                    denizenId,
+                    fields: { woe: { expected: currentWoe, value: nextWoe } },
+                  });
+                });
+              },
+              onAdjustResource: (templeId, resource, delta) => {
+                const temple = hierophant.temples.find((entry) => entry.templeId === templeId);
+                if (temple === undefined) return;
+                const authoritative = resource === "abundance" ? temple.abundance : temple.conviction;
+                resourceIntentsRef.current?.enqueue(templeId, resource, delta, authoritative);
+              },
+              resourceView: (templeId, resource, authoritative) =>
+                resourceIntents.view(templeId, resource, authoritative),
+            }}
           />
           {(() => {
-            const selected = hierophant.temples.find((temple) => temple.templeId === (selectedTempleId ?? hierophant.temples[0]?.templeId));
+            const selected = selectedTempleId === null
+              ? undefined
+              : hierophant.temples.find((temple) => temple.templeId === selectedTempleId);
             if (selected === undefined) return null;
             const loreSubject = loreCompendium.status === "ready"
               ? findPresentationSubjectByRef(loreCompendium.presentation, { kind: "hierophant_temple", templeId: selected.templeId })
               : undefined;
             const caps = templeEditCapabilities(selected);
             const receiveOpen = receiveDraft !== null && receiveDraft.templeId === selected.templeId;
+            const visions = visionsPlan;
+            const selectedVisions = visions.temples.find((entry) => entry.templeId === selected.templeId);
+            const selectedPeople = visions.supplicants.filter((entry) => entry.templeId === selected.templeId);
+            const selectedWarnings = selectedVisions === undefined
+              ? []
+              : formatVisionsTempleWarnings(selectedVisions, (() => {
+                  const fallbackChoice = visions.requiredChoices.find(
+                    (choice) => choice.kind === "hestar_fallback" && choice.templeId === selected.templeId,
+                  );
+                  const donorChoice = visions.requiredChoices.find(
+                    (choice) => choice.kind === "hestar_donor" && choice.templeId === selected.templeId,
+                  );
+                  return {
+                    hestarFallbackResource: fallbackChoice?.kind === "hestar_fallback" ? fallbackChoice.resource : undefined,
+                    donorAmount: donorChoice?.kind === "hestar_donor" ? donorChoice.amount : undefined,
+                    donorResource: donorChoice?.kind === "hestar_donor" ? donorChoice.resource : undefined,
+                    donorLabels: donorChoice?.kind === "hestar_donor"
+                      ? donorChoice.eligibleDonorTempleIds.map((templeId) => {
+                          const donor = hierophant.temples.find((entry) => entry.templeId === templeId);
+                          return shortTempleBoardLabel(donor === undefined ? templeId : templeDisplayName(donor, world.places));
+                        })
+                      : [],
+                  };
+                })());
             return (
               <aside aria-label="Selected Temple" className="mt-4 rounded-xl border border-amber-200 dark:border-amber-900 p-4 space-y-3">
                 <h3 className="text-sm font-semibold">{templeDisplayName(selected, world.places)}</h3>
+                {(() => {
+                  const selectedPerson = selectedSupplicantId === null
+                    ? undefined
+                    : hierophant.supplicants.find((entry) =>
+                      entry.denizenId === selectedSupplicantId
+                      && entry.host.kind === "temple"
+                      && entry.host.templeId === selected.templeId
+                    );
+                  if (selectedPerson === undefined) return null;
+                  const klass = classLabel(selectedPerson.classId, hierophant.campaignClasses);
+                  const stored = denizenLabel(world.denizens, selectedPerson.denizenId);
+                  const given = supplicantGivenName(stored, klass);
+                  const cue = woeThresholdCueLabel(selectedPerson.woe);
+                  return (
+                    <section aria-label="Selected Supplicant" className="rounded-lg border border-amber-200/80 dark:border-amber-900/60 p-2 space-y-2">
+                      <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Selected Supplicant</h4>
+                      <p className="text-sm font-medium">{klass}{given === null ? "" : ` · ${given}`}</p>
+                      {cue !== null && (
+                        <p className="text-xs font-semibold text-rose-800 dark:text-rose-200">{cue}</p>
+                      )}
+                      <label className="block text-xs">
+                        Display name (optional)
+                        <input
+                          className={fieldClass}
+                          value={supplicantNameDraft}
+                          disabled={pending}
+                          aria-label="Supplicant display name"
+                          onChange={(event) => setSupplicantNameDraft(event.target.value)}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className={ghostBtn}
+                        disabled={pending}
+                        onClick={() => {
+                          const nextName = persistableSupplicantName(supplicantNameDraft, klass);
+                          if (nextName === stored) return;
+                          void runQuiet(async () => {
+                            await updateDenizen({
+                              commandId: newCommandId(),
+                              expectedCampaignId: campaignId,
+                              denizenId: selectedPerson.denizenId,
+                              fields: { name: { expected: stored, value: nextName } },
+                            });
+                          });
+                        }}
+                      >
+                        Record display name
+                      </button>
+                      <label className="block text-xs">
+                        Exact Woe
+                        <input
+                          className={fieldClass}
+                          value={supplicantWoeDraft}
+                          disabled={pending}
+                          aria-label="Exact Woe"
+                          onChange={(event) => setSupplicantWoeDraft(event.target.value)}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className={ghostBtn}
+                        disabled={pending}
+                        onClick={() => {
+                          const next = parseNonNegInt(supplicantWoeDraft);
+                          if (next === null) {
+                            setError("Woe must be a non-negative integer.");
+                            return;
+                          }
+                          if (next === selectedPerson.woe) return;
+                          void runQuiet(async () => {
+                            await updateSupplicant({
+                              commandId: newCommandId(),
+                              expectedCampaignId: campaignId,
+                              denizenId: selectedPerson.denizenId,
+                              fields: { woe: { expected: selectedPerson.woe, value: next } },
+                            });
+                          });
+                        }}
+                      >
+                        Record exact Woe
+                      </button>
+                    </section>
+                  );
+                })()}
+                {(selectedWarnings.length > 0 || selectedPeople.length > 0) && (
+                  <section aria-label="Next Visions" className="rounded-lg border border-amber-200/80 dark:border-amber-900/60 p-2 space-y-1">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Next Visions</h4>
+                    {selectedWarnings.map((warning) => (
+                      <p key={warning} className="text-xs font-semibold text-rose-800 dark:text-rose-200">{warning}</p>
+                    ))}
+                    {selectedPeople.map((person) => (
+                      <p key={person.denizenId} className="text-xs text-slate-700 dark:text-slate-200">
+                        {denizenLabel(world.denizens, person.denizenId)} · {formatVisionsSupplicantLine(person)}
+                      </p>
+                    ))}
+                  </section>
+                )}
                 <p className="text-xs text-slate-500">{TIME_RECORDING_BOUNDARY}</p>
                 {selected.status === "active" && !receiveOpen && (
                   <button type="button" className={btnClass} onClick={() => openReceive(selected)}>
@@ -877,11 +1236,12 @@ export default function HierophantSurface({
                   >
                     <h4 className="text-sm font-medium">Receive Supplicant</h4>
                     <label className="block text-xs">
-                      Name
+                      Display name (optional)
                       <input
                         className={fieldClass}
                         value={receiveDraft.name}
                         disabled={pending}
+                        aria-label="Supplicant display name"
                         onChange={(event) => setReceiveDraft({ ...receiveDraft, name: event.target.value })}
                       />
                     </label>
@@ -972,10 +1332,13 @@ export default function HierophantSurface({
                     Record Abundance / Conviction
                   </button>
                 </div>
-                <p className="text-xs text-slate-600 dark:text-slate-300">{HOLIDAY_DEFER_GUIDANCE}</p>
-                <p className="text-xs text-slate-600 dark:text-slate-300">{SERMON_DEFER_GUIDANCE}</p>
-                <p className="text-xs text-slate-600 dark:text-slate-300">{STEER_DEFER_GUIDANCE}</p>
-                {caps.isHestar && <p className="text-xs text-slate-600 dark:text-slate-300">{HESTAR_PROVIDE_DEFER_GUIDANCE}</p>}
+                <details className="text-xs text-slate-600 dark:text-slate-300">
+                  <summary className="cursor-pointer font-medium">Deferred table procedures</summary>
+                  <p className="mt-2">{HOLIDAY_DEFER_GUIDANCE}</p>
+                  <p className="mt-2">{SERMON_DEFER_GUIDANCE}</p>
+                  <p className="mt-2">{STEER_DEFER_GUIDANCE}</p>
+                  {caps.isHestar && <p className="mt-2">{HESTAR_PROVIDE_DEFER_GUIDANCE}</p>}
+                </details>
                 {loreSubject !== undefined && (
                   <LoreContextPanel subject={loreSubject} campaignId={campaignId} compact contextConstraint={{ kind: "any" }} />
                 )}

@@ -15,6 +15,8 @@ import {
   isValidHierophantStartingTempleId,
   isValidPactSeatId,
   pactSeatDisplayName,
+  hierophantDoctrinePairSupportedClassIds,
+  type DenizenId,
   type HierophantCampaignClass,
   type HierophantCampaignDoctrine,
   type HierophantCult,
@@ -26,6 +28,11 @@ import {
   type HierophantTemple,
   type HierophantTempleArea,
   type HierophantTempleStatus,
+  type HierophantVisionsContext,
+  type HierophantVisionsDemand,
+  type HierophantVisionsResource,
+  type HierophantVisionsSupplicantPreview,
+  type HierophantVisionsTemplePreview,
   type PowerfulDenizenProfile,
   type SorcererExternalPresence,
 } from "../shared/domain";
@@ -465,15 +472,17 @@ const BASE_CLASS_BENEFACTION: Record<string, Exclude<HierophantBenefactionRefere
   pariah: { kind: "conviction", amount: 2 },
 };
 
-function supportedClassIdsForDoctrine(
-  doctrineId: string,
-  campaignDoctrines: readonly HierophantCampaignDoctrine[],
-): readonly string[] | null {
-  if (isValidHierophantBuiltinDoctrineId(doctrineId)) {
-    return hierophantBuiltinDoctrineDefinition(doctrineId).supportedClassIds;
+export function deriveHierophantVisionsContext(
+  denizens: readonly NamedDenizen[],
+): HierophantVisionsContext {
+  const reliableProphetDenizenIds: DenizenId[] = [];
+  for (const denizen of denizens) {
+    const status = denizen.powerfulProfile?.status;
+    if (status?.kind === "standard" && status.value === "reliable") {
+      reliableProphetDenizenIds.push(denizen.denizenId as DenizenId);
+    }
   }
-  const campaign = campaignDoctrines.find((entry) => entry.doctrineId === doctrineId);
-  return campaign === undefined ? null : campaign.supportedClassIds;
+  return { reliableProphetDenizenIds };
 }
 
 export function deriveSupplicantSupport(
@@ -481,11 +490,10 @@ export function deriveSupplicantSupport(
   classId: string,
   campaignDoctrines: readonly HierophantCampaignDoctrine[],
 ): HierophantSupportDisplay {
-  if (temple.kind === "hestar") return "supported";
   if (temple.status === "collapsed") return "not_applicable";
+  if (temple.kind === "hestar") return "supported";
   if (temple.doctrine.kind === "unset") return "not_determined";
-  if (temple.doctrine.kind === "blasphemy") return "not_applicable";
-  const supported = supportedClassIdsForDoctrine(temple.doctrine.doctrineId, campaignDoctrines);
+  const supported = hierophantDoctrinePairSupportedClassIds(temple.doctrine, campaignDoctrines);
   if (supported === null) return "not_determined";
   if (supported.includes(classId)) return "supported";
   if (isValidHierophantBuiltinClassId(classId)) return "unsupported";
@@ -515,6 +523,140 @@ export function benefactionReferenceLabel(reference: HierophantBenefactionRefere
   }
   const resource = reference.kind === "abundance" ? "Abundance" : "Conviction";
   return `Benefaction reference: +${reference.amount} ${resource}`;
+}
+
+export function templeSupportedClassIds(
+  temple: HierophantTemple,
+  campaignDoctrines: readonly HierophantCampaignDoctrine[],
+): readonly string[] {
+  if (temple.kind === "hestar") return [];
+  return hierophantDoctrinePairSupportedClassIds(temple.doctrine, campaignDoctrines) ?? [];
+}
+
+export function templeSupportedClassLabels(
+  temple: HierophantTemple,
+  campaignDoctrines: readonly HierophantCampaignDoctrine[],
+  campaignClasses: readonly HierophantCampaignClass[],
+): readonly string[] {
+  return templeSupportedClassIds(temple, campaignDoctrines).map((classId) =>
+    classLabel(classId, campaignClasses),
+  );
+}
+
+export function persistableSupplicantName(displayName: string, classDisplayName: string): string {
+  const trimmed = displayName.trim();
+  return trimmed === "" ? classDisplayName : trimmed;
+}
+
+export function personPieceName(storedName: string): string | null {
+  const trimmed = storedName.trim();
+  if (trimmed === "" || trimmed === "Unknown Denizen" || trimmed === "Unresolved") return null;
+  return trimmed;
+}
+
+export function supplicantGivenName(storedName: string, classDisplayName: string): string | null {
+  const given = personPieceName(storedName);
+  if (given === null) return null;
+  if (given.localeCompare(classDisplayName, undefined, { sensitivity: "accent" }) === 0) return null;
+  return given;
+}
+
+export function woeThresholdCue(woe: number): "benefaction" | "cult" | null {
+  if (woe === 0) return "benefaction";
+  if (woe >= 5) return "cult";
+  return null;
+}
+
+export function woeThresholdCueLabel(woe: number): string | null {
+  const cue = woeThresholdCue(woe);
+  if (cue === "benefaction") return "Ready for Benefaction";
+  if (cue === "cult") return "Cult departure due";
+  return null;
+}
+
+export function formatVisionsResourceName(resource: HierophantVisionsResource): string {
+  return resource === "abundance" ? "Abundance" : "Conviction";
+}
+
+export function formatVisionsDemand(demand: HierophantVisionsDemand): string | null {
+  if (demand.kind === "none") return null;
+  if (demand.kind === "fixed") return `-${demand.amount} ${formatVisionsResourceName(demand.resource)}`;
+  if (demand.kind === "artisan") return "1 Abundance or Conviction";
+  return "Cost not determined";
+}
+
+export function formatVisionsSupplicantLine(
+  preview: HierophantVisionsSupplicantPreview,
+  variant: "board" | "detail" = "detail",
+): string {
+  const parts: string[] = [];
+  if (variant === "detail") parts.push(supportDisplayLabel(preview.support));
+  const cost = formatVisionsDemand(preview.demand);
+  if (cost !== null) parts.push(cost);
+  if (variant === "detail" && preview.woeProjection.kind === "determined") {
+    parts.push(`Next Visions: Woe ${preview.woeProjection.from} → ${preview.woeProjection.to}`);
+  }
+  if (variant === "detail" && preview.departure.kind === "benefaction") {
+    parts.push(`Next Visions: Benefaction · +${preview.departure.amount} ${formatVisionsResourceName(preview.departure.resource)}`);
+  }
+  if (variant === "detail" && preview.departure.kind === "cult_threshold") {
+    parts.push("Next Visions: Cult departure due");
+  }
+  if (variant === "detail" && preview.choiceRequired && preview.demand.kind === "artisan") {
+    parts.push("Artisan choice needed");
+  }
+  return parts.join(" · ");
+}
+
+export function joinTableChoiceLabels(labels: readonly string[]): string {
+  if (labels.length === 0) return "";
+  if (labels.length === 1) return labels[0]!;
+  if (labels.length === 2) return `${labels[0]} or ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")}, or ${labels[labels.length - 1]}`;
+}
+
+export function shortTempleBoardLabel(name: string): string {
+  return name.replace(/^Temple\s+/i, "");
+}
+
+export function formatVisionsTempleWarnings(
+  preview: HierophantVisionsTemplePreview,
+  context: {
+    readonly donorLabels?: readonly string[];
+    readonly donorResource?: HierophantVisionsResource;
+    readonly donorAmount?: number;
+    readonly hestarFallbackResource?: HierophantVisionsResource;
+  } = {},
+): readonly string[] {
+  const warnings: string[] = [];
+  if (preview.shortage?.consequence === "collapse") warnings.push("Shortage · Collapse");
+  if (preview.shortage?.consequence === "blasphemy") warnings.push("Shortage · Blasphemy");
+  if (preview.hestarFallback === "choice_required") {
+    warnings.push(
+      context.hestarFallbackResource === undefined
+        ? "May use Hestar"
+        : `May use Hestar's ${formatVisionsResourceName(context.hestarFallbackResource)}`,
+    );
+  }
+  if (preview.hestarDonor === "choice_required") {
+    const labels = context.donorLabels ?? [];
+    if (
+      context.donorAmount !== undefined
+      && context.donorResource !== undefined
+      && labels.length > 0
+    ) {
+      warnings.push(
+        `Hestar needs ${context.donorAmount} ${formatVisionsResourceName(context.donorResource)} · choose ${joinTableChoiceLabels(labels)}`,
+      );
+    } else {
+      warnings.push("Hestar needs a resource from another Temple");
+    }
+  }
+  if (preview.orderChoiceRequired) warnings.push("Choose Visions order");
+  if (preview.reliableProphetProduction) {
+    warnings.push("Prophet affects this production · resolve at the table");
+  }
+  return warnings;
 }
 
 export function templeResearchers(
