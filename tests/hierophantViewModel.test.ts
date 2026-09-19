@@ -34,6 +34,7 @@ import {
   newPlaceId,
   placeLabel,
   persistableSupplicantName,
+  personPieceName,
   supplicantGivenName,
   templeDisplayName,
   templeEditCapabilities,
@@ -346,6 +347,8 @@ describe("Hierophant command payload helpers", () => {
     expect(supplicantGivenName("Peasant", "Peasant")).toBeNull();
     expect(supplicantGivenName("Acolyte Ann", "Peasant")).toBe("Acolyte Ann");
     expect(supplicantGivenName("Unknown Denizen", "Peasant")).toBeNull();
+    expect(personPieceName("Unknown Denizen")).toBeNull();
+    expect(personPieceName("Prophet Ilya")).toBe("Prophet Ilya");
   });
 
   it("labels current Woe thresholds without implying they have already fired", () => {
