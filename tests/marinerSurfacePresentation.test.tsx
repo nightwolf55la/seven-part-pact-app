@@ -1508,7 +1508,9 @@ describe("M5.4 UX register continuation", () => {
     expect(register).toMatch(/### UX-024/);
     expect(register).toMatch(/Storms should read as spatial Sea pieces/);
     const section = register.slice(register.indexOf("### UX-024"), register.indexOf("### UX-025"));
-    expect(section).toMatch(/\*\*Current status:\*\* FIXED — NEEDS HUMAN RETEST/);
+    expect(section).toMatch(/\*\*Current status:\*\* HUMAN VERIFIED/);
+    expect(section).toMatch(/2026-09-18/);
+    expect(section).toMatch(/It all looked good\./);
     expect(register).toMatch(/### UX-025/);
     expect(register).toMatch(/### UX-026/);
   });
@@ -2023,8 +2025,11 @@ describe("M5.4 table-authoritative Mariner board actions", () => {
   it("records UX-025 as partially addressed pending Stability and Wind", () => {
     const docs = readFileSync(resolve("docs/m5-4-table-readiness-ux.md"), "utf8");
     const ux025 = docs.slice(docs.indexOf("### UX-025"), docs.indexOf("### UX-026"));
-    expect(ux025).toContain("PARTIALLY ADDRESSED — NEEDS HUMAN RETEST");
-    expect(ux025).toMatch(/Stability/);
+    expect(ux025).toMatch(
+      /\*\*Current status:\*\* PARTIALLY ADDRESSED — implemented board presentation HUMAN VERIFIED; Map Stability \/ prevailing Wind unencoded/,
+    );
+    expect(ux025).toMatch(/Map Stability numbers and authoritative prevailing Wind are not encoded/);
+    expect(ux025).not.toMatch(/\*\*Current status:\*\* HUMAN VERIFIED/);
     expect(ux025).not.toContain("FIXED — NEEDS HUMAN RETEST");
   });
 });
@@ -2944,10 +2949,10 @@ describe("M5.4 Mariner direct board manipulation", () => {
     container.remove();
   });
 
-  it("records UX-024 drag/drop as fixed pending human retest", () => {
+  it("records UX-024 drag/drop as HUMAN VERIFIED", () => {
     const docs = readFileSync(resolve("docs/m5-4-table-readiness-ux.md"), "utf8");
     const section = docs.slice(docs.indexOf("### UX-024"), docs.indexOf("### UX-025"));
-    expect(section).toContain("FIXED — NEEDS HUMAN RETEST");
+    expect(section).toMatch(/\*\*Current status:\*\* HUMAN VERIFIED/);
     expect(section).toMatch(/direct Storm piece drag/i);
     expect(section).not.toMatch(/Drag\/drop remains DEFERRED/i);
   });
