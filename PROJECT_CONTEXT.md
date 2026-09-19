@@ -78,7 +78,7 @@ Before starting new repository work, verify current `main`, status, and HEAD rat
 
 ## Current Milestone State
 
-As of September 13, 2026, **all seven Wizard Domains have structural CampaignState foundations**, M5.3 shared Lore/Compendium foundations are complete, and M5.4 active-table operability work is in progress. Lore/Compendium, Sorcerer, Hierophant, Necromancer, Mariner, and Faustian (M5.4A-F) operability Workstreams are complete / ready for PR. Faustian is not a substitute for all of M5.4. Warlock and Sage remain deferred. CampaignState V5 remains PRE-ACTIVATION.
+As of September 19, 2026, **all seven Wizard Domains have structural CampaignState foundations**, M5.3 shared Lore/Compendium foundations are complete, and M5.4 active-table operability work is in progress. Lore/Compendium, Sorcerer, Hierophant, Necromancer, Mariner, and Faustian (M5.4A-F) operability Workstreams are complete. M5.4 Table-Readiness UI/UX Batch 2 is merged (PR #29) and retired as an implementation Workstream. Faustian is not a substitute for all of M5.4. Warlock and Sage remain deferred. CampaignState V5 remains PRE-ACTIVATION.
 
 ### M1 — Realtime Foundation
 
@@ -353,9 +353,9 @@ Source-shaped Wizard/Mariner/Hierophant geography realization, location-sensitiv
 
 #### M5.4 Table-Readiness UI/UX — Batch 2
 
-**CLOSED.** Implementation, deterministic closure, real Convex cloud Preview integration, 2026-09-18 Mariner direct-manipulation human retest, and 2026-09-19 remaining visual/layout human retest are complete. UX-025 remains intentionally partial because Map Stability and prevailing Wind are unencoded. CampaignState V5 remains PRE-ACTIVATION. No schema migration. No Production. PR still pending. Do not mark all of M5.4 complete.
+**MERGED — RETIRED WORKSTREAM.** PR #29. Implementation, deterministic closure, real Convex cloud Preview integration, 2026-09-18 Mariner direct-manipulation human retest, and 2026-09-19 remaining visual/layout human retest are complete on `main`. UX-025 remains intentionally partial because Map Stability and prevailing Wind are unencoded. CampaignState V5 remains PRE-ACTIVATION. No schema migration. No Production. Do not mark all of M5.4 complete.
 
-Branch `m5-4/table-readiness-ux-batch-2`. Durable register: `docs/m5-4-table-readiness-ux.md`.
+Branch `m5-4/table-readiness-ux-batch-2` (merged). Durable register: `docs/m5-4-table-readiness-ux.md`.
 
 Full-screen desktop play canvas (~1800px), source-inspired live Mariner map and Necromancer Gates SVG, dismissible overlay inspector that does not resize the board, compact Necromancer Depth control, sticky Compendium reading pane, and Mariner direct board manipulation. No CampaignState schema change.
 
@@ -367,10 +367,16 @@ Real Convex cloud Preview integration is complete on preview `m5-4/table-readine
 
 #### Remaining M5.4 active-table work
 
-The remaining active-player Domain-operability work is:
+Table-readiness continuation is **Domain-specific**, not another giant UI/UX catch-all Workstream. Batch 2 is retired.
 
-- later Table-Readiness UI/UX batches (deferred UX-005 / UX-006 / UX-011 / UX-015 / UX-020 / UX-021);
-- Warlock and Sage, still deferred while they have no active players.
+Planned / active table-readiness topology:
+
+- **Hierophant-specific** table-readiness Workstream (existing; not yet rebased onto current `main`);
+- **Faustian-specific** table-readiness Workstream (existing; not yet rebased onto current `main`);
+- **Mariner-specific** table-readiness Workstream (planned);
+- **Necromancer-specific** table-readiness Workstream (planned);
+- **cross-Domain UX** (deferred UX-005 / UX-006 / UX-011 / UX-015 / UX-020 / UX-021 and related shared conventions) handled separately from Domain table-readiness;
+- **Warlock and Sage** remain deferred while they have no active players.
 
 Warlock and Sage are intentionally deferred while they have no active players. Their existing structural state remains authoritative and may be consumed by active-Domain cross-references.
 
@@ -424,9 +430,9 @@ Final hardening for trusted long-running campaigns: deployment/environment safet
 
 ### Current Next Action
 
-Faustian M5.4A-F is merged (PR #27). M5.4 Table-Readiness UI/UX Batch 1 is merged (PR #28) and still needs **human retest**. Batch 2 is closed on `m5-4/table-readiness-ux-batch-2` with implementation, deterministic closure, **real Convex cloud Preview integration** on `dependable-loris-864`, **Mariner direct-manipulation HUMAN VERIFIED** (2026-09-18), and remaining visual/layout **HUMAN VERIFIED** (2026-09-19). UX-025 remains PARTIALLY ADDRESSED. PR still pending. Do not mark all of M5.4 complete.
+Faustian M5.4A-F is merged (PR #27). M5.4 Table-Readiness UI/UX Batch 1 is merged (PR #28) and still needs **human retest**. Batch 2 is merged (PR #29) and retired as an implementation Workstream; **Mariner direct-manipulation HUMAN VERIFIED** (2026-09-18), remaining visual/layout **HUMAN VERIFIED** (2026-09-19), and **real Convex cloud Preview integration** on preview `m5-4/table-readiness-ux-batch-2` / `dependable-loris-864` are recorded on `main`. UX-025 remains PARTIALLY ADDRESSED (Map Stability / prevailing Wind unencoded). Do not mark all of M5.4 complete.
 
-Warlock/Sage remain deferred. CampaignState V5 remains PRE-ACTIVATION.
+Next table-readiness work continues per Domain (Hierophant, Faustian, planned Mariner, planned Necromancer) with cross-Domain UX handled separately. Hierophant and Faustian table-readiness Workstreams exist but are not yet rebased onto current `main`. Warlock/Sage remain deferred. CampaignState V5 remains PRE-ACTIVATION.
 
 ## Explicit Pre-V5-Activation Architecture Review Items
 
