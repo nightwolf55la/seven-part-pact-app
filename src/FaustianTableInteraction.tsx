@@ -24,7 +24,10 @@ import {
 } from "../shared/domain";
 import {
   cloneFaustianState,
+  formatFaustianPreventionCue,
   isFaustianSchemeOccurrenceConfirmReady,
+  previewFaustianBlackmailProtection,
+  previewFaustianPlaceProtection,
   synthesizeFaustianAfterSchemeReveal,
   type NamedWizardRef,
 } from "./faustian-view-model";
@@ -146,6 +149,11 @@ type InvestigateDraft = {
   readonly eligibleSchemeCardIds: readonly FaustianCardId[];
 };
 
+type TableCue = {
+  readonly communityId: FaustianCommunityId;
+  readonly text: string;
+};
+
 type OccurrenceDraft = {
   readonly communityId: FaustianCommunityId;
   readonly schemeCardId: FaustianCardId;
@@ -176,6 +184,7 @@ export function useFaustianTablePlay(args: {
   const [contextMenu, setContextMenu] = useState<FaustianContextMenu | null>(null);
   const [dragVisual, setDragVisual] = useState<FaustianSchemeSupplyDragVisual | null>(null);
   const [investigating, setInvestigating] = useState<InvestigateDraft | null>(null);
+  const [tableCue, setTableCue] = useState<TableCue | null>(null);
   const [occurrence, setOccurrence] = useState<OccurrenceDraft | null>(null);
   const [lifecycleLaunch, setLifecycleLaunch] = useState<FaustianLifecycleLaunch | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -330,6 +339,9 @@ export function useFaustianTablePlay(args: {
         requestedQuantity: 1,
         expectedFaustian: asConvexFaustian(expectedFaustian),
       });
+      const preview = previewFaustianPlaceProtection(expectedFaustian, communityId, 1);
+      const text = formatFaustianPreventionCue(preview.preventedSchemeCardIds, preview.accompliceCardIds);
+      setTableCue(text === null ? null : { communityId, text });
     });
   }, [campaignId, placeSchemes, run]);
 
@@ -344,6 +356,9 @@ export function useFaustianTablePlay(args: {
         communityId,
         expectedFaustian: asConvexFaustian(expectedFaustian),
       });
+      const preview = previewFaustianBlackmailProtection(expectedFaustian, communityId);
+      const text = formatFaustianPreventionCue(preview.preventedSchemeCardIds, preview.accompliceCardIds);
+      setTableCue(text === null ? null : { communityId, text });
     });
   }, [blackmail, campaignId, run]);
 
@@ -454,6 +469,7 @@ export function useFaustianTablePlay(args: {
 
   const onInvestigate = useCallback((menu: Extract<FaustianContextMenu, { kind: "community" }>) => {
     setContextMenu(null);
+    setTableCue(null);
     const live = menu.expectedFaustian.communities.find((community) => community.communityId === menu.communityId);
     const facedown = live?.schemes.filter((scheme) => scheme.facing === "face_down") ?? [];
     if (facedown.length === 0) {
@@ -707,6 +723,7 @@ export function useFaustianTablePlay(args: {
     dragVisual,
     dragging: dragVisual !== null,
     investigating,
+    tableCue,
     occurrence,
     lifecycleLaunch,
     error,

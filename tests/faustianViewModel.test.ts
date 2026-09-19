@@ -27,6 +27,9 @@ import {
   FACEDOWN_TWIST_LABEL,
   buildFaustianMachinationOutcomeResult,
   buildFaustianTablePresentation,
+  formatFaustianPreventionCue,
+  previewFaustianBlackmailProtection,
+  previewFaustianPlaceProtection,
   faustianLoreSubjects,
   isFaustianMachinationOutcomeDraftReady,
   isFaustianSchemeOccurrenceConfirmReady,
@@ -601,5 +604,64 @@ describe("rank and suit glance presentation", () => {
     expect(accomplice.glanceLine).not.toMatch(/Leo|Prevents ≤/);
     expect(faustianAccompliceDefeatsScheme(ace, faustianCardId("hearts", "king"))).toBe(true);
     expect(faustianAccompliceDefeatsScheme(ace, faustianCardId("hearts", "2"))).toBe(false);
+  });
+});
+
+describe("Accomplice prevention preview copy", () => {
+  it("attributes a prevented Scheme to the first local Accomplice and names Devil's Deck", () => {
+    const scheme = faustianCardId("hearts", "7");
+    const accomplice = faustianCardId("diamonds", "jack");
+    expect(formatFaustianPreventionCue([scheme], [accomplice])).toBe("7♥ prevented by J♦ -> Devil's Deck");
+  });
+
+  it("previews Blackmail prevention from the captured Faustian snapshot", () => {
+    let faustian = take(EMPTY_FAUSTIAN_STATE, [ACCOMPLICE_A, SCHEME_B, H7]);
+    faustian = {
+      ...faustian,
+      faustianDeck: [ACCOMPLICE_A, ...faustian.faustianDeck],
+      communities: faustian.communities.map((community) =>
+        community.communityId === "aries"
+          ? { ...community, schemes: [{ cardId: SCHEME_B, facing: "face_down" }] }
+          : community
+      ),
+    };
+    const preview = previewFaustianBlackmailProtection(faustian, "aries");
+    expect(preview.drawnCardId).toBe(ACCOMPLICE_A);
+    expect(preview.preventedSchemeCardIds).toEqual([SCHEME_B]);
+    expect(preview.revealedSchemeCardIds).toEqual([SCHEME_B]);
+    expect(formatFaustianPreventionCue(preview.preventedSchemeCardIds, preview.accompliceCardIds)).toBe(
+      "3♥ prevented by 7♦ -> Devil's Deck",
+    );
+  });
+
+  it("previews Place prevention for a low Scheme and none for a surviving high Scheme", () => {
+    let low = take(EMPTY_FAUSTIAN_STATE, [ACCOMPLICE_A, SCHEME_B]);
+    low = {
+      ...low,
+      devilDeck: [SCHEME_B],
+      communities: low.communities.map((community) =>
+        community.communityId === "aries"
+          ? { ...community, accompliceCardIds: [ACCOMPLICE_A] }
+          : community
+      ),
+    };
+    const prevented = previewFaustianPlaceProtection(low, "aries");
+    expect(prevented.placedCardIds).toEqual([SCHEME_B]);
+    expect(prevented.preventedSchemeCardIds).toEqual([SCHEME_B]);
+
+    let high = take(EMPTY_FAUSTIAN_STATE, [ACCOMPLICE_A, H9]);
+    high = {
+      ...high,
+      devilDeck: [H9],
+      communities: high.communities.map((community) =>
+        community.communityId === "aries"
+          ? { ...community, accompliceCardIds: [ACCOMPLICE_A] }
+          : community
+      ),
+    };
+    const surviving = previewFaustianPlaceProtection(high, "aries");
+    expect(surviving.placedCardIds).toEqual([H9]);
+    expect(surviving.preventedSchemeCardIds).toEqual([]);
+    expect(formatFaustianPreventionCue(surviving.preventedSchemeCardIds, surviving.accompliceCardIds)).toBeNull();
   });
 });

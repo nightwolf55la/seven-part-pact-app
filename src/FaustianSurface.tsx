@@ -22,6 +22,7 @@ import {
   FACEDOWN_ACCOMPLICE_SUPPLY_LABEL,
   FACEDOWN_SCHEME_SUPPLY_LABEL,
   FACEDOWN_TWIST_LABEL,
+  INVESTIGATE_FOIL_CUE,
   PRIVATE_TWIST_INSPECT_HINT,
   PRIVATE_TWIST_INSPECT_LABEL,
   buildFaustianTablePresentation,
@@ -107,30 +108,26 @@ function PlayingCardToken({
       }}
       onContextMenu={onContextMenu}
       data-faustian-card={card.kind}
+      data-faustian-foil-available={foilAvailable ? "true" : undefined}
       aria-label={card.ariaLabel}
       title={card.facing === "face_down" ? card.publicLabel : `${card.publicLabel} ${card.identityLabel}`}
-      className={`relative shrink-0 w-[4.5rem] h-[6.25rem] rounded-md border leading-tight px-1.5 py-1 text-left shadow-sm select-none ${cardFaceClass(card)} ${
+      className={`relative shrink-0 w-[4.5rem] h-[6.25rem] rounded-md border leading-tight px-2 py-1.5 text-left shadow-sm select-none overflow-hidden ${cardFaceClass(card)} ${
         selected ? "ring-2 ring-teal-500" : ""
       } ${treatmentLabel !== null ? "ring-2 ring-amber-500" : ""} ${interactive ? "cursor-pointer" : "cursor-default"}`}
     >
       {treatmentLabel !== null && (
-        <span className="absolute -top-2 left-1 rounded bg-amber-700 px-1 text-[0.55rem] font-semibold text-white">
+        <span className="absolute top-0.5 left-0.5 z-10 rounded bg-amber-700 px-1 text-[0.55rem] font-semibold text-white">
           {treatmentLabel}
         </span>
       )}
       {revealed ? (
         <>
           <span className={`block text-lg font-bold leading-none ${suitGlyphClass(card)}`}>{card.publicLabel}</span>
-          <span className="block mt-1 text-[0.58rem] font-semibold uppercase tracking-wide text-slate-700">{card.roleKindLabel}</span>
-          <span className="block text-[0.58rem] leading-tight text-slate-800 whitespace-pre-line">{card.glanceLine}</span>
+          <span className="block mt-1 text-[0.52rem] font-semibold uppercase tracking-normal text-slate-700">{card.roleKindLabel}</span>
+          <span className="block text-[0.5rem] leading-snug text-slate-800">{card.glanceLine}</span>
         </>
       ) : (
         <span className="font-semibold block text-[0.65rem]">{card.publicLabel}</span>
-      )}
-      {foilAvailable && (
-        <span className="absolute bottom-1 left-1 right-1 rounded bg-teal-800 px-1 text-[0.55rem] font-semibold text-white">
-          Foil
-        </span>
       )}
     </button>
   );
@@ -166,6 +163,7 @@ function FannedPile({
               selected={selectedInstanceKey === card.instanceKey}
               onSelect={onCardSelect === undefined ? undefined : () => onCardSelect(card)}
               onContextMenu={onCardContextMenu === undefined ? undefined : (event) => onCardContextMenu(card, event)}
+              treatmentLabel={foilEligible?.(card) === true ? "Foil" : null}
               foilAvailable={foilEligible?.(card) === true}
             />
           </div>
@@ -256,21 +254,21 @@ function InspectedCardDetail({
       </div>
       <PlayingCardToken card={card} selected />
       {card.facing === "face_up" ? (
-        <div className="space-y-1 text-xs text-emerald-50">
-          <p className="text-lg font-bold leading-none">{card.rankSuitGlyph}</p>
-          <p>{card.identityLabel}</p>
-          <p>{card.roleKindLabel}</p>
-          <p className="whitespace-pre-line">{card.glanceLine}</p>
-          {community !== null && (
-            <p data-faustian-inspector-location>{community.zodiacLabel}</p>
-          )}
-          {card.kind === "accomplice" && (
-            <p>{card.syndicateLabel ?? "Accomplice syndicate wording is not transcribed here."}</p>
-          )}
-          <p className="text-emerald-200/80">{card.sourceOmission}</p>
-        </div>
+        <>
+          <p className="sr-only" data-faustian-sr-identity>{card.identityLabel}</p>
+          <div className="space-y-1 text-xs text-emerald-50" data-faustian-inspector-copy>
+            <p className="font-semibold">{card.roleKindLabel}</p>
+            {community !== null && (
+              <p data-faustian-inspector-location>{community.zodiacLabel}</p>
+            )}
+            {card.kind === "accomplice" && (
+              <p>{card.syndicateLabel ?? "Accomplice syndicate wording is not transcribed here."}</p>
+            )}
+            <p className="text-emerald-200/80">{card.sourceOmission}</p>
+          </div>
+        </>
       ) : (
-        <div className="space-y-1 text-xs text-emerald-50">
+        <div className="space-y-1 text-xs text-emerald-50" data-faustian-inspector-copy>
           <p>{card.publicLabel}</p>
           {community !== null && (
             <p data-faustian-inspector-location>{community.zodiacLabel}</p>
@@ -405,25 +403,40 @@ export default function FaustianSurface({
               {presentation.communities.map((community) => {
                 const selected = selection?.kind === "community" && selection.communityId === community.communityId;
                 const hovering = dropReady === community.communityId;
+                const investigatingHere = play.investigating?.communityId === community.communityId;
+                const preventionCue = play.tableCue?.communityId === community.communityId ? play.tableCue.text : null;
                 return (
                   <article
                     key={community.communityId}
                     tabIndex={0}
                     data-faustian-community={community.communityId}
                     data-faustian-community-drop={community.communityId}
+                    data-faustian-investigating={investigatingHere ? "true" : undefined}
                     onClick={() => selectCommunity(community.communityId)}
                     onKeyDown={(event) => onCommunityKey(event, community.communityId)}
                     onContextMenu={(event) => play.openCommunityMenu(community.communityId, event)}
                     aria-label={community.headerLabel}
                     className={`rounded-lg border p-2.5 space-y-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400/80 select-none ${
                       selected ? "border-amber-400 bg-emerald-900/80" : "border-emerald-800/80 bg-emerald-950/70"
-                    } ${play.dragging ? "ring-1 ring-amber-300/40" : ""} ${hovering ? "bg-emerald-800 ring-2 ring-amber-400" : ""}`}
+                    } ${play.dragging ? "ring-1 ring-amber-300/40" : ""} ${hovering ? "bg-emerald-800 ring-2 ring-amber-400" : ""} ${
+                      investigatingHere ? "ring-2 ring-teal-400/80" : ""
+                    }`}
                   >
                     <header className="space-y-0.5">
                       <p className="text-sm font-semibold tracking-wide text-amber-100">{community.zodiacLabel}</p>
                       <p className="text-[0.7rem] text-emerald-100/80">{community.populace}</p>
                       <p className="text-[0.65rem] text-emerald-200/60">{community.associatedWizardLabel}</p>
                     </header>
+                    {preventionCue !== null && (
+                      <p data-faustian-table-cue className="text-[0.65rem] leading-snug text-amber-100">
+                        {preventionCue}
+                      </p>
+                    )}
+                    {investigatingHere && (
+                      <p data-faustian-investigate-cue className="text-[0.65rem] leading-snug text-teal-100">
+                        {INVESTIGATE_FOIL_CUE}
+                      </p>
+                    )}
                     <div className="space-y-2">
                       <div>
                         <p className="sr-only">
@@ -679,6 +692,7 @@ export default function FaustianSurface({
                           selected={selection?.kind === "card" && selection.instanceKey === card.instanceKey}
                           onSelect={() => inspectCard(card, inspectorCommunity.communityId)}
                           onContextMenu={(event) => play.openSchemeMenu(inspectorCommunity.communityId, schemeCardId(card), card.facing, event)}
+                          treatmentLabel={play.foilEligible(inspectorCommunity.communityId, schemeCardId(card)) ? "Foil" : null}
                           foilAvailable={play.foilEligible(inspectorCommunity.communityId, schemeCardId(card))}
                         />
                       ))}

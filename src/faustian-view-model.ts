@@ -26,6 +26,8 @@ import {
   FAUSTIAN_COMMUNITY_IDS,
   FAUSTIAN_RANK_GLYPHS,
   FAUSTIAN_SUITS,
+  applyLocalAccompliceProtection,
+  faustianAccompliceDefeatsScheme,
   faustianCardSourceReference,
   faustianCommunityHeader,
   FAUSTIAN_SOURCE_WORDING_OMISSION,
@@ -60,6 +62,7 @@ export const FACEDOWN_SCHEME_SUPPLY_LABEL = "Facedown Scheme from Devil's Deck";
 export const FACEDOWN_ACCOMPLICE_SUPPLY_LABEL = "Facedown Accomplice from Faustian's Deck";
 export const SCHEME_CONSEQUENCE_GLANCE_FALLBACK = "See Scheme consequence";
 export const ACE_ACCOMPLICE_PROTECTION_GLANCE = "Prevents except 2";
+export const INVESTIGATE_FOIL_CUE = "Choose a Scheme to foil";
 
 function cardRank(cardId: FaustianCardId): FaustianRank {
   return cardId.slice(cardId.indexOf("_") + 1) as FaustianRank;
@@ -80,6 +83,82 @@ export function faustianSchemeGlanceLine(cardId: FaustianCardId): string {
 
 export function faustianAccompliceGlanceLine(cardId: FaustianCardId): string {
   return faustianAccompliceProtectionGlance(cardId);
+}
+
+export function previewFaustianBlackmailProtection(
+  faustian: FaustianState,
+  communityId: FaustianCommunityId,
+): {
+  readonly drawnCardId: FaustianCardId | null;
+  readonly accompliceCardIds: readonly FaustianCardId[];
+  readonly revealedSchemeCardIds: readonly FaustianCardId[];
+  readonly preventedSchemeCardIds: readonly FaustianCardId[];
+} {
+  const community = faustian.communities.find((entry) => entry.communityId === communityId);
+  const drawnCardId = faustian.faustianDeck[0];
+  if (community === undefined || drawnCardId === undefined) {
+    return {
+      drawnCardId: null,
+      accompliceCardIds: [],
+      revealedSchemeCardIds: [],
+      preventedSchemeCardIds: [],
+    };
+  }
+  const accompliceCardIds = [...community.accompliceCardIds, drawnCardId];
+  return {
+    drawnCardId,
+    accompliceCardIds,
+    ...applyLocalAccompliceProtection(community.schemes, accompliceCardIds),
+  };
+}
+
+export function previewFaustianPlaceProtection(
+  faustian: FaustianState,
+  communityId: FaustianCommunityId,
+  requestedQuantity = 1,
+): {
+  readonly placedCardIds: readonly FaustianCardId[];
+  readonly accompliceCardIds: readonly FaustianCardId[];
+  readonly revealedSchemeCardIds: readonly FaustianCardId[];
+  readonly preventedSchemeCardIds: readonly FaustianCardId[];
+} {
+  const community = faustian.communities.find((entry) => entry.communityId === communityId);
+  if (community === undefined || requestedQuantity < 1) {
+    return {
+      placedCardIds: [],
+      accompliceCardIds: [],
+      revealedSchemeCardIds: [],
+      preventedSchemeCardIds: [],
+    };
+  }
+  const placedCardIds = faustian.devilDeck.slice(0, requestedQuantity);
+  const schemesAfterDeal = [
+    ...community.schemes,
+    ...placedCardIds.map((cardId) => ({ cardId, facing: "face_down" as const })),
+  ];
+  return {
+    placedCardIds,
+    accompliceCardIds: community.accompliceCardIds,
+    ...applyLocalAccompliceProtection(schemesAfterDeal, community.accompliceCardIds),
+  };
+}
+
+export function formatFaustianPreventionCue(
+  preventedSchemeCardIds: readonly FaustianCardId[],
+  accompliceCardIds: readonly FaustianCardId[],
+): string | null {
+  if (preventedSchemeCardIds.length === 0) return null;
+  return preventedSchemeCardIds.map((schemeCardId) => {
+    const schemeGlyph = faustianCardSourceReference(schemeCardId).rankSuitGlyph;
+    const accompliceCardId = accompliceCardIds.find((cardId) => (
+      faustianAccompliceDefeatsScheme(cardId, schemeCardId)
+    ));
+    if (accompliceCardId === undefined) {
+      return `${schemeGlyph} prevented -> Devil's Deck`;
+    }
+    const accompliceGlyph = faustianCardSourceReference(accompliceCardId).rankSuitGlyph;
+    return `${schemeGlyph} prevented by ${accompliceGlyph} -> Devil's Deck`;
+  }).join("; ");
 }
 
 export interface NamedWizardRef {

@@ -545,14 +545,44 @@ describe("Faustian surface presentation", () => {
     });
     const inspector = container.querySelector("[data-faustian-inspector]") as HTMLElement;
     expect(inspector.textContent).toMatch(/8♦/);
-    expect(inspector.textContent).toMatch(/Eight of Diamonds/);
     expect(inspector.textContent).toMatch(/Scheme/);
-    expect(inspector.textContent).toMatch(/See Scheme consequence/);
+    expect(inspector.querySelector("[data-faustian-sr-identity]")?.textContent).toBe("Eight of Diamonds");
+    const copy = inspector.querySelector("[data-faustian-inspector-copy]") as HTMLElement;
+    expect(copy?.textContent).not.toMatch(/Eight of Diamonds/);
+    expect(copy?.textContent).not.toMatch(/8♦/);
+    expect(copy?.textContent).toMatch(/Scheme/);
+    expect(copy?.textContent).not.toMatch(/See Scheme consequence/);
     expect(inspector.querySelectorAll("[data-faustian-inspector-location]").length).toBe(1);
     expect(inspector.querySelector("[data-faustian-inspector-location]")?.textContent).toBe("Leo");
     const leoHits = inspector.textContent?.match(/Leo/g) ?? [];
     expect(leoHits).toHaveLength(1);
     expect(inspector.textContent).not.toMatch(/In Leo/);
+  });
+
+  it("does not repeat Accomplice identity or glance as inspector headings", () => {
+    const { container } = renderSurface();
+    const accomplice = container.querySelector('[data-faustian-community="leo"] [data-faustian-card="accomplice"]') as HTMLElement;
+    flushSync(() => {
+      accomplice.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    const inspector = container.querySelector("[data-faustian-inspector]") as HTMLElement;
+    expect(inspector.querySelector("[data-faustian-card]")?.textContent).toMatch(/Q♣/);
+    expect(inspector.querySelector("[data-faustian-card]")?.textContent).toMatch(/Prevents ≤Q/);
+    expect(inspector.querySelector("[data-faustian-sr-identity]")?.textContent).toBe("Queen of Clubs");
+    const copy = inspector.querySelector("[data-faustian-inspector-copy]") as HTMLElement;
+    expect(copy?.textContent).toMatch(/Accomplice/);
+    expect(copy?.textContent).not.toMatch(/Queen of Clubs/);
+    expect(copy?.textContent).not.toMatch(/Q♣/);
+    expect(copy?.textContent).not.toMatch(/Prevents ≤Q/);
+    expect(inspector.querySelectorAll("[data-faustian-inspector-location]").length).toBe(1);
+  });
+
+  it("gives Accomplice face copy internal inset instead of edge-flush type", () => {
+    const { container } = renderSurface();
+    const accomplice = container.querySelector('[data-faustian-community="leo"] [data-faustian-card="accomplice"]') as HTMLElement;
+    expect(accomplice.className).toMatch(/px-2/);
+    expect(accomplice.className).toMatch(/py-1\.5/);
+    expect(accomplice.className).toMatch(/overflow-hidden/);
   });
 });
 

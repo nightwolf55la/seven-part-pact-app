@@ -350,6 +350,77 @@ describe("contextual Community actions", () => {
     });
     expect(container.textContent).not.toContain("Confirm Blackmail");
   });
+
+  it("surfaces Blackmail prevention as a Devil's Deck cue instead of a silent vanish", async () => {
+    const drawn = faustianCardId("diamonds", "jack");
+    const scheme = faustianCardId("hearts", "7");
+    let faustian = take(EMPTY_FAUSTIAN_STATE, [TWIST, drawn, scheme]);
+    faustian = {
+      ...faustian,
+      faustianDeck: [drawn, ...faustian.faustianDeck],
+      machinations: [{ cardId: TWIST, facing: "face_down" }],
+      activeTwistCardIds: [TWIST],
+    };
+    faustian = withAries(faustian, {
+      schemes: [{ cardId: scheme, facing: "face_up" }],
+    });
+    const { container } = renderSurface({ faustian });
+    openContextOn(communityEl(container, "aries"));
+    clickAction(container, "blackmail");
+    await flushPlay();
+    expect(mockMutations["m3Commands.blackmailFaustianCommunity"]).toHaveBeenCalledTimes(1);
+    const cue = container.querySelector("[data-faustian-table-cue]");
+    expect(cue?.textContent).toBe("7♥ prevented by J♦ -> Devil's Deck");
+    expect(container.textContent).not.toMatch(/7♥ prevented by J♦ -> Defeated/);
+  });
+
+  it("surfaces Place Scheme prevention when the new Scheme is at or below the Accomplice", async () => {
+    const accomplice = faustianCardId("diamonds", "9");
+    const lowScheme = faustianCardId("clubs", "6");
+    let faustian = take(EMPTY_FAUSTIAN_STATE, [TWIST, accomplice, lowScheme]);
+    faustian = {
+      ...faustian,
+      devilDeck: [lowScheme],
+      machinations: [{ cardId: TWIST, facing: "face_down" }],
+      activeTwistCardIds: [TWIST],
+    };
+    faustian = withAries(faustian, { accompliceCardIds: [accomplice], schemes: [] });
+    const { container } = renderSurface({ faustian });
+    openContextOn(communityEl(container, "aries"));
+    clickAction(container, "place-scheme");
+    await flushPlay();
+    expect(mockMutations["m3Commands.placeFaustianSchemes"]).toHaveBeenCalledTimes(1);
+    expect(container.querySelector("[data-faustian-table-cue]")?.textContent).toBe(
+      "6♣ prevented by 9♦ -> Devil's Deck",
+    );
+  });
+
+  it("does not claim prevention when a placed Scheme outranks the Accomplice", async () => {
+    const accomplice = faustianCardId("diamonds", "5");
+    const highScheme = faustianCardId("clubs", "king");
+    let faustian = take(EMPTY_FAUSTIAN_STATE, [TWIST, accomplice, highScheme]);
+    faustian = {
+      ...faustian,
+      devilDeck: [highScheme],
+      machinations: [{ cardId: TWIST, facing: "face_down" }],
+      activeTwistCardIds: [TWIST],
+    };
+    faustian = withAries(faustian, { accompliceCardIds: [accomplice], schemes: [] });
+    const { container, rerender } = renderSurface({ faustian });
+    openContextOn(communityEl(container, "aries"));
+    clickAction(container, "place-scheme");
+    await flushPlay();
+    expect(mockMutations["m3Commands.placeFaustianSchemes"]).toHaveBeenCalledTimes(1);
+    expect(container.querySelector("[data-faustian-table-cue]")).toBeNull();
+    rerender(withAries({ ...faustian, devilDeck: [] }, {
+      accompliceCardIds: [accomplice],
+      schemes: [{ cardId: highScheme, facing: "face_up" }],
+    }));
+    const king = Array.from(container.querySelectorAll('[data-faustian-card="scheme"]')).find((el) =>
+      (el.getAttribute("aria-label") ?? "").includes("King of Clubs"),
+    );
+    expect(king).toBeDefined();
+  });
 });
 
 describe("Faustian Deck Blackmail drag", () => {
@@ -504,6 +575,51 @@ describe("Investigation", () => {
       schemeCardId: SCHEME_B,
     });
     expect(container.textContent).not.toContain("Confirm foil");
+  });
+
+  it("makes Stage 2 foil choice visible on the captured Schemes without auto-foiling", async () => {
+    const start = playTable();
+    const afterReveal: FaustianState = withAries(start, {
+      pawnCount: 1,
+      schemes: [
+        { cardId: SCHEME_A, facing: "face_up" },
+        { cardId: SCHEME_B, facing: "face_up" },
+      ],
+      accompliceCardIds: [ACCOMPLICE],
+    });
+    const { container, rerender } = renderSurface({ faustian: start });
+    openContextOn(communityEl(container, "aries"));
+    await act(async () => {
+      clickAction(container, "investigate");
+    });
+    await flushPlay();
+    expect(mockMutations["m3Commands.revealFaustianCommunitySchemes"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.foilFaustianCommunityScheme"]?.mock.calls.length ?? 0).toBe(0);
+    rerender(afterReveal);
+    expect(container.querySelector("[data-faustian-investigate-cue]")?.textContent).toMatch(/Choose a Scheme to foil/);
+    expect(container.querySelectorAll("[data-faustian-foil-available]").length).toBe(2);
+    expect(communityEl(container, "aries").getAttribute("data-faustian-investigating")).toBe("true");
+  });
+
+  it("enters foil choice without a mutation when every Scheme is already face-up", async () => {
+    const start = withAries(take(EMPTY_FAUSTIAN_STATE, [TWIST, SCHEME_A]), {
+      schemes: [{ cardId: SCHEME_A, facing: "face_up" }],
+    });
+    const { container } = renderSurface({ faustian: start });
+    openContextOn(communityEl(container, "aries"));
+    await act(async () => {
+      clickAction(container, "investigate");
+    });
+    await flushPlay();
+    expect(mockMutations["m3Commands.revealFaustianCommunitySchemes"]?.mock.calls.length ?? 0).toBe(0);
+    expect(mockMutations["m3Commands.foilFaustianCommunityScheme"]?.mock.calls.length ?? 0).toBe(0);
+    expect(container.querySelector("[data-faustian-investigate-cue]")?.textContent).toMatch(/Choose a Scheme to foil/);
+    expect(container.querySelector("[data-faustian-foil-available]")).not.toBeNull();
+    const faceUp = Array.from(container.querySelectorAll('[data-faustian-card="scheme"]')).find((el) =>
+      (el.getAttribute("aria-label") ?? "").includes("Two of Hearts"),
+    );
+    openContextOn(faceUp as Element);
+    expect(container.querySelector('[data-context-action="foil"]')).not.toBeNull();
   });
 
   it("does not let a newly arrived Scheme become the captured foil target", async () => {
