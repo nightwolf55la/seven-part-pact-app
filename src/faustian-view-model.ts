@@ -10,6 +10,7 @@ import type {
   FaustianCardFacing,
   FaustianCardId,
   FaustianCommunityId,
+  FaustianRank,
   FaustianMachinationOutcomeResult,
   FaustianPersistentFullHouseRank,
   FaustianState,
@@ -23,6 +24,7 @@ import type {
 import {
   FAUSTIAN_COMMUNITY_DEFINITIONS,
   FAUSTIAN_COMMUNITY_IDS,
+  FAUSTIAN_RANK_GLYPHS,
   FAUSTIAN_SUITS,
   faustianCardSourceReference,
   faustianCommunityHeader,
@@ -55,6 +57,32 @@ export const PRIVATE_TWIST_INSPECT_LABEL = "Inspect Twist privately";
 export const PRIVATE_TWIST_INSPECT_HINT =
   "Local-only view. Does not flip the card, send a command, or write an event.";
 export const FACEDOWN_SCHEME_SUPPLY_LABEL = "Facedown Scheme from Devil's Deck";
+export const FACEDOWN_ACCOMPLICE_SUPPLY_LABEL = "Facedown Accomplice from Faustian's Deck";
+export const SCHEME_CONSEQUENCE_GLANCE_FALLBACK = "See Scheme consequence";
+export const ACE_ACCOMPLICE_PROTECTION_GLANCE = "Prevents except 2";
+
+function cardRank(cardId: FaustianCardId): FaustianRank {
+  return cardId.slice(cardId.indexOf("_") + 1) as FaustianRank;
+}
+
+export function faustianAccompliceProtectionGlance(cardId: FaustianCardId): string {
+  const rank = cardRank(cardId);
+  if (rank === "ace") return ACE_ACCOMPLICE_PROTECTION_GLANCE;
+  return `Prevents ≤${FAUSTIAN_RANK_GLYPHS[rank]}`;
+}
+
+export function faustianSchemeGlanceLine(cardId: FaustianCardId): string {
+  const title = faustianCardSourceReference(cardId).scheme.title;
+  if (title !== null && title.trim() !== "") return title.trim();
+  return SCHEME_CONSEQUENCE_GLANCE_FALLBACK;
+}
+
+export function faustianAccompliceGlanceLine(cardId: FaustianCardId): string {
+  const role = faustianCardSourceReference(cardId).accomplice.role;
+  const protection = faustianAccompliceProtectionGlance(cardId);
+  if (role !== null && role.trim() !== "") return `${role.trim()}\n${protection}`;
+  return protection;
+}
 
 export interface NamedWizardRef {
   readonly wizardId: string;
@@ -307,7 +335,7 @@ function schemePresentation(
   if (facing === "face_down") {
     return concealed("scheme", FACEDOWN_SCHEME_LABEL, instanceKey);
   }
-  return revealed("scheme", cardId, instanceKey, "Scheme", "Revealed");
+  return revealed("scheme", cardId, instanceKey, "Scheme", faustianSchemeGlanceLine(cardId));
 }
 
 export function researcherOperationalLabel(operationalThisMonth: boolean): string {
@@ -377,7 +405,7 @@ export function buildFaustianTablePresentation(args: {
         cardId,
         `accomplice:${communityId}:${accompliceIndex}`,
         "Accomplice",
-        `In ${header.zodiacLabel}`,
+        faustianAccompliceGlanceLine(cardId),
       ),
     );
     const conspiracies = faustian.conspiracies
@@ -560,7 +588,7 @@ export function communityAllAccomplices(
       cardId,
       `accomplice:${communityId}:${index}`,
       "Accomplice",
-      `In ${faustianCommunityHeader(communityId).zodiacLabel}`,
+      faustianAccompliceGlanceLine(cardId),
     ),
   );
 }

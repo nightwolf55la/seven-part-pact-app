@@ -85,15 +85,20 @@ function take(faustian: FaustianState, cardIds: readonly FaustianCardId[]): Faus
   return { ...faustian, faustianDeck: faustian.faustianDeck.filter((id) => !removing.has(id)) };
 }
 
+const LEO_SCHEME = faustianCardId("diamonds", "8");
+const LEO_ACCOMPLICE = faustianCardId("clubs", "queen");
+
 function crowdedAries(): FaustianState {
-  let faustian = take(EMPTY_FAUSTIAN_STATE, [TWIST, SCHEME_A, SCHEME_B, SCHEME_C, SCHEME_D, ACCOMPLICE]);
+  let faustian = take(EMPTY_FAUSTIAN_STATE, [
+    TWIST, SCHEME_A, SCHEME_B, SCHEME_C, SCHEME_D, ACCOMPLICE, LEO_SCHEME, LEO_ACCOMPLICE,
+  ]);
   faustian = {
     ...faustian,
     machinations: [{ cardId: TWIST, facing: "face_down" }],
     activeTwistCardIds: [TWIST],
-    communities: faustian.communities.map((community) =>
-      community.communityId === "aries"
-        ? {
+    communities: faustian.communities.map((community) => {
+      if (community.communityId === "aries") {
+        return {
           ...community,
           pawnCount: 1,
           schemes: [
@@ -103,9 +108,17 @@ function crowdedAries(): FaustianState {
             { cardId: SCHEME_D, facing: "face_up" },
           ],
           accompliceCardIds: [ACCOMPLICE],
-        }
-        : community
-    ),
+        };
+      }
+      if (community.communityId === "leo") {
+        return {
+          ...community,
+          schemes: [{ cardId: LEO_SCHEME, facing: "face_up" }],
+          accompliceCardIds: [LEO_ACCOMPLICE],
+        };
+      }
+      return community;
+    }),
   };
   return faustian;
 }
@@ -505,6 +518,41 @@ describe("Faustian surface presentation", () => {
     expect(pisces?.innerHTML ?? "").not.toMatch(/border-dashed/);
     const aries = container.querySelector('[data-faustian-community="aries"]');
     expect(aries?.querySelectorAll("[data-faustian-card]").length).toBeGreaterThan(0);
+  });
+
+  it("keeps Scheme and Accomplice tokens free of Community-name glance text", () => {
+    const { container } = renderSurface();
+    const leo = container.querySelector('[data-faustian-community="leo"]') as HTMLElement;
+    const scheme = leo.querySelector('[data-faustian-card="scheme"]') as HTMLElement;
+    const accomplice = leo.querySelector('[data-faustian-card="accomplice"]') as HTMLElement;
+    expect(scheme.textContent).toMatch(/8♦/);
+    expect(scheme.textContent).toMatch(/SCHEME/i);
+    expect(scheme.textContent).toMatch(/See Scheme consequence/);
+    expect(scheme.textContent).not.toMatch(/In Leo|Leo/);
+    expect(accomplice.textContent).toMatch(/Q♣/);
+    expect(accomplice.textContent).toMatch(/ACCOMPLICE/i);
+    expect(accomplice.textContent).toMatch(/Prevents ≤Q/);
+    expect(accomplice.textContent).not.toMatch(/In Leo|Leo/);
+    const facedown = container.querySelector(`[aria-label='${FACEDOWN_SCHEME_LABEL}']`);
+    expect(facedown?.textContent ?? "").not.toMatch(/See Scheme consequence/);
+  });
+
+  it("names Leo at most once in a selected-card inspector", () => {
+    const { container } = renderSurface();
+    const scheme = container.querySelector('[data-faustian-community="leo"] [data-faustian-card="scheme"]') as HTMLElement;
+    flushSync(() => {
+      scheme.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    const inspector = container.querySelector("[data-faustian-inspector]") as HTMLElement;
+    expect(inspector.textContent).toMatch(/8♦/);
+    expect(inspector.textContent).toMatch(/Eight of Diamonds/);
+    expect(inspector.textContent).toMatch(/Scheme/);
+    expect(inspector.textContent).toMatch(/See Scheme consequence/);
+    expect(inspector.querySelectorAll("[data-faustian-inspector-location]").length).toBe(1);
+    expect(inspector.querySelector("[data-faustian-inspector-location]")?.textContent).toBe("Leo");
+    const leoHits = inspector.textContent?.match(/Leo/g) ?? [];
+    expect(leoHits).toHaveLength(1);
+    expect(inspector.textContent).not.toMatch(/In Leo/);
   });
 });
 

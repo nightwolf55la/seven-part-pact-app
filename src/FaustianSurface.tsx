@@ -19,6 +19,7 @@ import {
 } from "./FaustianTableInteraction";
 import {
   FAUSTIAN_TABLE_MIN_WIDTH_PX,
+  FACEDOWN_ACCOMPLICE_SUPPLY_LABEL,
   FACEDOWN_SCHEME_SUPPLY_LABEL,
   FACEDOWN_TWIST_LABEL,
   PRIVATE_TWIST_INSPECT_HINT,
@@ -121,7 +122,7 @@ function PlayingCardToken({
         <>
           <span className={`block text-lg font-bold leading-none ${suitGlyphClass(card)}`}>{card.publicLabel}</span>
           <span className="block mt-1 text-[0.58rem] font-semibold uppercase tracking-wide text-slate-700">{card.roleKindLabel}</span>
-          <span className="block text-[0.58rem] leading-tight text-slate-800">{card.glanceLine}</span>
+          <span className="block text-[0.58rem] leading-tight text-slate-800 whitespace-pre-line">{card.glanceLine}</span>
         </>
       ) : (
         <span className="font-semibold block text-[0.65rem]">{card.publicLabel}</span>
@@ -258,8 +259,11 @@ function InspectedCardDetail({
         <div className="space-y-1 text-xs text-emerald-50">
           <p className="text-lg font-bold leading-none">{card.rankSuitGlyph}</p>
           <p>{card.identityLabel}</p>
-          <p>{card.roleKindLabel} · {card.glanceLine}</p>
-          {community !== null && <p>{community.headerLabel}</p>}
+          <p>{card.roleKindLabel}</p>
+          <p className="whitespace-pre-line">{card.glanceLine}</p>
+          {community !== null && (
+            <p data-faustian-inspector-location>{community.zodiacLabel}</p>
+          )}
           {card.kind === "accomplice" && (
             <p>{card.syndicateLabel ?? "Accomplice syndicate wording is not transcribed here."}</p>
           )}
@@ -268,7 +272,9 @@ function InspectedCardDetail({
       ) : (
         <div className="space-y-1 text-xs text-emerald-50">
           <p>{card.publicLabel}</p>
-          {community !== null && <p>{community.headerLabel}</p>}
+          {community !== null && (
+            <p data-faustian-inspector-location>{community.zodiacLabel}</p>
+          )}
           <p className="text-emerald-200/80">Identity stays hidden unless private inspection is allowed.</p>
         </div>
       )}
@@ -360,7 +366,7 @@ export default function FaustianSurface({
       <header className="space-y-1">
         <h2 className="text-lg font-semibold">Faustian Card Table</h2>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Left-click inspects. Right-click acts on that Community or card. Drag a facedown Scheme from Devil&apos;s Deck onto a Community to place one.
+          Left-click inspects. Right-click acts. Drag Devil&apos;s Deck to place a Scheme, Faustian&apos;s Deck to Blackmail.
         </p>
       </header>
 
@@ -501,7 +507,15 @@ export default function FaustianSurface({
                   setInspector({ kind: "faustian_deck" });
                 }}
               >
-                <DeckStack count={presentation.faustianDeckCount} emptyLabel="Empty" />
+                <button
+                  type="button"
+                  data-faustian-blackmail-supply
+                  aria-label={FACEDOWN_ACCOMPLICE_SUPPLY_LABEL}
+                  onPointerDown={play.startBlackmailSupplyDrag}
+                  className="cursor-grab active:cursor-grabbing select-none text-left touch-none"
+                >
+                  <DeckStack count={presentation.faustianDeckCount} emptyLabel="Empty" />
+                </button>
                 {presentation.missingSuits.length > 0 && (
                   <p className="text-[0.65rem] text-amber-200">
                     Missing suit pressure: {presentation.missingSuits.map((suit) => suit.label).join(", ")}
@@ -527,7 +541,6 @@ export default function FaustianSurface({
                 >
                   <DeckStack count={presentation.devilDeckCount} emptyLabel="Empty" />
                 </button>
-                <p className="text-[0.65rem] text-emerald-100/70">Drag onto a Community.</p>
               </PhysicalZone>
             </div>
 

@@ -7,6 +7,7 @@ import {
   FAUSTIAN_TABLEAU_ROW_COUNT,
   FAUSTIAN_ZODIAC_LABELS,
   buildInitializedDefaultFaustianState,
+  faustianAccompliceDefeatsScheme,
   faustianCardId,
   faustianCardSourceReference,
   faustianCommunityHeader,
@@ -524,7 +525,7 @@ describe("rank and suit glance presentation", () => {
       publicLabel: "2♥",
       rankSuitGlyph: "2♥",
       roleKindLabel: "Scheme",
-      glanceLine: "Revealed",
+      glanceLine: "See Scheme consequence",
       identityLabel: "Two of Hearts",
     });
     const accomplice = aries.accomplices.visible[0];
@@ -532,12 +533,73 @@ describe("rank and suit glance presentation", () => {
       publicLabel: "7♦",
       rankSuitGlyph: "7♦",
       roleKindLabel: "Accomplice",
-      glanceLine: "In Aries",
+      glanceLine: "Prevents ≤7",
     });
     const facedown = aries.schemes.visible.find((card) => card.facing === "face_down");
     expect(facedown?.publicLabel).toBe(FACEDOWN_SCHEME_LABEL);
     expect(facedown).not.toHaveProperty("rankSuitGlyph");
     expect(presentation.defeatedSchemes[0]?.publicLabel).toBe("K♠");
     expect(presentation.heldCards[0]?.publicLabel).toBe("9♠");
+  });
+
+  it("gives face-up Schemes a cautious consequence cue instead of placement/facing restatement", () => {
+    const presentation = buildFaustianTablePresentation({ faustian: populatedFaustian() });
+    const aries = presentation.communities[0]!;
+    const leo = presentation.communities[1]!;
+    const faceUp = aries.schemes.visible.filter((card) => card.facing === "face_up");
+    expect(faceUp.length).toBeGreaterThan(0);
+    for (const card of faceUp) {
+      if (card.facing !== "face_up") continue;
+      expect(card.glanceLine).toBe("See Scheme consequence");
+      expect(card.glanceLine).not.toMatch(/Revealed|In Aries|Aries|Leo/);
+      expect(card.roleKindLabel).toBe("Scheme");
+      const reference = faustianCardSourceReference(card.cardId);
+      expect(reference.scheme.title).toBeNull();
+      expect(reference.scheme.text).toBeNull();
+      expect(reference.scheme.wordingStatus).toBe("source_transcription_deferred");
+    }
+    expect(leo.schemes.visible.every((card) => card.facing === "face_down" || !("glanceLine" in card && String(card.glanceLine).includes("Leo")))).toBe(true);
+  });
+
+  it("does not expose Scheme consequence on facedown cards", () => {
+    const presentation = buildFaustianTablePresentation({ faustian: populatedFaustian() });
+    const facedown = presentation.communities[0]!.schemes.visible.find((card) => card.facing === "face_down");
+    expect(facedown).toMatchObject({ facing: "face_down", publicLabel: FACEDOWN_SCHEME_LABEL });
+    expect(facedown).not.toHaveProperty("glanceLine");
+    expect(JSON.stringify(facedown)).not.toMatch(/See Scheme consequence|Two of Hearts|hearts_2/);
+  });
+
+  it("gives face-up Accomplices encoded protection glance text without Community location", () => {
+    const presentation = buildFaustianTablePresentation({ faustian: populatedFaustian() });
+    const accomplice = presentation.communities[0]!.accomplices.visible[0];
+    expect(accomplice?.facing).toBe("face_up");
+    if (accomplice?.facing !== "face_up") throw new Error("expected revealed accomplice");
+    expect(accomplice.glanceLine).toBe("Prevents ≤7");
+    expect(accomplice.glanceLine).not.toMatch(/Aries|Leo|In /);
+    expect(accomplice.roleLabel).toBeNull();
+    expect(faustianCardSourceReference(accomplice.cardId).accomplice.role).toBeNull();
+    expect(faustianAccompliceDefeatsScheme(accomplice.cardId, faustianCardId("hearts", "7"))).toBe(true);
+    expect(faustianAccompliceDefeatsScheme(accomplice.cardId, faustianCardId("hearts", "8"))).toBe(false);
+  });
+
+  it("uses the Ace Accomplice special-rule cue from encoded protection, not ordinary threshold wording", () => {
+    let faustian = populatedFaustian();
+    const ace = faustianCardId("clubs", "ace");
+    faustian = {
+      ...faustian,
+      faustianDeck: faustian.faustianDeck.filter((cardId) => cardId !== ace),
+    };
+    faustian = withCommunity(faustian, "leo", { accompliceCardIds: [ace] });
+    const presentation = buildFaustianTablePresentation({ faustian });
+    const accomplice = presentation.communities[1]!.accomplices.visible[0];
+    expect(accomplice).toMatchObject({
+      publicLabel: "A♣",
+      roleKindLabel: "Accomplice",
+      glanceLine: "Prevents except 2",
+    });
+    if (accomplice?.facing !== "face_up") throw new Error("expected ace accomplice");
+    expect(accomplice.glanceLine).not.toMatch(/Leo|Prevents ≤/);
+    expect(faustianAccompliceDefeatsScheme(ace, faustianCardId("hearts", "king"))).toBe(true);
+    expect(faustianAccompliceDefeatsScheme(ace, faustianCardId("hearts", "2"))).toBe(false);
   });
 });

@@ -131,7 +131,10 @@ export type FaustianLifecycleLaunch =
   | { readonly kind: "machination_outcome" }
   | { readonly kind: "finalize_challenge"; readonly challengeId: string };
 
+export type FaustianSupplyDragKind = "scheme_supply" | "blackmail_supply";
+
 export interface FaustianSchemeSupplyDragVisual {
+  readonly kind: FaustianSupplyDragKind;
   readonly clientX: number;
   readonly clientY: number;
   readonly hoveringCommunityId: FaustianCommunityId | null;
@@ -185,6 +188,7 @@ export function useFaustianTablePlay(args: {
     startClientX: number;
     startClientY: number;
     dragging: boolean;
+    kind: FaustianSupplyDragKind;
     expectedFaustian: FaustianState;
   } | null>(null);
 
@@ -329,9 +333,25 @@ export function useFaustianTablePlay(args: {
     });
   }, [campaignId, placeSchemes, run]);
 
-  const startSchemeSupplyDrag = useCallback((event: ReactPointerEvent) => {
+  const blackmailCommunity = useCallback(async (
+    communityId: FaustianCommunityId,
+    expectedFaustian: FaustianState,
+  ) => {
+    await run(async () => {
+      await blackmail({
+        commandId: commandId(),
+        expectedCampaignId: campaignId,
+        communityId,
+        expectedFaustian: asConvexFaustian(expectedFaustian),
+      });
+    });
+  }, [blackmail, campaignId, run]);
+
+  const startSupplyDrag = useCallback((kind: FaustianSupplyDragKind, event: ReactPointerEvent) => {
     if (event.button !== 0 || !event.isPrimary) return;
-    if (faustianRef.current.devilDeck.length === 0) return;
+    const live = faustianRef.current;
+    if (kind === "scheme_supply" && live.devilDeck.length === 0) return;
+    if (kind === "blackmail_supply" && live.faustianDeck.length === 0) return;
     event.preventDefault();
     event.stopPropagation();
     setContextMenu(null);
@@ -342,9 +362,18 @@ export function useFaustianTablePlay(args: {
       startClientX: event.clientX,
       startClientY: event.clientY,
       dragging: false,
-      expectedFaustian: captureFaustianSnapshot(faustianRef.current),
+      kind,
+      expectedFaustian: captureFaustianSnapshot(live),
     };
   }, []);
+
+  const startSchemeSupplyDrag = useCallback((event: ReactPointerEvent) => {
+    startSupplyDrag("scheme_supply", event);
+  }, [startSupplyDrag]);
+
+  const startBlackmailSupplyDrag = useCallback((event: ReactPointerEvent) => {
+    startSupplyDrag("blackmail_supply", event);
+  }, [startSupplyDrag]);
 
   useEffect(() => {
     const onPointerMove = (event: PointerEvent) => {
@@ -359,6 +388,7 @@ export function useFaustianTablePlay(args: {
       if (!session.dragging) return;
       const hoveringCommunityId = findFaustianCommunityDropId(document.elementFromPoint(event.clientX, event.clientY));
       setDragVisual({
+        kind: session.kind,
         clientX: event.clientX,
         clientY: event.clientY,
         hoveringCommunityId,
@@ -370,11 +400,16 @@ export function useFaustianTablePlay(args: {
       if (session === null || event.pointerId !== session.pointerId) return;
       const expectedFaustian = session.expectedFaustian;
       const wasDragging = session.dragging;
+      const kind = session.kind;
       const dropId = findFaustianCommunityDropId(document.elementFromPoint(event.clientX, event.clientY));
       dragRef.current = null;
       setDragVisual(null);
       if (!commit || !wasDragging || dropId === null) return;
-      void placeOneScheme(dropId, expectedFaustian);
+      if (kind === "scheme_supply") {
+        void placeOneScheme(dropId, expectedFaustian);
+        return;
+      }
+      void blackmailCommunity(dropId, expectedFaustian);
     };
 
     const onPointerUp = (event: PointerEvent) => endDrag(event, true);
@@ -388,7 +423,7 @@ export function useFaustianTablePlay(args: {
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerCancel);
     };
-  }, [placeOneScheme]);
+  }, [blackmailCommunity, placeOneScheme]);
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
@@ -414,15 +449,8 @@ export function useFaustianTablePlay(args: {
 
   const onBlackmail = useCallback((menu: Extract<FaustianContextMenu, { kind: "community" }>) => {
     setContextMenu(null);
-    void run(async () => {
-      await blackmail({
-        commandId: commandId(),
-        expectedCampaignId: campaignId,
-        communityId: menu.communityId,
-        expectedFaustian: asConvexFaustian(menu.expectedFaustian),
-      });
-    });
-  }, [blackmail, campaignId, run]);
+    void blackmailCommunity(menu.communityId, menu.expectedFaustian);
+  }, [blackmailCommunity]);
 
   const onInvestigate = useCallback((menu: Extract<FaustianContextMenu, { kind: "community" }>) => {
     setContextMenu(null);
@@ -693,6 +721,7 @@ export function useFaustianTablePlay(args: {
     openMachinationsMenu,
     openObligationMenu,
     startSchemeSupplyDrag,
+    startBlackmailSupplyDrag,
     onPlaceScheme,
     onBlackmail,
     onInvestigate,
@@ -728,7 +757,9 @@ export function FaustianSchemeSupplyGhost({ visual }: { readonly visual: Faustia
       style={{ left: visual.clientX + 8, top: visual.clientY + 8 }}
       aria-hidden="true"
     >
-      <span className="block text-[0.65rem] text-slate-100 px-1.5 py-1">Facedown Scheme</span>
+      <span className="block text-[0.65rem] text-slate-100 px-1.5 py-1">
+        {visual.kind === "blackmail_supply" ? "Facedown" : "Facedown Scheme"}
+      </span>
     </div>
   );
 }

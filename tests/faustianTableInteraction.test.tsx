@@ -352,6 +352,119 @@ describe("contextual Community actions", () => {
   });
 });
 
+describe("Faustian Deck Blackmail drag", () => {
+  async function dragBlackmailSupply(
+    container: HTMLElement,
+    dropTarget: Element | null,
+    pointerId = 72,
+  ): Promise<void> {
+    const supply = container.querySelector("[data-faustian-blackmail-supply]") as Element;
+    (supply as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => dropTarget });
+    await act(async () => {
+      supply.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: 15, clientY: 15, pointerId, isPrimary: true }));
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 30, clientY: 15, pointerId }));
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 210, clientY: 210, pointerId }));
+      window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: 210, clientY: 210, pointerId }));
+    });
+    await flushPlay();
+  }
+
+  it("Blackmails the dropped Community through the existing semantic path using the pointerdown snapshot", async () => {
+    const start = playTable();
+    const top = start.faustianDeck[0]!;
+    const { container, rerender } = renderSurface({ faustian: start });
+    const leo = communityEl(container, "leo");
+    const drifted: FaustianState = { ...start, faustianDeck: start.faustianDeck.slice(1) };
+    const supply = container.querySelector("[data-faustian-blackmail-supply]") as Element;
+    (supply as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => leo });
+    await act(async () => {
+      supply.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: 15, clientY: 15, pointerId: 82, isPrimary: true }));
+    });
+    rerender(drifted);
+    await act(async () => {
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 40, clientY: 15, pointerId: 82 }));
+      window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: 210, clientY: 210, pointerId: 82 }));
+    });
+    await flushPlay();
+    const blackmail = mockMutations["m3Commands.blackmailFaustianCommunity"];
+    expect(blackmail).toHaveBeenCalledTimes(1);
+    expect(blackmail.mock.calls[0]?.[0]).toMatchObject({
+      expectedCampaignId: CAMPAIGN_ID,
+      communityId: "leo",
+      expectedFaustian: start,
+    });
+    expect(blackmail.mock.calls[0]?.[0]).not.toHaveProperty("cardId");
+    expect(blackmail.mock.calls[0]?.[0]).not.toHaveProperty("drawnCardId");
+    expect(container.querySelector("[data-faustian-blackmail-supply]")?.textContent ?? "").not.toContain(top);
+    expect(container.querySelector("[data-faustian-drag-ghost]")).toBeNull();
+    expect(container.textContent).not.toContain("Confirm Blackmail");
+  });
+
+  it("does not expose the Faustian Deck top card in supply markup or the drag ghost", async () => {
+    const start = playTable();
+    const top = start.faustianDeck[0]!;
+    const { container } = renderSurface({ faustian: start });
+    const supply = container.querySelector("[data-faustian-blackmail-supply]") as Element;
+    (supply as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+    await act(async () => {
+      supply.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: 12, clientY: 12, pointerId: 93, isPrimary: true }));
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 40, clientY: 12, pointerId: 93 }));
+    });
+    const ghost = container.querySelector("[data-faustian-drag-ghost]");
+    expect(ghost).not.toBeNull();
+    const haystack = `${container.innerHTML}\n${ghost?.textContent ?? ""}\n${supply.getAttribute("aria-label") ?? ""}\n${supply.getAttribute("title") ?? ""}`;
+    expect(haystack).not.toContain(top);
+    expect(haystack).not.toMatch(new RegExp(top.replace("_", " of "), "i"));
+    expect(ghost?.textContent ?? "").toMatch(/Facedown/i);
+    expect(ghost?.textContent ?? "").not.toMatch(/Scheme/);
+    await act(async () => {
+      window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, clientX: 40, clientY: 12, pointerId: 93 }));
+    });
+  });
+
+  it("does nothing on an invalid drop and removes the drag ghost", async () => {
+    const { container } = renderSurface();
+    await dragBlackmailSupply(container, container.querySelector("h2"));
+    expect(mockMutations["m3Commands.blackmailFaustianCommunity"]?.mock.calls.length ?? 0).toBe(0);
+    expect(container.querySelector("[data-faustian-drag-ghost]")).toBeNull();
+  });
+
+  it("cancels Blackmail when the pointer is cancelled over a Community", async () => {
+    const { container } = renderSurface();
+    const aries = communityEl(container, "aries");
+    const supply = container.querySelector("[data-faustian-blackmail-supply]") as Element;
+    (supply as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+    Object.defineProperty(document, "elementFromPoint", { configurable: true, value: () => aries });
+    await act(async () => {
+      supply.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, clientX: 15, clientY: 15, pointerId: 78, isPrimary: true }));
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 40, clientY: 15, pointerId: 78 }));
+      window.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true, clientX: 210, clientY: 210, pointerId: 78 }));
+    });
+    await flushPlay();
+    expect(mockMutations["m3Commands.blackmailFaustianCommunity"]?.mock.calls.length ?? 0).toBe(0);
+    expect(container.querySelector("[data-faustian-drag-ghost]")).toBeNull();
+  });
+
+  it("resets the drag ghost when Blackmail is rejected", async () => {
+    mockMutations["m3Commands.blackmailFaustianCommunity"] = vi.fn(async () => {
+      throw new Error("Faustian table changed since Blackmail was started");
+    });
+    const { container } = renderSurface();
+    await dragBlackmailSupply(container, communityEl(container, "aries"));
+    expect(mockMutations["m3Commands.blackmailFaustianCommunity"]).toHaveBeenCalledTimes(1);
+    expect(container.querySelector("[data-faustian-drag-ghost]")).toBeNull();
+  });
+
+  it("does not start a Blackmail drag from an empty Faustian Deck", async () => {
+    const { container } = renderSurface({ faustian: { ...playTable(), faustianDeck: [] } });
+    await dragBlackmailSupply(container, communityEl(container, "aries"));
+    expect(mockMutations["m3Commands.blackmailFaustianCommunity"]?.mock.calls.length ?? 0).toBe(0);
+    expect(container.querySelector("[data-faustian-drag-ghost]")).toBeNull();
+  });
+});
+
 describe("Investigation", () => {
   it("starts reveal from the Community and foils the physical revealed Scheme", async () => {
     const start = playTable();
