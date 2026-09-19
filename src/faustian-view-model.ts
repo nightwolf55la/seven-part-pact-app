@@ -72,16 +72,14 @@ export function faustianAccompliceProtectionGlance(cardId: FaustianCardId): stri
 }
 
 export function faustianSchemeGlanceLine(cardId: FaustianCardId): string {
-  const title = faustianCardSourceReference(cardId).scheme.title;
-  if (title !== null && title.trim() !== "") return title.trim();
+  if (faustianCardSourceReference(cardId).scheme.wordingStatus === "source_transcription_deferred") {
+    return SCHEME_CONSEQUENCE_GLANCE_FALLBACK;
+  }
   return SCHEME_CONSEQUENCE_GLANCE_FALLBACK;
 }
 
 export function faustianAccompliceGlanceLine(cardId: FaustianCardId): string {
-  const role = faustianCardSourceReference(cardId).accomplice.role;
-  const protection = faustianAccompliceProtectionGlance(cardId);
-  if (role !== null && role.trim() !== "") return `${role.trim()}\n${protection}`;
-  return protection;
+  return faustianAccompliceProtectionGlance(cardId);
 }
 
 export interface NamedWizardRef {
