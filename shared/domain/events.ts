@@ -1280,6 +1280,17 @@ export interface MarinerIsleMarketChangedEventV1 {
   readonly data: MarinerIsleMarketChangedDataV1;
 }
 
+export interface MarinerMarketMovedDataV1 {
+  readonly sourceBoardIsleId: MarinerBoardIsleId;
+  readonly destinationBoardIsleId: MarinerBoardIsleId;
+  readonly rarity: string | null;
+}
+export interface MarinerMarketMovedEventV1 {
+  readonly type: "mariner_market_moved";
+  readonly version: 1;
+  readonly data: MarinerMarketMovedDataV1;
+}
+
 export interface MarinerIsleRavageChangedDataV1 {
   readonly boardIsleId: MarinerBoardIsleId;
   readonly previousRavageStormCount: number;
@@ -1367,6 +1378,21 @@ export interface MarinerShipMovedEventV1 {
   readonly data: MarinerShipMovedDataV1;
 }
 
+export interface MarinerShipMovedDataV2 {
+  readonly sourceIsleId?: MarinerBoardIsleId;
+  readonly sourceRouteId: MarinerRouteId;
+  readonly destinationRouteId: MarinerRouteId;
+  readonly occupancyKind: "ship" | "raider";
+  readonly toward: MarinerRouteEndpoint | null;
+  readonly immediatelyDestroyed: boolean;
+  readonly rampagedBeasts: readonly MarinerRampagedBeastAuditV1[];
+}
+export interface MarinerShipMovedEventV2 {
+  readonly type: "mariner_ship_moved";
+  readonly version: 2;
+  readonly data: MarinerShipMovedDataV2;
+}
+
 export interface MarinerShipCreatedDataV1 {
   readonly sourceIsleId: MarinerBoardIsleId;
   readonly targetRouteId: MarinerRouteId;
@@ -1377,6 +1403,32 @@ export interface MarinerShipCreatedEventV1 {
   readonly type: "mariner_ship_created";
   readonly version: 1;
   readonly data: MarinerShipCreatedDataV1;
+}
+
+export interface MarinerShipCreatedDataV2 {
+  readonly sourceIsleId?: MarinerBoardIsleId;
+  readonly targetRouteId: MarinerRouteId;
+  readonly immediatelyDestroyed: boolean;
+  readonly rampagedBeasts: readonly MarinerRampagedBeastAuditV1[];
+}
+export interface MarinerShipCreatedEventV2 {
+  readonly type: "mariner_ship_created";
+  readonly version: 2;
+  readonly data: MarinerShipCreatedDataV2;
+}
+
+export interface MarinerShipCreatedDataV3 {
+  readonly sourceIsleId?: MarinerBoardIsleId;
+  readonly targetRouteId: MarinerRouteId;
+  readonly occupancyKind: "ship" | "raider";
+  readonly toward: MarinerRouteEndpoint | null;
+  readonly immediatelyDestroyed: boolean;
+  readonly rampagedBeasts: readonly MarinerRampagedBeastAuditV1[];
+}
+export interface MarinerShipCreatedEventV3 {
+  readonly type: "mariner_ship_created";
+  readonly version: 3;
+  readonly data: MarinerShipCreatedDataV3;
 }
 
 export interface MarinerBeastMovedDataV1 {
@@ -1404,6 +1456,32 @@ export interface MarinerBeastNestedEventV1 {
   readonly data: MarinerBeastNestedDataV1;
 }
 
+export type MarinerNestingBeastRelocatedRequestedDestinationV1 =
+  | {
+      readonly kind: "board_isle";
+      readonly boardIsleId: MarinerBoardIsleId;
+    }
+  | {
+      readonly kind: "sea_region";
+      readonly regionId: MarinerSeaRegionId;
+    };
+
+export interface MarinerNestingBeastRelocatedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly sourceBoardIsleId: MarinerBoardIsleId;
+  readonly requestedDestination: MarinerNestingBeastRelocatedRequestedDestinationV1;
+  readonly resultingCondition: MarinerBeastCondition;
+  readonly resultingLocation: MarinerBeastLocation;
+  readonly destroyedRouteIds: readonly MarinerRouteId[];
+  readonly rampaged: boolean;
+  readonly rampageDestinationSeatId: PactSeatId | null;
+}
+export interface MarinerNestingBeastRelocatedEventV1 {
+  readonly type: "mariner_nesting_beast_relocated";
+  readonly version: 1;
+  readonly data: MarinerNestingBeastRelocatedDataV1;
+}
+
 export interface MarinerRavageResultRecordedDataV1 {
   readonly boardIsleId: MarinerBoardIsleId;
   readonly outcome: "market_absorbed" | "isle_ravaged";
@@ -1424,6 +1502,7 @@ export type MarinerEvent =
   | MarinerRouteOccupancyChangedEventV1
   | MarinerSeaStormCountChangedEventV1
   | MarinerIsleMarketChangedEventV1
+  | MarinerMarketMovedEventV1
   | MarinerIsleRavageChangedEventV1
   | MarinerBeastAddedEventV1
   | MarinerBeastUpdatedEventV1
@@ -1431,9 +1510,13 @@ export type MarinerEvent =
   | MarinerBeastCreatedEventV1
   | MarinerStormMovedEventV1
   | MarinerShipMovedEventV1
+  | MarinerShipMovedEventV2
   | MarinerShipCreatedEventV1
+  | MarinerShipCreatedEventV2
+  | MarinerShipCreatedEventV3
   | MarinerBeastMovedEventV1
   | MarinerBeastNestedEventV1
+  | MarinerNestingBeastRelocatedEventV1
   | MarinerRavageResultRecordedEventV1;
 
 export interface NecromancerArrangementFoeBindingDataV1 {

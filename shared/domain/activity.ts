@@ -4,6 +4,17 @@ import type {
   MonthChangedEventV1,
 } from "./events";
 import { displayNameFromOrdinal } from "./calendar";
+import { MARINER_BOARD_ISLE_DEFINITIONS, MARINER_SEA_REGION_DEFINITIONS } from "./mariner-catalogs";
+
+function marinerBoardIsleLabel(boardIsleId: string): string {
+  return MARINER_BOARD_ISLE_DEFINITIONS.find((definition) => definition.boardIsleId === boardIsleId)?.displayName
+    ?? boardIsleId;
+}
+
+function marinerSeaRegionLabel(regionId: string): string {
+  return MARINER_SEA_REGION_DEFINITIONS.find((definition) => definition.regionId === regionId)?.displayName
+    ?? regionId;
+}
 
 export type ActivityEntry =
   | {
@@ -229,6 +240,10 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Changed Mariner sea Storm count";
     case "mariner_isle_market_changed":
       return "Changed Mariner Isle Market";
+    case "mariner_market_moved": {
+      const rare = event.data.rarity !== null ? "Rare " : "";
+      return `Moved ${rare}Market from ${marinerBoardIsleLabel(event.data.sourceBoardIsleId)} to ${marinerBoardIsleLabel(event.data.destinationBoardIsleId)}`;
+    }
     case "mariner_isle_ravage_changed":
       return "Changed Mariner Isle Ravage";
     case "mariner_beast_added":
@@ -241,20 +256,34 @@ function describeConfigEvent(event: CampaignEvent): string {
       return `Created Mariner Beast "${event.data.denizenName}"`;
     case "mariner_storm_moved":
       return "Recorded guided Storm move";
-    case "mariner_ship_moved":
+    case "mariner_ship_moved": {
+      const from = event.data.sourceIsleId !== undefined ? ` from ${event.data.sourceIsleId}` : "";
       return event.data.immediatelyDestroyed
-        ? "Recorded Ship move that was immediately destroyed"
-        : "Recorded Ship move";
-    case "mariner_ship_created":
+        ? `Recorded Ship move${from} that was immediately destroyed`
+        : `Recorded Ship move${from}`;
+    }
+    case "mariner_ship_created": {
+      const piece = event.version === 3 && event.data.occupancyKind === "raider" ? "Raider" : "Ship";
+      const from = event.data.sourceIsleId !== undefined ? ` from ${event.data.sourceIsleId}` : "";
       return event.data.immediatelyDestroyed
-        ? "Created a Ship that was immediately destroyed"
-        : "Created a Ship";
+        ? `Created a ${piece}${from} that was immediately destroyed`
+        : `Created a ${piece}${from}`;
+    }
     case "mariner_beast_moved":
       return event.data.rampaged
         ? "Moved a Distrusting Beast that then Rampaged"
         : "Moved a Distrusting Beast";
     case "mariner_beast_nested":
       return "Helped a Beast nest";
+    case "mariner_nesting_beast_relocated": {
+      const from = marinerBoardIsleLabel(event.data.sourceBoardIsleId);
+      const requested = event.data.requestedDestination.kind === "board_isle"
+        ? marinerBoardIsleLabel(event.data.requestedDestination.boardIsleId)
+        : marinerSeaRegionLabel(event.data.requestedDestination.regionId);
+      return event.data.rampaged
+        ? `Moved Nesting Beast from ${from} to ${requested} that then Rampaged`
+        : `Moved Nesting Beast from ${from} to ${requested}`;
+    }
     case "mariner_ravage_result_recorded":
       return event.data.outcome === "market_absorbed"
         ? "Recorded Ravage result absorbed by a Market"
@@ -600,6 +629,7 @@ export function mapEventToActivityEntry(
     case "mariner_route_occupancy_changed":
     case "mariner_sea_storm_count_changed":
     case "mariner_isle_market_changed":
+    case "mariner_market_moved":
     case "mariner_isle_ravage_changed":
     case "mariner_beast_added":
     case "mariner_beast_updated":
@@ -610,6 +640,7 @@ export function mapEventToActivityEntry(
     case "mariner_ship_created":
     case "mariner_beast_moved":
     case "mariner_beast_nested":
+    case "mariner_nesting_beast_relocated":
     case "mariner_ravage_result_recorded":
     case "necromancer_initialized":
     case "necromancer_depth_changed":

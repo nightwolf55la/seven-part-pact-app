@@ -1,12 +1,17 @@
 /**
- * Static Mariner map presentation for the fixed Draft-4 Isha board.
+ * Static Mariner map overlay geometry for the fixed Draft-4 Isha board.
  *
- * Geometry is presentation only. Adjacency, Route endpoints, Sea relationships,
- * Raider direction, and piece locations come from catalogs/state, never from
- * these coordinates.
+ * These coordinates are APPROXIMATE hit regions and token anchors only.
+ * They must not be reused as visible Isle landforms or Route strokes.
+ * Decorative geography, routes, and labels come from the PowerPoint-native
+ * SVG board. Visible Isle/Route overlays reuse generated exact-source
+ * symbols from mariner-interaction-geometry.svg.
+ * Adjacency, Route endpoints, Sea relationships, Raider direction, and piece
+ * locations come from catalogs/state, never from these coordinates.
  *
- * Source: Patreon Materials [04.26.04].pptx Slide 14 / slideLayout7,
- * distilled into a 1000x1000 SVG frame. PowerPoint object names are not IDs.
+ * Overlay space is 1000×1000 and is aligned onto the exported SVG via
+ * MARINER_SOURCE_BOARD.overlayTransform for tokens and Sea hits.
+ * PowerPoint object names are not IDs.
  */
 
 import {
@@ -40,16 +45,27 @@ export interface MarinerIsleTokenSlots {
   readonly beast: MapPoint;
 }
 
+export interface MarinerMapLabel {
+  readonly x: number;
+  readonly y: number;
+  readonly rotate?: number;
+  readonly anchor?: "start" | "middle" | "end";
+  readonly wrap?: boolean;
+  readonly fontSize?: number;
+  readonly letterSpacing?: number;
+}
+
 export interface MarinerIsleGeometry {
   readonly boardIsleId: MarinerBoardIsleId;
   readonly shapes: readonly MapEllipse[];
   readonly hit: MapEllipse;
-  readonly label: MapPoint;
+  readonly label: MarinerMapLabel;
   readonly slots: MarinerIsleTokenSlots;
 }
 
 export interface MarinerRouteGeometry {
   readonly routeId: string;
+  /** Approximate leftover path. Not used for visible occupied/selection Route strokes. */
   readonly pathD: string;
   readonly pieceAnchor: MapPoint;
   readonly tangentDeg: number;
@@ -65,6 +81,7 @@ export interface MarinerSeaGeometry {
   readonly regionId: MarinerSeaRegionId;
   readonly hitPath: string;
   readonly label: MapPoint;
+  readonly caption?: MarinerMapLabel;
   readonly slots: MarinerSeaTokenSlots;
 }
 
@@ -72,12 +89,83 @@ export interface MarinerExternalLandGeometry {
   readonly externalLandId: MarinerExternalLandId;
   readonly pathD: string;
   readonly label: MapPoint;
+  readonly nameLabel: MarinerMapLabel;
+  readonly direction?: {
+    readonly text: string;
+    readonly x: number;
+    readonly y: number;
+    readonly rotate?: number;
+  };
 }
 
 export const MARINER_MAP_VIEWBOX = { width: 1000, height: 1000 } as const;
-export const MARINER_MAP_MIN_WIDTH_PX = 720;
 export const MARINER_ROUTE_HIT_STROKE_WIDTH = 18;
 export const MARINER_MAP_FRAME = { cx: 500, cy: 500, r: 420 } as const;
+
+export const MARINER_MAP_PALETTE = {
+  field: "#e4edda",
+  sea: "#ffffff",
+  seaRim: "#9db6c9",
+  route: "#1f4e7a",
+  routeOccupied: "#0f766e",
+  routeRaider: "#9a3412",
+  label: "#1a1a1a",
+  seaLabel: "#3d6f96",
+  horizonLabel: "#3d6f96",
+} as const;
+
+export const MARINER_MAP_TYPE = {
+  fontFamily: 'Georgia, "Times New Roman", Times, serif',
+} as const;
+
+/** Leftover title metadata. The PowerPoint-native board SVG now supplies the chart framing; do not render this as extra SVG text. */
+export const MARINER_MAP_CHART_TITLE = {
+  text: "The Archipelago of Isha",
+  x: 20,
+  y: 500,
+  rotate: -90,
+} as const;
+
+export const MARINER_ISLE_FILLS: Record<MarinerBoardIsleId, string> = {
+  ishana: "#f3c49c",
+  scuttleport: "#d7b0bc",
+  orrery: "#c8c9c5",
+  far_reach: "#95c57e",
+  halcyon_isles: "#e89688",
+  sage_atoll: "#ecd27a",
+  graven_isle: "#cdc9c5",
+  tahv: "#f0c08c",
+  izor: "#8fd48a",
+  yeraine: "#7ec87a",
+  koire: "#e4d478",
+  thyras: "#ead472",
+  spyrholm: "#c8bce4",
+  druntyr: "#c88870",
+  caravesse: "#b7c9cd",
+};
+
+/** Darker, slightly more saturated shoreline glow keyed by board Isle. Presentation only. */
+export const MARINER_ISLE_SELECTION_GLOW: Record<MarinerBoardIsleId, string> = {
+  ishana: "#d4894a",
+  scuttleport: "#c45a7e",
+  orrery: "#8b9088",
+  far_reach: "#4f9a42",
+  halcyon_isles: "#d45c52",
+  sage_atoll: "#c9a022",
+  graven_isle: "#9a948c",
+  tahv: "#d48940",
+  izor: "#3f9a42",
+  yeraine: "#3a9140",
+  koire: "#c4a428",
+  thyras: "#c9ae22",
+  spyrholm: "#7a68c4",
+  druntyr: "#b85a3c",
+  caravesse: "#5a8490",
+};
+
+export function marinerIsleFill(boardIsleId: MarinerBoardIsleId): string {
+  return MARINER_ISLE_FILLS[boardIsleId];
+}
 
 function ellipsePath(cx: number, cy: number, rx: number, ry: number): string {
   return `M ${cx - rx} ${cy} A ${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A ${rx} ${ry} 0 1 0 ${cx - rx} ${cy} Z`;
@@ -87,11 +175,18 @@ function offset(point: MapPoint, dx: number, dy: number): MapPoint {
   return { x: point.x + dx, y: point.y + dy };
 }
 
+export function marinerMapLabelLines(name: string, label: MarinerMapLabel): readonly string[] {
+  if (label.wrap === true) {
+    return name.toUpperCase().split(/\s+/).filter((part) => part.length > 0);
+  }
+  return [name.toUpperCase()];
+}
+
 function isle(
   boardIsleId: MarinerBoardIsleId,
   shapes: readonly MapEllipse[],
   hit: MapEllipse,
-  label: MapPoint,
+  label: MarinerMapLabel,
 ): MarinerIsleGeometry {
   return {
     boardIsleId,
@@ -111,11 +206,13 @@ function sea(
   label: MapPoint,
   rx: number,
   ry: number,
+  caption?: MarinerMapLabel,
 ): MarinerSeaGeometry {
   return {
     regionId,
     hitPath: ellipsePath(label.x, label.y, rx, ry),
     label,
+    caption,
     slots: {
       storm: offset(label, 0, -20),
       beast: offset(label, 18, 12),
@@ -124,13 +221,22 @@ function sea(
   };
 }
 
-function land(externalLandId: MarinerExternalLandId, label: MapPoint, w: number, h: number): MarinerExternalLandGeometry {
+function land(
+  externalLandId: MarinerExternalLandId,
+  label: MapPoint,
+  w: number,
+  h: number,
+  nameLabel: MarinerMapLabel,
+  direction?: MarinerExternalLandGeometry["direction"],
+): MarinerExternalLandGeometry {
   const x = label.x - w / 2;
   const y = label.y - h / 2;
   return {
     externalLandId,
     pathD: `M ${x} ${y} h ${w} v ${h} h ${-w} Z`,
     label,
+    nameLabel,
+    direction,
   };
 }
 
@@ -152,61 +258,61 @@ export const MARINER_ISLE_GEOMETRY: readonly MarinerIsleGeometry[] = [
     { cx: 652, cy: 588, rx: 22, ry: 35 },
     { cx: 665, cy: 561, rx: 33, ry: 27, rotate: -33 },
     { cx: 690, cy: 514, rx: 33, ry: 57, rotate: -50 },
-  ], { cx: 656, cy: 530, rx: 70, ry: 85 }, { x: 656, y: 547 }),
+  ], { cx: 656, cy: 530, rx: 70, ry: 85 }, { x: 652, y: 534, rotate: -14, fontSize: 28, letterSpacing: 6 }),
   isle("scuttleport", [
     { cx: 731, cy: 258, rx: 56, ry: 14 },
     { cx: 758, cy: 262, rx: 45, ry: 14 },
     { cx: 748, cy: 290, rx: 36, ry: 14 },
     { cx: 774, cy: 260, rx: 12, ry: 10 },
     { cx: 708, cy: 258, rx: 17, ry: 10 },
-  ], { cx: 740, cy: 268, rx: 78, ry: 32 }, { x: 759, y: 283 }),
+  ], { cx: 740, cy: 268, rx: 78, ry: 32 }, { x: 786, y: 236, rotate: 24, fontSize: 14, letterSpacing: 1.5, anchor: "start" }),
   isle("orrery", [
     { cx: 253, cy: 490, rx: 18, ry: 16 },
-  ], { cx: 260, cy: 495, rx: 22, ry: 20 }, { x: 290, y: 507 }),
+  ], { cx: 260, cy: 495, rx: 22, ry: 20 }, { x: 292, y: 512, fontSize: 10, letterSpacing: 1.4, anchor: "start" }),
   isle("far_reach", [
     { cx: 250, cy: 259, rx: 18, ry: 21 },
     { cx: 225, cy: 292, rx: 12, ry: 18 },
     { cx: 226, cy: 331, rx: 9, ry: 15 },
     { cx: 206, cy: 352, rx: 8, ry: 12 },
-  ], { cx: 228, cy: 300, rx: 36, ry: 55 }, { x: 218, y: 299 }),
+  ], { cx: 228, cy: 300, rx: 36, ry: 55 }, { x: 214, y: 292, rotate: -76, wrap: true, fontSize: 13, letterSpacing: 1.8 }),
   isle("halcyon_isles", [
     { cx: 463, cy: 559, rx: 21, ry: 18 },
     { cx: 431, cy: 555, rx: 21, ry: 18 },
     { cx: 445, cy: 578, rx: 15, ry: 18 },
     { cx: 471, cy: 602, rx: 8, ry: 10 },
-  ], { cx: 450, cy: 570, rx: 42, ry: 38 }, { x: 447, y: 568 }),
+  ], { cx: 450, cy: 570, rx: 42, ry: 38 }, { x: 444, y: 562, rotate: -14, wrap: true, fontSize: 12, letterSpacing: 1.5 }),
   isle("sage_atoll", [
     { cx: 336, cy: 800, rx: 16, ry: 14 },
-  ], { cx: 350, cy: 798, rx: 28, ry: 22 }, { x: 384, y: 797 }),
+  ], { cx: 350, cy: 798, rx: 28, ry: 22 }, { x: 336, y: 832, wrap: true, fontSize: 10, letterSpacing: 1.3 }),
   isle("graven_isle", [
     { cx: 743, cy: 734, rx: 16, ry: 14 },
-  ], { cx: 743, cy: 730, rx: 24, ry: 22 }, { x: 743, y: 709 }),
+  ], { cx: 743, cy: 730, rx: 24, ry: 22 }, { x: 786, y: 738, wrap: true, fontSize: 10, letterSpacing: 1.3, anchor: "start" }),
   isle("tahv", [
     { cx: 572, cy: 679, rx: 16, ry: 20 },
-  ], { cx: 572, cy: 679, rx: 22, ry: 24 }, { x: 579, y: 679 }),
+  ], { cx: 572, cy: 679, rx: 22, ry: 24 }, { x: 598, y: 668, fontSize: 13, letterSpacing: 2.2 }),
   isle("izor", [
     { cx: 854, cy: 529, rx: 16, ry: 14 },
-  ], { cx: 845, cy: 525, rx: 22, ry: 20 }, { x: 827, y: 519 }),
+  ], { cx: 845, cy: 525, rx: 22, ry: 20 }, { x: 818, y: 510, fontSize: 11, letterSpacing: 1.6, anchor: "end" }),
   isle("yeraine", [
     { cx: 536, cy: 856, rx: 16, ry: 14 },
-  ], { cx: 520, cy: 858, rx: 28, ry: 22 }, { x: 475, y: 860 }),
+  ], { cx: 520, cy: 858, rx: 28, ry: 22 }, { x: 536, y: 888, fontSize: 10, letterSpacing: 1.4 }),
   isle("koire", [
     { cx: 109, cy: 437, rx: 16, ry: 14 },
-  ], { cx: 130, cy: 440, rx: 28, ry: 22 }, { x: 157, y: 445 }),
+  ], { cx: 130, cy: 440, rx: 28, ry: 22 }, { x: 154, y: 418, fontSize: 11, letterSpacing: 1.4 }),
   isle("thyras", [
     { cx: 482, cy: 153, rx: 16, ry: 14 },
-  ], { cx: 500, cy: 148, rx: 26, ry: 22 }, { x: 524, y: 142 }),
+  ], { cx: 500, cy: 148, rx: 26, ry: 22 }, { x: 532, y: 136, fontSize: 10, letterSpacing: 1.4, anchor: "start" }),
   isle("spyrholm", [
     { cx: 186, cy: 649, rx: 22, ry: 21 },
     { cx: 177, cy: 630, rx: 12, ry: 21 },
     { cx: 169, cy: 649, rx: 13, ry: 11 },
-  ], { cx: 185, cy: 640, rx: 36, ry: 32 }, { x: 204, y: 635 }),
+  ], { cx: 185, cy: 640, rx: 36, ry: 32 }, { x: 126, y: 668, fontSize: 12, letterSpacing: 1.8, anchor: "end" }),
   isle("druntyr", [
     { cx: 546, cy: 275, rx: 16, ry: 14 },
-  ], { cx: 530, cy: 268, rx: 24, ry: 22 }, { x: 498, y: 262 }),
+  ], { cx: 530, cy: 268, rx: 24, ry: 22 }, { x: 486, y: 256, fontSize: 10, letterSpacing: 1.4, anchor: "end" }),
   isle("caravesse", [
     { cx: 393, cy: 423, rx: 16, ry: 14 },
-  ], { cx: 410, cy: 425, rx: 24, ry: 20 }, { x: 448, y: 421 }),
+  ], { cx: 410, cy: 425, rx: 24, ry: 20 }, { x: 448, y: 408, fontSize: 10, letterSpacing: 1.3, anchor: "start" }),
 ];
 
 export const MARINER_ROUTE_GEOMETRY: readonly MarinerRouteGeometry[] = [
@@ -255,17 +361,17 @@ export const MARINER_SEA_GEOMETRY: readonly MarinerSeaGeometry[] = [
   sea("sidereal_sea", { x: 410, y: 717 }, 58, 42),
   sea("wainways", { x: 632, y: 732 }, 48, 36),
   sea("chalk_cliffs", { x: 767, y: 601 }, 48, 36),
-  sea("northwest_horizon", { x: 218, y: 219 }, 80, 70),
-  sea("northeast_horizon", { x: 793, y: 232 }, 80, 70),
-  sea("southeast_horizon", { x: 769, y: 779 }, 80, 70),
-  sea("southwest_horizon", { x: 194, y: 747 }, 80, 70),
+  sea("northwest_horizon", { x: 218, y: 219 }, 80, 70, { x: 196, y: 196, rotate: -38, fontSize: 11, letterSpacing: 0.6 }),
+  sea("northeast_horizon", { x: 793, y: 232 }, 80, 70, { x: 808, y: 196, rotate: 38, fontSize: 11, letterSpacing: 0.6 }),
+  sea("southeast_horizon", { x: 769, y: 779 }, 80, 70, { x: 808, y: 804, rotate: -38, fontSize: 11, letterSpacing: 0.6 }),
+  sea("southwest_horizon", { x: 194, y: 747 }, 80, 70, { x: 196, y: 804, rotate: 38, fontSize: 11, letterSpacing: 0.6 }),
 ];
 
 export const MARINER_EXTERNAL_LAND_GEOMETRY: readonly MarinerExternalLandGeometry[] = [
-  land("nebelheim", { x: 482, y: 70 }, 120, 36),
-  land("druj_lands", { x: 70, y: 457 }, 92, 40),
-  land("hecares", { x: 520, y: 920 }, 120, 36),
-  land("ur", { x: 951, y: 558 }, 80, 40),
+  land("nebelheim", { x: 482, y: 70 }, 120, 36, { x: 500, y: 34, fontSize: 13, letterSpacing: 2 }, { text: "to the North", x: 500, y: 52 }),
+  land("druj_lands", { x: 70, y: 457 }, 92, 40, { x: 50, y: 430, rotate: -90, fontSize: 13, letterSpacing: 1.8 }, { text: "to the West", x: 68, y: 548, rotate: -90 }),
+  land("hecares", { x: 520, y: 920 }, 120, 36, { x: 500, y: 968, fontSize: 13, letterSpacing: 2 }, { text: "to the South", x: 500, y: 988 }),
+  land("ur", { x: 951, y: 558 }, 80, 40, { x: 968, y: 500, rotate: 90, fontSize: 16, letterSpacing: 3.2 }, { text: "to the East", x: 948, y: 428, rotate: 90 }),
 ];
 
 export const MARINER_DOMAIN_PRESENCE_ANCHOR: MapPoint = { x: 500, y: 978 };

@@ -1669,6 +1669,16 @@ const marinerIsleMarketChangedEventV1Validator = v.object({
   }),
 });
 
+const marinerMarketMovedEventV1Validator = v.object({
+  type: v.literal("mariner_market_moved"),
+  version: v.literal(1),
+  data: v.object({
+    sourceBoardIsleId: v.string(),
+    destinationBoardIsleId: v.string(),
+    rarity: v.union(v.string(), v.null()),
+  }),
+});
+
 const marinerIsleRavageChangedEventV1Validator = v.object({
   type: v.literal("mariner_isle_ravage_changed"),
   version: v.literal(1),
@@ -1748,12 +1758,50 @@ const marinerShipMovedEventV1Validator = v.object({
   }),
 });
 
+const marinerShipMovedEventV2Validator = v.object({
+  type: v.literal("mariner_ship_moved"),
+  version: v.literal(2),
+  data: v.object({
+    sourceIsleId: v.optional(v.string()),
+    sourceRouteId: v.string(),
+    destinationRouteId: v.string(),
+    occupancyKind: v.union(v.literal("ship"), v.literal("raider")),
+    toward: v.union(marinerRouteEndpointValidator, v.null()),
+    immediatelyDestroyed: v.boolean(),
+    rampagedBeasts: v.array(marinerRampagedBeastAuditValidator),
+  }),
+});
+
 const marinerShipCreatedEventV1Validator = v.object({
   type: v.literal("mariner_ship_created"),
   version: v.literal(1),
   data: v.object({
     sourceIsleId: v.string(),
     targetRouteId: v.string(),
+    immediatelyDestroyed: v.boolean(),
+    rampagedBeasts: v.array(marinerRampagedBeastAuditValidator),
+  }),
+});
+
+const marinerShipCreatedEventV2Validator = v.object({
+  type: v.literal("mariner_ship_created"),
+  version: v.literal(2),
+  data: v.object({
+    sourceIsleId: v.optional(v.string()),
+    targetRouteId: v.string(),
+    immediatelyDestroyed: v.boolean(),
+    rampagedBeasts: v.array(marinerRampagedBeastAuditValidator),
+  }),
+});
+
+const marinerShipCreatedEventV3Validator = v.object({
+  type: v.literal("mariner_ship_created"),
+  version: v.literal(3),
+  data: v.object({
+    sourceIsleId: v.optional(v.string()),
+    targetRouteId: v.string(),
+    occupancyKind: v.union(v.literal("ship"), v.literal("raider")),
+    toward: v.union(marinerRouteEndpointValidator, v.null()),
     immediatelyDestroyed: v.boolean(),
     rampagedBeasts: v.array(marinerRampagedBeastAuditValidator),
   }),
@@ -1782,6 +1830,33 @@ const marinerBeastNestedEventV1Validator = v.object({
     denizenId: v.string(),
     boardIsleId: v.string(),
     previousLocation: marinerBeastLocationValidator,
+  }),
+});
+
+const marinerNestingBeastRelocatedEventV1Validator = v.object({
+  type: v.literal("mariner_nesting_beast_relocated"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    sourceBoardIsleId: v.string(),
+    requestedDestination: v.union(
+      v.object({
+        kind: v.literal("board_isle"),
+        boardIsleId: v.string(),
+      }),
+      v.object({
+        kind: v.literal("sea_region"),
+        regionId: v.string(),
+      }),
+    ),
+    resultingCondition: v.string(),
+    resultingLocation: marinerBeastLocationValidator,
+    destroyedRouteIds: v.array(v.string()),
+    rampaged: v.boolean(),
+    rampageDestinationSeatId: v.union(
+      v.union(...PACT_SEAT_IDS.map((id) => v.literal(id))),
+      v.null(),
+    ),
   }),
 });
 
@@ -3423,6 +3498,7 @@ export const campaignEventValidator = v.union(
   marinerRouteOccupancyChangedEventV1Validator,
   marinerSeaStormCountChangedEventV1Validator,
   marinerIsleMarketChangedEventV1Validator,
+  marinerMarketMovedEventV1Validator,
   marinerIsleRavageChangedEventV1Validator,
   marinerBeastAddedEventV1Validator,
   marinerBeastUpdatedEventV1Validator,
@@ -3430,9 +3506,13 @@ export const campaignEventValidator = v.union(
   marinerBeastCreatedEventV1Validator,
   marinerStormMovedEventV1Validator,
   marinerShipMovedEventV1Validator,
+  marinerShipMovedEventV2Validator,
   marinerShipCreatedEventV1Validator,
+  marinerShipCreatedEventV2Validator,
+  marinerShipCreatedEventV3Validator,
   marinerBeastMovedEventV1Validator,
   marinerBeastNestedEventV1Validator,
+  marinerNestingBeastRelocatedEventV1Validator,
   marinerRavageResultRecordedEventV1Validator,
   necromancerInitializedEventV1Validator,
   necromancerDepthChangedEventV1Validator,

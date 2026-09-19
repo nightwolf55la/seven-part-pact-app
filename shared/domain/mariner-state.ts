@@ -19,6 +19,34 @@ export type MarinerIsleMarket =
   | { readonly present: false }
   | { readonly present: true; readonly rarity: string | null };
 
+/**
+ * APPLICATION DESIGN (pre-activation metadata, not fictional prose).
+ *
+ * Represents: Market is Rare, but a fictional Rarity description has not yet
+ * been supplied. Persist through the existing `rarity: string | null` field.
+ *
+ * MUST be reviewed before V5 activation: decide whether this sentinel remains
+ * the durable representation or is replaced with a typed description-pending
+ * state while migration remains controlled. No migration is approved now.
+ */
+export const MARINER_UNDESCRIBED_RARITY_SENTINEL = "__7PP_APP_UNDESCRIBED_MARINER_RARITY_V1__";
+
+export function isMarinerUndescribedRarity(rarity: string | null): boolean {
+  return rarity === MARINER_UNDESCRIBED_RARITY_SENTINEL;
+}
+
+export function marinerMarketHasUndescribedRarity(market: MarinerIsleMarket): boolean {
+  return market.present && isMarinerUndescribedRarity(market.rarity);
+}
+
+export function createUndescribedRareMarinerMarket(): MarinerIsleMarket {
+  return { present: true, rarity: MARINER_UNDESCRIBED_RARITY_SENTINEL };
+}
+
+export function isReservedMarinerRarityDescriptionInput(raw: string): boolean {
+  return raw.trim() === MARINER_UNDESCRIBED_RARITY_SENTINEL;
+}
+
 export interface MarinerBoardIsleState {
   readonly boardIsleId: MarinerBoardIsleId;
   readonly worldIsleId: IsleId;

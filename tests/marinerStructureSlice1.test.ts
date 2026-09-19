@@ -768,7 +768,7 @@ describe("Mariner structural values", () => {
     }))).not.toThrow();
   });
 
-  it("rejects rarity without a Market, duplicate nesting, Market+nesting, and Element mismatch", () => {
+  it("rejects rarity without a Market, duplicate nesting, and Element mismatch", () => {
     const mariner = initializedMariner();
     expect(() => validateMarinerStructure({
       ...mariner,
@@ -786,10 +786,6 @@ describe("Mariner structural values", () => {
     });
     expect(() => validateMarinerStructure(initializedMariner({ beasts: [nest(DEN_1), nest(DEN_2)] }))).toThrow(DomainError);
     expect(() => validateMarinerStructure(initializedMariner({
-      boardIsleOverrides: { tahv: { market: { present: true, rarity: null } } },
-      beasts: [nest(DEN_1)],
-    }))).toThrow(DomainError);
-    expect(() => validateMarinerStructure(initializedMariner({
       beasts: [{
         denizenId: DEN_1,
         element: "fire",
@@ -798,6 +794,22 @@ describe("Mariner structural values", () => {
         location: { kind: "off_map" },
       }],
     }))).toThrow(DomainError);
+  });
+
+  it("accepts Market + Nesting Beast coexistence as representable table state", () => {
+    const nested: MarinerBeastState = {
+      denizenId: DEN_1,
+      element: "water",
+      definitionId: null,
+      condition: "friendly_nesting",
+      location: { kind: "board_isle", boardIsleId: "tahv" },
+    };
+    const mariner = initializedMariner({
+      boardIsleOverrides: { tahv: { market: { present: true, rarity: null } } },
+      beasts: [nested],
+    });
+    expect(() => validateMarinerStructure(mariner)).not.toThrow();
+    expect(() => validateCampaignState(baseV5(mariner, defaultWorld()))).not.toThrow();
   });
 });
 

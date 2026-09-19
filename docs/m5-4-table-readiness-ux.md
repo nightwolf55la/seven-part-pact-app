@@ -1,14 +1,19 @@
 # M5.4 Table-Readiness UI/UX Register
 
 **Workstream:** M5.4 Table-Readiness UI/UX
-**Branch:** `m5-4/table-readiness-ux-batch-1`
-**BASE MAIN SHA:** `8aecc7fbe10c68a93d973630507dde9c76c2d93a`
-**Feature start HEAD:** `8aecc7fbe10c68a93d973630507dde9c76c2d93a`
-**Faustian merge confirmed:** PR #27, `8aecc7f` `Merge pull request #27 from nightwolf55la/m5-4a/faustian-card-table`
+**Branch:** `m5-4/table-readiness-ux-batch-2`
+**BASE MAIN SHA:** `81fecf0a641a73027426139c84b12f832bafa288`
+**Feature start HEAD:** `81fecf0a641a73027426139c84b12f832bafa288`
+**Batch 1 merge confirmed:** PR #28, `81fecf0a641a73027426139c84b12f832bafa288` `Merge pull request #28 from nightwolf55la/m5-4/table-readiness-ux-batch-1`
 
 This is the durable UX register. Original human observations are preserved. Approved Batch 1 decisions are recorded as identified resolution notes rather than silent rewrites of those observations.
 
-Do **not** mark any issue VERIFIED in this document. Human retest is required.
+Human verification is issue-specific and date-specific:
+
+- **2026-09-18:** Mariner direct-manipulation human retest.
+- **2026-09-19:** remaining Batch-2 visual/layout human acceptance pass.
+
+Do not mark unrelated issues VERIFIED without existing evidence.
 
 CampaignState V5 remains PRE-ACTIVATION. No schema evolution. No migration. No Production deployment.
 
@@ -16,19 +21,62 @@ CampaignState V5 remains PRE-ACTIVATION. No schema evolution. No migration. No P
 
 ## Approved Batch membership
 
-### Batch 1 (this implementation run)
+### Batch 1
 
 UX-001, UX-002, UX-003, UX-007, UX-008, UX-012, UX-013, UX-014, UX-019, UX-023
+
+### Batch 2 (this implementation run)
+
+UX-004, UX-009, UX-010, UX-016, UX-017, UX-018, UX-022
+
+Later included in the Batch 2 Mariner operability / interaction pass: UX-024, UX-025, UX-026.
 
 ### Deliberately deferred from Batch 1
 
 - **UX-015** general-purpose Powerful-Denizen creation workflow: **DEFERRED**
 - Source-specific atomic creators remain allowed where a Domain procedure genuinely requires one.
-- UX-004, UX-005, UX-006, UX-009, UX-010, UX-011, UX-016, UX-017, UX-018, UX-020, UX-021, UX-022 remain later-batch work.
+
+### Deliberately deferred from Batch 2 (Batch 3 / later)
+
+- **UX-005** whole-Pact overview
+- **UX-006** navigation redesign
+- **UX-011** shared Laws convention
+- **UX-020** general Save-button policy (UX-018 is a concrete Depth-only improvement and does not close this)
+- **UX-021** general cross-Domain shell convention
+- Warlock / Sage UI
 
 ### Product target for this run
 
-Full-screen desktop / table use. Phone and narrow split-screen layouts are out of scope.
+Full-screen desktop / table use. Primary acceptance viewport **1600×1000**. Phone and narrow split-screen layouts are out of scope. Half-screen optimization is not an acceptance criterion.
+
+### Approved Batch 2 interaction
+
+When a Mariner or Necromancer board item is selected, a dismissible right-side overlay inspector (~360–420px) appears. The board does **not** resize. Escape and an explicit Close control dismiss it. Focus is not trapped as a modal.
+
+### Approved Mariner board interaction convention
+
+**APPLICATION DESIGN (approved):**
+
+1. Left-click selects/inspects. Inspector controls, including Advanced / Correct, remain the details path. Context menus do not replace the inspector.
+2. Drag an existing board piece to move it. Drag from the board-local Ship / Raider / Storm / Market / Rare Market supply tray to create/place. Off-map drag is a no-op, not a delete. There is no generic Beast token in the tray.
+3. Right-click opens one Mariner-local HTML context menu at the pointer. There are no hover command menus.
+4. Delete / Backspace removes the selected occupied Route piece or decrements one Storm on a selected Sea/Horizon when focus is not in an editable field. Accelerators are never the only path.
+5. Route create, occupied Remove, Storm +/−, and tray placement retain the snapshot captured at context-menu open or tray pointerdown. Do not recapture at commit. Stale server rejection is preferred over silently rebasing intent.
+6. Tray Raider drop does not guess direction. An action-triggered chooser asks for the destination endpoint, then `createMarinerShip` uses that choice and the original tray snapshot. Board Raider moves still preserve a still-valid `toward`.
+7. **SOURCE:** the ordinary/default Beast action is still move to an adjacent Sea or Nest on an adjacent Isle. **APPLICATION DESIGN:** adjacency is a strong visual recommendation, not a hard UI legality gate. A Distrusting Beast may drag to any other representable Sea/Horizon (`moveMarinerBeast`) or any structurally valid board Isle (`nestMarinerBeast`). Adjacent destinations receive a stronger highlight; other coherent destinations stay available but quieter. Hard Nest targets remain Ravaged Isles and Isles that already have a Nesting Beast. SOURCE says a Nesting Beast's Isle cannot have a Market, but SOURCE does not define the transition consequence; APPLICATION DESIGN therefore treats Market + Friendly/Nesting Beast as representable table state (Draft 4 rule conflict, not canonical corruption). Direct Market/Nest manipulation is allowed; a derived board cue and inspector warning uses the copy "Draft 4 conflict: an Isle with a Nesting Beast cannot have a Market." There is no automatic resolution. Status: HUMAN VERIFIED (2026-09-18 Mariner direct-manipulation retest). Right-click Recommended Move/Nest lists every adjacent destination from static topology; blocked adjacent Isles stay visible and disabled with a concise reason. Compact **Move elsewhere…** / **Nest elsewhere…** actions open action-triggered choosers for nonadjacent destinations. A required Beast-move Rampage opens one board-local Domain chooser and keeps the pointerdown or menu-open snapshot. SOURCE does not define voluntary Friendly/Nesting Beast relocation. **APPLICATION DESIGN:** every coherent Beast token is a physical selectable/draggable piece. Click selects/inspects that Beast (not merely the underlying Sea/Isle). A Friendly/Nesting Beast on an Isle may drag Isle→Isle or Isle→Sea through `relocateMarinerNestingBeast` (table-authoritative piece manipulation, not a printed Mariner action). Isle→Isle keeps Nesting; Isle→Sea becomes Distrusting and uses the same Sea-arrival hazards/Rampage chooser as a Distrusting move. Nesting-Beast highlights do not pretend SOURCE prescribes adjacent relocation: valid other Isles and all Seas are available; the source Isle is a no-op; Ravaged and other-Nest Isles stay blocked. A Market-present destination is representable table state (Draft 4 conflict) rather than a hard block; expected-state fields remain. Right-click adds **Move Nest elsewhere…** / **Leave Nest to Sea…** as action-triggered choosers. Friendly/Nesting Beast relocation uses the generated Convex FunctionReference `api.m3Commands.relocateMarinerNestingBeast`.
+8. **APPLICATION DESIGN:** the supply tray has two related pieces — Market (`{ present: true, rarity: null }`) and Rare Market (`{ present: true, rarity: non-null }`). Rare Market is UI shorthand for a Market with Rarity, not a new game entity. Ordinary supply Market places on an empty valid Isle or transforms an existing Rare Market to ordinary via one `setMarinerIsleMarket`. Rare supply Market places immediately as undescribed Rare state (`createUndescribedRareMarinerMarket`) on empty or ordinary targets; same-type Rare is a no-op. Rarity prose may be added later via Add / Describe / Edit Rarity. The reserved undescribed-Rarity sentinel is never shown as fiction. Existing Markets drag Isle-to-Isle with one `moveMarinerMarket` (not a remove/add pair), preserving the exact rarity field. Click inspects the Isle; right-click remains the explicit Add/Describe/Edit/Remove Rarity and Remove Market path. No Gift, seasonal, Stability, Wind, Weather, or Ravage automation.
+
+Instruction line: Drag pieces to place or move • Right-click for actions • Click for details • Delete removes a selected piece.
+
+This remains Mariner-local. No generic drag-and-drop library, context-menu framework, or cross-Domain interaction subsystem. No rules automation. The 2026-09-18 human retest verified this Mariner interaction convention. Unrelated Batch-2 visual/layout issues were accepted later, on 2026-09-19. This convention record does not verify Batch 1 issues or deferred UX-005 / UX-006 / UX-011 / UX-015 / UX-020 / UX-021.
+
+### Source visuals used
+
+- Authoritative source for Batch 2 board art: local `Patreon Materials [04.26.04].pptx` (not committed).
+- Batch 2 uses **PowerPoint-native SVG export** (`ShapeRange.Export(..., SVG)`) for **Mariner** and **Necromancer** decorative board bases **and** semantic interaction-geometry sprites. Regenerable extractor: `scripts/export-source-board-svgs.ps1`. Committed assets: `mariner-board.svg`, `mariner-interaction-geometry.svg`, `necromancer-gates-board.svg`, `necromancer-interaction-geometry.svg`.
+- Preferred pattern for these source boards: copy exact PowerPoint vector objects into reusable `<symbol>`s, then restyle them at runtime with SVG `<use>`. Compound Isle selection composites the exact group into SourceAlpha and draws a soft shoreline glow rather than filling each primitive. Occupied Routes are stroke-only, with a compact source-path marker instead of large Ship/Raider silhouettes. Application IDs stay in typed catalogs; the extractor mapping is development metadata only.
+- Live tokens, Sea hit regions, inspectors, and CampaignState overlays remain application-owned. Approximate overlay geometry must not be reused as visible Isle/Route/Gate art.
+- Hierophant / Warlock / Faustian / Sage / Sorcerer were not redone in this run.
 
 ---
 
@@ -182,9 +230,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** SHARED
 - **Source/rules relevance:** No written-rule issue. Table-facing layout/application design.
 - **Suggested direction:** Make the PlayShell/board workspace desktop-first and width-responsive.
-- **Current status:** OPEN
+- **Current status:** HUMAN VERIFIED
 - **Dependencies / duplicates:** Strongly affects UX-009, UX-010, UX-016, and UX-005.
-- **Approved batch:** Not Batch 1
+- **Approved batch:** Batch 2
+- **Resolution / implementation note:** Ordinary play (primary-only and dual-pane) uses `max-w-[1800px]`. Campaign Tools remain `max-w-5xl`. No navigation redesign.
 
 ### UX-005
 
@@ -259,9 +308,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** MARINER
 - **Source/rules relevance:** Presentation priority rather than a rule dispute.
 - **Suggested direction:** Compress the Ship/Sanctum summary substantially or place it below/alongside the map.
-- **Current status:** OPEN
+- **Current status:** HUMAN VERIFIED
 - **Dependencies / duplicates:** Related to UX-008, UX-010, and UX-004.
-- **Approved batch:** Not Batch 1
+- **Approved batch:** Batch 2
+- **Resolution / implementation note:** Normal header is compact campaign labels (`Ship · Sanctum · Home: …`). Exceptional Ship/Sanctum mismatch remains conspicuous. Ship correction stays behind Advanced / Correct.
 
 ### UX-010
 
@@ -274,9 +324,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** MARINER
 - **Source/rules relevance:** SOURCE: Materials PowerPoint provides a deliberate spatial/map vocabulary. APPLICATION DESIGN: current SVG board preserves topology/state but not enough geographic presentation.
 - **Suggested direction:** Rework presentation around source map geometry/visual vocabulary after setup/workflow blockers.
-- **Current status:** OPEN
+- **Current status:** HUMAN VERIFIED
 - **Dependencies / duplicates:** Strongly dependent on UX-004 and related to UX-009.
-- **Approved batch:** Not Batch 1
+- **Approved batch:** Batch 2
+- **Resolution / implementation note:** Batch 2 was later corrected to a PowerPoint-native exported SVG decorative base (`mariner-board.svg`) under live Isle/Route/Sea hit regions and state tokens. Human retest then found the exact source board substantially improved Mariner, but remaining visible interaction overlays still used approximate ellipse/path geometry. Visible Isle/Route overlays now reuse the same PowerPoint-native source objects via generated `mariner-interaction-geometry.svg` symbols (explicit Draft-4 shape mapping, not label parsing). A further human retest found occupied exact-source Routes filling connector wedges, compound Isle selection accumulating translucent overlap, and a redundant application "Archipelago of Isha" title colliding with source Druj-Lands framing. Occupied Routes are now stroke-only; Isle selection uses a composited SourceAlpha silhouette; Ravage uses the combined Isle mask; the duplicate app title was removed. A later human retest found exact board geometry good, but large Ship/Raider illustrations cluttered and drifted from Routes, and the selected-Isle hard ring was too thick/clipped. Occupancy is now route-first: exact source curve, thinner solid Ship/Raider stroke, plus a compact semantic marker positioned from exact Route path length/tangent. Isle selection is a soft source-shaped shoreline glow, with presentation-only per-Isle color and expanded filter bounds. A final human-retest micro-polish then gave the Ship marker a minimal sail so it still reads as a Ship at board scale, replaced the ambiguous Raider diamond with a compact directional marker aligned to the Route tangent, and tuned Isle shoreline glow/edge color into each Isle’s own fill family. A later human retest found the sail sitting on the wrong side of the mast and the Raider pennant pointing away from the raided Isle. APPLICATION DESIGN: the Ship pictogram is now rotated as a whole along the exact Route tangent with the sail drawn on the pictogram aft side (bow remains +X). That rotation is presentation-only; ordinary Ships still have no gameplay travel direction. The Raider marker uses the same exact-path tangent, then reverses it when that tangent points away from the authoritative `toward` endpoint. Accessible Raider labels stay destination-based. Exact Sea highlighting bounded by Routes and the outer map rim is feasible but deferred; it would need explicit closed presentation polygons and is not attempted here. Approximate geometry remains only for Sea hits, token anchors, and invisible convenience hits. Overlay inspector does not resize the map. Status is HUMAN VERIFIED (2026-09-19 remaining Batch-2 visual/layout human acceptance pass).
 
 ### UX-011
 
@@ -292,6 +343,7 @@ Supports: UX-001, UX-019.
 - **Current status:** OPEN
 - **Dependencies / duplicates:** Closely related to UX-021 and potentially UX-005.
 - **Approved batch:** Not Batch 1
+- **Resolution / implementation note:** Batch 2 code-review correction restored the pre-Batch-2 visible Necromancer Law wording in the compact Depth + Laws header. That does not close this shared Laws convention.
 
 ### UX-012
 
@@ -368,9 +420,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** NECROMANCER
 - **Source/rules relevance:** SOURCE: Materials depict the eleven Gates as recognizable gate/door shapes.
 - **Suggested direction:** Preserve current branching spatial logic while adopting source Gate silhouettes later.
-- **Current status:** OPEN
+- **Current status:** HUMAN VERIFIED
 - **Dependencies / duplicates:** Strongly affected by UX-004.
-- **Approved batch:** Not Batch 1
+- **Approved batch:** Batch 2
+- **Resolution / implementation note:** Batch 2 was later corrected to a PowerPoint-native exported SVG decorative base (`necromancer-gates-board.svg`) under live Gate/path hit regions, Hostile/Destroyed hatch overlays, and state tokens. Prior reconstructed arches/tree/band labels are no longer the visual board. Human retest found exact Gate/path highlighting good, but mouse/keyboard selection drew a native black rectangular focus box around the SVG group. Native outline is suppressed; keyboard `focus-visible` now uses the same exact source Gate/path geometry as selection. Overlay inspector does not resize the board. No normal desktop horizontal scrollbar at 1600×1000. Gate IDs and persisted topology unchanged.
 
 ### UX-017
 
@@ -383,9 +436,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** NECROMANCER
 - **Source/rules relevance:** SOURCE: Codex describes the Necromancer's Depth as a Domain quantity.
 - **Suggested direction:** Hide internal owner IDs in normal play.
-- **Current status:** OPEN
+- **Current status:** HUMAN VERIFIED
 - **Dependencies / duplicates:** Related to UX-021 and UX-020.
-- **Approved batch:** Not Batch 1
+- **Approved batch:** Batch 2
+- **Resolution / implementation note:** Normal presentation is compact `Depth` with a numeric stepper. Raw `wiz_...` owner IDs are not shown. Exceptional previous-owner state is described in human-readable terms.
 
 ### UX-018
 
@@ -398,9 +452,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** NECROMANCER
 - **Source/rules relevance:** No rules conflict. Interaction granularity.
 - **Suggested direction:** Compact single-value control with immediate server-authoritative commit.
-- **Current status:** OPEN
+- **Current status:** HUMAN VERIFIED
 - **Dependencies / duplicates:** Specific example of UX-020.
-- **Approved batch:** Not Batch 1
+- **Approved batch:** Batch 2
+- **Resolution / implementation note:** Isolated Depth changes use the existing `set_necromancer_depth` operation immediately. No Save Depth button. Pending and stale/error remain visible. Does **not** close UX-020.
 
 ### UX-019
 
@@ -459,9 +514,10 @@ Supports: UX-001, UX-019.
 - **Likely scope:** LORE/COMPENDIUM
 - **Source/rules relevance:** No rules issue.
 - **Suggested direction:** Sticky pane or independently scrolling list/detail columns on desktop.
-- **Current status:** OPEN
+- **Current status:** HUMAN VERIFIED
 - **Dependencies / duplicates:** UX-004's wider desktop workspace may improve layout.
-- **Approved batch:** Not Batch 1
+- **Approved batch:** Batch 2
+- **Resolution / implementation note:** Desktop reading pane is sticky with a viewport-relative max height; long entry content scrolls inside the pane. No Lore persistence change.
 
 ### UX-023
 
@@ -479,25 +535,197 @@ Supports: UX-001, UX-019.
 - **Approved batch:** Batch 1
 - **Resolution / implementation note:** After source-shaped Mariner realization, Compendium groups catalog Isle Lore under the bound World UUID. `considerCampaignOnly` skips already-represented refs, so Far Reach is one subject rather than a disconnected catalog duplicate plus a manually recreated World Isle. Technical Lore vs World identities remain separate layers.
 
+### UX-024
+
+- **Surface / Domain:** Mariner map / Seas
+- **Short title:** Storms should read as spatial Sea pieces and support direct movement
+- **Human observation:** Storm/Typhoon icons would be useful visual pieces positioned within Seas. On desktop, dragging a Storm between valid Seas could make movement natural.
+- **Reproduction / context:** Mariner Batch 2 visual retest. Current Storms are compact tokens near Sea labels rather than spatial Sea pieces.
+- **Category:** MISSING CAPABILITY
+- **Severity:** P3
+- **Likely scope:** MARINER
+- **Source/rules relevance:** Storm/Typhoon counts and Guided Storm movement already exist. Exact route-bounded Sea polygons are not required merely to display or drag a Storm.
+- **Suggested direction:** Future interaction polish could use a Sea presentation anchor, a generous invisible Sea drop target, valid-Sea highlight during drag, the existing authoritative move command, and a keyboard/non-drag equivalent.
+- **Current status:** HUMAN VERIFIED
+- **Dependencies / duplicates:** Related to UX-010. Does not require exact Sea polygons.
+- **Approved batch:** Not Batch 2 originally; spatial pieces, click-to-guide, and direct Storm drag included in the Batch 2 Mariner operability pass.
+- **Resolution / implementation note:** Storms/Typhoons render as spatial Sea pieces at presentation-only anchors. **Direct Storm piece drag** drops anywhere inside the existing broad Sea/Horizon hit geometry and submits `moveMarinerStorm` (one Storm token per drag, including from Typhoon stacks); pieces snap back to the destination anchor with no persisted drop coordinates. Adjacent/default Seas receive recommended highlight during drag; other representable destinations stay available. Click-to-guide and inspector controls remain keyboard/non-drag fallbacks. No Wind attestation. No exact Sea polygons. No new write contract. Human 2026-09-18 real-browser / real-pointer retest of the latest Mariner direct-manipulation work: "It all looked good." Storm direct manipulation is HUMAN VERIFIED. This does not verify Map Stability or prevailing Wind (neither is encoded).
+
+### UX-025
+
+- **Surface / Domain:** Mariner
+- **Short title:** Critical Mariner operational state is not visible at a glance
+- **Human observation:** The map should allow the table to scan weather, shipping, Stability, Markets, Ravage, Beasts, and exceptional threats without opening each inspector.
+- **Reproduction / context:** Open Mariner with nothing selected. Important board state should be readable across the map.
+- **Category:** DISCOVERABILITY / USABILITY
+- **Severity:** P1
+- **Likely scope:** MARINER
+- **Source/rules relevance:** SOURCE: Storms, Typhoons (Storms ≥ 2 as current presentation), Route occupancy, Markets/Rarity, Ravage counts, and Beast locations are current Mariner state. Map Stability and prevailing Wind are not encoded in current domain/state. APPLICATION DESIGN: compact tokens, Visions forecast, and hover/focus copy; not new rules.
+- **Suggested direction:** Show encoded operational state on the map; keep explanations on hover/focus; keep mutations on selection.
+- **Current status:** PARTIALLY ADDRESSED — implemented board presentation HUMAN VERIFIED; Map Stability / prevailing Wind unencoded
+- **Dependencies / duplicates:** Related to UX-010, UX-024, UX-026.
+- **Approved batch:** Batch 2 operability pass
+- **Resolution / implementation note:** Always-visible: Route occupancy/markers, Storm/Typhoon pieces, Markets (ordinary vs Rare Market star/cue), Ravage silhouette plus compact count, Beast tokens, and immediate-hazard rings on threatened occupied Routes. Map Stability numbers and authoritative prevailing Wind are not encoded in current domain/state and are not implemented. Do not claim they are implemented. The hollow Visions forecast strip was removed. Distrusting Beast tokens support Sea-to-Sea move and Isle Nest by drag; adjacent destinations are strongly recommended, other representable/structurally valid destinations remain available but quieter. Friendly/Nesting Beast tokens are also physical pieces: click selects the Beast, drag relocates via `relocateMarinerNestingBeast`, and a selected Beast has its own halo plus Beast inspector. Contextual Add/Remove remains. Supply tray offers Market and Rare Market; Rare places immediately as undescribed Rare state. Existing Markets drag with `moveMarinerMarket`. The undescribed-Rarity sentinel is never user-visible fiction. Rarity remains an attribute of the Market, not a separate board piece. The 2026-09-18 human retest successfully exercised this implemented board presentation, including Market + Nesting Beast representable-conflict cues, direct Beast/Market manipulation, Rare Market immediate placement, and Ship/Raider sanity. That does **not** promote this issue to fully resolved: Stability and prevailing Wind remain unencoded in authoritative state. No broad automation.
+
+### UX-026
+
+- **Surface / Domain:** Mariner
+- **Short title:** Mariner management actions are organized like generic CRUD instead of map context
+- **Human observation:** Selecting an Isle currently exposes operations such as Ship creation/movement that conceptually belong to Routes. The selected map object should determine the relevant information and actions.
+- **Reproduction / context:** Select an Isle, then a Route, then a Sea. Actions should match the selected object.
+- **Category:** WORKFLOW
+- **Severity:** P1
+- **Likely scope:** MARINER
+- **Source/rules relevance:** SOURCE: existing create/move Ship and Guide Storm commands already take Route or Sea identities. APPLICATION DESIGN: inspector information architecture only.
+- **Suggested direction:** Isle actions stay Isle-specific; Route owns Ship/Raider operations; Sea is weather-centric.
+- **Current status:** HUMAN VERIFIED
+- **Dependencies / duplicates:** Related to UX-025 and UX-024.
+- **Approved batch:** Batch 2 operability pass
+- **Resolution / implementation note:** Isle inspector keeps Market, Ravage, Record Ravage Result, Beast facts, and Lore. Selecting a Beast token opens a compact Beast inspector (name, Element, built-in definition, Condition, location) instead of merely the underlying Sea/Isle. Route inspector owns Add Ship / Move Ship (or Move Raider) using the selected Route as target or source without fabricating `sourceIsleId`. **Direct board manipulation convention:** left-click inspects; drag existing pieces to move; drag Ship / Raider / Storm / Market / Rare Market from a board-local supply tray to place; right-click opens one HTML context menu at the pointer; Delete / Backspace removes a selected occupied Route or decrements one selected Storm. Hover command menus are retired. Empty-Route context actions are Add Ship and Raider toward each named endpoint; occupied Route context is Remove Ship or Remove Raider; Sea/Horizon and Storm/Typhoon pieces share Add Storm and, when `stormCount > 0`, Remove Storm, plus Add Beast… from an existing unused Beast-profile World Denizen. **SOURCE:** adjacent Distrusting Beast move/Nest remains the printed/default procedure. SOURCE does not define voluntary Friendly/Nesting relocation. **APPLICATION DESIGN:** adjacency is a strong recommendation rather than a hard UI legality gate for Distrusting Beasts; other structurally coherent destinations remain available. Distrusting Sea Beasts drag to any other representable Sea (`moveMarinerBeast`) or any structurally valid Isle (`nestMarinerBeast`); right-click Recommended Move/Nest lists every adjacent destination and keeps blocked adjacent Isles visible with a reason; Move elsewhere… / Nest elsewhere… open action-triggered choosers. Friendly/Nesting Isle Beasts drag Isle→Isle / Isle→Sea with `relocateMarinerNestingBeast` and right-click Move Nest elsewhere… / Leave Nest to Sea…. Structural Nest blocks remain Ravaged / Beast already Nesting here. Market + Friendly/Nesting coexistence is representable with a derived Draft-4 warning rather than a hard block. Isle/Market context owns Add/Remove Market and Add/Describe/Edit/Remove Rarity as Market attributes. Rare Market places immediately as undescribed Rare state; Rarity prose may be added later; the sentinel is never visible fiction. Existing Markets drag with one `moveMarinerMarket`. Context-menu, tray, and drag actions retain the snapshot captured at menu-open or pointerdown. Tray Ship uses `createMarinerShip` with `destinationToward` null; tray Raider opens a direction chooser and does not guess; tray Storm uses `setMarinerSeaStormCount` only; tray Market / Rare Market use `setMarinerIsleMarket`. If a Beast Sea arrival would Rampage, a board-local Domain chooser uses that same original snapshot. These remain manual board-state edits only — no automatic World Denizen creation, Ship destruction, hazard resolution, seasonal Market, Gift award, Stability, Wind, Weather, or monthly procedure. Existing inspectors and BeastPanel remain discoverable fallbacks. Human 2026-09-18 real-browser / real-pointer retest: "It all looked good." Contextual/direct board actions, direct Beast/Market manipulation, Rare Market immediate placement, Ship/Raider sanity, Friendly/Nesting Beast relocation through `api.m3Commands.relocateMarinerNestingBeast`, and settled post-mutation board usability are HUMAN VERIFIED. This does not verify unrelated Necromancer, Compendium, or other-Domain checks.
+
 ---
 
-## Human retest path
+## Mariner operability — SOURCE / INFERENCE / APPLICATION DESIGN
 
-1. Open the demo/review campaign created by **Start Review Campaign** on a disposable Development deployment (creates a new campaign; do not repair it first). Confirm realistic Players/Wizards and currently supported Domains are already initialized enough to use.
-2. Open Hierophant. Confirm canonical Temples/Hestar already exist and ordinary setup does not ask the human to create/bind their locations.
-3. Open Mariner. Confirm canonical map Isles and starting Ship/Sanctum are already established. The human should not create World Isles or a "mobile Place" first.
-4. Perform one ordinary Mariner creation action from the Mariner surface if that existing action is part of the addressed shared pattern. Confirm no unrelated World setup detour is required.
-5. Open/initialize Necromancer in an appropriate clean/disposable campaign. Create/name required starting Foes/Ally through the Gates flow. Confirm no Powerful-profile/taxonomy prerequisite or raw DomainError leaks into normal setup.
-6. Depth is **not** in Batch 1. Do not treat spinner/raw-owner polish as fixed.
-7. Open Sorcerer. Confirm the review campaign is established. Confirm an eligible uninitialized Sorcerer has a useful next action or exact prerequisite.
-8. Open Compendium → Isles. Confirm canonical setting Isles present coherently and correspond to the conceptual Isles used by Mariner without manual duplicate setup.
-9. Quick full-screen desktop check of Batch 1 setup flows. Do not claim later board-width/map-redesign issues verified.
+**SOURCE (Draft-4 / current domain, not invented):**
+- Storms live on Seas; Guided Storm movement requires an adjacent Sea or Horizon and table confirmation that the move is not against the actual prevailing Wind.
+- Typhoon-scale shipping hazard uses existing helpers (`>= 2` storms, or `>= 1` storm plus a Beast in the same Sea).
+- Route occupancy is Empty / Ship / Raider; Raider `toward` is the authoritative raided endpoint.
+- Market is `{ present: false }` or `{ present: true, rarity: string | null }`.
+- Ravage is persisted `ravageStormCount`.
+- Beasts have Sea or Isle locations and encoded conditions.
+- Draft 4 says an Isle with a Friendly/Nesting Beast cannot have a Market. Draft 4 does **not** define the transition consequence if a Beast Nests on a Market Isle, or if a Market is placed/moved onto a Nesting Beast's Isle.
 
-Do not claim human verification from implementation or browser inspection alone.
+**INFERENCE (necessary consequences only):**
+- A Typhoon presentation label follows the existing `stormCount >= 2` helper.
+- Immediate hazard on an occupied Route is a read-only warning, not an automatic mutation.
+- Legal Guide Storm destinations are the catalog `adjacentRegionIds`.
+
+**APPLICATION DESIGN (not new game rules):**
+- Ship sail-aft pictogram and Raider destination-aligned heading.
+- Storm/Typhoon SVG pieces and Sea presentation anchors.
+- Stability badges omitted: Map Stability is not encoded; do not invent a formula.
+- Prevailing Wind chrome omitted: software does not know actual Wind; do not guess from calendar/season.
+- Next-Storm destination omitted from forecast: not deterministic from current state.
+- Visions forecast is a bookkeeping preview of current Storms, Typhoon seas, threatened occupied Routes, and Ravaged Isles.
+- Contextual inspectors and click-to-inspect selection. No hover command menus.
+- Click-to-guide Storm remains a keyboard/non-drag fallback. Direct Storm piece drag and tray Storm placement are implemented.
+- Direct Distrusting-Beast Sea move / Nest drag treats adjacency as a strong recommendation; other representable/structurally valid destinations remain available. All coherent Beast tokens are selectable/draggable physical pieces. Friendly/Nesting Isle→Isle and Isle→Sea use semantic relocation. One-Nest-per-Isle and Ravaged Nest-target remain hard. Market + Friendly/Nesting Beast coexistence is representable table state, not canonical corruption; there is no automatic Market/Beast destruction, relocation, or Rampage. Contextual Beast Add/Remove, Market / Rare Market supply, existing Market drag (`moveMarinerMarket`), and Market/Rarity context actions are implemented. Rare Market places immediately as undescribed Rare state; Rarity prose may be added later. Rare Market is a Market with Rarity, not a new game entity. No broad gameplay automation.
+- SOURCE does not define voluntary Friendly/Nesting Beast relocation. Physical relocation of an existing `friendly_nesting` Beast is APPLICATION DESIGN table-authoritative piece manipulation (`relocate_mariner_nesting_beast` / `mariner_nesting_beast_relocated`), not a printed Mariner action. Do not rewrite rules copy as though it were.
+- Undescribed Rare Market uses one reserved application sentinel (`__7PP_APP_UNDESCRIBED_MARINER_RARITY_V1__`) as pre-activation metadata in the existing `rarity` string field. It is not fictional prose and must never be displayed as such. Frontend presentation uses the domain helpers and never compares or shows the literal. Actual user description later replaces it normally. Reserved user input that matches the sentinel is rejected. This representation MUST be reviewed before V5 activation; no migration is approved now.
+
+### Market + Friendly/Nesting Beast coexistence (approved invariant correction)
+
+**SOURCE (Draft 4):** an Isle with a Friendly/Nesting Beast cannot have a Market.
+
+**SOURCE gap:** Draft 4 does not define what happens if:
+
+- a Beast Nests on an Isle that already has a Market; or
+- a Market is placed or moved onto an Isle with a Nesting Beast.
+
+The application must **not** infer Market destruction, Beast destruction/removal, Market relocation, Beast relocation, Rampage, or any other automatic resolution.
+
+**APPLICATION DESIGN (approved):** Market + `friendly_nesting` Beast on the same Isle is **representable table state with a Draft 4 rule conflict**, not invalid/corrupt campaign state. Canonical Mariner validation, `nestMarinerBeast`, `relocateMarinerNestingBeast` Isle→Isle, `moveMarinerMarket`, and the single-Isle Market setter persist the combination exactly as represented. Expected-state fields remain required for stale-write protection; they are not Market-placement legality. One-Nest-per-Isle and Ravaged Nest-target remain hard. No CampaignState migration. No event-version change. Existing events remain truthful (`mariner_beast_nested` v1, `mariner_nesting_beast_relocated` v1, `mariner_market_moved` v1, `mariner_isle_market_changed` v1).
+
+**Frontend (this body):** Mariner-local legality helpers permit Market onto Nest and Nest onto Market. Allowed conflict destinations use positive drop highlights. Add Market is offered on a Nesting-Beast Isle with no Market. Add Beast onto a Market Isle remains available when the Isle has no Nest and is not Ravaged. A derived helper `marketNestRuleConflict` reads current board state only; nothing is persisted. When both a Market and a Friendly/Nesting Beast occupy the same Isle, the board shows a small warning cue and the Isle / Nesting-Beast inspector shows: "Draft 4 conflict: an Isle with a Nesting Beast cannot have a Market." No modal. No acknowledgment. No automatic Market/Beast removal, move, Rarity change, Rampage, extra command, or extra event. Status: **HUMAN VERIFIED** (2026-09-18 Mariner direct-manipulation retest).
+
+### Pointer-lifecycle correction (Mariner board)
+
+Physical pointer release ends the visual drag **synchronously**, before Convex/network mutation completion.
+
+On pointerup after a threshold drag:
+
+1. Capture the current `DragSession`, drop target, and drop coordinates.
+2. Preserve the original pointerdown snapshot.
+3. Terminate visual drag immediately: `sessionRef = null`, `draggingActive = false`, `dragVisual = null`, hovered Sea/Route/Isle = null.
+4. Keep click-suppression only through the browser's immediate synthetic click, then clear it on the next task. Do not latch suppression to server success/failure.
+5. Dispatch the semantic/setter mutation asynchronously using the captured session/snapshot.
+
+Drop/commit helpers receive the captured session or snapshot explicitly and must not re-read `sessionRef` after teardown. Raider-direction, Ship Rampage, and Beast Rampage choosers still open after visual drag ends, using the already-captured action-start snapshot. Escape during an active physical drag cancels the visual drag without submitting; Escape after pointerup cannot be required to clean a ghost and must not cancel an already-submitted command.
+
+Primary pointer-start handlers on interactive Beast / Market / Route / Storm / tray pieces call `preventDefault()` before the pending/busy return, so native SVG/text selection does not begin while gameplay input is busy. The Mariner board stage and board SVG use local `select-none`; inspector and Rarity inputs keep `select-text`. Status: **HUMAN VERIFIED** (2026-09-18 real-browser / real-pointer retest). The board remains usable after settled direct-manipulation mutations. Do not treat this as an implementation-worker claim.
+
+Do not treat application-design forecasts as new game rules.
+
+---
+
+## Human verification record
+
+### 2026-09-18 — Mariner direct manipulation (HUMAN)
+
+The human completed the required real-browser / real-pointer retest of the latest Mariner direct-manipulation work, including the browser defect fixed at `24c45cd`, and reported: **"It all looked good."**
+
+Treat that retest as HUMAN VERIFIED for:
+
+- UX-024 Storm direct manipulation;
+- UX-026 contextual/direct board actions;
+- Market + Nesting Beast representable-conflict behavior;
+- direct Beast / Market manipulation;
+- Rare Market immediate placement;
+- Ship / Raider sanity;
+- pointer-lifecycle correction (physical pointerup ends visual drag before Convex completion);
+- Friendly/Nesting Beast relocation through the generated Convex FunctionReference `api.m3Commands.relocateMarinerNestingBeast`;
+- board remains usable after settled direct-manipulation mutations.
+
+UX-025's implemented board presentation was successfully exercised in that retest. UX-025 remains **PARTIALLY ADDRESSED** because Map Stability and prevailing Wind remain unencoded in authoritative state.
+
+Do **not** infer that this 2026-09-18 retest re-ran unrelated older Batch-2 visual checks. Those seven Batch-2 visual/layout issues were accepted later, on **2026-09-19**. Batch 1 issues remain FIXED — NEEDS HUMAN RETEST. Deferred UX-005 / UX-006 / UX-011 / UX-015 / UX-020 / UX-021 remain deferred. No unrelated Necromancer, Compendium, or other-Domain human checks were performed in this 2026-09-18 retest.
+
+This is HUMAN verification, not an implementation-worker claim.
+
+### 2026-09-19 — real Convex cloud Preview integration
+
+Batch 2's outstanding real-Convex integration boundary is closed. This is **real Convex cloud Preview integration**, not a Development deployment and not Production.
+
+- Convex cloud deployment type: **preview**
+- Preview name: `m5-4/table-readiness-ux-batch-2`
+- Live deployment slug: `dependable-loris-864` (`https://dependable-loris-864.convex.cloud`)
+- Earlier smoke-test slug `brave-firefly-257` was gone at recapture (`PreviewNotFound`); the same preview name was claimed again without `--preview-create`. All writes below ran on `dependable-loris-864`.
+- Disposable campaign `cmp_42854d1b-c91b-4c03-90db-522ad6fc4665` (documentary name **M5.4 B2 Preview Closure**), Quiet Mariner source setup, revision **0 → 7**.
+- Directional Raider: `createMarinerShip` `cmd_101c31bb-88cb-4035-a97d-a2a3c43de950` on Route `druntyr__thyras` with `destinationToward = { kind: "board_isle", boardIsleId: "druntyr" }`; revision **1 → 2**; occupancy `{ kind: "raider", toward: druntyr }`; `mariner_ship_created` v3 records `occupancyKind = raider`, `toward = druntyr`, no fabricated `sourceIsleId`; Activity: "Created a Raider".
+- Atomic Market move: Rare Market rarity `"Preview-closure amber glass"` via `setMarinerIsleMarket` then one `moveMarinerMarket` Scuttleport → Orrery (`cmd_0bf3c2cd-a719-4f2f-9dee-5d068c9033bf`); revision **3 → 4**; source `{ present: false }`; destination rarity preserved exactly; `mariner_market_moved` v1; Activity: "Moved Rare Market from Scuttleport to Orrery".
+- Nesting-Beast relocation: Denizen `den_b22ad3ba-3731-4dad-810b-d32674f7b43a`; `relocateMarinerNestingBeast` Druntyr → Ishana (`cmd_9c4381c5-42e4-4445-b751-a7927b9d2b87`); revision **6 → 7**; identity unchanged; condition `friendly_nesting` before and after; `mariner_nesting_beast_relocated` v1; Activity: "Moved Nesting Beast from Druntyr to Ishana".
+- Authoritative Preview readback from `m3Queries:getMarinerReference` on `dependable-loris-864` confirmed all three persisted facts.
+- Idempotent replay of the Raider `createMarinerShip` command ID/payload: campaign revision stayed **7**; mutation receipt remained revision **2**; no extra event or revision record.
+- `verifyMigration:verifyMigration` → `status: valid`; revision 7; historyControlStatus valid; checkpointStatus valid (0 checkpoints); 7 events / 7 revision records / 8 snapshots.
+- **Production not used.** No CampaignState schema change. No production source change.
+
+Do not treat this Preview proof as closing UX-025's unencoded Map Stability / prevailing Wind, Batch 1 human retest, or deferred UX-005 / UX-006 / UX-011 / UX-015 / UX-020 / UX-021.
+
+### 2026-09-19 — remaining Batch-2 visual/layout acceptance (HUMAN)
+
+The human completed the remaining Batch-2 visual / layout checks requested for this run and reported: **"Confirmed on all these."**
+
+Treat that acceptance as HUMAN VERIFIED for:
+
+- UX-004 overall desktop width / workspace use;
+- UX-009 Mariner map priority over Ship/Sanctum summary;
+- UX-010 Mariner source-shaped map appearance;
+- UX-016 Necromancer source-shaped Gates / branching / no bad focus box / no ordinary horizontal scrollbar;
+- UX-017 Necromancer Depth wording / no raw wizard UUID;
+- UX-018 compact direct Depth control / no Save Depth button;
+- UX-022 sticky Compendium detail pane / independently scrollable detail.
+
+This is HUMAN verification, not an implementation-worker claim. It does not re-verify the 2026-09-18 Mariner direct-manipulation work, does not close UX-025's unencoded Map Stability / prevailing Wind, and does not verify Batch 1 issues or deferred UX-005 / UX-006 / UX-011 / UX-015 / UX-020 / UX-021.
+
+## Accepted 2026-09-19 visual / layout path
+
+The remaining Batch-2 visual / layout checks at **1600×1000** full-screen desktop were completed and accepted by the human on **2026-09-19**. They were not part of the 2026-09-18 Mariner interaction retest. Recorded evidence of the accepted path:
+
+1. Open Mariner with nothing selected. Confirm the map dominates, geography is recognizable, Ship/Sanctum is compact, and there is no normal horizontal scrollbar.
+2. Select an Isle. Confirm the overlay inspector opens and the map does **not** shrink. Close with the button and with Escape.
+3. Select a Route or Sea. Confirm the overlay updates without resizing the board.
+4. Open Necromancer with nothing selected. Confirm arched Gates, Near/Far/Furthest branching, compact Depth (no raw owner UUID, no Save Depth), and no normal horizontal scrollbar.
+5. Select a Gate, then a path space. Confirm overlay behavior and that the board does not resize.
+6. If safely available without unsafe mutation, inspect Hostile / Destroyed / 5+ Souls treatments.
+7. Open Compendium, select a long entry, and scroll the subject list. Confirm the detail pane stays available and long text scrolls inside it.
+8. Glance Hierophant, Sorcerer, and Faustian at full desktop. Confirm no obvious regression from the wider PlayShell. Do not treat UX-005/006/011/020/021 as fixed.
+
+This path is recorded as completed HUMAN verification on 2026-09-19, not an implementation-worker or browser-inspection claim.
 
 ## Implementation checkpoint log
 
-Recorded as work proceeds.
+Batch 1 (merged PR #28):
 
 | Body | SHA | Subject |
 |---|---|---|
@@ -505,18 +733,41 @@ Recorded as work proceeds.
 | 2 | `fb8a841394656e82a342bb3d2a5751b40d45574a` | M5.4 UX B1: make Gates setup source-shaped |
 | 3 | `8776ac8b85becfb9e63bba9ea7ffc90a8f1c06c7` | M5.4 UX B1: add representative review readiness |
 
+Batch 2 visual bodies:
+
+| Body | SHA | Subject |
+|---|---|---|
+| 1 | `c3eb8af5f71e160f702362d7c1fa63c2899a60d9` | M5.4 UX B2: expand desktop Mariner board |
+| 2 | `99e3bfd4d5ae396ad673cb8a426209fc272baa11` | M5.4 UX B2: reshape the Gates board |
+| 3 | `833c19e1d6fa7cdc8644564449a0358afe414228` | M5.4 UX B2: finish desktop reading pass |
+
+Batch 2 Mariner operability pass:
+
+| Body | SHA | Subject |
+|---|---|---|
+| A | `8db4b0fc1499b06e977a1bd20cd96f7f210aff62` | M5.4 UX B2: expose Mariner operational state |
+| B | `204db083c6dd0400ec500a5a4d92368e06816411` | M5.4 UX B2: make Mariner map actions contextual |
+| C | `61213153082c81c6fff51ed16cbfd5ef46073efe` | M5.4 UX B2: add Mariner weather interaction |
+| Interaction convention | `eb2753ca5b18ddd677714d526f23eaec101a8492` | M5.4 UX B2: adopt board interaction convention |
+| Beast + Market board controls | `2365809614e918b3a1ed24728cf1e890bbad1acf` | M5.4 UX B2: refine Beast and Market manipulation |
+| Nesting Beast relocation semantics | `ea65697738075ea6ba612ef5f473034aa623aaa8` | M5.4 UX B2: add Nesting Beast relocation semantics |
+| Market + Nest representable state | `b18e34634fdf30caab963cfaaf7ac0e2dc82202e` | M5.4 UX B2: represent Market and Nest conflicts |
+| Drag lifecycle + Market-Nest UX | `b9b75425d0a12577a8889763119cfa3368dd63f5` | M5.4 UX B2: fix drag lifecycle and Market-Nest UX |
+| Restore interaction after mutations | `24c45cdceffd02b563bf78153dc764e69b2d01eb` | M5.4 UX B2: restore interaction after direct mutations |
+
 ## Browser / desktop inspection (implementation worker)
 
-Attempted a 1600×1000 desktop inspection of `http://localhost:5183/` in the isolated browser. The Vite app loaded but React did not mount in that browser (empty `#root`). No mutations were sent.
+Inspected at **1600×1000** against disposable Development `academic-gazelle-299` via local Vite (`http://localhost:5183/`). No mutations were sent. Guide Storm was entered and cancelled. `wry-boar-766` was not used. **No Production.** **No function sync.**
 
-**Did not** start a review campaign against the local `.env.local` Development slug `wry-boar-766`, which prior Faustian docs identify as the human's review deployment.
+Implementation-worker observations (not human verification):
 
-**Did not** run `npx convex deploy`. **No Production.**
-
-Remaining unique integration proof: sync Batch 1 Convex functions to a **disposable** Development deployment and create a new review campaign there, then walk the human retest path. Do not use `dev:wry-boar-766` for that proof unless the human explicitly authorizes it.
+- Mariner unselected: PowerPoint-native source SVG remains dominant; Visions forecast is compact; Storms, Ships, Raider, and Scuttleport Market are visible without clicking. No Stability numbers or prevailing Wind chrome (not encoded). This campaign had no Beasts and no Ravaged Isles. No horizontal overflow.
+- Hover/focus copy appears in the status strip when a map object is selected (and on keyboard focus in tests). Isle/Route/Sea inspectors match the selected object: Isle has no Ship CRUD; Route owns Record Ship Move; Sea is weather-centric with Guide Storm...
+- Guide Storm highlights only adjacent Sea hit ellipses; Cancel/Escape exits without write. Overlay inspector does not resize the map.
+- Necromancer / other Domains were not re-audited in this operability pass.
 
 ## New UX findings from this run
 
 none
 
-Do not mark any issue VERIFIED.
+Human verification is issue-specific. Unrelated issues remain unverified until separately evidenced.

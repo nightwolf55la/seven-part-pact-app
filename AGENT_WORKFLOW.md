@@ -437,6 +437,17 @@ contract, then define one bounded minimum-operability command surface, then
 basic UI. Do not discover every Codex action serially unless that automation
 was explicitly chartered.
 
+See `PROJECT_CONTEXT.md` for the durable product principle
+**Rules-aware assistance; table-authoritative legality**. Written gameplay
+procedure is guidance for defaults, highlighting, and reminders. Hard server
+validation remains authoritative for integrity, stale writes, idempotency,
+unambiguous command meaning, deterministic consequences, destructive safety,
+representability, and persistence/recovery. Do not refuse a representable,
+internally coherent gameplay action solely because it differs from the printed
+default procedure. Apply that distinction prospectively when concrete UX
+friction exposes a problematic validator; do not perform a repository-wide
+validator relaxation.
+
 ## Cursor Search-Space Discipline
 
 Implementation prompts should bound repository search space, not merely be

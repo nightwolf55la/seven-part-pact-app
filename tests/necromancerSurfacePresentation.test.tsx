@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { createElement } from "react";
+import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import {
@@ -13,7 +13,7 @@ import {
 import { makeTestCampaignStateV5 } from "./test-state";
 import NecromancerSurface from "../src/NecromancerSurface";
 import type { WorldReference } from "../src/WorldSurface";
-import { MAX_VISIBLE_SOUL_BEADS, pathSpaceDisplayName } from "../src/necromancer-view-model";
+import { MAX_VISIBLE_SOUL_BEADS, pathSpaceDisplayName, type NecromancerWizardRef } from "../src/necromancer-view-model";
 import type { SorcererExternalPresence } from "../shared/domain";
 
 const CAMPAIGN_ID = "cmp_00000000-0000-0000-0000-000000000001";
@@ -111,11 +111,19 @@ function loreCompendiumReady() {
   return { status: "ready" as const, presentation };
 }
 
+const MATCHED_WIZARD: NecromancerWizardRef = {
+  wizardId: "wiz_00000000-0000-0000-0000-00000000000a",
+  name: "Ash",
+  homeIsleId: null,
+  sanctumPlaceId: null,
+};
+
 function renderSurface(extra?: {
   loreCompendium?: ReturnType<typeof loreCompendiumReady>;
   necromancer?: NecromancerState;
   world?: WorldReference;
   sorcererPresence?: readonly SorcererExternalPresence[];
+  necromancerWizard?: NecromancerWizardRef | null;
 }) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -127,7 +135,7 @@ function renderSurface(extra?: {
         necromancer: next?.necromancer ?? necromancer,
         world: next?.world ?? extra?.world ?? WORLD,
         campaignId: CAMPAIGN_ID,
-        necromancerWizard: null,
+        necromancerWizard: next?.necromancerWizard ?? extra?.necromancerWizard ?? null,
         wizards: [],
         loreCompendium: next?.loreCompendium ?? extra?.loreCompendium ?? loreCompendiumReady(),
         sorcererPresence: next?.sorcererPresence ?? extra?.sorcererPresence ?? [],
@@ -313,8 +321,10 @@ describe("Gates board operability presentation", () => {
     });
     const { container, root } = renderSurface({ necromancer });
     expect(container.querySelector('[aria-label="Gates of Death board"]')).not.toBeNull();
+    expect(container.querySelector("[data-necromancer-source-board]")?.getAttribute("aria-hidden")).toBe("true");
     expect(container.textContent).toContain("I Amber");
-    expect(container.textContent).toContain("Edge of Life — Depth 1");
+    expect(container.querySelector('[aria-label^="I Amber"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label*="Sage Edge of Life"]')).not.toBeNull();
     expect(container.textContent).toContain("Hostile");
     expect(container.textContent).toContain("Destroyed");
     expect(container.textContent).toContain("5+ Souls pending");
@@ -588,6 +598,212 @@ describe("Gates board operability presentation", () => {
       pieces!.open = true;
     });
     expect(container.textContent).toContain("Rebuff is not automated");
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("Necromancer desktop board and Depth presentation", () => {
+  it("fits the Gates board without a fixed minimum width or horizontal scroll gutter", () => {
+    const { container, root } = renderSurface();
+    const board = container.querySelector("[data-necromancer-board]");
+    const scroller = container.querySelector("[data-necromancer-board-scroll]");
+    expect(board).not.toBeNull();
+    expect(scroller).toBeNull();
+    expect(board?.className).not.toContain("min-w-[640px]");
+    expect(container.querySelector("[data-necromancer-board-stage]")?.className).not.toContain("overflow-x-auto");
+    root.unmount();
+    container.remove();
+  });
+
+  it("uses a dismissible overlay inspector instead of a permanent board-halving column", () => {
+    const { container, root } = renderSurface();
+    expect(container.querySelector("[data-board-overlay-inspector]")).toBeNull();
+    expect(container.innerHTML).not.toContain("lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,1fr)]");
+    const board = container.querySelector("[data-necromancer-board]") as SVGSVGElement;
+    const before = { width: board.viewBox.baseVal.width, height: board.viewBox.baseVal.height };
+    expect(before.width).toBe(1046);
+    expect(before.height).toBe(783);
+    expect(container.querySelector("[data-necromancer-source-board]")).not.toBeNull();
+    const amber = container.querySelector('[aria-label^="I Amber"]') as Element;
+    flushSync(() => { amber.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
+    expect(container.querySelector('[aria-label="Selected space"]')?.textContent).toContain("Amber");
+    expect(board.viewBox.baseVal.width).toBe(before.width);
+    expect(board.viewBox.baseVal.height).toBe(before.height);
+    expect(container.querySelector("[data-necromancer-board-scroll]")).toBeNull();
+    flushSync(() => { (container.querySelector('[aria-label="Close inspector"]') as HTMLButtonElement).click(); });
+    expect(container.querySelector("[data-board-overlay-inspector]")).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps Depth compact and hides raw owner UUIDs", () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      depth: { wizardId: MATCHED_WIZARD.wizardId as never, value: 0 },
+    });
+    const { container, root } = renderSurface({ necromancer, necromancerWizard: MATCHED_WIZARD });
+    const depth = container.querySelector("[data-necromancer-depth]");
+    expect(depth?.textContent).toMatch(/Depth/);
+    expect(depth?.textContent).not.toContain("Depth owner");
+    expect(container.textContent).not.toContain(MATCHED_WIZARD.wizardId);
+    expect(container.querySelector("button")?.textContent).not.toBe("Save Depth");
+    expect(container.textContent).not.toContain("Save Depth");
+    expect(container.querySelector('[aria-label="Depth"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("commits an isolated Depth change through the existing semantic operation without a Save step", () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      depth: { wizardId: MATCHED_WIZARD.wizardId as never, value: 0 },
+    });
+    const { container, root } = renderSurface({ necromancer, necromancerWizard: MATCHED_WIZARD });
+    const input = container.querySelector('[aria-label="Depth"]') as HTMLInputElement;
+    setControlledInput(input, "2");
+    flushSync(() => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+    const fn = mockMutations["m3Commands.setNecromancerDepth"];
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(fn.mock.calls[0][0]).toMatchObject({
+      expectedCampaignId: CAMPAIGN_ID,
+      expectedDepth: { wizardId: MATCHED_WIZARD.wizardId, value: 0 },
+      depth: { wizardId: MATCHED_WIZARD.wizardId, value: 2 },
+    });
+    expect(container.textContent).not.toContain("Save Depth");
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps pending and error state visible for Depth", async () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      depth: { wizardId: MATCHED_WIZARD.wizardId as never, value: 0 },
+    });
+    mockMutations["m3Commands.setNecromancerDepth"] = vi.fn(() => new Promise(() => {}));
+    const first = renderSurface({ necromancer, necromancerWizard: MATCHED_WIZARD });
+    const input = first.container.querySelector('[aria-label="Depth"]') as HTMLInputElement;
+    setControlledInput(input, "1");
+    flushSync(() => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+    expect(first.container.querySelector('[role="status"]')?.textContent).toMatch(/Depth/);
+    first.root.unmount();
+    first.container.remove();
+
+    mockMutations["m3Commands.setNecromancerDepth"] = vi.fn(async () => {
+      throw new Error("expected Depth is stale");
+    });
+    const second = renderSurface({ necromancer, necromancerWizard: MATCHED_WIZARD });
+    const again = second.container.querySelector('[aria-label="Depth"]') as HTMLInputElement;
+    setControlledInput(again, "3");
+    await act(async () => {
+      again.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(second.container.querySelector('[role="alert"]')?.textContent).toContain("stale");
+    expect((second.container.querySelector('[aria-label="Depth"]') as HTMLInputElement).value).toBe("0");
+    second.root.unmount();
+    second.container.remove();
+  });
+
+  it("renders exact source Gate geometry and keeps accessible labels for Gates and path spaces", () => {
+    const { container, root } = renderSurface();
+    expect(container.querySelector('[data-source-geometry-sprite="necromancer"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label^="I Amber"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label^="XI Terminus"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label^="Sage Edge of Life"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label^="Marching Abyss"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps active Law wording in normal rendered content instead of a title tooltip", () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      selectedLaws: [
+        { lawId: "first", visibility: "revealed" },
+        { lawId: "second", visibility: "hidden" },
+      ],
+    });
+    const { container, root } = renderSurface({ necromancer });
+    const laws = container.querySelector("[data-necromancer-laws]");
+    expect(laws).not.toBeNull();
+    expect(laws?.textContent).toContain("First Law of Death");
+    expect(laws?.textContent).toContain("Do not eat the food of the dead or drink their water.");
+    expect(laws?.textContent).toContain("Hidden Law");
+    expect(laws?.textContent).not.toContain("Do not reveal your name to the dead or look into their eyes.");
+    const titleOnly = Array.from(laws!.querySelectorAll("[title]")).some((el) => {
+      const title = el.getAttribute("title") ?? "";
+      return title.includes("Do not eat the food of the dead") && !el.textContent?.includes("Do not eat the food of the dead");
+    });
+    expect(titleOnly).toBe(false);
+    root.unmount();
+    container.remove();
+  });
+
+  it("uses a decorative PowerPoint-native source SVG without reconstructed connectors or arrowheads", () => {
+    const { container, root } = renderSurface();
+    expect(container.querySelector("[data-necromancer-source-board]")).not.toBeNull();
+    expect(container.querySelector("#nec-step-arrow")).toBeNull();
+    expect(container.querySelector("#nec-terminal-arrow")).toBeNull();
+    expect(container.querySelectorAll("[data-board-connection]")).toHaveLength(0);
+    expect(container.querySelectorAll("[data-board-label]")).toHaveLength(0);
+    expect(container.querySelector('[aria-label^="I Amber"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("selects a Gate with exact source geometry rather than a reconstructed arch or ellipse halo", () => {
+    const { container, root } = renderSurface();
+    const amber = container.querySelector('[aria-label^="I Amber"]') as SVGElement;
+    flushSync(() => { amber.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    const source = amber.querySelector('[data-source-geometry="necromancer-gate-amber"]');
+    expect(source).not.toBeNull();
+    expect(source?.getAttribute("href") ?? source?.getAttribute("xlink:href")).toBe("#necromancer-gate-amber");
+    expect(amber.querySelector("[data-gate-silhouette='arch']")).toBeNull();
+    expect(amber.querySelector("ellipse[data-selection-halo], [data-selection-halo] ellipse")).toBeNull();
+    expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
+    expect(container.querySelector('[aria-label="Selected space"]')?.textContent).toContain("Amber");
+    root.unmount();
+    container.remove();
+  });
+
+  it("selects an occupiable path space with exact source circle geometry", () => {
+    const { container, root } = renderSurface();
+    const path = container.querySelector('[aria-label^="Sage Edge of Life"]') as SVGElement;
+    expect(path).not.toBeNull();
+    flushSync(() => { path.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    const source = path.querySelector('[data-source-geometry="necromancer-path-edge_sage"]');
+    expect(source).not.toBeNull();
+    expect(source?.getAttribute("href") ?? source?.getAttribute("xlink:href")).toBe("#necromancer-path-edge_sage");
+    expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps Gate and path spaces keyboard-focusable without a native rectangular outline class", () => {
+    const { container, root } = renderSurface();
+    const amber = container.querySelector('[aria-label^="I Amber"]') as SVGElement;
+    const path = container.querySelector('[aria-label^="Sage Edge of Life"]') as SVGElement;
+    expect(amber.getAttribute("tabindex") ?? amber.getAttribute("tabIndex")).toBe("0");
+    expect(path.getAttribute("tabindex") ?? path.getAttribute("tabIndex")).toBe("0");
+    expect(amber.getAttribute("role")).toBe("button");
+    expect(path.getAttribute("role")).toBe("button");
+    const amberClass = amber.getAttribute("class") ?? "";
+    const pathClass = path.getAttribute("class") ?? "";
+    expect(amberClass).toContain("outline-none");
+    expect(pathClass).toContain("outline-none");
+    expect(amberClass).not.toMatch(/focus-visible:outline(?!-none)/);
+    expect(pathClass).not.toMatch(/focus-visible:outline(?!-none)/);
+    root.unmount();
+    container.remove();
+  });
+
+  it("presents Gate and path keyboard focus on exact source geometry", () => {
+    const { container, root } = renderSurface();
+    const amber = container.querySelector('[aria-label^="I Amber"]') as SVGElement;
+    const path = container.querySelector('[aria-label^="Sage Edge of Life"]') as SVGElement;
+    const gateFocus = amber.querySelector('[data-focus-ring][data-source-geometry="necromancer-gate-amber"]');
+    const pathFocus = path.querySelector('[data-focus-ring][data-source-geometry="necromancer-path-edge_sage"]');
+    expect(gateFocus).not.toBeNull();
+    expect(pathFocus).not.toBeNull();
+    expect(gateFocus?.getAttribute("href") ?? gateFocus?.getAttribute("xlink:href")).toBe("#necromancer-gate-amber");
+    expect(pathFocus?.getAttribute("href") ?? pathFocus?.getAttribute("xlink:href")).toBe("#necromancer-path-edge_sage");
     root.unmount();
     container.remove();
   });

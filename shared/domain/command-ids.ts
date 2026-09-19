@@ -541,6 +541,10 @@ export function setMarinerIsleMarketFingerprint(
   })}`;
 }
 
+export function moveMarinerMarketFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `move_mariner_market:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
 export function setMarinerIsleRavageFingerprint(
   expectedCampaignId: string,
   boardIsleId: string,
@@ -593,6 +597,10 @@ export function moveMarinerShipFingerprint(expectedCampaignId: string, input: un
 
 export function nestMarinerBeastFingerprint(expectedCampaignId: string, input: unknown): string {
   return `nest_mariner_beast:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
+}
+
+export function relocateMarinerNestingBeastFingerprint(expectedCampaignId: string, input: unknown): string {
+  return `relocate_mariner_nesting_beast:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
 }
 
 export function recordMarinerRavageResultFingerprint(expectedCampaignId: string, input: unknown): string {

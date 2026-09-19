@@ -134,4 +134,101 @@ describe("describeActivityEntry", () => {
     });
     expect(describeActivityEntry(entry)).toBe("Revision 10 \u2014 Updated wizard character");
   });
+
+  it.each([
+    {
+      label: "created with source Isle",
+      event: {
+        type: "mariner_ship_created" as const,
+        version: 2 as const,
+        data: {
+          sourceIsleId: "thyras",
+          targetRouteId: "board_isle:tahv__board_isle:yeraine",
+          immediatelyDestroyed: false,
+          rampagedBeasts: [],
+        },
+      },
+      expected: "Revision 9 — Created a Ship from thyras",
+    },
+    {
+      label: "created without source Isle",
+      event: {
+        type: "mariner_ship_created" as const,
+        version: 2 as const,
+        data: {
+          targetRouteId: "board_isle:tahv__board_isle:yeraine",
+          immediatelyDestroyed: false,
+          rampagedBeasts: [],
+        },
+      },
+      expected: "Revision 9 — Created a Ship",
+    },
+    {
+      label: "moved with source Isle",
+      event: {
+        type: "mariner_ship_moved" as const,
+        version: 2 as const,
+        data: {
+          sourceIsleId: "thyras",
+          sourceRouteId: "board_isle:thyras__external_land:nebelheim",
+          destinationRouteId: "board_isle:tahv__board_isle:yeraine",
+          occupancyKind: "ship" as const,
+          toward: null,
+          immediatelyDestroyed: false,
+          rampagedBeasts: [],
+        },
+      },
+      expected: "Revision 9 — Recorded Ship move from thyras",
+    },
+    {
+      label: "moved without source Isle",
+      event: {
+        type: "mariner_ship_moved" as const,
+        version: 2 as const,
+        data: {
+          sourceRouteId: "board_isle:thyras__external_land:nebelheim",
+          destinationRouteId: "board_isle:tahv__board_isle:yeraine",
+          occupancyKind: "ship" as const,
+          toward: null,
+          immediatelyDestroyed: false,
+          rampagedBeasts: [],
+        },
+      },
+      expected: "Revision 9 — Recorded Ship move",
+    },
+    {
+      label: "created v3 ordinary Ship",
+      event: {
+        type: "mariner_ship_created" as const,
+        version: 3 as const,
+        data: {
+          targetRouteId: "board_isle:tahv__board_isle:yeraine",
+          occupancyKind: "ship" as const,
+          toward: null,
+          immediatelyDestroyed: false,
+          rampagedBeasts: [],
+        },
+      },
+      expected: "Revision 9 — Created a Ship",
+    },
+    {
+      label: "created v3 Raider",
+      event: {
+        type: "mariner_ship_created" as const,
+        version: 3 as const,
+        data: {
+          sourceIsleId: "thyras",
+          targetRouteId: "board_isle:tahv__board_isle:yeraine",
+          occupancyKind: "raider" as const,
+          toward: { kind: "board_isle" as const, boardIsleId: "tahv" },
+          immediatelyDestroyed: false,
+          rampagedBeasts: [],
+        },
+      },
+      expected: "Revision 9 — Created a Raider from thyras",
+    },
+  ])("Activity History is truthful for Mariner ship $label", ({ event, expected }) => {
+    const entry = mapEventToActivityEntry("evt_1", 9, event as unknown as CampaignEvent);
+    expect(describeActivityEntry(entry)).toBe(expected);
+  });
 });

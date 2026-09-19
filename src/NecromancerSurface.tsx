@@ -34,6 +34,7 @@ import {
 import type { WorldReference } from "./WorldSurface";
 import LoreContextPanel from "./LoreContextPanel";
 import { findPresentationSubjectByRef, type LoreCompendiumUiState } from "./lore-view-model";
+import BoardOverlayInspector from "./BoardOverlayInspector";
 import NecromancerGatesBoard from "./NecromancerGatesBoard";
 import {
   NECROMANCER_ABOMINATION_KINDS,
@@ -435,30 +436,29 @@ export default function NecromancerSurface({
           {error}
         </div>
       )}
-      <HeaderSummary necromancerWizard={necromancerWizard} world={world} />
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <HeaderSummary necromancerWizard={necromancerWizard} world={world} />
+        <div className="flex flex-wrap items-start gap-3">
         <DepthPanel
           necromancer={necromancer}
           necromancerWizard={necromancerWizard}
           depthDraft={depthDraft}
           setDepthDraft={setDepthDraft}
           pending={pending}
-          onSaveMatched={async () => {
+          onCommitMatched={async (value) => {
             if (necromancerWizard === null || necromancer.depth === null) return;
-            const value = parseNonNegInt(depthDraft);
-            if (value === null) {
-              setError("Depth must be a non-negative integer.");
-              return;
-            }
             const payload = buildSetNecromancerDepthPayload({
               commandId: newCommandId(),
               expectedCampaignId: campaignId,
               expectedDepth: necromancer.depth,
               depth: { wizardId: necromancerWizard.wizardId as WizardId, value },
             });
-            await run(async () => {
+            const ok = await run(async () => {
               await setNecromancerDepth(payload);
             });
+            if (!ok) {
+              setDepthDraft(String(necromancer.depth.value));
+            }
           }}
           onBindCurrent={async () => {
             if (necromancerWizard === null) return;
@@ -507,8 +507,9 @@ export default function NecromancerSurface({
             if (ok) setEditingLaws(false);
           }}
         />
+        </div>
       </div>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,1fr)]">
+      <div data-necromancer-board-stage className="relative min-w-0">
         <NecromancerGatesBoard
           necromancer={necromancer}
           world={world}
@@ -519,6 +520,11 @@ export default function NecromancerSurface({
           }}
           sorcererPresence={sorcererPresence}
         />
+        <BoardOverlayInspector
+          open={selection !== null}
+          title="Selection details"
+          onClose={() => setSelection(null)}
+        >
         <Inspector
           necromancer={necromancer}
           world={world}
@@ -605,6 +611,7 @@ export default function NecromancerSurface({
             });
           }}
         />
+        </BoardOverlayInspector>
       </div>
       <EscapedFoeTray necromancer={necromancer} world={world} wizards={wizards} />
       <AdvancedStructure
@@ -1014,7 +1021,7 @@ function DepthPanel({
   depthDraft,
   setDepthDraft,
   pending,
-  onSaveMatched,
+  onCommitMatched,
   onBindCurrent,
   onClearStale,
 }: {
@@ -1023,45 +1030,86 @@ function DepthPanel({
   depthDraft: string;
   setDepthDraft: (value: string) => void;
   pending: boolean;
-  onSaveMatched: () => Promise<void>;
+  onCommitMatched: (value: number) => Promise<void>;
   onBindCurrent: () => Promise<void>;
   onClearStale: () => Promise<void>;
 }) {
   const kind = necromancerDepthUiKind(necromancer.depth, necromancerWizard?.wizardId ?? null);
+  const authoritative = necromancer.depth?.value ?? 0;
+
+  function commit(raw: string): void {
+    const value = parseNonNegInt(raw);
+    if (value === null) {
+      setDepthDraft(String(authoritative));
+      return;
+    }
+    if (necromancer.depth !== null && value === necromancer.depth.value) return;
+    void onCommitMatched(value);
+  }
+
   return (
-    <section className="rounded-lg border border-violet-100 dark:border-violet-900 p-3 space-y-2">
-      <h3 className="text-sm font-semibold">Depth</h3>
-      <p className="text-sm">Current Necromancer: <strong>{necromancerWizard?.name ?? "none"}</strong></p>
-      <p className="text-sm">
-        Depth owner: <strong>{necromancer.depth === null ? "none" : necromancer.depth.wizardId}</strong>
-        {necromancer.depth !== null ? ` · value ${necromancer.depth.value}` : ""}
-      </p>
-      {kind === "matched" && (
-        <div className="flex flex-wrap gap-2 items-end">
-          <label className="text-sm">
-            Depth
+    <section data-necromancer-depth className="rounded-lg border border-violet-100 dark:border-violet-900 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-sm font-semibold">Depth</h3>
+        {kind === "matched" && (
+          <>
+            <button
+              type="button"
+              aria-label="Decrease Depth"
+              className={ghostBtn}
+              disabled={pending || authoritative <= 0}
+              onClick={() => {
+                const next = Math.max(0, authoritative - 1);
+                setDepthDraft(String(next));
+                commit(String(next));
+              }}
+            >
+              −
+            </button>
             <input
-              aria-label="Depth value"
-              className={`${fieldClass} mt-1 w-28`}
+              aria-label="Depth"
+              type="number"
+              min={0}
+              className={`${fieldClass} w-16 text-center`}
               value={depthDraft}
-              onChange={(event) => setDepthDraft(event.target.value)}
+              disabled={pending}
+              onChange={(event) => {
+                setDepthDraft(event.target.value);
+                commit(event.target.value);
+              }}
             />
-          </label>
-          <button className={btnClass} disabled={pending} onClick={() => { void onSaveMatched(); }}>Save Depth</button>
-        </div>
-      )}
+            <button
+              type="button"
+              aria-label="Increase Depth"
+              className={ghostBtn}
+              disabled={pending}
+              onClick={() => {
+                const next = authoritative + 1;
+                setDepthDraft(String(next));
+                commit(String(next));
+              }}
+            >
+              +
+            </button>
+          </>
+        )}
+        {pending && <span role="status" className="text-xs text-slate-500">Updating Depth…</span>}
+      </div>
       {kind === "bind_current" && necromancerWizard !== null && (
-        <button className={btnClass} disabled={pending} onClick={() => { void onBindCurrent(); }}>
+        <button className={`${btnClass} mt-2`} disabled={pending} onClick={() => { void onBindCurrent(); }}>
           Bind current Necromancer at Depth 0
         </button>
       )}
       {kind === "clear_stale" && (
-        <button className={ghostBtn} disabled={pending} onClick={() => { void onClearStale(); }}>
-          Clear stale Depth
-        </button>
+        <div className="mt-2 space-y-1">
+          <p className="text-xs text-amber-800 dark:text-amber-200">Depth is bound to a previous Necromancer.</p>
+          <button className={ghostBtn} disabled={pending} onClick={() => { void onClearStale(); }}>
+            Clear stale Depth
+          </button>
+        </div>
       )}
       {kind === "vacant_empty" && (
-        <p className="text-xs text-slate-500">No Depth is stored while the Necromancer seat is vacant.</p>
+        <p className="text-xs text-slate-500 mt-1">No Depth is stored while the Necromancer seat is vacant.</p>
       )}
     </section>
   );
@@ -1085,7 +1133,7 @@ function LawsPanel({
   onSave: () => Promise<void>;
 }) {
   return (
-    <section className="rounded-lg border border-violet-100 dark:border-violet-900 p-3 space-y-2">
+    <section data-necromancer-laws className="rounded-lg border border-violet-100 dark:border-violet-900 p-3 space-y-2">
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold">Laws of Death</h3>
         <button className={ghostBtn} onClick={onToggleEdit}>{editing ? "Close Edit Laws" : "Edit Laws"}</button>

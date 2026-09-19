@@ -12,12 +12,15 @@ import {
   applyImmediateShippingHazards,
   beastIsEntirelySurrounded,
   immediateHazardRouteIdsCausedBy,
+  isMarinerUndescribedRarity,
+  isReservedMarinerRarityDescriptionInput,
   isRouteUnderImmediateHazard,
   isValidMarinerArrangementId,
   selectMarinerIsleLoreContext,
   isValidMarinerBuiltinBeastId,
   isValidMarinerLawOfSeaId,
   marinerArrangementDefinition,
+  marinerMarketHasUndescribedRarity,
   pactSeatDisplayName,
   type DenizenId,
   type ElementId,
@@ -30,6 +33,7 @@ import {
   type MarinerExternalLandId,
   type MarinerIsleMarket,
   type MarinerLawOfSeaId,
+  type RelocateMarinerNestingBeastDestination,
   type MarinerRouteEndpoint,
   type MarinerRouteOccupancy,
   type MarinerSeaRegionId,
@@ -58,7 +62,7 @@ export {
   MARINER_EXTERNAL_LAND_MAP_POINTS,
   MARINER_ISLE_GEOMETRY,
   MARINER_MAP_FRAME,
-  MARINER_MAP_MIN_WIDTH_PX,
+  MARINER_MAP_PALETTE,
   MARINER_MAP_VIEWBOX,
   MARINER_ROUTE_GEOMETRY,
   MARINER_ROUTE_HIT_STROKE_WIDTH,
@@ -335,6 +339,17 @@ export function marketBeastConflict(
   boardIsleId: MarinerBoardIsleId,
 ): boolean {
   return marketPresent && nestingBeastsOnIsle(beasts, boardIsleId).length > 0;
+}
+
+export const DRAFT4_MARKET_NEST_WARNING =
+  "Draft 4 conflict: an Isle with a Nesting Beast cannot have a Market.";
+
+export function marketNestRuleConflict(
+  mariner: Pick<MarinerState, "boardIsles" | "beasts">,
+  boardIsleId: MarinerBoardIsleId,
+): boolean {
+  const present = mariner.boardIsles.find((isle) => isle.boardIsleId === boardIsleId)?.market.present === true;
+  return marketBeastConflict(present, mariner.beasts, boardIsleId);
 }
 
 export function arrangementSetupSummary(arrangementId: string): string {
@@ -682,6 +697,49 @@ export function buildSetMarinerIsleMarketPayload(args: {
   };
 }
 
+export function expectedForMoveMarket(
+  board: MarinerOperabilityBoardSnapshot,
+  sourceBoardIsleId: MarinerBoardIsleId,
+  destinationBoardIsleId: MarinerBoardIsleId,
+) {
+  const source = board.boardIsles.find((isle) => isle.boardIsleId === sourceBoardIsleId);
+  const destination = board.boardIsles.find((isle) => isle.boardIsleId === destinationBoardIsleId);
+  const nesting = nestingBeastsOnIsle(board.beasts, destinationBoardIsleId)[0];
+  return {
+    expectedSourceMarket: source?.market ?? { present: false as const },
+    expectedDestinationMarket: destination?.market ?? { present: false as const },
+    expectedDestinationNestingBeastDenizenId: nesting?.denizenId ?? null,
+  };
+}
+
+export function buildMoveMarinerMarketPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly sourceBoardIsleId: MarinerBoardIsleId;
+  readonly destinationBoardIsleId: MarinerBoardIsleId;
+  readonly expectedSourceMarket: MarinerIsleMarket;
+  readonly expectedDestinationMarket: MarinerIsleMarket;
+  readonly expectedDestinationNestingBeastDenizenId: string | null;
+}): {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly sourceBoardIsleId: MarinerBoardIsleId;
+  readonly destinationBoardIsleId: MarinerBoardIsleId;
+  readonly expectedSourceMarket: MarinerIsleMarket;
+  readonly expectedDestinationMarket: MarinerIsleMarket;
+  readonly expectedDestinationNestingBeastDenizenId: string | null;
+} {
+  return {
+    commandId: args.commandId,
+    expectedCampaignId: args.expectedCampaignId,
+    sourceBoardIsleId: args.sourceBoardIsleId,
+    destinationBoardIsleId: args.destinationBoardIsleId,
+    expectedSourceMarket: args.expectedSourceMarket,
+    expectedDestinationMarket: args.expectedDestinationMarket,
+    expectedDestinationNestingBeastDenizenId: args.expectedDestinationNestingBeastDenizenId,
+  };
+}
+
 export function buildSetMarinerIsleRavagePayload(args: {
   readonly commandId: string;
   readonly expectedCampaignId: string;
@@ -803,6 +861,40 @@ export function conditionLabel(condition: MarinerBeastCondition): string {
   return "Rampaging";
 }
 
+export function marinerMarketHasRarityCue(market: MarinerIsleMarket): boolean {
+  return market.present && market.rarity !== null;
+}
+
+export function marinerMarketTokenLabel(market: MarinerIsleMarket): string {
+  return marinerMarketHasRarityCue(market) ? "Rare Market" : "Market";
+}
+
+export function marinerMarketTokenAriaLabel(market: MarinerIsleMarket): string {
+  return marinerMarketHasRarityCue(market) ? "Market with a Rarity" : "Market";
+}
+
+export function marinerIsleMarketAriaBits(market: MarinerIsleMarket): readonly string[] {
+  if (!market.present) return [];
+  if (marinerMarketHasUndescribedRarity(market)) return ["Rare Market"];
+  if (market.rarity !== null) return ["Rare Market", `Rarity ${market.rarity}`];
+  return ["Market"];
+}
+
+export function marinerMarketRarityDetailLine(market: MarinerIsleMarket): string | null {
+  if (!market.present || market.rarity === null) return null;
+  if (isMarinerUndescribedRarity(market.rarity)) return "Rarity: not described yet";
+  return `Market Rarity: ${market.rarity}`;
+}
+
+export function marinerRarityEditorPrefill(market: MarinerIsleMarket): string {
+  if (!market.present || market.rarity === null || isMarinerUndescribedRarity(market.rarity)) {
+    return "";
+  }
+  return market.rarity;
+}
+
+export { isMarinerUndescribedRarity, isReservedMarinerRarityDescriptionInput, marinerMarketHasUndescribedRarity };
+
 export const MARINER_LAW_OPTIONS = MARINER_LAW_OF_SEA_DEFINITIONS;
 export const MARINER_ARRANGEMENT_OPTIONS = MARINER_ARRANGEMENT_DEFINITIONS;
 export const MARINER_BOARD_SLOTS = MARINER_BOARD_ISLE_DEFINITIONS;
@@ -813,13 +905,14 @@ export const MARINER_ELEMENTS: readonly ElementId[] = ["air", "fire", "earth", "
 export const MARINER_POWERFUL_STATUSES = ["companion", "reliable", "disruptive", "malignant"] as const;
 
 export const CREATE_BEAST_LABEL = "Create Beast";
-export const CREATE_SHIP_LABEL = "Create Ship";
-export const MOVE_STORM_LABEL = "Record Guided Storm Move";
-export const MOVE_SHIP_LABEL = "Record Ship Move";
+export const CREATE_SHIP_LABEL = "Add Ship";
+export const GUIDE_STORM_LABEL = "Guide Storm";
+export const MOVE_STORM_LABEL = "Move Storm";
+export const MOVE_SHIP_LABEL = "Move Ship";
+export const MOVE_RAIDER_LABEL = "Move Raider";
 export const MOVE_BEAST_LABEL = "Move Distrusting Beast";
 export const NEST_BEAST_LABEL = "Help Beast Nest";
 export const RAVAGE_RESULT_LABEL = "Record Ravage Result";
-export const WIND_CONFIRMATION_LABEL = "I confirm this move is not against the actual prevailing Wind.";
 export const RAVAGE_INCOMPLETE_COPY =
   "Board result recorded. The source Ravage procedure is not complete.";
 export const RAVAGE_LORE_FOLLOW_THROUGH =
@@ -1154,6 +1247,50 @@ export function expectedForMoveBeast(
   };
 }
 
+function expectedBeastFromBoard(
+  board: MarinerOperabilityBoardSnapshot,
+  denizenId: string,
+): {
+  readonly denizenId: string;
+  readonly condition: MarinerBeastCondition;
+  readonly location: MarinerBeastLocation;
+} {
+  const beast = board.beasts.find((candidate) => candidate.denizenId === denizenId);
+  return {
+    denizenId,
+    condition: beast?.condition ?? "friendly_nesting",
+    location: beast?.location ?? { kind: "board_isle" as const, boardIsleId: "sage_atoll" },
+  };
+}
+
+export function expectedForRelocateNestingBeastToIsle(
+  board: MarinerOperabilityBoardSnapshot,
+  denizenId: string,
+  boardIsleId: MarinerBoardIsleId,
+) {
+  const nest = expectedForNestBeast(board, denizenId, boardIsleId);
+  return {
+    expectedBeast: expectedBeastFromBoard(board, denizenId),
+    expectedMarket: nest.expectedMarket,
+    expectedRavageStormCount: nest.expectedRavageStormCount,
+    expectedNestingBeastDenizenId: nest.expectedNestingBeastDenizenId,
+  };
+}
+
+export function expectedForRelocateNestingBeastToSea(
+  board: MarinerOperabilityBoardSnapshot,
+  denizenId: string,
+  destinationRegionId: MarinerSeaRegionId,
+) {
+  const regionIds = relevantSeaRegionsFor(destinationRegionId);
+  return {
+    expectedBeast: expectedBeastFromBoard(board, denizenId),
+    expectedStormCounts: captureStormCounts(board, regionIds),
+    expectedRouteOccupancies: captureRouteOccupancies(board, relevantRoutesForRegion(destinationRegionId)),
+    expectedRelevantBeasts: captureRelevantBeastStates(board, regionIds),
+  };
+}
+
 export function expectedForNestBeast(
   board: MarinerOperabilityBoardSnapshot,
   denizenId: string,
@@ -1221,7 +1358,7 @@ export function buildMoveMarinerStormPayload(args: {
   readonly expectedCampaignId: string;
   readonly sourceRegionId: MarinerSeaRegionId;
   readonly destinationRegionId: MarinerSeaRegionId;
-  readonly confirmedNotAgainstPrevailingWind: boolean;
+  readonly confirmedNotAgainstPrevailingWind?: boolean;
   readonly expectedStormCounts: ReturnType<typeof captureStormCounts>;
   readonly expectedRouteOccupancies: ReturnType<typeof captureRouteOccupancies>;
   readonly expectedRelevantBeasts: ReturnType<typeof captureRelevantBeasts>;
@@ -1232,7 +1369,7 @@ export function buildMoveMarinerStormPayload(args: {
 export function buildMoveMarinerShipPayload(args: {
   readonly commandId: string;
   readonly expectedCampaignId: string;
-  readonly sourceIsleId: MarinerBoardIsleId;
+  readonly sourceIsleId?: MarinerBoardIsleId;
   readonly sourceRouteId: string;
   readonly destinationRouteId: string;
   readonly destinationToward: MarinerRouteEndpoint | null;
@@ -1253,8 +1390,9 @@ export function buildMoveMarinerShipPayload(args: {
 export function buildCreateMarinerShipPayload(args: {
   readonly commandId: string;
   readonly expectedCampaignId: string;
-  readonly sourceIsleId: MarinerBoardIsleId;
+  readonly sourceIsleId?: MarinerBoardIsleId;
   readonly targetRouteId: string;
+  readonly destinationToward: MarinerRouteEndpoint | null;
   readonly expectedTargetOccupancy: MarinerRouteOccupancy;
   readonly expectedStormCounts: ReturnType<typeof captureStormCounts>;
   readonly expectedRouteOccupancies: ReturnType<typeof captureRouteOccupancies>;
@@ -1283,6 +1421,16 @@ export function buildMoveMarinerBeastPayload(args: {
     destinationSeatId: string;
     rampagingMethodEntryId: string | null;
   } | null;
+}) {
+  return { ...args };
+}
+
+export function buildRelocateMarinerNestingBeastPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly denizenId: string;
+  readonly expectedBeast: ReturnType<typeof expectedBeastFromBoard>;
+  readonly destination: RelocateMarinerNestingBeastDestination;
 }) {
   return { ...args };
 }

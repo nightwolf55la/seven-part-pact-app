@@ -6,6 +6,35 @@ Build a shared web application supporting play of the tabletop RPG **Seven-Part 
 
 The application assists the tabletop game rather than replacing its creative, interpretive, or narrative play. It should make persistent campaign state, Domain boards, shared references, recurring procedures, and table-facing bookkeeping easier to manage while preserving the judgment and authority of the Celestial Audience.
 
+## Rules-aware assistance; table-authoritative legality
+
+The Seven-Part Pact application is a rules-aware play aid, not a tabletop
+rules-enforcement engine.
+
+Written rules should make normal play easier through source-shaped defaults,
+ordinary/legal-choice highlighting, known consequences, previews, bookkeeping,
+and reminders.
+
+The application generally should not refuse a gameplay action solely because it
+differs from the default written procedure when the requested result is
+representable and internally coherent.
+
+Hard server validation remains authoritative for state/referential integrity,
+stale writes, idempotency, unambiguous command meaning, deterministic command
+consequences, destructive safety, representability, and persistence/recovery
+correctness.
+
+Gameplay legality outside those properties should normally be guidance rather
+than mandatory attestations/blocking validation.
+
+Known context should reduce player effort.
+Do not require players to re-enter or certify context merely for provenance.
+Do not fabricate missing gameplay context for immutable audit.
+
+Apply prospectively / when concrete UX friction exposes a problematic
+validator.
+Do not perform a repository-wide validator relaxation.
+
 ## Sources of Truth
 
 For written game rules, the authoritative sources are the uploaded/current Rulebook, Grimoire, seven Codices, Cards, and Materials.
@@ -316,17 +345,31 @@ See `docs/m5-4a-f-faustian-card-table.md`.
 
 #### M5.4 Table-Readiness UI/UX — Batch 1
 
-**IMPLEMENTATION CANDIDATE — NEEDS HUMAN RETEST.** Do not mark VERIFIED or complete.
+**MERGED — NEEDS HUMAN RETEST.** PR #28. Do not mark VERIFIED or complete.
 
 Branch `m5-4/table-readiness-ux-batch-1`. Durable register: `docs/m5-4-table-readiness-ux.md`.
 
-Source-shaped Wizard/Mariner/Hierophant geography realization, location-sensitive Necromancer Foe validation, source-shaped Gates setup, readable stale-precondition output, Pact-Fragment defaulting behind Advanced / Correct, Sorcerer establishment path, and a disposable seven-seat review campaign. No CampaignState schema change. UX-015 general Powerful-Denizen creation remains deferred. Board-width/map/Gates visual issues remain later-batch work.
+Source-shaped Wizard/Mariner/Hierophant geography realization, location-sensitive Necromancer Foe validation, source-shaped Gates setup, readable stale-precondition output, Pact-Fragment defaulting behind Advanced / Correct, Sorcerer establishment path, and a disposable seven-seat review campaign. No CampaignState schema change. UX-015 general Powerful-Denizen creation remains deferred.
+
+#### M5.4 Table-Readiness UI/UX — Batch 2
+
+**CLOSED.** Implementation, deterministic closure, real Convex cloud Preview integration, 2026-09-18 Mariner direct-manipulation human retest, and 2026-09-19 remaining visual/layout human retest are complete. UX-025 remains intentionally partial because Map Stability and prevailing Wind are unencoded. CampaignState V5 remains PRE-ACTIVATION. No schema migration. No Production. PR still pending. Do not mark all of M5.4 complete.
+
+Branch `m5-4/table-readiness-ux-batch-2`. Durable register: `docs/m5-4-table-readiness-ux.md`.
+
+Full-screen desktop play canvas (~1800px), source-inspired live Mariner map and Necromancer Gates SVG, dismissible overlay inspector that does not resize the board, compact Necromancer Depth control, sticky Compendium reading pane, and Mariner direct board manipulation. No CampaignState schema change.
+
+Human 2026-09-18 real-browser / real-pointer retest of the latest Mariner direct-manipulation work: "It all looked good." That verifies UX-024 Storm drag, UX-026 contextual/direct board actions, Market+Nest representable-conflict behavior, direct Beast/Market manipulation, Rare Market immediate placement, Ship/Raider sanity, pointer-lifecycle correction, Friendly/Nesting Beast relocation via `api.m3Commands.relocateMarinerNestingBeast`, and post-mutation board usability. UX-025 remains PARTIALLY ADDRESSED: implemented board presentation was exercised, but Map Stability and prevailing Wind remain unencoded.
+
+Human 2026-09-19 remaining Batch-2 visual/layout acceptance: "Confirmed on all these." That verifies UX-004, UX-009, UX-010, UX-016, UX-017, UX-018, and UX-022. Batch 1 issues remain FIXED — NEEDS HUMAN RETEST. UX-005/006/011/015/020/021 remain later work.
+
+Real Convex cloud Preview integration is complete on preview `m5-4/table-readiness-ux-batch-2` / `dependable-loris-864` (not Development, not Production): disposable campaign `cmp_42854d1b-c91b-4c03-90db-522ad6fc4665`, directional Raider create, atomic Rare Market move, Nesting-Beast Isle→Isle relocation, authoritative readback, one idempotent replay, and `verifyMigration` valid at revision 7.
 
 #### Remaining M5.4 active-table work
 
 The remaining active-player Domain-operability work is:
 
-- later Table-Readiness UI/UX batches after human retest of Batch 1;
+- later Table-Readiness UI/UX batches (deferred UX-005 / UX-006 / UX-011 / UX-015 / UX-020 / UX-021);
 - Warlock and Sage, still deferred while they have no active players.
 
 Warlock and Sage are intentionally deferred while they have no active players. Their existing structural state remains authoritative and may be consumed by active-Domain cross-references.
@@ -381,7 +424,7 @@ Final hardening for trusted long-running campaigns: deployment/environment safet
 
 ### Current Next Action
 
-Faustian M5.4A-F is merged (PR #27). M5.4 Table-Readiness UI/UX Batch 1 is an implementation candidate on `m5-4/table-readiness-ux-batch-1` and needs **human retest**. Do not mark Batch 1 or M5.4 complete.
+Faustian M5.4A-F is merged (PR #27). M5.4 Table-Readiness UI/UX Batch 1 is merged (PR #28) and still needs **human retest**. Batch 2 is closed on `m5-4/table-readiness-ux-batch-2` with implementation, deterministic closure, **real Convex cloud Preview integration** on `dependable-loris-864`, **Mariner direct-manipulation HUMAN VERIFIED** (2026-09-18), and remaining visual/layout **HUMAN VERIFIED** (2026-09-19). UX-025 remains PARTIALLY ADDRESSED. PR still pending. Do not mark all of M5.4 complete.
 
 Warlock/Sage remain deferred. CampaignState V5 remains PRE-ACTIVATION.
 
@@ -408,6 +451,14 @@ Persistent Wicker-Doors/Paths are source-valid durable state spanning travel and
 Pact-Law procedures can create durable consequences involving Wizards, Time, Treasures, Pact-Fragments, magical suppression, and similar state.
 
 Do not create a Sorcerer-local legal-case subsystem.
+
+### Mariner undescribed-Rarity sentinel
+
+Current Mariner Market shape remains `{ present: false } | { present: true, rarity: string | null }`. Batch 2 uses one reserved application sentinel (`__7PP_APP_UNDESCRIBED_MARINER_RARITY_V1__`) as pre-activation metadata meaning "Market is Rare, but fictional Rarity description has not yet been supplied."
+
+Before V5 activation, explicitly decide whether the Mariner undescribed-Rarity sentinel becomes durable representation or is replaced with a typed description-pending state while migration remains controlled.
+
+Do not treat a migration as approved now.
 
 ### Other Full-Pact Representability Gaps
 

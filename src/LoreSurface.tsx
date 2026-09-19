@@ -142,7 +142,12 @@ function LoreSurfaceReady({
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]" aria-label="Compendium">
       {browseColumn}
-      {readingColumn}
+      <div
+        data-compendium-reading-pane
+        className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"
+      >
+        {readingColumn}
+      </div>
     </div>
   );
 }
