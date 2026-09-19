@@ -3,6 +3,9 @@ import { type HierophantTemple } from "../shared/domain";
 import {
   HIEROPHANT_SUPPLY_BLOCKED_REASON,
   HIEROPHANT_SUPPLY_CLASS_IDS,
+  HIEROPHANT_SUPPLY_DRAG_MIME,
+  hierophantSupplyDragIsActive,
+  readHierophantSupplyDragClass,
   resolveHierophantSupplyDestination,
 } from "../src/hierophant-supply";
 
@@ -74,5 +77,23 @@ describe("Hierophant supply destinations", () => {
       highlight: "reject",
     });
     expect(resolveHierophantSupplyDestination(collapsed, "blocked")).toMatchObject({ kind: "blocked" });
+  });
+
+  it("treats a live supply drag as active from the synchronous Class peek", () => {
+    expect(hierophantSupplyDragIsActive(null, () => "peasant", null)).toBe(true);
+    expect(hierophantSupplyDragIsActive(null, () => null, null)).toBe(false);
+    expect(hierophantSupplyDragIsActive(null, () => null, "artisan")).toBe(true);
+  });
+
+  it("reads the supply Class from drag data when present", () => {
+    const transfer = {
+      getData(type: string) {
+        if (type === HIEROPHANT_SUPPLY_DRAG_MIME) return "gentry";
+        return "";
+      },
+    } as unknown as DataTransfer;
+    expect(readHierophantSupplyDragClass(transfer)).toBe("gentry");
+    expect(readHierophantSupplyDragClass({ getData: () => "merchant" } as unknown as DataTransfer)).toBe("merchant");
+    expect(readHierophantSupplyDragClass({ getData: () => "not-a-class" } as unknown as DataTransfer)).toBeNull();
   });
 });

@@ -525,15 +525,47 @@ export function benefactionReferenceLabel(reference: HierophantBenefactionRefere
   return `Benefaction reference: +${reference.amount} ${resource}`;
 }
 
+export function templeSupportedClassIds(
+  temple: HierophantTemple,
+  campaignDoctrines: readonly HierophantCampaignDoctrine[],
+): readonly string[] {
+  if (temple.kind === "hestar") return [];
+  return hierophantDoctrinePairSupportedClassIds(temple.doctrine, campaignDoctrines) ?? [];
+}
+
 export function templeSupportedClassLabels(
   temple: HierophantTemple,
   campaignDoctrines: readonly HierophantCampaignDoctrine[],
   campaignClasses: readonly HierophantCampaignClass[],
 ): readonly string[] {
-  if (temple.kind === "hestar") return [];
-  const ids = hierophantDoctrinePairSupportedClassIds(temple.doctrine, campaignDoctrines);
-  if (ids === null) return [];
-  return ids.map((classId) => classLabel(classId, campaignClasses));
+  return templeSupportedClassIds(temple, campaignDoctrines).map((classId) =>
+    classLabel(classId, campaignClasses),
+  );
+}
+
+export function persistableSupplicantName(displayName: string, classDisplayName: string): string {
+  const trimmed = displayName.trim();
+  return trimmed === "" ? classDisplayName : trimmed;
+}
+
+export function supplicantGivenName(storedName: string, classDisplayName: string): string | null {
+  const trimmed = storedName.trim();
+  if (trimmed === "" || trimmed === "Unknown Denizen" || trimmed === "Unresolved") return null;
+  if (trimmed.localeCompare(classDisplayName, undefined, { sensitivity: "accent" }) === 0) return null;
+  return trimmed;
+}
+
+export function woeThresholdCue(woe: number): "benefaction" | "cult" | null {
+  if (woe === 0) return "benefaction";
+  if (woe >= 5) return "cult";
+  return null;
+}
+
+export function woeThresholdCueLabel(woe: number): string | null {
+  const cue = woeThresholdCue(woe);
+  if (cue === "benefaction") return "Ready for Benefaction";
+  if (cue === "cult") return "Cult departure due";
+  return null;
 }
 
 export function formatVisionsResourceName(resource: HierophantVisionsResource): string {
@@ -556,13 +588,13 @@ export function formatVisionsSupplicantLine(
   const cost = formatVisionsDemand(preview.demand);
   if (cost !== null) parts.push(cost);
   if (variant === "detail" && preview.woeProjection.kind === "determined") {
-    parts.push(`Woe ${preview.woeProjection.from} → ${preview.woeProjection.to}`);
+    parts.push(`Next Visions: Woe ${preview.woeProjection.from} → ${preview.woeProjection.to}`);
   }
-  if (preview.departure.kind === "benefaction") {
-    parts.push(`Departs · +${preview.departure.amount} ${formatVisionsResourceName(preview.departure.resource)}`);
+  if (variant === "detail" && preview.departure.kind === "benefaction") {
+    parts.push(`Next Visions: Benefaction · +${preview.departure.amount} ${formatVisionsResourceName(preview.departure.resource)}`);
   }
-  if (preview.departure.kind === "cult_threshold") {
-    parts.push("Cult resolution required");
+  if (variant === "detail" && preview.departure.kind === "cult_threshold") {
+    parts.push("Next Visions: Cult departure due");
   }
   if (variant === "detail" && preview.choiceRequired && preview.demand.kind === "artisan") {
     parts.push("Artisan choice needed");

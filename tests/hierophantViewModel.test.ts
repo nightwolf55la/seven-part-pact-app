@@ -33,10 +33,13 @@ import {
   newDogmaEntryId,
   newPlaceId,
   placeLabel,
+  persistableSupplicantName,
+  supplicantGivenName,
   templeDisplayName,
   templeEditCapabilities,
   templeSupportedClassLabels,
   unresolvedStartingTemples,
+  woeThresholdCueLabel,
 } from "../src/hierophant-view-model";
 import type { HierophantProphet, HierophantSupplicant, HierophantTemple } from "../shared/domain";
 
@@ -335,5 +338,20 @@ describe("Hierophant command payload helpers", () => {
   it("treats empty temples as uninitialized", () => {
     expect(isHierophantInitialized(EMPTY_HIEROPHANT_STATE)).toBe(false);
     expect(isHierophantInitialized({ temples: [{ templeId: "krolis" }] as never })).toBe(true);
+  });
+
+  it("keeps a generated Class identity when the display name is empty", () => {
+    expect(persistableSupplicantName("", "Peasant")).toBe("Peasant");
+    expect(persistableSupplicantName("  Marta  ", "Peasant")).toBe("Marta");
+    expect(supplicantGivenName("Peasant", "Peasant")).toBeNull();
+    expect(supplicantGivenName("Acolyte Ann", "Peasant")).toBe("Acolyte Ann");
+    expect(supplicantGivenName("Unknown Denizen", "Peasant")).toBeNull();
+  });
+
+  it("labels current Woe thresholds without implying they have already fired", () => {
+    expect(woeThresholdCueLabel(0)).toBe("Ready for Benefaction");
+    expect(woeThresholdCueLabel(4)).toBeNull();
+    expect(woeThresholdCueLabel(5)).toBe("Cult departure due");
+    expect(woeThresholdCueLabel(7)).toBe("Cult departure due");
   });
 });

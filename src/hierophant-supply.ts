@@ -15,6 +15,8 @@ export type HierophantSupplyZone = "courtyard" | "agiary" | "hestar" | "blocked"
 export const HIEROPHANT_SUPPLY_BLOCKED_REASON =
   "Receive Supplicant is not available at a collapsed Temple";
 
+export const HIEROPHANT_SUPPLY_DRAG_MIME = "application/x-7pp-hierophant-supply-class";
+
 export type HierophantSupplyDestination =
   | {
       readonly kind: "place";
@@ -28,6 +30,60 @@ export type HierophantSupplyDestination =
       readonly reason: string;
       readonly highlight: "reject";
     };
+
+export function isHierophantSupplyClassId(value: string): value is HierophantSupplyClassId {
+  return (HIEROPHANT_SUPPLY_CLASS_IDS as readonly string[]).includes(value);
+}
+
+export function writeHierophantSupplyDragData(
+  dataTransfer: DataTransfer | null | undefined,
+  classId: HierophantSupplyClassId,
+): void {
+  if (dataTransfer === null || dataTransfer === undefined) return;
+  try {
+    dataTransfer.setData(HIEROPHANT_SUPPLY_DRAG_MIME, classId);
+    dataTransfer.setData("text/plain", classId);
+    dataTransfer.effectAllowed = "copy";
+  } catch {
+    // jsdom and some browsers reject custom MIME types; text/plain still carries the Class.
+    try {
+      dataTransfer.setData("text/plain", classId);
+      dataTransfer.effectAllowed = "copy";
+    } catch {
+      // Native drag can still proceed via the synchronous supply ref.
+    }
+  }
+}
+
+function readTransferType(dataTransfer: DataTransfer, type: string): string | null {
+  try {
+    const value = dataTransfer.getData(type);
+    return value === "" ? null : value;
+  } catch {
+    return null;
+  }
+}
+
+export function readHierophantSupplyDragClass(
+  dataTransfer: DataTransfer | null | undefined,
+): HierophantSupplyClassId | null {
+  if (dataTransfer === null || dataTransfer === undefined) return null;
+  const typed = readTransferType(dataTransfer, HIEROPHANT_SUPPLY_DRAG_MIME);
+  if (typed !== null && isHierophantSupplyClassId(typed)) return typed;
+  const plain = readTransferType(dataTransfer, "text/plain");
+  if (plain !== null && isHierophantSupplyClassId(plain)) return plain;
+  return null;
+}
+
+export function hierophantSupplyDragIsActive(
+  dataTransfer: DataTransfer | null | undefined,
+  peekActiveClassId: () => string | null,
+  renderedActiveClassId: string | null,
+): boolean {
+  if (renderedActiveClassId !== null) return true;
+  if (peekActiveClassId() !== null) return true;
+  return readHierophantSupplyDragClass(dataTransfer) !== null;
+}
 
 export function resolveHierophantSupplyDestination(
   temple: HierophantTemple,
