@@ -731,6 +731,39 @@ Rehearse risky persistence work on disposable or cloned deployments first.
 Consult current repository architecture/recovery/environment documentation
 before persistence-sensitive work.
 
+### Cursor Cloud / Convex Preview workflow
+
+#### Ordinary Cursor Cloud implementation
+
+- Use the environment's existing anonymous/local Convex backend.
+- Cursor environment startup may already have local Convex running.
+- A second `npx convex dev --once` reporting port 3210 occupied does not by
+  itself mean Convex is unhealthy; first determine whether the environment's
+  existing backend is already running correctly.
+
+#### Hosted integration / closure
+
+- Use a branch-associated Convex **Preview**, not Production.
+- The Preview Deploy Key is stored in Cursor Runtime Secrets as
+  `CONVEX_PREVIEW_DEPLOY_KEY`.
+- Do not globally store that Preview credential under `CONVEX_DEPLOY_KEY`.
+  Doing so can interfere with ordinary `npx convex dev` environment startup.
+- For an explicit Preview operation, expose `CONVEX_PREVIEW_DEPLOY_KEY` as
+  `CONVEX_DEPLOY_KEY` only for the process that needs it.
+- Use a branch-associated durable Preview name, for example:
+
+  `npx convex deploy --preview-name="<current git branch>"`
+
+- Positively verify the target type is Preview before any writes.
+- Never use Production unless the human separately authorizes it.
+- Generated animal deployment slugs are ephemeral; the branch Preview name is
+  the durable identity.
+- If the current Convex CLI requires an env file for the Preview key, create
+  that temporary file **outside** the repository, never print the credential,
+  and remove the file afterward.
+- Batch-2 discovery used Convex CLI 1.36.1; do not imply that exact CLI
+  behavior can never change.
+
 ## Trivial Human Edits
 
 Do not delegate trivial changes when the human can make them faster with
