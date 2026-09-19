@@ -75,11 +75,26 @@ export function readHierophantSupplyDragClass(
   return null;
 }
 
+let liveSupplyClassId: HierophantSupplyClassId | null = null;
+
+export function beginHierophantSupplyDrag(classId: HierophantSupplyClassId): void {
+  liveSupplyClassId = classId;
+}
+
+export function endHierophantSupplyDrag(): void {
+  liveSupplyClassId = null;
+}
+
+export function liveHierophantSupplyClass(): HierophantSupplyClassId | null {
+  return liveSupplyClassId;
+}
+
 export function hierophantSupplyDragIsActive(
   dataTransfer: DataTransfer | null | undefined,
   peekActiveClassId: () => string | null,
   renderedActiveClassId: string | null,
 ): boolean {
+  if (liveSupplyClassId !== null) return true;
   if (renderedActiveClassId !== null) return true;
   if (peekActiveClassId() !== null) return true;
   return readHierophantSupplyDragClass(dataTransfer) !== null;

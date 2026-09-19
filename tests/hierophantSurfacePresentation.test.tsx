@@ -1436,6 +1436,12 @@ describe("Hierophant physical piece controls", () => {
     expect(args.templeId).toBe("krolis");
     expect(args.fields).toEqual({ abundance: { expected: 5, value: 6 } });
     expect(mockMutations["m3Commands.updateTemple"]).not.toHaveBeenCalled();
+    const counter = container.querySelector('[data-temple-resource="krolis"][data-resource-counter="abundance"]') as HTMLElement;
+    expect(counter.getAttribute("data-resource-controls")).toBe("hidden");
+    flushSync(() => { increase.focus(); });
+    expect(counter.getAttribute("data-resource-controls")).toBe("revealed");
+    flushSync(() => { increase.blur(); });
+    expect(counter.getAttribute("data-resource-controls")).toBe("hidden");
     root.unmount();
     container.remove();
   });

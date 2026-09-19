@@ -4,7 +4,10 @@ import {
   HIEROPHANT_SUPPLY_BLOCKED_REASON,
   HIEROPHANT_SUPPLY_CLASS_IDS,
   HIEROPHANT_SUPPLY_DRAG_MIME,
+  beginHierophantSupplyDrag,
+  endHierophantSupplyDrag,
   hierophantSupplyDragIsActive,
+  liveHierophantSupplyClass,
   readHierophantSupplyDragClass,
   resolveHierophantSupplyDestination,
 } from "../src/hierophant-supply";
@@ -80,9 +83,15 @@ describe("Hierophant supply destinations", () => {
   });
 
   it("treats a live supply drag as active from the synchronous Class peek", () => {
+    endHierophantSupplyDrag();
     expect(hierophantSupplyDragIsActive(null, () => "peasant", null)).toBe(true);
     expect(hierophantSupplyDragIsActive(null, () => null, null)).toBe(false);
     expect(hierophantSupplyDragIsActive(null, () => null, "artisan")).toBe(true);
+    beginHierophantSupplyDrag("gentry");
+    expect(liveHierophantSupplyClass()).toBe("gentry");
+    expect(hierophantSupplyDragIsActive(null, () => null, null)).toBe(true);
+    endHierophantSupplyDrag();
+    expect(liveHierophantSupplyClass()).toBeNull();
   });
 
   it("reads the supply Class from drag data when present", () => {

@@ -1,4 +1,4 @@
-import { useRef, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import {
   powerfulStatusLabel,
   type DenizenId,
@@ -40,7 +40,10 @@ import { formatVisionsPreviewChoiceSummary } from "./hierophant-visions-preview"
 import HierophantClassBadge from "./hierophant-class-badge";
 import {
   HIEROPHANT_SUPPLY_CLASS_IDS,
+  beginHierophantSupplyDrag,
+  endHierophantSupplyDrag,
   hierophantSupplyDragIsActive,
+  liveHierophantSupplyClass,
   readHierophantSupplyDragClass,
   resolveHierophantSupplyDestination,
   writeHierophantSupplyDragData,
@@ -120,12 +123,14 @@ function SupplyClassPiece({
       }`}
       onDragStart={(event: DragEvent<HTMLDivElement>) => {
         ignoreClickRef.current = true;
+        beginHierophantSupplyDrag(classId);
         writeHierophantSupplyDragData(event.dataTransfer, classId);
         supply.onBegin(classId);
       }}
       onDragEnd={() => {
-        supply.onCancel();
         window.setTimeout(() => {
+          endHierophantSupplyDrag();
+          supply.onCancel();
           ignoreClickRef.current = false;
         }, 0);
       }}
@@ -221,7 +226,11 @@ function SupplyDropZone({
   function deliver(dataTransfer?: DataTransfer | null): void {
     if (supply === null) return;
     if (!dragIsLive(dataTransfer ?? null)) return;
-    supply.onDeliver(temple, zone, readHierophantSupplyDragClass(dataTransfer ?? null));
+    supply.onDeliver(
+      temple,
+      zone,
+      readHierophantSupplyDragClass(dataTransfer ?? null) ?? liveHierophantSupplyClass(),
+    );
   }
   return (
     <div
@@ -310,22 +319,33 @@ function ResourceCounter({
     ? `${delta > 0 ? "+" : ""}${delta} → ${after}`
     : null;
   const restLabel = `${label} ${before}`;
+  const [revealed, setRevealed] = useState(false);
+  const controlClass = `h-5 w-5 rounded border border-stone-600/40 text-xs font-bold transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
+    revealed ? "opacity-100" : "opacity-0"
+  }`;
   return (
     <div
       data-resource-counter={resource}
       data-temple-resource={templeId}
-      className={`group/resource relative flex min-w-[4.75rem] flex-col items-center rounded-lg border-2 px-2 py-1 shadow-sm ${
+      data-resource-controls={revealed ? "revealed" : "hidden"}
+      className={`relative flex min-w-[4.75rem] flex-col items-center rounded-lg border-2 px-2 py-1 shadow-sm ${
         label === "Abundance"
           ? "border-amber-700 bg-amber-100 text-amber-950 dark:border-amber-500 dark:bg-amber-950/70 dark:text-amber-50"
           : "border-indigo-700 bg-indigo-100 text-indigo-950 dark:border-indigo-400 dark:bg-indigo-950/70 dark:text-indigo-50"
       }`}
       aria-label={forecast === null ? restLabel : `${restLabel}, Next Visions ${forecast}`}
+      onMouseEnter={() => setRevealed(true)}
+      onMouseLeave={() => setRevealed(false)}
+      onFocusCapture={() => setRevealed(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setRevealed(false);
+      }}
     >
       <span className="text-[10px] font-semibold uppercase tracking-wide">{label}</span>
       <div className="flex items-center gap-1">
         <button
           type="button"
-          className="h-5 w-5 rounded border border-stone-600/40 text-xs font-bold opacity-0 transition-opacity group-hover/resource:opacity-100 group-focus-within/resource:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:opacity-0"
+          className={`${controlClass} disabled:pointer-events-none`}
           aria-label={`Decrease ${templeName} ${label}`}
           disabled={before <= 0}
           onClick={(event) => {
@@ -339,7 +359,7 @@ function ResourceCounter({
         <span className="text-xl font-bold tabular-nums leading-none">{before}</span>
         <button
           type="button"
-          className="h-5 w-5 rounded border border-stone-600/40 text-xs font-bold opacity-0 transition-opacity group-hover/resource:opacity-100 group-focus-within/resource:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
+          className={controlClass}
           aria-label={`Increase ${templeName} ${label}`}
           onClick={(event) => {
             event.stopPropagation();
