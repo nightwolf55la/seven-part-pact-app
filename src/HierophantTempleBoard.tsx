@@ -427,8 +427,10 @@ function WoePips({
         data-woe-target="0"
         aria-label={`Set ${subjectLabel} Woe to 0`}
         aria-pressed={woe === 0}
-        className={`inline-flex h-4 min-w-4 items-center justify-center rounded-sm px-0.5 text-[10px] font-semibold tabular-nums cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
-          woe === 0 ? "bg-stone-800 text-stone-50 dark:bg-stone-100 dark:text-stone-900" : "text-stone-700 dark:text-stone-200"
+        className={`inline-flex h-4 min-w-[1.1rem] items-center justify-center rounded-sm border px-0.5 text-[10px] font-semibold tabular-nums cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
+          woe === 0
+            ? "border-stone-800 bg-stone-800 text-stone-50 dark:border-stone-100 dark:bg-stone-100 dark:text-stone-900"
+            : "border-stone-400/80 bg-white text-stone-700 dark:border-stone-500 dark:bg-slate-900 dark:text-stone-200"
         }`}
         onClick={(event) => {
           event.stopPropagation();
