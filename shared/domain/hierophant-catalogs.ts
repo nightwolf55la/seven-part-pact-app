@@ -88,6 +88,28 @@ export const HIEROPHANT_BUILTIN_CLASS_DEFINITIONS: readonly HierophantBuiltinCla
   { id: "gentry", name: "Gentry" },
 ];
 
+export type HierophantBuiltinClassBenefaction =
+  | { readonly kind: "abundance"; readonly amount: number }
+  | { readonly kind: "conviction"; readonly amount: number };
+
+export const HIEROPHANT_BUILTIN_CLASS_BENEFACTION: Record<
+  HierophantBuiltinClassId,
+  HierophantBuiltinClassBenefaction
+> = {
+  gentry: { kind: "abundance", amount: 4 },
+  merchant: { kind: "abundance", amount: 2 },
+  artisan: { kind: "abundance", amount: 1 },
+  peasant: { kind: "conviction", amount: 1 },
+  pariah: { kind: "conviction", amount: 2 },
+};
+
+export function hierophantBuiltinClassBenefaction(
+  classId: string,
+): HierophantBuiltinClassBenefaction | null {
+  if (!isValidHierophantBuiltinClassId(classId)) return null;
+  return HIEROPHANT_BUILTIN_CLASS_BENEFACTION[classId];
+}
+
 export function isValidHierophantBuiltinClassId(value: string): value is HierophantBuiltinClassId {
   return (HIEROPHANT_BUILTIN_CLASS_IDS as readonly string[]).includes(value);
 }

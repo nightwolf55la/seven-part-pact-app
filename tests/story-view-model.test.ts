@@ -81,6 +81,7 @@ const baseData: StoryWorkspaceData = {
     venus: 0,
     mercury: 0,
   },
+  hierophantSupplicants: [],
 };
 
 describe("selectStoryParticipant", () => {
@@ -136,6 +137,21 @@ describe("classifyAllocationActions", () => {
 
   it("unscheduled does not show markSpent, but shows waste and reschedule", () => {
     const actions = classifyAllocationActions(baseData, "wiz_1", "alc_e");
+    expect(actions.markSpent).toBe(false);
+    expect(actions.waste).toBe(true);
+    expect(actions.reschedule).toBe(true);
+  });
+
+  it("Hierophant Supplicant Time cannot be marked spent as generic Domain Time", () => {
+    const data: StoryWorkspaceData = {
+      ...baseData,
+      timeParticipants: [
+        makeParticipant("wiz_1", "Merlin", [
+          { allocationId: "alc_h", destination: { kind: "hierophant_supplicant", denizenId: "den_ann" } },
+        ]),
+      ],
+    };
+    const actions = classifyAllocationActions(data, "wiz_1", "alc_h");
     expect(actions.markSpent).toBe(false);
     expect(actions.waste).toBe(true);
     expect(actions.reschedule).toBe(true);

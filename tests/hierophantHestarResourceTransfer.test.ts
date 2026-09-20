@@ -666,7 +666,7 @@ describe("transfer_hierophant_hestar_resource validators and registration", () =
   it("registers the Convex mutation with expectedRevision and no client-computed after-state", () => {
     const body = readFileSync(join(process.cwd(), "convex/m3Commands.ts"), "utf8");
     const start = body.indexOf("export const transferHierophantHestarResource");
-    const end = body.indexOf("export const updateSupplicant", start);
+    const end = body.indexOf("export const steerHierophantSupplicant", start);
     const mutation = body.slice(start, end);
     expect(start).toBeGreaterThan(-1);
     expect(mutation).toContain("transfer_hierophant_hestar_resource");

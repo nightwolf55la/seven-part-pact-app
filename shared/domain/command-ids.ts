@@ -420,6 +420,42 @@ export function transferHierophantHestarResourceFingerprint(
   })}`;
 }
 
+export function steerHierophantSupplicantFingerprint(
+  expectedCampaignId: string,
+  expectedRevision: number,
+  allocationId: string,
+  denizenId: string,
+  destinationTempleId: string,
+  destinationArea: string | null,
+): string {
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+    throw new Error(`steerHierophantSupplicantFingerprint requires a non-negative safe integer expectedRevision, got ${expectedRevision}`);
+  }
+  return `steer_hierophant_supplicant:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    expectedRevision,
+    allocationId,
+    denizenId,
+    destinationTempleId,
+    destinationArea,
+  })}`;
+}
+
+export function departHierophantSupplicantWithBenefactionFingerprint(
+  expectedCampaignId: string,
+  expectedRevision: number,
+  denizenId: string,
+): string {
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+    throw new Error(`departHierophantSupplicantWithBenefactionFingerprint requires a non-negative safe integer expectedRevision, got ${expectedRevision}`);
+  }
+  return `depart_hierophant_supplicant_with_benefaction:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    expectedRevision,
+    denizenId,
+  })}`;
+}
+
 export function addSupplicantFingerprint(expectedCampaignId: string, supplicant: unknown): string {
   return `add_supplicant:v1:${canonicalJsonStringify({ expectedCampaignId, supplicant })}`;
 }

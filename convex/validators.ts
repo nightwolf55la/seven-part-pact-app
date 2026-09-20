@@ -319,6 +319,11 @@ const timeDestinationValidator = v.union(
   v.object({ kind: v.literal("special_use"), description: v.string() }),
 );
 
+const hierophantTimeDestinationValidator = v.object({
+  kind: v.literal("hierophant_supplicant"),
+  denizenId: v.string(),
+});
+
 const devilTimeDestinationValidator = v.union(
   v.object({ kind: v.literal("devil_community"), communityId: v.string() }),
   v.object({ kind: v.literal("devil_schemes"), cardIds: v.array(v.string()) }),
@@ -329,7 +334,11 @@ const devilTimeDestinationValidator = v.union(
   v.object({ kind: v.literal("devil_seized_domain"), seatId: v.string() }),
 );
 
-export const timeDestinationV5Validator = v.union(timeDestinationValidator, devilTimeDestinationValidator);
+export const timeDestinationV5Validator = v.union(
+  timeDestinationValidator,
+  hierophantTimeDestinationValidator,
+  devilTimeDestinationValidator,
+);
 
 const timeAllocationValidator = v.object({
   allocationId: v.string(),
@@ -2300,6 +2309,35 @@ const hierophantHestarResourceTransferredEventV1Validator = v.object({
   }),
 });
 
+const hierophantSupplicantSteeredEventV1Validator = v.object({
+  type: v.literal("hierophant_supplicant_steered"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    denizenName: v.string(),
+    allocationId: v.string(),
+    fromHost: supplicantHostValidator,
+    toHost: supplicantHostValidator,
+    woeBefore: v.number(),
+    woeAfter: v.number(),
+  }),
+});
+
+const hierophantSupplicantBenefactionDepartedEventV1Validator = v.object({
+  type: v.literal("hierophant_supplicant_benefaction_departed"),
+  version: v.literal(1),
+  data: v.object({
+    denizenId: v.string(),
+    denizenName: v.string(),
+    classId: v.string(),
+    templeId: v.string(),
+    resource: hierophantVisionsResourceValidator,
+    amount: v.number(),
+    resourceBefore: v.number(),
+    resourceAfter: v.number(),
+  }),
+});
+
 const supplicantUpdatedEventV1Validator = v.object({
   type: v.literal("supplicant_updated"),
   version: v.literal(1),
@@ -3536,6 +3574,8 @@ export const campaignEventValidator = v.union(
   hierophantSupplicantCreatedEventV1Validator,
   hierophantVisionsResolvedEventV1Validator,
   hierophantHestarResourceTransferredEventV1Validator,
+  hierophantSupplicantSteeredEventV1Validator,
+  hierophantSupplicantBenefactionDepartedEventV1Validator,
   supplicantAddedEventV1Validator,
   supplicantUpdatedEventV1Validator,
   supplicantRemovedEventV1Validator,

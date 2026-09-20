@@ -55,6 +55,7 @@ const baseData: PlanningWorkspaceData = {
     { wizardId: "wiz_2", name: "Morgana" },
     { wizardId: "wiz_3", name: "Viviane" },
   ],
+  hierophantSupplicants: [],
 };
 
 describe("selectParticipant", () => {
@@ -130,6 +131,22 @@ describe("destinationLabel", () => {
   it("labels special use", () => {
     expect(destinationLabel({ kind: "special_use", description: "scrying pool" })).toBe(
       "Special Use: scrying pool",
+    );
+  });
+
+  it("labels a Hierophant Supplicant destination by current name", () => {
+    const data: PlanningWorkspaceData = {
+      ...baseData,
+      hierophantSupplicants: [{ denizenId: "den_ann", name: "Acolyte Ann" }],
+    };
+    expect(destinationLabel({ kind: "hierophant_supplicant", denizenId: "den_ann" as never }, data)).toBe(
+      "Hierophant Supplicant: Acolyte Ann",
+    );
+  });
+
+  it("labels a Hierophant Supplicant destination by denizenId when unnamed", () => {
+    expect(destinationLabel({ kind: "hierophant_supplicant", denizenId: "den_unknown" as never })).toBe(
+      "Hierophant Supplicant: den_unknown",
     );
   });
 });
@@ -220,6 +237,17 @@ describe("buildTimeDestination", () => {
     expect(buildTimeDestination("orrery", "", "")).toEqual({ kind: "orrery" });
     expect(buildTimeDestination("meeting", "", "")).toEqual({ kind: "meeting" });
     expect(buildTimeDestination("domain", "", "")).toEqual({ kind: "domain" });
+  });
+
+  it("builds a Hierophant Supplicant destination", () => {
+    expect(buildTimeDestination("hierophant_supplicant", "", "", undefined, "den_ann")).toEqual({
+      kind: "hierophant_supplicant",
+      denizenId: "den_ann",
+    });
+  });
+
+  it("rejects a Hierophant Supplicant destination without a denizen", () => {
+    expect(buildTimeDestination("hierophant_supplicant", "", "", undefined, "")).toBeNull();
   });
 });
 

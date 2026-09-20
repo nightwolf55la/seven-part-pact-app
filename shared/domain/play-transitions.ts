@@ -488,11 +488,40 @@ function validateTimeDestination(dest: TimeDestination | null): void {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId in Devil Denizen destination: ${dest.denizenId}`);
       }
       break;
+    case "hierophant_supplicant":
+      if (!isValidDenizenId(dest.denizenId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId in Hierophant Supplicant destination: ${dest.denizenId}`);
+      }
+      break;
     case "devil_seized_domain":
       if (!isValidPactSeatId(dest.seatId)) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid PactSeatId in Devil seized Domain destination: ${dest.seatId}`);
       }
       break;
+  }
+}
+
+function assertCurrentHierophantSupplicantDestination(
+  state: CurrentCampaignState,
+  denizenId: DenizenId,
+): void {
+  if (!isValidDenizenId(denizenId)) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Invalid denizenId in Hierophant Supplicant destination: ${denizenId}`,
+    );
+  }
+  if (!state.world.denizens.some((denizen) => denizen.denizenId === denizenId)) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Hierophant Supplicant destination does not resolve: ${denizenId}`,
+    );
+  }
+  if (!state.hierophant.supplicants.some((person) => person.denizenId === denizenId)) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Hierophant Supplicant destination ${denizenId} is not a current Supplicant`,
+    );
   }
 }
 
@@ -510,6 +539,9 @@ function validateScheduledDestination(
         "INVALID_CAMPAIGN_STATE",
         `Wizard scheduling cannot use Devil Time destination kind "${dest.kind}"`,
       );
+    }
+    if (dest.kind === "hierophant_supplicant") {
+      assertCurrentHierophantSupplicantDestination(state, dest.denizenId);
     }
     return;
   }
@@ -830,6 +862,9 @@ export function applyRescheduleTime(
       "INVALID_CAMPAIGN_STATE",
       `Wizard scheduling cannot use Devil Time destination kind "${input.destination.kind}"`,
     );
+  }
+  if (input.destination !== null && input.destination.kind === "hierophant_supplicant") {
+    assertCurrentHierophantSupplicantDestination(state, input.destination.denizenId);
   }
   const previousDestination = alloc.destination;
 

@@ -1,13 +1,14 @@
 import type { CampaignStateV5 } from "./campaign-state";
-import type { DenizenId } from "./ids";
-import { isValidDenizenId } from "./ids";
+import type { AllocationId, DenizenId } from "./ids";
+import { isValidAllocationId, isValidDenizenId } from "./ids";
 import { DomainError } from "./errors";
 import type { HierophantEvent } from "./events";
 import type { HierophantTempleId } from "./hierophant-catalogs";
-import { isValidHierophantTempleId } from "./hierophant-catalogs";
+import { hierophantBuiltinClassBenefaction, isValidHierophantTempleId } from "./hierophant-catalogs";
 import type {
   HierophantClassId,
   HierophantSupplicant,
+  HierophantSupplicantHost,
   HierophantTemple,
   HierophantTempleArea,
   HierophantTempleStatus,
@@ -391,4 +392,246 @@ export function assertHierophantHestarTransferRevision(
       `Hestar transfer is out of date. Expected revision ${expectedRevision}, current is ${currentRevision}`,
     );
   }
+}
+
+function assertExpectedRevision(
+  currentRevision: number,
+  expectedRevision: number,
+  action: string,
+): void {
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid expectedRevision: ${expectedRevision}`);
+  }
+  if (currentRevision !== expectedRevision) {
+    throw new DomainError(
+      "STALE_CAMPAIGN_REVISION",
+      `${action} is out of date. Expected revision ${expectedRevision}, current is ${currentRevision}`,
+    );
+  }
+}
+
+export function assertHierophantSteerRevision(
+  currentRevision: number,
+  expectedRevision: number,
+): void {
+  assertExpectedRevision(currentRevision, expectedRevision, "Steer");
+}
+
+export function assertHierophantBenefactionDepartRevision(
+  currentRevision: number,
+  expectedRevision: number,
+): void {
+  assertExpectedRevision(currentRevision, expectedRevision, "Benefaction & Depart");
+}
+
+export interface SteerHierophantSupplicantInput {
+  readonly allocationId: AllocationId;
+  readonly denizenId: DenizenId;
+  readonly destinationTempleId: HierophantTempleId;
+  readonly destinationArea: HierophantTempleArea | null;
+}
+
+function canonicalizeTempleAreaOrNull(area: HierophantTempleArea | null): HierophantTempleArea | null {
+  if (area === null || area === "courtyard" || area === "agiary") return area;
+  throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid Temple area: ${String(area)}`);
+}
+
+function spendMatchingSteerAllocation(
+  state: CampaignStateV5,
+  allocationId: AllocationId,
+  denizenId: DenizenId,
+): CampaignStateV5 {
+  if (state.lifecycle.kind !== "play") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Steer requires lifecycle kind 'play'");
+  }
+  if (!isValidAllocationId(allocationId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid allocationId: ${allocationId}`);
+  }
+  const { timeParticipants } = state.lifecycle.currentMonth;
+  let tpIndex = -1;
+  let allocIndex = -1;
+  for (let i = 0; i < timeParticipants.length; i++) {
+    const tp = timeParticipants[i];
+    for (let j = 0; j < tp.allocations.length; j++) {
+      if (tp.allocations[j].allocationId === allocationId) {
+        tpIndex = i;
+        allocIndex = j;
+        break;
+      }
+    }
+    if (tpIndex >= 0) break;
+  }
+  if (tpIndex < 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Allocation ${allocationId} not found in current month`);
+  }
+  const tp = timeParticipants[tpIndex];
+  const alloc = tp.allocations[allocIndex];
+  if (tp.participant.kind !== "wizard") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Allocation ${allocationId} belongs to the Devil, not a Wizard`);
+  }
+  if (alloc.resolution !== "pending") {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Allocation ${allocationId} is ${alloc.resolution}, not pending`,
+    );
+  }
+  if (
+    alloc.destination === null
+    || alloc.destination.kind !== "hierophant_supplicant"
+    || alloc.destination.denizenId !== denizenId
+  ) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Allocation ${allocationId} is not scheduled on this Supplicant`,
+    );
+  }
+  const newAllocations = tp.allocations.map((entry, index) => (
+    index === allocIndex ? { ...entry, resolution: "spent" as const } : entry
+  ));
+  const newTimeParticipants = timeParticipants.map((entry, index) => (
+    index === tpIndex ? { ...entry, allocations: newAllocations } : entry
+  ));
+  return {
+    ...state,
+    lifecycle: {
+      ...state.lifecycle,
+      currentMonth: {
+        ...state.lifecycle.currentMonth,
+        timeParticipants: newTimeParticipants,
+      },
+    },
+  };
+}
+
+export function applySteerHierophantSupplicant(
+  state: CampaignStateV5,
+  rawInput: SteerHierophantSupplicantInput,
+): HierophantOperabilityTransitionResult {
+  if (state.hierophant.temples.length === 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Hierophant Temples have not been initialized");
+  }
+  if (!isValidDenizenId(rawInput.denizenId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${rawInput.denizenId}`);
+  }
+  if (!isValidHierophantTempleId(rawInput.destinationTempleId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Temple not found: ${String(rawInput.destinationTempleId)}`);
+  }
+  const destinationArea = canonicalizeTempleAreaOrNull(rawInput.destinationArea);
+  const person = state.hierophant.supplicants.find((entry) => entry.denizenId === rawInput.denizenId);
+  if (person === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Supplicant not found: ${rawInput.denizenId}`);
+  }
+  const destination = state.hierophant.temples.find((temple) => temple.templeId === rawInput.destinationTempleId);
+  if (destination === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Temple not found: ${rawInput.destinationTempleId}`);
+  }
+  if (person.woe < 1) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Steer requires a Supplicant with at least 1 Woe");
+  }
+  const toHost: HierophantSupplicantHost = destination.kind === "hestar"
+    ? { kind: "temple", templeId: destination.templeId, area: null }
+    : { kind: "temple", templeId: destination.templeId, area: destinationArea };
+  const spent = spendMatchingSteerAllocation(state, rawInput.allocationId, rawInput.denizenId);
+  const woeAfter = person.woe - 1;
+  const updated: HierophantSupplicant = {
+    ...person,
+    woe: woeAfter,
+    host: toHost,
+  };
+  const nextState: CampaignStateV5 = {
+    ...spent,
+    hierophant: {
+      ...spent.hierophant,
+      supplicants: spent.hierophant.supplicants.map((entry) => (
+        entry.denizenId === person.denizenId ? updated : entry
+      )),
+    },
+  };
+  const denizenName = nextState.world.denizens.find((entry) => entry.denizenId === person.denizenId)?.name
+    ?? person.denizenId;
+  return {
+    nextState,
+    events: [{
+      type: "hierophant_supplicant_steered",
+      version: 1,
+      data: {
+        denizenId: person.denizenId,
+        denizenName,
+        allocationId: rawInput.allocationId,
+        fromHost: person.host,
+        toHost,
+        woeBefore: person.woe,
+        woeAfter,
+      },
+    }],
+  };
+}
+
+export interface DepartHierophantSupplicantWithBenefactionInput {
+  readonly denizenId: DenizenId;
+}
+
+export function applyDepartHierophantSupplicantWithBenefaction(
+  state: CampaignStateV5,
+  rawInput: DepartHierophantSupplicantWithBenefactionInput,
+): HierophantOperabilityTransitionResult {
+  if (state.hierophant.temples.length === 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Hierophant Temples have not been initialized");
+  }
+  if (!isValidDenizenId(rawInput.denizenId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid denizenId: ${rawInput.denizenId}`);
+  }
+  const person = state.hierophant.supplicants.find((entry) => entry.denizenId === rawInput.denizenId);
+  if (person === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Supplicant not found: ${rawInput.denizenId}`);
+  }
+  if (person.woe !== 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Benefaction & Depart requires Woe 0");
+  }
+  const host = person.host;
+  if (host.kind !== "temple") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Benefaction & Depart requires a Temple host");
+  }
+  const temple = state.hierophant.temples.find((entry) => entry.templeId === host.templeId);
+  if (temple === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Temple not found: ${host.templeId}`);
+  }
+  const benefaction = hierophantBuiltinClassBenefaction(person.classId);
+  if (benefaction === null) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Benefaction is not determined for this Class");
+  }
+  const resourceBefore = benefaction.kind === "abundance" ? temple.abundance : temple.conviction;
+  const resourceAfter = resourceBefore + benefaction.amount;
+  const temples = state.hierophant.temples.map((entry) => {
+    if (entry.templeId !== temple.templeId) return entry;
+    return benefaction.kind === "abundance"
+      ? { ...entry, abundance: resourceAfter }
+      : { ...entry, conviction: resourceAfter };
+  });
+  const denizenName = state.world.denizens.find((entry) => entry.denizenId === person.denizenId)?.name
+    ?? person.denizenId;
+  return {
+    nextState: {
+      ...state,
+      hierophant: {
+        ...state.hierophant,
+        temples,
+        supplicants: state.hierophant.supplicants.filter((entry) => entry.denizenId !== person.denizenId),
+      },
+    },
+    events: [{
+      type: "hierophant_supplicant_benefaction_departed",
+      version: 1,
+      data: {
+        denizenId: person.denizenId,
+        denizenName,
+        classId: person.classId,
+        templeId: temple.templeId,
+        resource: benefaction.kind,
+        amount: benefaction.amount,
+        resourceBefore,
+        resourceAfter,
+      },
+    }],
+  };
 }

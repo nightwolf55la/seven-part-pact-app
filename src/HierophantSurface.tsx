@@ -77,10 +77,13 @@ import {
   unresolvedStartingTemples,
   TIME_RECORDING_BOUNDARY,
   SERMON_DEFER_GUIDANCE,
-  STEER_DEFER_GUIDANCE,
+  STEER_NEEDS_TIME_GUIDANCE,
+  STEER_CHOOSE_WEEK_GUIDANCE,
   HOLIDAY_DEFER_GUIDANCE,
   HESTAR_PROVIDE_DEFER_GUIDANCE,
   buildCreateHierophantSupplicantPayload,
+  buildSteerHierophantSupplicantPayload,
+  buildDepartHierophantSupplicantWithBenefactionPayload,
   persistableSupplicantName,
   supplicantGivenName,
   type StartingTempleBindings,
@@ -88,6 +91,8 @@ import {
   formatVisionsTempleWarnings,
   shortTempleBoardLabel,
   woeThresholdCueLabel,
+  baseBenefactionReference,
+  benefactionReferenceLabel,
 } from "./hierophant-view-model";
 import {
   appendVisionsOrder,
@@ -110,6 +115,12 @@ import {
   createHierophantHestarTransferController,
   type HierophantHestarTransferController,
 } from "./hierophant-hestar-transfer";
+import {
+  resolveSteerAllocationChoice,
+  selectedSteerAllocation,
+  steerDropArea,
+  type HierophantSteerTimeRow,
+} from "./hierophant-steer";
 
 type HierophantTab = "overview" | "temples" | "people" | "cults" | "definitions";
 
@@ -195,6 +206,7 @@ export default function HierophantSurface({
   campaignRevision,
   sorcererPresence = [],
   loreCompendium = { status: "unavailable" },
+  steerTime = [],
 }: {
   hierophant: HierophantState;
   world: WorldReference;
@@ -202,6 +214,7 @@ export default function HierophantSurface({
   campaignRevision: number;
   sorcererPresence?: readonly SorcererExternalPresence[];
   loreCompendium?: LoreCompendiumUiState;
+  steerTime?: readonly HierophantSteerTimeRow[];
 }) {
   const [tab, setTab] = useState<HierophantTab>("overview");
   const [error, setError] = useState<string | null>(null);
@@ -221,6 +234,13 @@ export default function HierophantSurface({
   const [selectedSupplicantId, setSelectedSupplicantId] = useState<string | null>(null);
   const [supplicantNameDraft, setSupplicantNameDraft] = useState("");
   const [supplicantWoeDraft, setSupplicantWoeDraft] = useState("");
+  const [steerDenizenId, setSteerDenizenId] = useState<string | null>(null);
+  const [steerHoverKey, setSteerHoverKey] = useState<string | null>(null);
+  const [steerNotice, setSteerNotice] = useState<{ denizenId: string; reason: string } | null>(null);
+  const [steerDestTempleId, setSteerDestTempleId] = useState("");
+  const [steerDestArea, setSteerDestArea] = useState<"" | "courtyard" | "agiary">("");
+  const [steerAllocationId, setSteerAllocationId] = useState("");
+  const steerDenizenRef = useRef<string | null>(null);
   const [receiveDraft, setReceiveDraft] = useState<{
     commandId: string;
     denizenId: string;
@@ -243,6 +263,8 @@ export default function HierophantSurface({
   const createHierophantSupplicant = useMutation(api.m3Commands.createHierophantSupplicant);
   const resolveHierophantVisions = useMutation(api.m3Commands.resolveHierophantVisions);
   const transferHierophantHestarResource = useMutation(api.m3Commands.transferHierophantHestarResource);
+  const steerHierophantSupplicant = useMutation(api.m3Commands.steerHierophantSupplicant);
+  const departHierophantSupplicantWithBenefaction = useMutation(api.m3Commands.departHierophantSupplicantWithBenefaction);
   const addSupplicant = useMutation(api.m3Commands.addSupplicant);
   const updateSupplicant = useMutation(api.m3Commands.updateSupplicant);
   const updateDenizen = useMutation(api.m3Commands.updateDenizen);
@@ -320,6 +342,81 @@ export default function HierophantSurface({
   for (const temple of hierophant.temples) {
     resourceIntents.observeAuthoritative(temple.templeId, "abundance", temple.abundance);
     resourceIntents.observeAuthoritative(temple.templeId, "conviction", temple.conviction);
+  }
+  const pendingSteerDenizenIds = new Set(
+    steerTime.filter((row) => row.resolution === "pending").map((row) => row.denizenId),
+  );
+
+  function selectSupplicantForInspector(denizenId: string): void {
+    const person = hierophant.supplicants.find((entry) => entry.denizenId === denizenId);
+    setSelectedSupplicantId(denizenId);
+    if (person === undefined) return;
+    const klass = classLabel(person.classId, hierophant.campaignClasses);
+    const stored = denizenLabel(world.denizens, denizenId);
+    setSupplicantNameDraft(supplicantGivenName(stored, klass) ?? "");
+    setSupplicantWoeDraft(String(person.woe));
+    const hostTempleId = person.host.kind === "temple" ? person.host.templeId : hierophant.temples[0]?.templeId ?? "";
+    setSteerDestTempleId(hostTempleId);
+    setSteerDestArea(
+      person.host.kind === "temple" && person.host.area !== null ? person.host.area : "",
+    );
+    const choice = resolveSteerAllocationChoice(steerTime, denizenId);
+    setSteerAllocationId(choice.kind === "single" ? choice.row.allocationId : "");
+  }
+
+  function commitSteer(args: {
+    readonly denizenId: string;
+    readonly allocationId: string;
+    readonly destinationTempleId: string;
+    readonly destinationArea: "courtyard" | "agiary" | null;
+  }): void {
+    setSteerNotice(null);
+    void runQuiet(async () => {
+      await steerHierophantSupplicant(buildSteerHierophantSupplicantPayload({
+        commandId: newCommandId(),
+        expectedCampaignId: campaignIdRef.current,
+        expectedRevision: campaignRevisionRef.current,
+        allocationId: args.allocationId,
+        denizenId: args.denizenId,
+        destinationTempleId: args.destinationTempleId,
+        destinationArea: args.destinationArea,
+      }));
+    });
+  }
+
+  function deliverSteer(
+    temple: HierophantTemple,
+    zone: HierophantSupplyZone,
+    denizenIdFromDrag?: string | null,
+  ): void {
+    const denizenId = denizenIdFromDrag ?? steerDenizenRef.current;
+    if (denizenId === null || denizenId === undefined || denizenId === "") return;
+    const person = hierophant.supplicants.find((entry) => entry.denizenId === denizenId);
+    if (person === undefined) return;
+    selectSupplicantForInspector(denizenId);
+    setSelectedTempleId(temple.templeId);
+    const destinationArea = steerDropArea(temple, zone);
+    setSteerDestTempleId(temple.templeId);
+    setSteerDestArea(destinationArea ?? "");
+    if (person.woe < 1) {
+      setSteerNotice({ denizenId, reason: "Steer requires a Supplicant with at least 1 Woe." });
+      return;
+    }
+    const choice = resolveSteerAllocationChoice(steerTime, denizenId);
+    if (choice.kind === "none") {
+      setSteerNotice({ denizenId, reason: STEER_NEEDS_TIME_GUIDANCE });
+      return;
+    }
+    if (choice.kind === "choose_wizard") {
+      setSteerNotice({ denizenId, reason: STEER_CHOOSE_WEEK_GUIDANCE });
+      return;
+    }
+    commitSteer({
+      denizenId,
+      allocationId: choice.row.allocationId,
+      destinationTempleId: temple.templeId,
+      destinationArea,
+    });
   }
 
   const initialized = isHierophantInitialized(hierophant);
@@ -1142,16 +1239,37 @@ export default function HierophantSurface({
                 setSupplyHoverKey(null);
               },
             }}
+            steer={{
+              draggingDenizenId: steerDenizenId,
+              hoverKey: steerHoverKey,
+              notice: steerNotice,
+              pendingDenizenIds: pendingSteerDenizenIds,
+              peekDraggingDenizenId: () => steerDenizenRef.current,
+              onBegin: (denizenId) => {
+                steerDenizenRef.current = denizenId;
+                setSteerDenizenId(denizenId);
+                setSteerHoverKey(null);
+                setSteerNotice(null);
+              },
+              onHover: (key) => {
+                setSteerHoverKey(key);
+              },
+              onDeliver: (temple, zone, denizenIdFromDrag) => {
+                deliverSteer(temple, zone, denizenIdFromDrag);
+                steerDenizenRef.current = null;
+                setSteerDenizenId(null);
+                setSteerHoverKey(null);
+              },
+              onCancel: () => {
+                steerDenizenRef.current = null;
+                setSteerDenizenId(null);
+                setSteerHoverKey(null);
+              },
+            }}
             pieces={{
               selectedSupplicantId,
               onSelectSupplicant: (denizenId) => {
-                const person = hierophant.supplicants.find((entry) => entry.denizenId === denizenId);
-                setSelectedSupplicantId(denizenId);
-                if (person === undefined) return;
-                const klass = classLabel(person.classId, hierophant.campaignClasses);
-                const stored = denizenLabel(world.denizens, denizenId);
-                setSupplicantNameDraft(supplicantGivenName(stored, klass) ?? "");
-                setSupplicantWoeDraft(String(person.woe));
+                selectSupplicantForInspector(denizenId);
               },
               onSetWoe: (denizenId, currentWoe, nextWoe) => {
                 if (nextWoe === currentWoe || nextWoe < 0) return;
@@ -1317,6 +1435,134 @@ export default function HierophantSurface({
                       >
                         Record exact Woe
                       </button>
+                      {selectedPerson.woe >= 1 && (() => {
+                        const choice = resolveSteerAllocationChoice(steerTime, selectedPerson.denizenId);
+                        const destTemple = hierophant.temples.find((entry) => entry.templeId === steerDestTempleId)
+                          ?? hierophant.temples[0];
+                        const allocation = selectedSteerAllocation(
+                          steerTime,
+                          selectedPerson.denizenId,
+                          steerAllocationId === "" ? null : steerAllocationId,
+                        );
+                        return (
+                          <div data-steer-controls="" className="space-y-2 pt-1">
+                            {choice.kind === "none" && (
+                              <p className="text-xs font-medium text-amber-950 dark:text-amber-100">
+                                {STEER_NEEDS_TIME_GUIDANCE}
+                              </p>
+                            )}
+                            {choice.kind === "choose_wizard" && (
+                              <label className="block text-xs">
+                                Scheduled Time
+                                <select
+                                  className={fieldClass}
+                                  value={steerAllocationId}
+                                  disabled={pending}
+                                  aria-label="Scheduled Time week"
+                                  onChange={(event) => setSteerAllocationId(event.target.value)}
+                                >
+                                  <option value="">Choose Wizard's week…</option>
+                                  {choice.rows.map((row) => (
+                                    <option key={row.allocationId} value={row.allocationId}>
+                                      {row.wizardName}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            )}
+                            {choice.kind !== "none" && (
+                              <>
+                                <label className="block text-xs">
+                                  Steer to Temple
+                                  <select
+                                    className={fieldClass}
+                                    value={steerDestTempleId}
+                                    disabled={pending}
+                                    aria-label="Steer destination Temple"
+                                    onChange={(event) => {
+                                      const nextId = event.target.value;
+                                      setSteerDestTempleId(nextId);
+                                      const nextTemple = hierophant.temples.find((entry) => entry.templeId === nextId);
+                                      if (nextTemple?.kind === "hestar") setSteerDestArea("");
+                                    }}
+                                  >
+                                    {hierophant.temples.map((temple) => (
+                                      <option key={temple.templeId} value={temple.templeId}>
+                                        {templeDisplayName(temple, world.places)}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                                {destTemple !== undefined && destTemple.kind !== "hestar" && (
+                                  <label className="block text-xs">
+                                    Area
+                                    <select
+                                      className={fieldClass}
+                                      value={steerDestArea}
+                                      disabled={pending}
+                                      aria-label="Steer destination area"
+                                      onChange={(event) => setSteerDestArea(event.target.value as "" | "courtyard" | "agiary")}
+                                    >
+                                      <option value="">Unresolved</option>
+                                      <option value="courtyard">Courtyard</option>
+                                      <option value="agiary">Agiary</option>
+                                    </select>
+                                  </label>
+                                )}
+                                <button
+                                  type="button"
+                                  className={btnClass}
+                                  disabled={pending || allocation === null}
+                                  onClick={() => {
+                                    if (allocation === null || destTemple === undefined) return;
+                                    commitSteer({
+                                      denizenId: selectedPerson.denizenId,
+                                      allocationId: allocation.allocationId,
+                                      destinationTempleId: destTemple.templeId,
+                                      destinationArea: destTemple.kind === "hestar"
+                                        ? null
+                                        : (steerDestArea === "" ? null : steerDestArea),
+                                    });
+                                  }}
+                                >
+                                  Steer
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })()}
+                      {selectedPerson.woe === 0 && (() => {
+                        const benefaction = baseBenefactionReference(selectedPerson.classId);
+                        const templeHost = selectedPerson.host.kind === "temple";
+                        return (
+                          <div data-benefaction-controls="" className="space-y-2 pt-1">
+                            <p className="text-xs">{benefactionReferenceLabel(benefaction)}</p>
+                            {!templeHost && (
+                              <p className="text-xs font-medium">Benefaction & Depart requires a Temple host.</p>
+                            )}
+                            <button
+                              type="button"
+                              className={btnClass}
+                              disabled={pending || benefaction.kind === "not_determined" || !templeHost}
+                              onClick={() => {
+                                void runQuiet(async () => {
+                                  await departHierophantSupplicantWithBenefaction(
+                                    buildDepartHierophantSupplicantWithBenefactionPayload({
+                                      commandId: newCommandId(),
+                                      expectedCampaignId: campaignIdRef.current,
+                                      expectedRevision: campaignRevisionRef.current,
+                                      denizenId: selectedPerson.denizenId,
+                                    }),
+                                  );
+                                });
+                              }}
+                            >
+                              Benefaction & Depart
+                            </button>
+                          </div>
+                        );
+                      })()}
                     </section>
                   );
                 })()}
@@ -1449,7 +1695,6 @@ export default function HierophantSurface({
                   <summary className="cursor-pointer font-medium">Deferred table procedures</summary>
                   <p className="mt-2">{HOLIDAY_DEFER_GUIDANCE}</p>
                   <p className="mt-2">{SERMON_DEFER_GUIDANCE}</p>
-                  <p className="mt-2">{STEER_DEFER_GUIDANCE}</p>
                   {caps.isHestar && <p className="mt-2">{HESTAR_PROVIDE_DEFER_GUIDANCE}</p>}
                 </details>
                 {loreSubject !== undefined && (

@@ -400,6 +400,12 @@ function validateTimeDestination(dest: Record<string, unknown>, path: string, ve
     }
     assertAllowedKeys(dest, path, ["kind", "denizenId"]);
   }
+  if (kind === "hierophant_supplicant") {
+    if (typeof dest.denizenId !== "string" || !isValidDenizenId(dest.denizenId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId is invalid: ${JSON.stringify(dest.denizenId)}`);
+    }
+    assertAllowedKeys(dest, path, ["kind", "denizenId"]);
+  }
   if (kind === "devil_seized_domain") {
     if (typeof dest.seatId !== "string" || !isValidPactSeatId(dest.seatId)) {
       throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.seatId is invalid: ${JSON.stringify(dest.seatId)}`);
@@ -1447,6 +1453,9 @@ function validateV5TimeDestinationReferences(state: CampaignStateV5): void {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.wizardId does not resolve: ${dest.wizardId}`);
       }
       if (dest.kind === "devil_denizen" && !denizenIds.has(dest.denizenId)) {
+        throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId does not resolve: ${dest.denizenId}`);
+      }
+      if (dest.kind === "hierophant_supplicant" && !denizenIds.has(dest.denizenId)) {
         throw new DomainError("INVALID_CAMPAIGN_STATE", `${path}.denizenId does not resolve: ${dest.denizenId}`);
       }
       if (dest.kind === "devil_companion" && !companionIds.has(dest.companionRelationshipId)) {

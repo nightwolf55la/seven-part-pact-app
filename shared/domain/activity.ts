@@ -215,6 +215,10 @@ function describeConfigEvent(event: CampaignEvent): string {
       }
       return `Transferred ${resource}`;
     }
+    case "hierophant_supplicant_steered":
+      return `Steered Supplicant "${event.data.denizenName}"`;
+    case "hierophant_supplicant_benefaction_departed":
+      return `Departed Supplicant "${event.data.denizenName}" with Benefaction`;
     case "supplicant_added":
       return "Added Supplicant";
     case "supplicant_updated":
@@ -628,6 +632,8 @@ export function mapEventToActivityEntry(
     case "hierophant_supplicant_created":
     case "hierophant_visions_resolved":
     case "hierophant_hestar_resource_transferred":
+    case "hierophant_supplicant_steered":
+    case "hierophant_supplicant_benefaction_departed":
     case "supplicant_added":
     case "supplicant_updated":
     case "supplicant_removed":
