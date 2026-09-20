@@ -84,6 +84,31 @@ Normally only one implementation Workstream should be active at a time.
 Read-only design/research Workstreams or Specialists may overlap when doing so
 safely reduces wall-clock time.
 
+#### Exception — current Domain UX-refinement phase
+
+During the current UX-refinement phase, **multiple Domain-specific implementation
+Workstreams MAY run in parallel** when:
+
+- their work is predominantly Domain-local UI, presentation, and interaction;
+- they use separate branches.
+
+Parallel Workstreams must **stop and escalate** before independently introducing
+or materially changing:
+
+- CampaignState/schema/migration;
+- persistence/recovery semantics;
+- shared command/event architecture;
+- new shared cross-Domain subsystems;
+- significant shared PlayShell/navigation architecture;
+- unresolved substantial rules interpretations;
+- any other existing Master-escalation category (see Workstream Escalation).
+
+Shared semantic/registry work should be deliberately coordinated and may be
+serialized even while Domain-local UI work continues in parallel.
+
+The default of one active implementation Workstream remains appropriate for
+structural, persistence-sensitive, or cross-cutting work.
+
 ### Specialist Agent
 
 A Specialist Agent is temporary and generally read-only.
@@ -377,6 +402,11 @@ appropriate:
 Do not trust an implementation report over the actual repository state.
 
 Before PR/merge, inspect the real diff and verify the final checkpoint.
+
+Do not require rebasing every active Domain branch merely because an unrelated
+docs-only commit lands on `main`. Rebase or synchronize at meaningful
+boundaries: before shared integration where needed, and before final
+PR/closure.
 
 ## Workstream Escalation
 
