@@ -23,6 +23,7 @@ import {
   type SorcererExternalPresence,
   powerfulStatusLabel,
   planHierophantVisions,
+  canonicalizeHierophantVisionsChoices,
   type HierophantVisionsChoices,
   type HierophantVisionsResource,
   type DenizenId,
@@ -158,6 +159,29 @@ function doctrineFromEditor(
   }
   if (blasphemyId === "") return null;
   return { kind: "blasphemy", blasphemyId: blasphemyId as HierophantBlasphemyId };
+}
+
+function convexHierophantVisionsChoices(choices: HierophantVisionsChoices): {
+  artisanPayments?: Record<string, "abundance" | "conviction">;
+  hestarFallback?: Record<string, boolean>;
+  hestarDonors?: Record<string, string>;
+  supplicantOrder?: string[];
+} {
+  const canonical = canonicalizeHierophantVisionsChoices(choices);
+  return {
+    ...(canonical.artisanPayments === undefined ? {} : {
+      artisanPayments: { ...canonical.artisanPayments } as Record<string, "abundance" | "conviction">,
+    }),
+    ...(canonical.hestarFallback === undefined ? {} : {
+      hestarFallback: { ...canonical.hestarFallback } as Record<string, boolean>,
+    }),
+    ...(canonical.hestarDonors === undefined ? {} : {
+      hestarDonors: { ...canonical.hestarDonors } as Record<string, string>,
+    }),
+    ...(canonical.supplicantOrder === undefined ? {} : {
+      supplicantOrder: [...canonical.supplicantOrder],
+    }),
+  };
 }
 
 export default function HierophantSurface({
@@ -898,7 +922,7 @@ export default function HierophantSurface({
           commandId: newCommandId(),
           expectedCampaignId: campaignId,
           expectedRevision: campaignRevision,
-          choices: effectiveVisionsChoices,
+          choices: convexHierophantVisionsChoices(effectiveVisionsChoices),
         });
         if (result.kind === "accepted") return;
         if (result.kind === "choices_required") {

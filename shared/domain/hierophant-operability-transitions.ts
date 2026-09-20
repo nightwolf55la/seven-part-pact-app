@@ -156,7 +156,12 @@ export function hierophantVisionsContextFromCampaign(
 }
 
 export function canonicalizeHierophantVisionsChoices(
-  choices: HierophantVisionsChoices,
+  choices: HierophantVisionsChoices | {
+    readonly artisanPayments?: Readonly<Record<string, unknown>>;
+    readonly hestarFallback?: Readonly<Record<string, unknown>>;
+    readonly hestarDonors?: Readonly<Record<string, unknown>>;
+    readonly supplicantOrder?: readonly unknown[];
+  },
 ): HierophantVisionsChoices {
   const artisanPayments: Record<string, "abundance" | "conviction"> = {};
   for (const [id, resource] of Object.entries(choices.artisanPayments ?? {})) {
@@ -170,7 +175,7 @@ export function canonicalizeHierophantVisionsChoices(
   }
   const hestarDonors: Record<string, HierophantTempleId> = {};
   for (const [id, templeId] of Object.entries(choices.hestarDonors ?? {})) {
-    if (templeId === undefined || !isValidHierophantTempleId(templeId) || templeId === "hestar") continue;
+    if (typeof templeId !== "string" || !isValidHierophantTempleId(templeId) || templeId === "hestar") continue;
     hestarDonors[id] = templeId;
   }
   const seen = new Set<string>();

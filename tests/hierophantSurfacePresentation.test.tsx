@@ -1636,7 +1636,7 @@ describe("Resolve Visions action", () => {
     }),
   ];
 
-  function readyState(overrides: Partial<typeof EMPTY_HIEROPHANT_STATE> = {}) {
+  function readyState(overrides: Record<string, unknown> = {}) {
     return {
       ...EMPTY_HIEROPHANT_STATE,
       temples: fiveTemples,
@@ -1649,7 +1649,7 @@ describe("Resolve Visions action", () => {
         },
       ],
       ...overrides,
-    };
+    } as typeof EMPTY_HIEROPHANT_STATE;
   }
 
   function renderReady(hierophant = readyState() as typeof EMPTY_HIEROPHANT_STATE) {

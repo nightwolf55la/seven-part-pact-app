@@ -622,11 +622,6 @@ export function planHierophantVisions(
       if (row.payment.resource === "abundance") totalA += row.payment.amount;
       else totalC += row.payment.amount;
     }
-    const benefA = payers.reduce((sum, entry) =>
-      sum + (entry.benefaction?.resource === "abundance" ? entry.benefaction.amount : 0), 0);
-    const benefC = payers.reduce((sum, entry) =>
-      sum + (entry.benefaction?.resource === "conviction" ? entry.benefaction.amount : 0), 0);
-
     const canPayAllFromStart = totalA <= stock.abundance && totalC <= stock.conviction;
     if (totalA > stock.abundance && stock.abundance > 0) {
       for (const row of determinedPayers) {

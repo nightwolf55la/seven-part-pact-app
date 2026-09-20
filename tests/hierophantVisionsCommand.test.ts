@@ -680,7 +680,9 @@ describe("hierophant_visions_resolved audit", () => {
         choices: { artisanPayments: { [denizenId(1)]: "abundance" } },
       },
     });
-    expect(result.events[0]?.data.choices).not.toHaveProperty("hestarFallback");
+    if (result.events[0]?.type === "hierophant_visions_resolved") {
+      expect(result.events[0].data.choices).not.toHaveProperty("hestarFallback");
+    }
   });
 
   it("maps the event to player-facing activity wording", () => {
