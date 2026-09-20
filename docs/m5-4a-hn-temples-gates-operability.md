@@ -43,6 +43,8 @@ Inspected: existing H/N types, transitions, validation, and tests. No local H/N 
 
 **APPLICATION DESIGN:** Completeness gate fails. No atomic movement + Woe reduction + last-Woe departure (role removal, not person deletion) + correct Benefaction/Prophet production. Custom-Class Benefactions and Prophet stacking remain unsettled. Do not relabel `updateSupplicant` as Steer.
 
+**Later (M5.4-2H):** delivered as a later Workstream, not as part of M5.4A-HN. Atomic Steer spends typed Hierophant-Supplicant Time, moves the Supplicant, and removes 1 Woe. Woe 1 → 0 may persist; Benefaction & Depart is a separate explicit operation. See `docs/m5-4-2h-hierophant-steer-benefaction.md`.
+
 ### Holiday — DEFER
 
 **SOURCE:** Holiday celebration grants the Temple each Supplicant's Benefaction and must honor settled production modifiers. It is not the ordinary departure rule.
@@ -231,4 +233,4 @@ Do not reuse the overnight 2445-test count as final evidence.
 
 ### Conditional automation deferrals (unchanged)
 
-Sermon, Steer, Holiday celebration, Rebuff, Hestar Provide, automatic five-Souls-to-Foe, compound Create Ghoul-Caller / broad Prophet/Cult creation, atomic Clear Hostility + Lore, and full monthly movement/Visions automation remain deferred. Completeness gates still fail. No Domain automation was expanded. Mariner and Faustian were not started.
+Sermon, Holiday celebration, Rebuff, Hestar Provide, automatic five-Souls-to-Foe, compound Create Ghoul-Caller / broad Prophet/Cult creation, atomic Clear Hostility + Lore, and full monthly movement/Visions automation remain deferred from M5.4A-HN. Steer and Benefaction & Depart were later delivered in M5.4-2H. Completeness gates still fail for the remaining deferred procedures. No Domain automation was expanded in M5.4A-HN. Mariner and Faustian were not started there.
