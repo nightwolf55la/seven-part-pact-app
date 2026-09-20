@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api.js";
 import type {
@@ -96,6 +96,10 @@ type Draft =
     twistDestination: FaustianTwistDispositionDestination;
   };
 
+export type FaustianLifecycleLaunch =
+  | { readonly kind: "machination_outcome" }
+  | { readonly kind: "finalize_challenge"; readonly challengeId: string };
+
 export default function FaustianLifecycleActions({
   faustian,
   campaignId,
@@ -103,6 +107,8 @@ export default function FaustianLifecycleActions({
   wizards,
   selectedCommunityId,
   presentation,
+  launch = null,
+  onLaunchConsumed,
 }: {
   readonly faustian: FaustianState;
   readonly campaignId: string;
@@ -110,6 +116,8 @@ export default function FaustianLifecycleActions({
   readonly wizards: readonly NamedWizardRef[];
   readonly selectedCommunityId: FaustianCommunityId | null;
   readonly presentation: FaustianTablePresentation;
+  readonly launch?: FaustianLifecycleLaunch | null;
+  readonly onLaunchConsumed?: () => void;
 }) {
   const recordScheme = useMutation(api.m3Commands.recordFaustianSchemeOccurred);
   const discloseTwist = useMutation(api.m3Commands.discloseFaustianTwist);
@@ -158,11 +166,53 @@ export default function FaustianLifecycleActions({
     }
   }
 
+  useLayoutEffect(() => {
+    if (launch === null || lifecycleKind !== "play") return;
+    const faceUp = faustian.machinations.filter((card) => card.facing === "face_up");
+    if (launch.kind === "machination_outcome") {
+      setError(null);
+      setDraft({
+        kind: "machination_outcome",
+        expectedFaustian: cloneFaustianState(faustian),
+        expectedCleanupCardIds: eligibleFaustianMachinationCleanupCardIds(faustian),
+        selectedScoring: faceUp.slice(0, 5).map((card) => card.cardId),
+        resultKind: "one_pair",
+        outcomeTwists: [],
+        twoPairA: [],
+        twoPairB: [],
+        wizardA: wizards[0]?.wizardId ?? "",
+        wizardB: wizards[1]?.wizardId ?? wizards[0]?.wizardId ?? "",
+        wizardC: wizards[2]?.wizardId ?? wizards[0]?.wizardId ?? "",
+        threeA: "",
+        threeB: "",
+        threeC: "",
+        twistDestination: "remain_face_up_in_machinations",
+      });
+    } else {
+      setError(null);
+      setDraft({
+        kind: "finalize_challenge",
+        challengeId: launch.challengeId,
+        pendingHoldingDisposition: "shuffle_into_faustian_deck",
+        twistDestination: "remain_face_up_in_machinations",
+      });
+    }
+    onLaunchConsumed?.();
+  }, [launch, faustian, wizards, onLaunchConsumed, lifecycleKind]);
+
   if (lifecycleKind !== "play") return null;
 
+  const attached = draft?.kind === "machination_outcome" || draft?.kind === "finalize_challenge" || draft?.kind === "complete_response";
+
   return (
-    <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3" aria-label="Faustian lifecycle actions">
-      <h3 className="text-sm font-semibold">Scheme occurrence and Machinations</h3>
+    <section
+      className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3"
+      aria-label="Faustian lifecycle actions"
+      data-faustian-attached-lifecycle={attached ? "true" : undefined}
+    >
+      <details className="rounded-lg border border-slate-200 dark:border-slate-700 p-3" data-faustian-lifecycle-less-common>
+        <summary className="text-sm font-semibold cursor-pointer">Less-common Scheme destinations and lifecycle</summary>
+        <div className="mt-3 space-y-3">
       <p className="text-xs text-slate-500">{SHARED_TIME_BOUNDARY_COPY}</p>
       <div className="flex flex-wrap gap-2">
         <button
@@ -304,6 +354,8 @@ export default function FaustianLifecycleActions({
           ))}
         </div>
       )}
+        </div>
+      </details>
 
       {(schemeStale || cleanupStale) && (
         <p className="text-xs text-amber-700 dark:text-amber-300">

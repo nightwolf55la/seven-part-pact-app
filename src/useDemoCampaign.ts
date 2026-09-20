@@ -1,4 +1,4 @@
-import { useMutation } from "convex/react";
+import { useConvex, useMutation } from "convex/react";
 import { useCallback, useRef, useState } from "react";
 import { api } from "../convex/_generated/api.js";
 import {
@@ -15,6 +15,7 @@ export function useDemoCampaign(enabled: boolean) {
   const [error, setError] = useState<string | null>(null);
   const runningRef = useRef(false);
 
+  const convex = useConvex();
   const startNewCampaign = useMutation(api.campaign.startNewCampaign);
   const addPlayer = useMutation(api.m3Commands.addPlayer);
   const setCampaignAge = useMutation(api.m3Commands.setCampaignAge);
@@ -33,6 +34,10 @@ export function useDemoCampaign(enabled: boolean) {
   const setWizardSanctum = useMutation(api.m3Commands.setWizardSanctum);
   const initializeSorcerer = useMutation(api.m3Commands.initializeSorcerer);
   const arrangeFaustianTable = useMutation(api.m3Commands.arrangeFaustianTable);
+  const correctFaustianCard = useMutation(api.m3Commands.correctFaustianCard);
+  const addFaustianPawn = useMutation(api.m3Commands.addFaustianPawn);
+  const establishFaustianConspiracy = useMutation(api.m3Commands.establishFaustianConspiracy);
+  const recordFaustianDueMonthObligation = useMutation(api.m3Commands.recordFaustianDueMonthObligation);
   const addSupplicant = useMutation(api.m3Commands.addSupplicant);
   const addProphet = useMutation(api.m3Commands.addProphet);
   const establishCult = useMutation(api.m3Commands.establishCult);
@@ -65,6 +70,17 @@ export function useDemoCampaign(enabled: boolean) {
       setWizardSanctum: (args) => setWizardSanctum(args),
       initializeSorcerer: (args) => initializeSorcerer(args),
       arrangeFaustianTable: (args) => arrangeFaustianTable(args as never),
+      readFaustian: async () => {
+        const ref = await convex.query(api.m3Queries.getFaustianReference, {});
+        if (ref === null || ref === undefined) {
+          throw new Error("Faustian reference unavailable");
+        }
+        return { faustian: ref.faustian };
+      },
+      correctFaustianCard: (args) => correctFaustianCard(args as never),
+      addFaustianPawn: (args) => addFaustianPawn(args as never),
+      establishFaustianConspiracy: (args) => establishFaustianConspiracy(args as never),
+      recordFaustianDueMonthObligation: (args) => recordFaustianDueMonthObligation(args as never),
       addSupplicant: (args) => addSupplicant(args),
       addProphet: (args) => addProphet(args),
       establishCult: (args) => establishCult(args),
@@ -109,6 +125,11 @@ export function useDemoCampaign(enabled: boolean) {
     setWizardSanctum,
     initializeSorcerer,
     arrangeFaustianTable,
+    convex,
+    correctFaustianCard,
+    addFaustianPawn,
+    establishFaustianConspiracy,
+    recordFaustianDueMonthObligation,
     addSupplicant,
     addProphet,
     establishCult,

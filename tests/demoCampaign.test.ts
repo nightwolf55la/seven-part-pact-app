@@ -60,6 +60,26 @@ function createMutationSpy(): DemoCampaignMutations & {
       return bump("initializeSorcerer");
     },
     arrangeFaustianTable: () => bump("arrangeFaustianTable"),
+    readFaustian: async () => {
+      calls.push("readFaustian");
+      return {
+        faustian: {
+          communities: Array.from({ length: 12 }, (_, index) => ({
+            communityId: [
+              "aries", "leo", "sagittarius", "taurus", "virgo", "capricorn",
+              "gemini", "libra", "aquarius", "cancer", "scorpio", "pisces",
+            ][index]!,
+            pawnCount: 0,
+            schemes: [],
+            accompliceCardIds: [],
+          })),
+        } as never,
+      };
+    },
+    correctFaustianCard: () => bump("correctFaustianCard"),
+    addFaustianPawn: () => bump("addFaustianPawn"),
+    establishFaustianConspiracy: () => bump("establishFaustianConspiracy"),
+    recordFaustianDueMonthObligation: () => bump("recordFaustianDueMonthObligation"),
     addSupplicant: () => bump("addSupplicant"),
     addProphet: () => bump("addProphet"),
     establishCult: () => bump("establishCult"),
@@ -96,7 +116,8 @@ describe("runDemoCampaignSetup", () => {
 
     expect(result.campaignId).toBe("cmp_demo");
     expect(mutations.calls[0]).toBe("startNewCampaign");
-    expect(mutations.calls[mutations.calls.length - 1]).toBe("beginPlay");
+    expect(mutations.calls[mutations.calls.length - 1]).toBe("recordFaustianDueMonthObligation");
+    expect(mutations.calls).toContain("beginPlay");
     expect(mutations.calls.filter((c) => c === "addPlayer")).toHaveLength(REVIEW_CAMPAIGN_PLAYER_NAMES.length);
     expect(mutations.calls.filter((c) => c === "createWizard")).toHaveLength(PACT_SEAT_IDS.length);
     expect(mutations.calls).toContain("initializeHierophantSourceSetup");
@@ -120,6 +141,11 @@ describe("runDemoCampaignSetup", () => {
     expect(mutations.initializeSorcererArgs?.professorDenizenId).toBeTruthy();
     expect(mutations.initializeSorcererArgs?.alchemistDenizenId).toBeTruthy();
     expect(mutations.calls).toContain("arrangeFaustianTable");
+    expect(mutations.calls.filter((c) => c === "correctFaustianCard").length).toBeGreaterThan(20);
+    expect(mutations.calls).toContain("addFaustianPawn");
+    expect(mutations.calls).toContain("establishFaustianConspiracy");
+    expect(mutations.calls).toContain("recordFaustianDueMonthObligation");
+    expect(mutations.calls.indexOf("beginPlay")).toBeLessThan(mutations.calls.indexOf("correctFaustianCard"));
     expect(mutations.calls).not.toContain("initializeHierophant");
     expect(mutations.calls.filter((c) => c === "createPlace")).toHaveLength(2);
     expect(mutations.calls.filter((c) => c === "createDenizen")).toHaveLength(12);

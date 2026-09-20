@@ -7,6 +7,7 @@ import {
   FAUSTIAN_TABLEAU_ROW_COUNT,
   FAUSTIAN_ZODIAC_LABELS,
   buildInitializedDefaultFaustianState,
+  faustianAccompliceDefeatsScheme,
   faustianCardId,
   faustianCardSourceReference,
   faustianCommunityHeader,
@@ -26,6 +27,9 @@ import {
   FACEDOWN_TWIST_LABEL,
   buildFaustianMachinationOutcomeResult,
   buildFaustianTablePresentation,
+  formatFaustianPreventionCue,
+  previewFaustianBlackmailProtection,
+  previewFaustianPlaceProtection,
   faustianLoreSubjects,
   isFaustianMachinationOutcomeDraftReady,
   isFaustianSchemeOccurrenceConfirmReady,
@@ -172,8 +176,8 @@ describe("represented card zones", () => {
     expect(presentation.devilDeckCount).toBe(1);
     expect(presentation.twists).toHaveLength(1);
     expect(presentation.machinations).toHaveLength(1);
-    expect(presentation.defeatedSchemes[0]?.publicLabel).toBe("King of Spades");
-    expect(presentation.heldCards[0]?.publicLabel).toBe("Nine of Spades");
+    expect(presentation.defeatedSchemes[0]?.publicLabel).toBe("K♠");
+    expect(presentation.heldCards[0]?.publicLabel).toBe("9♠");
     expect(presentation.entrustedCards[0]?.locationLabel).toBe("Entrusted to Mara");
     expect(presentation.possessionCards[0]?.locationLabel).toBe("Possession of Mara");
     expect(presentation.domainPlacements[0]?.locationLabel).toBe("Hierophant Domain");
@@ -464,5 +468,200 @@ describe("machination outcome draft payload", () => {
       suit: "hearts",
       twistDispositions: [{ cardId: HA, destination: "remain_face_up_in_machinations" }],
     });
+  });
+});
+
+describe("zero-click table cues", () => {
+  it("marks an empty Devil Deck and missing Faustian-Deck suits as table pressure", () => {
+    const emptyDevil = populatedFaustian();
+    expect(emptyDevil.devilDeck).toHaveLength(1);
+    const noHearts: FaustianState = {
+      ...emptyDevil,
+      devilDeck: [],
+      faustianDeck: emptyDevil.faustianDeck.filter((cardId) => !cardId.startsWith("hearts_")),
+    };
+    const presentation = buildFaustianTablePresentation({ faustian: noHearts });
+    expect(presentation.devilDeckEmpty).toBe(true);
+    expect(presentation.devilDeckCount).toBe(0);
+    expect(presentation.missingSuits.map((suit) => suit.suit)).toEqual(["hearts"]);
+    expect(presentation.missingSuits[0]?.label).toMatch(/hearts/i);
+  });
+
+  it("surfaces due-now Devil obligations without requiring Advanced / Correct", () => {
+    const faustian: FaustianState = {
+      ...populatedFaustian(),
+      devilObligations: [{
+        kind: "wizard_owes_week_due_month",
+        wizardId: WIZ_A as never,
+        dueMonthOrdinal: 3 as never,
+        weeks: 2,
+      }],
+    };
+    const presentation = buildFaustianTablePresentation({
+      faustian,
+      wizards: [{ wizardId: WIZ_A, name: "Mara" }],
+      currentMonthOrdinal: 3,
+    });
+    expect(presentation.obligationCues).toHaveLength(1);
+    expect(presentation.obligationCues[0]?.label).toContain("Mara");
+    expect(presentation.obligationCues[0]?.wizardId).toBe(WIZ_A);
+    expect(presentation.obligationCues[0]?.weeks).toBe(2);
+    expect(presentation.obligationCues[0]?.scheduleLabel).toBe("due_this_month");
+    expect(presentation.obligationCues[0]?.imminent).toBe(true);
+  });
+
+  it("counts face-up vs facedown Schemes per Community for glanceable facing", () => {
+    const presentation = buildFaustianTablePresentation({ faustian: populatedFaustian() });
+    const aries = presentation.communities[0]!;
+    expect(aries.schemeFaceUpCount).toBe(2);
+    expect(aries.schemeFaceDownCount).toBe(2);
+  });
+});
+
+describe("rank and suit glance presentation", () => {
+  it("uses concise rank plus suit glyphs on face-up cards with a short role and glance line", () => {
+    const presentation = buildFaustianTablePresentation({ faustian: populatedFaustian() });
+    const aries = presentation.communities[0]!;
+    const faceUpScheme = aries.schemes.visible.find((card) => card.facing === "face_up");
+    expect(faceUpScheme).toMatchObject({
+      facing: "face_up",
+      publicLabel: "2♥",
+      rankSuitGlyph: "2♥",
+      roleKindLabel: "Scheme",
+      glanceLine: "See Scheme consequence",
+      identityLabel: "Two of Hearts",
+    });
+    const accomplice = aries.accomplices.visible[0];
+    expect(accomplice).toMatchObject({
+      publicLabel: "7♦",
+      rankSuitGlyph: "7♦",
+      roleKindLabel: "Accomplice",
+      glanceLine: "Prevents ≤7",
+    });
+    const facedown = aries.schemes.visible.find((card) => card.facing === "face_down");
+    expect(facedown?.publicLabel).toBe(FACEDOWN_SCHEME_LABEL);
+    expect(facedown).not.toHaveProperty("rankSuitGlyph");
+    expect(presentation.defeatedSchemes[0]?.publicLabel).toBe("K♠");
+    expect(presentation.heldCards[0]?.publicLabel).toBe("9♠");
+  });
+
+  it("gives face-up Schemes a cautious consequence cue instead of placement/facing restatement", () => {
+    const presentation = buildFaustianTablePresentation({ faustian: populatedFaustian() });
+    const aries = presentation.communities[0]!;
+    const leo = presentation.communities[1]!;
+    const faceUp = aries.schemes.visible.filter((card) => card.facing === "face_up");
+    expect(faceUp.length).toBeGreaterThan(0);
+    for (const card of faceUp) {
+      if (card.facing !== "face_up") continue;
+      expect(card.glanceLine).toBe("See Scheme consequence");
+      expect(card.glanceLine).not.toMatch(/Revealed|In Aries|Aries|Leo/);
+      expect(card.roleKindLabel).toBe("Scheme");
+      const reference = faustianCardSourceReference(card.cardId);
+      expect(reference.scheme.title).toBeNull();
+      expect(reference.scheme.text).toBeNull();
+      expect(reference.scheme.wordingStatus).toBe("source_transcription_deferred");
+    }
+    expect(leo.schemes.visible.every((card) => card.facing === "face_down" || !("glanceLine" in card && String(card.glanceLine).includes("Leo")))).toBe(true);
+  });
+
+  it("does not expose Scheme consequence on facedown cards", () => {
+    const presentation = buildFaustianTablePresentation({ faustian: populatedFaustian() });
+    const facedown = presentation.communities[0]!.schemes.visible.find((card) => card.facing === "face_down");
+    expect(facedown).toMatchObject({ facing: "face_down", publicLabel: FACEDOWN_SCHEME_LABEL });
+    expect(facedown).not.toHaveProperty("glanceLine");
+    expect(JSON.stringify(facedown)).not.toMatch(/See Scheme consequence|Two of Hearts|hearts_2/);
+  });
+
+  it("gives face-up Accomplices encoded protection glance text without Community location", () => {
+    const presentation = buildFaustianTablePresentation({ faustian: populatedFaustian() });
+    const accomplice = presentation.communities[0]!.accomplices.visible[0];
+    expect(accomplice?.facing).toBe("face_up");
+    if (accomplice?.facing !== "face_up") throw new Error("expected revealed accomplice");
+    expect(accomplice.glanceLine).toBe("Prevents ≤7");
+    expect(accomplice.glanceLine).not.toMatch(/Aries|Leo|In /);
+    expect(accomplice.roleLabel).toBeNull();
+    expect(faustianCardSourceReference(accomplice.cardId).accomplice.role).toBeNull();
+    expect(faustianAccompliceDefeatsScheme(accomplice.cardId, faustianCardId("hearts", "7"))).toBe(true);
+    expect(faustianAccompliceDefeatsScheme(accomplice.cardId, faustianCardId("hearts", "8"))).toBe(false);
+  });
+
+  it("uses the Ace Accomplice special-rule cue from encoded protection, not ordinary threshold wording", () => {
+    let faustian = populatedFaustian();
+    const ace = faustianCardId("clubs", "ace");
+    faustian = {
+      ...faustian,
+      faustianDeck: faustian.faustianDeck.filter((cardId) => cardId !== ace),
+    };
+    faustian = withCommunity(faustian, "leo", { accompliceCardIds: [ace] });
+    const presentation = buildFaustianTablePresentation({ faustian });
+    const accomplice = presentation.communities[1]!.accomplices.visible[0];
+    expect(accomplice).toMatchObject({
+      publicLabel: "A♣",
+      roleKindLabel: "Accomplice",
+      glanceLine: "Prevents except 2",
+    });
+    if (accomplice?.facing !== "face_up") throw new Error("expected ace accomplice");
+    expect(accomplice.glanceLine).not.toMatch(/Leo|Prevents ≤/);
+    expect(faustianAccompliceDefeatsScheme(ace, faustianCardId("hearts", "king"))).toBe(true);
+    expect(faustianAccompliceDefeatsScheme(ace, faustianCardId("hearts", "2"))).toBe(false);
+  });
+});
+
+describe("Accomplice prevention preview copy", () => {
+  it("attributes a prevented Scheme to the first local Accomplice and names Devil's Deck", () => {
+    const scheme = faustianCardId("hearts", "7");
+    const accomplice = faustianCardId("diamonds", "jack");
+    expect(formatFaustianPreventionCue([scheme], [accomplice])).toBe("7♥ prevented by J♦ -> Devil's Deck");
+  });
+
+  it("previews Blackmail prevention from the captured Faustian snapshot", () => {
+    let faustian = take(EMPTY_FAUSTIAN_STATE, [ACCOMPLICE_A, SCHEME_B, H7]);
+    faustian = {
+      ...faustian,
+      faustianDeck: [ACCOMPLICE_A, ...faustian.faustianDeck],
+      communities: faustian.communities.map((community) =>
+        community.communityId === "aries"
+          ? { ...community, schemes: [{ cardId: SCHEME_B, facing: "face_down" }] }
+          : community
+      ),
+    };
+    const preview = previewFaustianBlackmailProtection(faustian, "aries");
+    expect(preview.drawnCardId).toBe(ACCOMPLICE_A);
+    expect(preview.preventedSchemeCardIds).toEqual([SCHEME_B]);
+    expect(preview.revealedSchemeCardIds).toEqual([SCHEME_B]);
+    expect(formatFaustianPreventionCue(preview.preventedSchemeCardIds, preview.accompliceCardIds)).toBe(
+      "3♥ prevented by 7♦ -> Devil's Deck",
+    );
+  });
+
+  it("previews Place prevention for a low Scheme and none for a surviving high Scheme", () => {
+    let low = take(EMPTY_FAUSTIAN_STATE, [ACCOMPLICE_A, SCHEME_B]);
+    low = {
+      ...low,
+      devilDeck: [SCHEME_B],
+      communities: low.communities.map((community) =>
+        community.communityId === "aries"
+          ? { ...community, accompliceCardIds: [ACCOMPLICE_A] }
+          : community
+      ),
+    };
+    const prevented = previewFaustianPlaceProtection(low, "aries");
+    expect(prevented.placedCardIds).toEqual([SCHEME_B]);
+    expect(prevented.preventedSchemeCardIds).toEqual([SCHEME_B]);
+
+    let high = take(EMPTY_FAUSTIAN_STATE, [ACCOMPLICE_A, H9]);
+    high = {
+      ...high,
+      devilDeck: [H9],
+      communities: high.communities.map((community) =>
+        community.communityId === "aries"
+          ? { ...community, accompliceCardIds: [ACCOMPLICE_A] }
+          : community
+      ),
+    };
+    const surviving = previewFaustianPlaceProtection(high, "aries");
+    expect(surviving.placedCardIds).toEqual([H9]);
+    expect(surviving.preventedSchemeCardIds).toEqual([]);
+    expect(formatFaustianPreventionCue(surviving.preventedSchemeCardIds, surviving.accompliceCardIds)).toBeNull();
   });
 });

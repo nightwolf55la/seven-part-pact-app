@@ -10,6 +10,7 @@ import type {
   FaustianCardFacing,
   FaustianCardId,
   FaustianCommunityId,
+  FaustianRank,
   FaustianMachinationOutcomeResult,
   FaustianPersistentFullHouseRank,
   FaustianState,
@@ -23,7 +24,10 @@ import type {
 import {
   FAUSTIAN_COMMUNITY_DEFINITIONS,
   FAUSTIAN_COMMUNITY_IDS,
+  FAUSTIAN_RANK_GLYPHS,
   FAUSTIAN_SUITS,
+  applyLocalAccompliceProtection,
+  faustianAccompliceDefeatsScheme,
   faustianCardSourceReference,
   faustianCommunityHeader,
   FAUSTIAN_SOURCE_WORDING_OMISSION,
@@ -54,6 +58,108 @@ export const ACTIVE_TWIST_SPOTLIGHT_LABEL =
 export const PRIVATE_TWIST_INSPECT_LABEL = "Inspect Twist privately";
 export const PRIVATE_TWIST_INSPECT_HINT =
   "Local-only view. Does not flip the card, send a command, or write an event.";
+export const FACEDOWN_SCHEME_SUPPLY_LABEL = "Facedown Scheme from Devil's Deck";
+export const FACEDOWN_ACCOMPLICE_SUPPLY_LABEL = "Facedown Accomplice from Faustian's Deck";
+export const SCHEME_CONSEQUENCE_GLANCE_FALLBACK = "See Scheme consequence";
+export const ACE_ACCOMPLICE_PROTECTION_GLANCE = "Prevents except 2";
+export const INVESTIGATE_FOIL_CUE = "Choose a Scheme to foil";
+
+function cardRank(cardId: FaustianCardId): FaustianRank {
+  return cardId.slice(cardId.indexOf("_") + 1) as FaustianRank;
+}
+
+export function faustianAccompliceProtectionGlance(cardId: FaustianCardId): string {
+  const rank = cardRank(cardId);
+  if (rank === "ace") return ACE_ACCOMPLICE_PROTECTION_GLANCE;
+  return `Prevents ≤${FAUSTIAN_RANK_GLYPHS[rank]}`;
+}
+
+export function faustianSchemeGlanceLine(cardId: FaustianCardId): string {
+  if (faustianCardSourceReference(cardId).scheme.wordingStatus === "source_transcription_deferred") {
+    return SCHEME_CONSEQUENCE_GLANCE_FALLBACK;
+  }
+  return SCHEME_CONSEQUENCE_GLANCE_FALLBACK;
+}
+
+export function faustianAccompliceGlanceLine(cardId: FaustianCardId): string {
+  return faustianAccompliceProtectionGlance(cardId);
+}
+
+export function previewFaustianBlackmailProtection(
+  faustian: FaustianState,
+  communityId: FaustianCommunityId,
+): {
+  readonly drawnCardId: FaustianCardId | null;
+  readonly accompliceCardIds: readonly FaustianCardId[];
+  readonly revealedSchemeCardIds: readonly FaustianCardId[];
+  readonly preventedSchemeCardIds: readonly FaustianCardId[];
+} {
+  const community = faustian.communities.find((entry) => entry.communityId === communityId);
+  const drawnCardId = faustian.faustianDeck[0];
+  if (community === undefined || drawnCardId === undefined) {
+    return {
+      drawnCardId: null,
+      accompliceCardIds: [],
+      revealedSchemeCardIds: [],
+      preventedSchemeCardIds: [],
+    };
+  }
+  const accompliceCardIds = [...community.accompliceCardIds, drawnCardId];
+  return {
+    drawnCardId,
+    accompliceCardIds,
+    ...applyLocalAccompliceProtection(community.schemes, accompliceCardIds),
+  };
+}
+
+export function previewFaustianPlaceProtection(
+  faustian: FaustianState,
+  communityId: FaustianCommunityId,
+  requestedQuantity = 1,
+): {
+  readonly placedCardIds: readonly FaustianCardId[];
+  readonly accompliceCardIds: readonly FaustianCardId[];
+  readonly revealedSchemeCardIds: readonly FaustianCardId[];
+  readonly preventedSchemeCardIds: readonly FaustianCardId[];
+} {
+  const community = faustian.communities.find((entry) => entry.communityId === communityId);
+  if (community === undefined || requestedQuantity < 1) {
+    return {
+      placedCardIds: [],
+      accompliceCardIds: [],
+      revealedSchemeCardIds: [],
+      preventedSchemeCardIds: [],
+    };
+  }
+  const placedCardIds = faustian.devilDeck.slice(0, requestedQuantity);
+  const schemesAfterDeal = [
+    ...community.schemes,
+    ...placedCardIds.map((cardId) => ({ cardId, facing: "face_down" as const })),
+  ];
+  return {
+    placedCardIds,
+    accompliceCardIds: community.accompliceCardIds,
+    ...applyLocalAccompliceProtection(schemesAfterDeal, community.accompliceCardIds),
+  };
+}
+
+export function formatFaustianPreventionCue(
+  preventedSchemeCardIds: readonly FaustianCardId[],
+  accompliceCardIds: readonly FaustianCardId[],
+): string | null {
+  if (preventedSchemeCardIds.length === 0) return null;
+  return preventedSchemeCardIds.map((schemeCardId) => {
+    const schemeGlyph = faustianCardSourceReference(schemeCardId).rankSuitGlyph;
+    const accompliceCardId = accompliceCardIds.find((cardId) => (
+      faustianAccompliceDefeatsScheme(cardId, schemeCardId)
+    ));
+    if (accompliceCardId === undefined) {
+      return `${schemeGlyph} prevented -> Devil's Deck`;
+    }
+    const accompliceGlyph = faustianCardSourceReference(accompliceCardId).rankSuitGlyph;
+    return `${schemeGlyph} prevented by ${accompliceGlyph} -> Devil's Deck`;
+  }).join("; ");
+}
 
 export interface NamedWizardRef {
   readonly wizardId: string;
@@ -96,6 +202,9 @@ export interface FaustianRevealedCardPresentation {
   readonly ariaLabel: string;
   readonly instanceKey: string;
   readonly identityLabel: string;
+  readonly rankSuitGlyph: string;
+  readonly roleKindLabel: string;
+  readonly glanceLine: string;
   readonly sourceOmission: string;
   readonly syndicateLabel: string | null;
   readonly roleLabel: string | null;
@@ -121,6 +230,8 @@ export interface FaustianCommunityPresentation {
   readonly associatedWizardLabel: string;
   readonly headerLabel: string;
   readonly schemes: FaustianFannedPilePresentation;
+  readonly schemeFaceUpCount: number;
+  readonly schemeFaceDownCount: number;
   readonly accomplices: FaustianFannedPilePresentation;
   readonly pawnCount: number;
   readonly pawnLabel: string;
@@ -150,6 +261,7 @@ export interface FaustianMachinationPresentation {
 export interface FaustianPendingChallengeGroupPresentation {
   readonly groupId: string;
   readonly status: "pending" | "completed";
+  readonly responsibleWizardId: string | null;
   readonly responsibleWizardName: string | null;
   readonly completedByWizardName: string | null;
 }
@@ -174,10 +286,28 @@ export interface FaustianTwistSpotlightPresentation {
   readonly relationshipLabel: string;
 }
 
+export interface FaustianMissingSuitPresentation {
+  readonly suit: FaustianSuit;
+  readonly label: string;
+}
+
+export interface FaustianObligationCuePresentation {
+  readonly key: string;
+  readonly label: string;
+  readonly wizardId: string;
+  readonly dueMonthOrdinal: number;
+  readonly weeks: number;
+  readonly scheduleLabel: "upcoming" | "due_this_month" | "overdue";
+  readonly imminent: boolean;
+}
+
 export interface FaustianTablePresentation {
   readonly communities: readonly FaustianCommunityPresentation[];
   readonly faustianDeckCount: number;
   readonly devilDeckCount: number;
+  readonly devilDeckEmpty: boolean;
+  readonly missingSuits: readonly FaustianMissingSuitPresentation[];
+  readonly obligationCues: readonly FaustianObligationCuePresentation[];
   readonly suitSummaries: readonly FaustianSuitSummaryPresentation[];
   readonly twists: readonly FaustianTwistSpotlightPresentation[];
   readonly machinations: readonly FaustianMachinationPresentation[];
@@ -229,24 +359,43 @@ function concealed(
   };
 }
 
+function roleKindLabel(kind: FaustianPublicCardKind): string {
+  if (kind === "scheme") return "Scheme";
+  if (kind === "accomplice") return "Accomplice";
+  if (kind === "twist") return "Twist";
+  if (kind === "machination") return "Machination";
+  if (kind === "defeated") return "Defeated";
+  if (kind === "held") return "Held";
+  if (kind === "entrusted") return "Entrusted";
+  if (kind === "possession") return "Possession";
+  return "Domain";
+}
+
 function revealed(
   kind: FaustianPublicCardKind,
   cardId: FaustianCardId,
   instanceKey: string,
   extraAria?: string,
+  glanceLine = "Face-up",
 ): FaustianRevealedCardPresentation {
   const reference = faustianCardSourceReference(cardId);
-  const publicLabel = reference.faceUpIdentityLabel;
+  const role = roleKindLabel(kind);
+  const glyph = reference.rankSuitGlyph;
+  const publicLabel = glyph;
   const syndicateLabel = kind === "accomplice" ? reference.accomplice.syndicate : null;
   const roleLabel = kind === "accomplice" ? reference.accomplice.role : null;
+  const detail = `${glyph} ${reference.faceUpIdentityLabel}`;
   return {
     kind,
     facing: "face_up",
     cardId,
     publicLabel,
-    ariaLabel: extraAria === undefined ? publicLabel : `${extraAria}: ${publicLabel}`,
+    ariaLabel: extraAria === undefined ? detail : `${extraAria}: ${detail}`,
     instanceKey,
-    identityLabel: publicLabel,
+    identityLabel: reference.faceUpIdentityLabel,
+    rankSuitGlyph: glyph,
+    roleKindLabel: role,
+    glanceLine,
     sourceOmission: FAUSTIAN_SOURCE_WORDING_OMISSION,
     syndicateLabel,
     roleLabel,
@@ -263,7 +412,7 @@ function schemePresentation(
   if (facing === "face_down") {
     return concealed("scheme", FACEDOWN_SCHEME_LABEL, instanceKey);
   }
-  return revealed("scheme", cardId, instanceKey, "Scheme");
+  return revealed("scheme", cardId, instanceKey, "Scheme", faustianSchemeGlanceLine(cardId));
 }
 
 export function researcherOperationalLabel(operationalThisMonth: boolean): string {
@@ -328,7 +477,13 @@ export function buildFaustianTablePresentation(args: {
       schemePresentation(scheme.cardId, scheme.facing, communityId, schemeIndex),
     );
     const accomplices = state.accompliceCardIds.map((cardId, accompliceIndex) =>
-      revealed("accomplice", cardId, `accomplice:${communityId}:${accompliceIndex}`, "Accomplice"),
+      revealed(
+        "accomplice",
+        cardId,
+        `accomplice:${communityId}:${accompliceIndex}`,
+        "Accomplice",
+        faustianAccompliceGlanceLine(cardId),
+      ),
     );
     const conspiracies = faustian.conspiracies
       .filter((conspiracy) => conspiracy.communityId === communityId)
@@ -345,6 +500,8 @@ export function buildFaustianTablePresentation(args: {
       associatedWizardLabel: header.associatedWizardLabel,
       headerLabel: `${header.zodiacLabel} · ${header.populace} · ${header.associatedWizardLabel}`,
       schemes: fan(schemes, "Schemes"),
+      schemeFaceUpCount: state.schemes.filter((scheme) => scheme.facing === "face_up").length,
+      schemeFaceDownCount: state.schemes.filter((scheme) => scheme.facing === "face_down").length,
       accomplices: fan(accomplices, "Accomplices"),
       pawnCount: state.pawnCount,
       pawnLabel: state.pawnCount === 1 ? "1 Pawn" : `${state.pawnCount} Pawns`,
@@ -386,6 +543,7 @@ export function buildFaustianTablePresentation(args: {
         isReservedTwist
           ? `Machination · ${RESERVED_TWIST_TREATMENT_LABEL}`
           : isActiveTwist ? `Machination · ${ACTIVE_TWIST_TREATMENT_LABEL}` : "Machination",
+        isReservedTwist ? RESERVED_TWIST_TREATMENT_LABEL : isActiveTwist ? ACTIVE_TWIST_TREATMENT_LABEL : "In Machinations",
       ),
       isActiveTwist,
       isReservedTwist,
@@ -409,29 +567,51 @@ export function buildFaustianTablePresentation(args: {
     };
   });
 
+  const obligationCues = faustian.devilObligations.flatMap((obligation) => {
+    if (obligation.kind !== "wizard_owes_week_due_month") return [];
+    const scheduleLabel = faustianChallengeScheduleLabel(
+      obligation.dueMonthOrdinal,
+      currentMonthOrdinal as never,
+    );
+    return [{
+      key: `${obligation.wizardId}:${obligation.dueMonthOrdinal}`,
+      label: `${wizardName(wizards, obligation.wizardId)} owes ${obligation.weeks} week${obligation.weeks === 1 ? "" : "s"}`,
+      wizardId: obligation.wizardId,
+      dueMonthOrdinal: obligation.dueMonthOrdinal,
+      weeks: obligation.weeks,
+      scheduleLabel,
+      imminent: scheduleLabel !== "upcoming",
+    }];
+  });
+
   return {
     communities,
     faustianDeckCount: faustian.faustianDeck.length,
     devilDeckCount: faustian.devilDeck.length,
+    devilDeckEmpty: faustian.devilDeck.length === 0,
+    missingSuits: suitSummaries
+      .filter((suit) => suit.faustianDeckCount === 0)
+      .map((suit) => ({ suit: suit.suit, label: suit.label })),
+    obligationCues,
     suitSummaries,
     twists,
     machinations,
     defeatedSchemes: faustian.defeatedSchemes.map((cardId, index) =>
-      revealed("defeated", cardId, `defeated:${index}`, "Defeated Scheme"),
+      revealed("defeated", cardId, `defeated:${index}`, "Defeated Scheme", "Defeated pile"),
     ),
     heldCards: faustian.setAsideHand.map((cardId, index) =>
-      revealed("held", cardId, `held:${index}`, "Held card"),
+      revealed("held", cardId, `held:${index}`, "Held card", "Held aside"),
     ),
     entrustedCards: faustian.entrustedCards.map((card, index) => ({
-      ...revealed("entrusted", card.cardId, `entrusted:${index}`, "Entrusted card"),
+      ...revealed("entrusted", card.cardId, `entrusted:${index}`, "Entrusted card", `Entrusted to ${wizardName(wizards, card.wizardId)}`),
       locationLabel: `Entrusted to ${wizardName(wizards, card.wizardId)}`,
     })),
     possessionCards: faustian.possessions.map((card, index) => ({
-      ...revealed("possession", card.cardId, `possession:${index}`, "Possession card"),
+      ...revealed("possession", card.cardId, `possession:${index}`, "Possession card", `Possession of ${wizardName(wizards, card.wizardId)}`),
       locationLabel: `Possession of ${wizardName(wizards, card.wizardId)}`,
     })),
     domainPlacements: faustian.domainPlacements.map((card, index) => ({
-      ...revealed("domain", card.cardId, `domain:${index}`, "Domain-placed card"),
+      ...revealed("domain", card.cardId, `domain:${index}`, "Domain-placed card", `${pactSeatDisplayName(card.seatId as PactSeatId)} Domain`),
       locationLabel: `${pactSeatDisplayName(card.seatId as PactSeatId)} Domain`,
     })),
     pendingChallenges: faustian.pendingMachinationChallenges.map((challenge) => ({
@@ -443,6 +623,7 @@ export function buildFaustianTablePresentation(args: {
       groups: challenge.groups.map((group) => ({
         groupId: group.groupId,
         status: group.status,
+        responsibleWizardId: group.responsibleWizardId,
         responsibleWizardName: group.responsibleWizardId === null ? null : wizardName(wizards, group.responsibleWizardId),
         completedByWizardName: group.completedByWizardId === null ? null : wizardName(wizards, group.completedByWizardId),
       })),
@@ -479,7 +660,13 @@ export function communityAllAccomplices(
   const community = faustian.communities.find((entry) => entry.communityId === communityId);
   if (community === undefined) return [];
   return community.accompliceCardIds.map((cardId, index) =>
-    revealed("accomplice", cardId, `accomplice:${communityId}:${index}`, "Accomplice"),
+    revealed(
+      "accomplice",
+      cardId,
+      `accomplice:${communityId}:${index}`,
+      "Accomplice",
+      faustianAccompliceGlanceLine(cardId),
+    ),
   );
 }
 
@@ -489,7 +676,7 @@ export function privateTwistInspection(
 ): FaustianRevealedCardPresentation | null {
   const cardId = faustian.activeTwistCardIds[twistIndex];
   if (cardId === undefined) return null;
-  return revealed("twist", cardId, `private-twist:${twistIndex}`, "Private Twist view");
+  return revealed("twist", cardId, `private-twist:${twistIndex}`, "Private Twist view", "Private view");
 }
 
 export function presentationContainsSecretIdentity(

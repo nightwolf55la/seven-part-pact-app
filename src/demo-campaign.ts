@@ -9,6 +9,8 @@ import {
   MARINER_LAW_OF_SEA_IDS,
   MOVABLE_PLANET_IDS,
   faustianCardId,
+  type CorrectFaustianCardInput,
+  type FaustianState,
   type HierophantStartingTempleId,
   type IsleId,
   type MarinerBoardIsleId,
@@ -17,6 +19,10 @@ import {
 } from "../shared/domain";
 import { PACT_SEAT_IDS } from "../shared/domain/pact-seats";
 import { getFixedAgeSetupSummary } from "./setup-view-model";
+import {
+  buildFaustianReviewPlayState,
+  faustianReviewCardPlacements,
+} from "./faustian-review-fixture";
 
 const DEMO_DESCRIPTION = "Review campaign fixture.";
 
@@ -189,6 +195,38 @@ export interface DemoCampaignMutations {
     expectedAgeYears: number | null;
     expectedElements: null;
     calamityAntagonist: null;
+  }): Promise<{ revision: number }>;
+  readFaustian(): Promise<{ faustian: FaustianState }>;
+  correctFaustianCard(args: {
+    commandId: string;
+    expectedCampaignId: string;
+    input: CorrectFaustianCardInput;
+  }): Promise<{ revision: number }>;
+  addFaustianPawn(args: {
+    commandId: string;
+    expectedCampaignId: string;
+    communityId: string;
+    expectedPawnCount: number;
+    expectedFaustian: FaustianState;
+  }): Promise<{ revision: number }>;
+  establishFaustianConspiracy(args: {
+    commandId: string;
+    expectedCampaignId: string;
+    communityId: string;
+    expectedFaustian: FaustianState;
+    subjectKind: "existing" | "create";
+    denizenId: string;
+    createName: string | null;
+    seatId: string;
+    chipCount: 1 | 2 | 3;
+    goal: string;
+  }): Promise<{ revision: number }>;
+  recordFaustianDueMonthObligation(args: {
+    commandId: string;
+    expectedCampaignId: string;
+    wizardId: string;
+    dueMonthOrdinal: number;
+    weeks: number;
   }): Promise<{ revision: number }>;
   addSupplicant(args: {
     commandId: string;
@@ -662,6 +700,63 @@ export async function runDemoCampaignSetup(
       }),
     );
     revision = afterPlay.revision;
+
+    const reviewFaustian = buildFaustianReviewPlayState({
+      conspiracyDenizenId: prefixedId("den", nextUuid),
+      obligationWizardId: fixture.wizardIds.faustian,
+      currentMonthOrdinal: awakening.requiredMonthOrdinal,
+    });
+    for (const input of faustianReviewCardPlacements(reviewFaustian)) {
+      const afterCard = await runStep("Arrange Faustian review table", onProgress, () =>
+        mutations.correctFaustianCard({
+          commandId: commandId(nextUuid),
+          expectedCampaignId: campaignId,
+          input,
+        }),
+      );
+      revision = afterCard.revision;
+    }
+
+    const afterCards = await runStep("Read Faustian review table", onProgress, () => mutations.readFaustian());
+    const aries = afterCards.faustian.communities.find((community) => community.communityId === "aries");
+    const afterPawn = await runStep("Add Faustian review Pawn", onProgress, () =>
+      mutations.addFaustianPawn({
+        commandId: commandId(nextUuid),
+        expectedCampaignId: campaignId,
+        communityId: "aries",
+        expectedPawnCount: aries?.pawnCount ?? 0,
+        expectedFaustian: afterCards.faustian,
+      }),
+    );
+    revision = afterPawn.revision;
+
+    const afterPawnState = await runStep("Read Faustian review table", onProgress, () => mutations.readFaustian());
+    const afterConspiracy = await runStep("Establish Faustian review Conspiracy", onProgress, () =>
+      mutations.establishFaustianConspiracy({
+        commandId: commandId(nextUuid),
+        expectedCampaignId: campaignId,
+        communityId: "leo",
+        expectedFaustian: afterPawnState.faustian,
+        subjectKind: "create",
+        denizenId: reviewFaustian.conspiracies[0]?.denizenId ?? prefixedId("den", nextUuid),
+        createName: "Review Conspiracy",
+        seatId: "warlock",
+        chipCount: 1,
+        goal: "Subjugation",
+      }),
+    );
+    revision = afterConspiracy.revision;
+
+    const afterObligation = await runStep("Record Faustian review obligation", onProgress, () =>
+      mutations.recordFaustianDueMonthObligation({
+        commandId: commandId(nextUuid),
+        expectedCampaignId: campaignId,
+        wizardId: fixture.wizardIds.faustian,
+        dueMonthOrdinal: awakening.requiredMonthOrdinal,
+        weeks: 1,
+      }),
+    );
+    revision = afterObligation.revision;
 
     return { ok: true, campaignId, revision };
   } catch (failure) {

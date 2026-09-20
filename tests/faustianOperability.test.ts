@@ -706,6 +706,56 @@ describe("Faustian Arrange Table", () => {
 });
 
 describe("Place Faustian Schemes", () => {
+  it("returns a preventable placed Scheme to Devil's Deck, not Defeated", () => {
+    let faustian = take(EMPTY_FAUSTIAN_STATE, [EXISTING_ACCOMPLICE, SCHEME_B]);
+    faustian = {
+      ...faustian,
+      devilDeck: [SCHEME_B],
+      defeatedSchemes: [],
+      communities: faustian.communities.map((community) =>
+        community.communityId === ARIES
+          ? { ...community, accompliceCardIds: [EXISTING_ACCOMPLICE], schemes: [] }
+          : community
+      ),
+    };
+    const start = baseSetup(faustian);
+    const beforeDevilCount = start.faustian.devilDeck.length;
+    const result = applyPlaceFaustianSchemes(start, ARIES, 1, start.faustian);
+    const placed = result.events[0];
+    expect(placed?.type).toBe("faustian_schemes_placed");
+    expect(placed?.type === "faustian_schemes_placed" ? placed.data.placedCardIds : []).toEqual([SCHEME_B]);
+    expect(placed?.type === "faustian_schemes_placed" ? placed.data.preventedSchemeCardIds : []).toEqual([SCHEME_B]);
+    expect(result.nextState.faustian.communities.find((community) => community.communityId === ARIES)?.schemes).toEqual([]);
+    expect(result.nextState.faustian.defeatedSchemes).toEqual([]);
+    expect(result.nextState.faustian.devilDeck[result.nextState.faustian.devilDeck.length - 1]).toBe(SCHEME_B);
+    expect(result.nextState.faustian.devilDeck).toHaveLength(beforeDevilCount);
+    expect(() => validateFaustianStructure(result.nextState.faustian)).not.toThrow();
+  });
+
+  it("keeps a Scheme above the local Accomplice threshold face-up on the Community", () => {
+    let faustian = take(EMPTY_FAUSTIAN_STATE, [EXISTING_ACCOMPLICE, SCHEME_A]);
+    faustian = {
+      ...faustian,
+      devilDeck: [SCHEME_A],
+      communities: faustian.communities.map((community) =>
+        community.communityId === ARIES
+          ? { ...community, accompliceCardIds: [EXISTING_ACCOMPLICE], schemes: [] }
+          : community
+      ),
+    };
+    const start = baseSetup(faustian);
+    const result = applyPlaceFaustianSchemes(start, ARIES, 1, start.faustian);
+    const placed = result.events[0];
+    expect(placed?.type === "faustian_schemes_placed" ? placed.data.placedCardIds : []).toEqual([SCHEME_A]);
+    expect(placed?.type === "faustian_schemes_placed" ? placed.data.preventedSchemeCardIds : []).toEqual([]);
+    expect(result.nextState.faustian.communities.find((community) => community.communityId === ARIES)?.schemes).toEqual([
+      { cardId: SCHEME_A, facing: "face_up" },
+    ]);
+    expect(result.nextState.faustian.devilDeck).toEqual([]);
+    expect(result.nextState.faustian.defeatedSchemes).toEqual([]);
+    expect(() => validateFaustianStructure(result.nextState.faustian)).not.toThrow();
+  });
+
   it("moves zero cards when requested quantity exceeds Devil Deck supply", () => {
     let faustian = take(EMPTY_FAUSTIAN_STATE, [SCHEME_B]);
     faustian = { ...faustian, devilDeck: [SCHEME_B] };

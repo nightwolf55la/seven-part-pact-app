@@ -21,7 +21,6 @@ import {
   faustianCommunityHeader,
   faustianFaceUpIdentityLabel,
   faustianStatesEqual,
-  isFaustianFoilTargetStillValid,
   isValidAgeDefinitionId,
   pactSeatDisplayName,
   PACT_SEAT_IDS,
@@ -31,10 +30,8 @@ import type { FaustianTablePresentation, FaustianWizardRef } from "./faustian-vi
 import {
   SHARED_TIME_BOUNDARY_COPY,
   cloneFaustianState,
-  communityAllAccomplices,
   isExactStructuralHelperFaustian,
   isExactUnarrangedFaustianBaseline,
-  synthesizeFaustianAfterSchemeReveal,
 } from "./faustian-view-model";
 
 const btn =
@@ -67,15 +64,6 @@ type Draft =
   }
   | { readonly kind: "placeholder"; readonly expectedFaustian: FaustianState }
   | {
-    readonly kind: "investigate";
-    stage: "reveal" | "foil";
-    readonly communityId: FaustianCommunityId;
-    expectedFaustian: FaustianState;
-    readonly eligibleSchemeCardIds: readonly FaustianCardId[];
-    selectedSchemeCardId: FaustianCardId | "";
-  }
-  | { readonly kind: "blackmail"; readonly communityId: FaustianCommunityId; readonly expectedFaustian: FaustianState }
-  | {
     readonly kind: "place_schemes";
     readonly communityId: FaustianCommunityId;
     readonly expectedFaustian: FaustianState;
@@ -98,12 +86,6 @@ type Draft =
     seatId: PactSeatId;
     chipCount: FaustianAntagonistChipCount;
     goal: FaustianAntagonistGoal;
-  }
-  | {
-    readonly kind: "direct";
-    readonly accompliceCardId: FaustianCardId;
-    readonly sourceCommunityId: FaustianCommunityId;
-    destinationCommunityId: FaustianCommunityId | "";
   }
   | {
     readonly kind: "disrupt";
@@ -143,14 +125,10 @@ export default function FaustianActions({
 }) {
   const arrangeTable = useMutation(api.m3Commands.arrangeFaustianTable);
   const completePlaceholder = useMutation(api.m3Commands.completeFaustianStructuralPlaceholder);
-  const revealSchemes = useMutation(api.m3Commands.revealFaustianCommunitySchemes);
-  const foilScheme = useMutation(api.m3Commands.foilFaustianCommunityScheme);
-  const blackmail = useMutation(api.m3Commands.blackmailFaustianCommunity);
   const placeSchemes = useMutation(api.m3Commands.placeFaustianSchemes);
   const addPawn = useMutation(api.m3Commands.addFaustianPawn);
   const removePawn = useMutation(api.m3Commands.removeFaustianPawn);
   const establishConspiracy = useMutation(api.m3Commands.establishFaustianConspiracy);
-  const directAccomplice = useMutation(api.m3Commands.directFaustianAccomplice);
   const disruptPawn = useMutation(api.m3Commands.disruptFaustianPawn);
 
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -171,12 +149,7 @@ export default function FaustianActions({
 
   const staleFaustian = draft !== null
     && "expectedFaustian" in draft
-    && draft.kind !== "investigate"
     && !faustianStatesEqual(draft.expectedFaustian, faustian);
-  const foilTargetStale = draft?.kind === "investigate"
-    && draft.stage === "foil"
-    && draft.selectedSchemeCardId !== ""
-    && !isFaustianFoilTargetStillValid(faustian, draft.communityId, draft.selectedSchemeCardId);
 
   const communityOptions = presentation.communities.map((community) => (
     <option key={community.communityId} value={community.communityId}>{community.headerLabel}</option>
@@ -198,10 +171,10 @@ export default function FaustianActions({
   const startCommunity = selectedCommunityId;
 
   return (
-    <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3" aria-label="Faustian actions">
-      <h3 className="text-sm font-semibold">Ordinary Faustian actions</h3>
+    <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3" aria-label="Faustian less-common actions">
+      <h3 className="text-sm font-semibold">{lifecycleKind === "setup" ? "Setup actions" : "Less-common board edits"}</h3>
       <p className="text-xs text-slate-500">
-        Selecting a Community inspects it. Start an action explicitly, then confirm or cancel.
+        Common monthly actions live on the table. These controls remain for multi-Scheme placement, Pawns, Conspiracies, and Disrupt.
         Captured intent is not rewritten when the table updates in realtime.
       </p>
 
@@ -254,63 +227,15 @@ export default function FaustianActions({
             disabled={pending || draft !== null}
             onClick={() => {
               setError(null);
-              const facedown = selectedLive.schemes.filter((scheme) => scheme.facing === "face_down");
-              const eligible = selectedLive.schemes
-                .filter((scheme) => facedown.length === 0 || scheme.facing === "face_up" || scheme.facing === "face_down")
-                .map((scheme) => scheme.cardId);
-              if (facedown.length === 0) {
-                setDraft({
-                  kind: "investigate",
-                  stage: "foil",
-                  communityId: startCommunity,
-                  expectedFaustian: cloneFaustianState(faustian),
-                  eligibleSchemeCardIds: eligible,
-                  selectedSchemeCardId: eligible[0] ?? "",
-                });
-                return;
-              }
-              setDraft({
-                kind: "investigate",
-                stage: "reveal",
-                communityId: startCommunity,
-                expectedFaustian: cloneFaustianState(faustian),
-                eligibleSchemeCardIds: eligible,
-                selectedSchemeCardId: "",
-              });
-            }}
-          >
-            Start Investigate
-          </button>
-          <button
-            type="button"
-            className={btn}
-            disabled={pending || draft !== null}
-            onClick={() => {
-              setError(null);
-              setDraft({
-                kind: "blackmail",
-                communityId: startCommunity,
-                expectedFaustian: cloneFaustianState(faustian),
-              });
-            }}
-          >
-            Start Blackmail
-          </button>
-          <button
-            type="button"
-            className={btn}
-            disabled={pending || draft !== null}
-            onClick={() => {
-              setError(null);
               setDraft({
                 kind: "place_schemes",
                 communityId: startCommunity,
                 expectedFaustian: cloneFaustianState(faustian),
-                requestedQuantity: 1,
+                requestedQuantity: 2,
               });
             }}
           >
-            Start Place Schemes
+            Place several Schemes
           </button>
           <button
             type="button"
@@ -367,27 +292,6 @@ export default function FaustianActions({
           >
             Start establish Conspiracy
           </button>
-          {communityAllAccomplices(faustian, startCommunity).map((card) => (
-            card.facing === "face_up" ? (
-              <button
-                key={card.cardId}
-                type="button"
-                className={btn}
-                disabled={pending || draft !== null}
-                onClick={() => {
-                  setError(null);
-                  setDraft({
-                    kind: "direct",
-                    accompliceCardId: card.cardId,
-                    sourceCommunityId: startCommunity,
-                    destinationCommunityId: "",
-                  });
-                }}
-              >
-                Start Direct {card.identityLabel}
-              </button>
-            ) : null
-          ))}
           {selectedLive.pawnCount > 0 && selectedLive.accompliceCardIds.length > 0 && (
             <button
               type="button"
@@ -412,11 +316,9 @@ export default function FaustianActions({
         <p className="text-xs text-slate-400">Select a Community to see ordinary board actions.</p>
       )}
 
-      {(staleFaustian || foilTargetStale) && (
+      {staleFaustian && (
         <p className="text-xs text-amber-700 dark:text-amber-300">
-          {foilTargetStale
-            ? "The selected Scheme is no longer an eligible face-up Scheme in the captured Community. Confirmation will reject without retargeting."
-            : "The live table changed after this action started. Confirmation still uses the captured intent and will reject if those preconditions no longer match."}
+          The live table changed after this action started. Confirmation still uses the captured intent and will reject if those preconditions no longer match.
         </p>
       )}
       {error !== null && (
@@ -557,105 +459,6 @@ export default function FaustianActions({
         </div>
       )}
 
-      {draft?.kind === "investigate" && (
-        <div className="space-y-2 text-xs">
-          <p className="font-medium">Investigate {communityLabel(draft.communityId)}</p>
-          <p>{SHARED_TIME_BOUNDARY_COPY}</p>
-          {draft.stage === "reveal" ? (
-            <>
-              <p>Stage 1 reveals every currently facedown Scheme in this Community. Already face-up Schemes stay face-up. Eligible foil targets include both.</p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  className={btn}
-                  disabled={pending}
-                  onClick={() => void run(async () => {
-                    await revealSchemes({
-                      commandId: commandId(),
-                      expectedCampaignId: campaignId,
-                      communityId: draft.communityId,
-                      expectedFaustian: asConvexFaustian(draft.expectedFaustian),
-                    });
-                    const after = synthesizeFaustianAfterSchemeReveal(draft.expectedFaustian, draft.communityId);
-                    const eligible = after.communities.find((community) => community.communityId === draft.communityId)?.schemes.map((scheme) => scheme.cardId) ?? [];
-                    setDraft({
-                      ...draft,
-                      stage: "foil",
-                      expectedFaustian: after,
-                      eligibleSchemeCardIds: eligible,
-                      selectedSchemeCardId: eligible[0] ?? "",
-                    });
-                  })}
-                >
-                  Confirm Investigate reveal
-                </button>
-                <button type="button" className={btn} disabled={pending} onClick={() => { setDraft(null); setError(null); }}>Cancel</button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p>Stage 2 foils only the selected captured Scheme. Later unrelated arrivals do not themselves reject this foil. Reload or cancel does not auto-foil.</p>
-              <label className="block">Eligible Scheme
-                <select
-                  className="ml-2 border rounded px-1"
-                  value={draft.selectedSchemeCardId}
-                  onChange={(event) => setDraft({ ...draft, selectedSchemeCardId: event.target.value as FaustianCardId })}
-                >
-                  {draft.eligibleSchemeCardIds.map((cardId) => (
-                    <option key={cardId} value={cardId}>{faustianFaceUpIdentityLabel(cardId)}</option>
-                  ))}
-                </select>
-              </label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  className={btn}
-                  disabled={pending || draft.selectedSchemeCardId === ""}
-                  onClick={() => void run(async () => {
-                    await foilScheme({
-                      commandId: commandId(),
-                      expectedCampaignId: campaignId,
-                      communityId: draft.communityId,
-                      schemeCardId: draft.selectedSchemeCardId,
-                      expectedFaustian: asConvexFaustian(draft.expectedFaustian),
-                    });
-                  }, () => setDraft(null))}
-                >
-                  Confirm foil
-                </button>
-                <button type="button" className={btn} disabled={pending} onClick={() => { setDraft(null); setError(null); }}>Cancel</button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {draft?.kind === "blackmail" && (
-        <div className="space-y-2 text-xs">
-          <p className="font-medium">Blackmail {communityLabel(draft.communityId)}</p>
-          <p>{SHARED_TIME_BOUNDARY_COPY}</p>
-          <p>The server draws the current top Faustian Deck card. The client does not supply that card.</p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className={btn}
-              disabled={pending}
-              onClick={() => void run(async () => {
-                await blackmail({
-                  commandId: commandId(),
-                  expectedCampaignId: campaignId,
-                  communityId: draft.communityId,
-                  expectedFaustian: asConvexFaustian(draft.expectedFaustian),
-                });
-              }, () => setDraft(null))}
-            >
-              Confirm Blackmail
-            </button>
-            <button type="button" className={btn} disabled={pending} onClick={() => { setDraft(null); setError(null); }}>Cancel</button>
-          </div>
-        </div>
-      )}
-
       {draft?.kind === "place_schemes" && (
         <div className="space-y-2 text-xs">
           <p className="font-medium">Place Schemes in {communityLabel(draft.communityId)}</p>
@@ -777,37 +580,6 @@ export default function FaustianActions({
               }, () => setDraft(null))}
             >
               Confirm establish Conspiracy
-            </button>
-            <button type="button" className={btn} disabled={pending} onClick={() => { setDraft(null); setError(null); }}>Cancel</button>
-          </div>
-        </div>
-      )}
-
-      {draft?.kind === "direct" && (
-        <div className="space-y-2 text-xs">
-          <p className="font-medium">Direct Accomplice</p>
-          <p>{SHARED_TIME_BOUNDARY_COPY}</p>
-          <label className="block">Destination Community
-            <select className="ml-2 border rounded px-1" value={draft.destinationCommunityId} onChange={(event) => setDraft({ ...draft, destinationCommunityId: event.target.value as FaustianCommunityId })}>
-              <option value="">Select</option>
-              {communityOptions}
-            </select>
-          </label>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className={btn}
-              disabled={pending || draft.destinationCommunityId === ""}
-              onClick={() => void run(async () => {
-                await directAccomplice({
-                  commandId: commandId(),
-                  expectedCampaignId: campaignId,
-                  accompliceCardId: draft.accompliceCardId,
-                  destinationCommunityId: draft.destinationCommunityId,
-                });
-              }, () => setDraft(null))}
-            >
-              Confirm Direct Accomplice
             </button>
             <button type="button" className={btn} disabled={pending} onClick={() => { setDraft(null); setError(null); }}>Cancel</button>
           </div>
