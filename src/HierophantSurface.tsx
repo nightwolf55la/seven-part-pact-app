@@ -164,12 +164,14 @@ export default function HierophantSurface({
   hierophant,
   world,
   campaignId,
+  campaignRevision,
   sorcererPresence = [],
   loreCompendium = { status: "unavailable" },
 }: {
   hierophant: HierophantState;
   world: WorldReference;
   campaignId: string;
+  campaignRevision: number;
   sorcererPresence?: readonly SorcererExternalPresence[];
   loreCompendium?: LoreCompendiumUiState;
 }) {
@@ -187,6 +189,7 @@ export default function HierophantSurface({
   const [supplyHoverKey, setSupplyHoverKey] = useState<string | null>(null);
   const [supplyBlock, setSupplyBlock] = useState<{ templeId: string; reason: string } | null>(null);
   const supplyClassRef = useRef<string | null>(null);
+  const visionsResolveInFlight = useRef(false);
   const [selectedSupplicantId, setSelectedSupplicantId] = useState<string | null>(null);
   const [supplicantNameDraft, setSupplicantNameDraft] = useState("");
   const [supplicantWoeDraft, setSupplicantWoeDraft] = useState("");
@@ -210,6 +213,7 @@ export default function HierophantSurface({
   const updateTemple = useMutation(api.m3Commands.updateTemple);
   const setTempleHoliday = useMutation(api.m3Commands.setTempleHoliday);
   const createHierophantSupplicant = useMutation(api.m3Commands.createHierophantSupplicant);
+  const resolveHierophantVisions = useMutation(api.m3Commands.resolveHierophantVisions);
   const addSupplicant = useMutation(api.m3Commands.addSupplicant);
   const updateSupplicant = useMutation(api.m3Commands.updateSupplicant);
   const updateDenizen = useMutation(api.m3Commands.updateDenizen);
@@ -884,6 +888,30 @@ export default function HierophantSurface({
   });
   const visionsPlan = planHierophantVisions(hierophant, effectiveVisionsChoices, visionsContext);
 
+  async function handleResolveVisions(): Promise<void> {
+    if (pending || visionsResolveInFlight.current) return;
+    if (visionsPlan.kind !== "ready") return;
+    visionsResolveInFlight.current = true;
+    try {
+      await runQuiet(async () => {
+        const result = await resolveHierophantVisions({
+          commandId: newCommandId(),
+          expectedCampaignId: campaignId,
+          expectedRevision: campaignRevision,
+          choices: effectiveVisionsChoices,
+        });
+        if (result.kind === "accepted") return;
+        if (result.kind === "choices_required") {
+          setError("Visions still needs a choice on the board.");
+          return;
+        }
+        setError("Visions cannot be resolved automatically. Use the board cues.");
+      });
+    } finally {
+      visionsResolveInFlight.current = false;
+    }
+  }
+
   return (
     <section className="bg-white dark:bg-slate-900 rounded-xl border border-amber-200/70 dark:border-amber-900/40 shadow-sm p-6">
       <h2 className="text-xl font-bold text-amber-950 dark:text-amber-100 mb-4">Hierophant</h2>
@@ -1013,6 +1041,14 @@ export default function HierophantSurface({
               },
               onOrderReset: () => {
                 setOrderDraft([]);
+              },
+              resolveAvailable: visionsPlan.kind === "ready",
+              resolvePending: pending,
+              resolveGuidance: visionsPlan.kind === "manual_resolution_required"
+                ? "Visions cannot be resolved automatically. Use the board cues."
+                : null,
+              onResolveVisions: () => {
+                void handleResolveVisions();
               },
             }}
             supply={{

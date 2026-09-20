@@ -124,7 +124,7 @@ describe("Hierophant Visions planner — supported fixed-cost payment", () => {
     expect(person.support).toBe("supported");
     expect(person.demand).toEqual({ kind: "fixed", resource: "abundance", amount: 1 });
     expect(person.woeProjection).toEqual({ kind: "determined", from: 3, to: 2 });
-    expect(person.departure.kind).toBe("none");
+    expect(person.thresholdCue.kind).toBe("none");
     const krolis = templePreview(plan, "krolis");
     expect(krolis.abundance).toEqual({ before: 5, delta: -1, after: 4 });
     expect(krolis.conviction).toEqual({ before: 4, delta: 0, after: 4 });
@@ -148,8 +148,8 @@ describe("Hierophant Visions planner — unsupported Woe", () => {
   });
 });
 
-describe("Hierophant Visions planner — Benefaction departure", () => {
-  it("removes a supported Woe-1 Peasant and grants +1 Conviction", () => {
+describe("Hierophant Visions planner — Woe 1 remains hosted", () => {
+  it("spends the resource, reaches Woe 0, and does not apply Benefaction", () => {
     const plan = planHierophantVisions(
       state({
         supplicants: [supplicant({ id: "peasant-b", classId: "peasant", woe: 1, templeId: "krolis" })],
@@ -158,14 +158,10 @@ describe("Hierophant Visions planner — Benefaction departure", () => {
     expect(plan.kind).toBe("ready");
     const person = previewFor(plan, "peasant-b");
     expect(person.woeProjection).toEqual({ kind: "determined", from: 1, to: 0 });
-    expect(person.departure).toEqual({
-      kind: "benefaction",
-      resource: "conviction",
-      amount: 1,
-    });
+    expect(person.thresholdCue).toEqual({ kind: "ready_for_benefaction" });
     const krolis = templePreview(plan, "krolis");
     expect(krolis.abundance).toEqual({ before: 5, delta: -1, after: 4 });
-    expect(krolis.conviction).toEqual({ before: 4, delta: 1, after: 5 });
+    expect(krolis.conviction).toEqual({ before: 4, delta: 0, after: 4 });
   });
 });
 
@@ -315,27 +311,19 @@ describe("Hierophant Visions planner — Hestar fallback", () => {
   });
 });
 
-describe("Hierophant Visions planner — Cult threshold", () => {
-  it("blocks automatic resolution for an unsupported 4 → 5 Woe Cult consequence", () => {
+describe("Hierophant Visions planner — Cult threshold is not a V1 blocker", () => {
+  it("keeps an unsupported 4 → 5 Woe transition ready and hosted", () => {
     const plan = planHierophantVisions(
       state({
         supplicants: [supplicant({ id: "gentry-cult", classId: "gentry", woe: 4, templeId: "krolis" })],
       }),
     );
-    expect(plan.kind).toBe("manual_resolution_required");
-    expect(plan.blockers).toEqual([
-      {
-        kind: "cult_threshold",
-        denizenId: denizen("gentry-cult"),
-        templeId: "krolis",
-        woeBefore: 4,
-        woeAfter: 5,
-      },
-    ]);
+    expect(plan.kind).toBe("ready");
+    expect(plan.blockers).toEqual([]);
     const person = previewFor(plan, "gentry-cult");
     expect(person.woeProjection).toEqual({ kind: "determined", from: 4, to: 5 });
-    expect(person.departure).toEqual({ kind: "cult_threshold" });
-    expect(person.blockerKind).toBe("cult_threshold");
+    expect(person.thresholdCue).toEqual({ kind: "cult_departure_due" });
+    expect(person.blockerKind).toBeNull();
   });
 });
 
@@ -390,7 +378,7 @@ describe("Hierophant Visions planner — Collapse / Blasphemy shortage", () => {
 });
 
 describe("Hierophant Visions planner — order sensitivity", () => {
-  it("does not silently use array order when Benefaction timing can change a later payment", () => {
+  it("does not invent order from a Woe-1 person because Benefaction is not a Visions V1 effect", () => {
     const people = [
       supplicant({ id: "merchant-need", classId: "merchant", woe: 2, templeId: "ushin" }),
       supplicant({ id: "peasant-gift", classId: "peasant", woe: 1, templeId: "ushin" }),
@@ -405,21 +393,14 @@ describe("Hierophant Visions planner — order sensitivity", () => {
     ];
     const asListed = planHierophantVisions(state({ temples, supplicants: people }));
     const reversed = planHierophantVisions(state({ temples, supplicants: [...people].reverse() }));
-    expect(asListed.kind).toBe("choices_required");
-    expect(reversed.kind).toBe("choices_required");
-    expect(asListed.requiredChoices.some((choice) => choice.kind === "supplicant_order")).toBe(true);
-    expect(reversed.requiredChoices.some((choice) => choice.kind === "supplicant_order")).toBe(true);
-    const listedOrder = asListed.requiredChoices.find((choice) => choice.kind === "supplicant_order");
-    const reversedOrder = reversed.requiredChoices.find((choice) => choice.kind === "supplicant_order");
-    expect(listedOrder).toEqual(reversedOrder);
-    expect(listedOrder).toMatchObject({
-      kind: "supplicant_order",
-      participantIds: expect.arrayContaining([denizen("merchant-need"), denizen("peasant-gift")]),
-    });
-    expect(templePreview(asListed, "ushin").orderChoiceRequired).toBe(true);
+    expect(asListed.kind).toBe("manual_resolution_required");
+    expect(reversed.kind).toBe("manual_resolution_required");
+    expect(asListed.requiredChoices.some((choice) => choice.kind === "supplicant_order")).toBe(false);
+    expect(asListed.blockers.some((blocker) => blocker.kind === "resource_shortage_blasphemy")).toBe(true);
+    expect(previewFor(asListed, "peasant-gift").woeProjection).toEqual({ kind: "determined", from: 1, to: 0 });
   });
 
-  it("honors an explicit order exactly when one is required", () => {
+  it("does not honor a supplied order as a substitute for unimplemented Benefaction funding", () => {
     const temples = [
       ordinaryTemple("ushin", {
         abundance: 5,
@@ -436,23 +417,13 @@ describe("Hierophant Visions planner — order sensitivity", () => {
       state({ temples, supplicants: people }),
       { supplicantOrder: [denizen("peasant-gift"), denizen("merchant-need")] },
     );
-    expect(funded.kind).toBe("ready");
-    expect(previewFor(funded, "peasant-gift").departure).toEqual({
-      kind: "benefaction",
+    expect(funded.kind).toBe("manual_resolution_required");
+    expect(previewFor(funded, "peasant-gift").thresholdCue).toEqual({ kind: "ready_for_benefaction" });
+    expect(previewFor(funded, "merchant-need").blockerKind).toBe("resource_shortage_blasphemy");
+    expect(templePreview(funded, "ushin").shortage).toEqual({
       resource: "conviction",
-      amount: 1,
+      consequence: "blasphemy",
     });
-    expect(previewFor(funded, "merchant-need").woeProjection).toEqual({ kind: "determined", from: 2, to: 1 });
-    expect(templePreview(funded, "ushin").abundance.after).toBe(4);
-    expect(templePreview(funded, "ushin").conviction.after).toBe(0);
-
-    const unfunded = planHierophantVisions(
-      state({ temples, supplicants: people }),
-      { supplicantOrder: [denizen("merchant-need"), denizen("peasant-gift")] },
-    );
-    expect(unfunded.kind).toBe("manual_resolution_required");
-    expect(unfunded.blockers.some((blocker) => blocker.kind === "resource_shortage_blasphemy")).toBe(true);
-    expect(previewFor(unfunded, "merchant-need").blockerKind).toBe("resource_shortage_blasphemy");
   });
 });
 
@@ -653,29 +624,12 @@ describe("Hierophant Visions planner — Reliable Prophet context", () => {
       {},
       { reliableProphetDenizenIds: [denizen("prophet-1")] },
     );
-    expect(plan.kind).toBe("manual_resolution_required");
-    expect(plan.blockers).toEqual([
-      {
-        kind: "reliable_prophet_production",
-        templeId: "krolis",
-        prophetDenizenIds: [denizen("prophet-1")],
-        productions: [
-          {
-            denizenId: denizen("peasant-gift"),
-            resource: "conviction",
-            amount: 1,
-          },
-        ],
-      },
-    ]);
-    expect(previewFor(plan, "peasant-gift").departure).toEqual({
-      kind: "benefaction",
-      resource: "conviction",
-      amount: 1,
-    });
-    expect(templePreview(plan, "krolis").reliableProphetProduction).toBe(true);
-    expect(templePreview(plan, "krolis").abundance.after).toBeNull();
-    expect(templePreview(plan, "krolis").conviction.after).toBeNull();
+    expect(plan.kind).toBe("ready");
+    expect(plan.blockers.some((blocker) => blocker.kind === "reliable_prophet_production")).toBe(false);
+    expect(previewFor(plan, "peasant-gift").thresholdCue).toEqual({ kind: "ready_for_benefaction" });
+    expect(templePreview(plan, "krolis").reliableProphetProduction).toBe(false);
+    expect(templePreview(plan, "krolis").abundance).toEqual({ before: 5, delta: -1, after: 4 });
+    expect(templePreview(plan, "krolis").conviction).toEqual({ before: 4, delta: 0, after: 4 });
   });
 
   it("does not apply the Reliable Prophet rule to a Disruptive Prophet", () => {
@@ -689,7 +643,7 @@ describe("Hierophant Visions planner — Reliable Prophet context", () => {
     );
     expect(plan.kind).toBe("ready");
     expect(plan.blockers.some((blocker) => blocker.kind === "reliable_prophet_production")).toBe(false);
-    expect(templePreview(plan, "krolis").conviction).toEqual({ before: 4, delta: 1, after: 5 });
+    expect(templePreview(plan, "krolis").conviction).toEqual({ before: 4, delta: 0, after: 4 });
   });
 });
 
@@ -888,5 +842,121 @@ describe("Hierophant Visions planner — cross-Temple Hestar contention", () => 
     expect(previewFor(funded, "zephon-p").blockerKind).toBe("resource_shortage_collapse");
     expect(templePreview(funded, "krolis").abundance).toEqual({ before: 0, delta: 0, after: 0 });
     expect(templePreview(funded, "hestar").abundance).toEqual({ before: 1, delta: -1, after: 0 });
+  });
+});
+
+describe("Hierophant Visions planner — V1 resource/Woe ownership", () => {
+  it("keeps a supported Woe-1 Peasant hosted at Woe 0 without Benefaction production", () => {
+    const plan = planHierophantVisions(
+      state({
+        supplicants: [supplicant({ id: "peasant-b", classId: "peasant", woe: 1, templeId: "krolis" })],
+      }),
+    );
+    expect(plan.kind).toBe("ready");
+    const person = previewFor(plan, "peasant-b");
+    expect(person.support).toBe("supported");
+    expect(person.woeProjection).toEqual({ kind: "determined", from: 1, to: 0 });
+    expect(person.thresholdCue).toEqual({ kind: "ready_for_benefaction" });
+    expect(person.blockerKind).toBeNull();
+    const krolis = templePreview(plan, "krolis");
+    expect(krolis.abundance).toEqual({ before: 5, delta: -1, after: 4 });
+    expect(krolis.conviction).toEqual({ before: 4, delta: 0, after: 4 });
+  });
+
+  it("keeps an unsupported 4 → 5 Woe transition hosted without a Cult blocker", () => {
+    const plan = planHierophantVisions(
+      state({
+        supplicants: [supplicant({ id: "gentry-cult", classId: "gentry", woe: 4, templeId: "krolis" })],
+      }),
+    );
+    expect(plan.kind).toBe("ready");
+    expect(plan.blockers).toEqual([]);
+    const person = previewFor(plan, "gentry-cult");
+    expect(person.woeProjection).toEqual({ kind: "determined", from: 4, to: 5 });
+    expect(person.thresholdCue).toEqual({ kind: "cult_departure_due" });
+    expect(person.blockerKind).toBeNull();
+    expect(templePreview(plan, "krolis").abundance).toEqual({ before: 5, delta: 0, after: 5 });
+  });
+
+  it("does not blanket-block a Reliable Prophet Temple when Woe 1 → 0 produces no resource", () => {
+    const plan = planHierophantVisions(
+      state({
+        supplicants: [supplicant({ id: "peasant-gift", classId: "peasant", woe: 1, templeId: "krolis" })],
+        prophets: [{ denizenId: denizen("prophet-1"), host: { kind: "temple", templeId: "krolis" } }],
+      }),
+      {},
+      { reliableProphetDenizenIds: [denizen("prophet-1")] },
+    );
+    expect(plan.kind).toBe("ready");
+    expect(plan.blockers).toEqual([]);
+    expect(previewFor(plan, "peasant-gift").woeProjection).toEqual({ kind: "determined", from: 1, to: 0 });
+    expect(templePreview(plan, "krolis").reliableProphetProduction).toBe(false);
+    expect(templePreview(plan, "krolis").abundance).toEqual({ before: 5, delta: -1, after: 4 });
+    expect(templePreview(plan, "krolis").conviction).toEqual({ before: 4, delta: 0, after: 4 });
+  });
+
+  it("processes an already-threshold Woe without inventing extra enforcement", () => {
+    const plan = planHierophantVisions(
+      state({
+        supplicants: [
+          supplicant({ id: "already-zero", classId: "peasant", woe: 0, templeId: "krolis" }),
+          supplicant({ id: "already-five", classId: "gentry", woe: 5, templeId: "krolis" }),
+        ],
+      }),
+    );
+    expect(plan.kind).toBe("ready");
+    expect(plan.blockers).toEqual([]);
+    expect(previewFor(plan, "already-zero").woeProjection).toEqual({ kind: "determined", from: 0, to: 0 });
+    expect(previewFor(plan, "already-five").woeProjection).toEqual({ kind: "determined", from: 5, to: 6 });
+    expect(templePreview(plan, "krolis").abundance).toEqual({ before: 5, delta: -1, after: 4 });
+  });
+
+  it("requires explicit order when two local payments compete for insufficient stock", () => {
+    const people = [
+      supplicant({ id: "p1", classId: "peasant", woe: 2, templeId: "krolis" }),
+      supplicant({ id: "p2", classId: "peasant", woe: 3, templeId: "krolis" }),
+    ];
+    const temples = [
+      ordinaryTemple("krolis", { abundance: 1, conviction: 4 }),
+      hestarTemple({ abundance: 0, conviction: 0 }),
+    ];
+    const asListed = planHierophantVisions(state({ temples, supplicants: people }));
+    const reversed = planHierophantVisions(state({ temples, supplicants: [...people].reverse() }));
+    expect(asListed.kind).toBe("choices_required");
+    expect(reversed.kind).toBe("choices_required");
+    expect(asListed.requiredChoices.some((choice) => choice.kind === "supplicant_order")).toBe(true);
+    expect(asListed.requiredChoices.find((choice) => choice.kind === "supplicant_order")).toEqual(
+      reversed.requiredChoices.find((choice) => choice.kind === "supplicant_order"),
+    );
+  });
+
+  it("honors an explicit order for competing local payments", () => {
+    const people = [
+      supplicant({ id: "p1", classId: "peasant", woe: 2, templeId: "krolis" }),
+      supplicant({ id: "p2", classId: "peasant", woe: 3, templeId: "krolis" }),
+    ];
+    const temples = [
+      ordinaryTemple("krolis", { abundance: 1, conviction: 4 }),
+      hestarTemple({ abundance: 0, conviction: 0 }),
+    ];
+    const firstPays = planHierophantVisions(
+      state({ temples, supplicants: people }),
+      { supplicantOrder: [denizen("p1"), denizen("p2")] },
+    );
+    expect(firstPays.kind).toBe("manual_resolution_required");
+    expect(previewFor(firstPays, "p1").woeProjection).toEqual({ kind: "determined", from: 2, to: 1 });
+    expect(previewFor(firstPays, "p2").blockerKind).toBe("resource_shortage_collapse");
+    expect(templePreview(firstPays, "krolis").shortage).toEqual({
+      resource: "abundance",
+      consequence: "collapse",
+    });
+
+    const secondPays = planHierophantVisions(
+      state({ temples, supplicants: people }),
+      { supplicantOrder: [denizen("p2"), denizen("p1")] },
+    );
+    expect(secondPays.kind).toBe("manual_resolution_required");
+    expect(previewFor(secondPays, "p2").woeProjection).toEqual({ kind: "determined", from: 3, to: 2 });
+    expect(previewFor(secondPays, "p1").blockerKind).toBe("resource_shortage_collapse");
   });
 });

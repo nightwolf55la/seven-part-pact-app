@@ -108,7 +108,7 @@ describe("Hierophant Visions pure resolution result", () => {
     expect(first.facts.resourceDeltas).toEqual([
       { templeId: "krolis", resource: "abundance", before: 5, after: 4, delta: -1 },
     ]);
-    expect(first.facts.departures).toEqual([]);
+    expect(first.facts.thresholdCues).toEqual([]);
   });
 
   it("applies supported cost and unsupported Woe exactly once each", () => {
@@ -132,22 +132,23 @@ describe("Hierophant Visions pure resolution result", () => {
     expect(result.facts.resourceDeltas.filter((delta) => delta.templeId === "krolis")).toHaveLength(1);
   });
 
-  it("removes a supported Woe-1 departure and applies Benefaction", () => {
+  it("keeps a supported Woe-1 person hosted without Benefaction or departure", () => {
     const hierophant = state({
       supplicants: [supplicant({ id: "peasant-b", classId: "peasant", woe: 1, templeId: "krolis" })],
     });
     const result = computeHierophantVisionsResolution(hierophant);
     expect(result.kind).toBe("ready");
     if (result.kind !== "ready") return;
-    expect(result.resultingState.supplicants).toEqual([]);
+    expect(result.resultingState.supplicants).toEqual([
+      { ...hierophant.supplicants[0], woe: 0 },
+    ]);
     expect(result.resultingState.temples.find((temple) => temple.templeId === "krolis")).toMatchObject({
       abundance: 4,
-      conviction: 5,
+      conviction: 4,
     });
-    expect(result.facts.departures).toEqual([
-      { denizenId: denizen("peasant-b"), templeId: "krolis", resource: "conviction", amount: 1 },
+    expect(result.facts.thresholdCues).toEqual([
+      { denizenId: denizen("peasant-b"), templeId: "krolis", kind: "ready_for_benefaction" },
     ]);
-    expect(result.facts.benefactions).toEqual(result.facts.departures);
     expect(result.facts.woeChanges[0]).toMatchObject({ from: 1, to: 0 });
   });
 
@@ -202,42 +203,50 @@ describe("Hierophant Visions pure resolution result", () => {
     expect(borrowed.facts.resourceDeltas).toEqual([
       { templeId: "krolis", resource: "abundance", before: 5, after: 4, delta: -1 },
     ]);
+    expect(borrowed.facts.hestarUses).toEqual([
+      {
+        kind: "donor",
+        denizenId: denizen("hestar-p"),
+        hostedTempleId: "hestar",
+        sourceTempleId: "krolis",
+        resource: "abundance",
+        amount: 1,
+      },
+    ]);
   });
 
-  it("changes the result when an order-sensitive month is given an explicit order", () => {
+  it("honors explicit order for competing local payments", () => {
     const temples = [
-      ordinaryTemple("ushin", {
-        abundance: 5,
-        conviction: 0,
-        doctrine: { kind: "doctrine", doctrineId: "masters_of_own_destiny" },
-      }),
+      ordinaryTemple("krolis", { abundance: 1, conviction: 4 }),
       hestarTemple({ abundance: 0, conviction: 0 }),
     ];
     const people = [
-      supplicant({ id: "merchant-need", classId: "merchant", woe: 2, templeId: "ushin" }),
-      supplicant({ id: "peasant-gift", classId: "peasant", woe: 1, templeId: "ushin" }),
+      supplicant({ id: "p1", classId: "peasant", woe: 2, templeId: "krolis" }),
+      supplicant({ id: "p2", classId: "peasant", woe: 3, templeId: "krolis" }),
     ];
     const hierophant = state({ temples, supplicants: people });
-    const funded = computeHierophantVisionsResolution(hierophant, {
-      supplicantOrder: [denizen("peasant-gift"), denizen("merchant-need")],
+    const first = computeHierophantVisionsResolution(hierophant, {
+      supplicantOrder: [denizen("p1"), denizen("p2")],
     });
-    const unfunded = computeHierophantVisionsResolution(hierophant, {
-      supplicantOrder: [denizen("merchant-need"), denizen("peasant-gift")],
+    const second = computeHierophantVisionsResolution(hierophant, {
+      supplicantOrder: [denizen("p2"), denizen("p1")],
     });
-    expect(funded.kind).toBe("ready");
-    expect(unfunded.kind).toBe("manual_resolution_required");
-    if (funded.kind !== "ready") return;
-    expect(funded.resultingState.supplicants.map((person) => person.denizenId)).toEqual([
-      denizen("merchant-need"),
-    ]);
-    expect(funded.resultingState.temples.find((temple) => temple.templeId === "ushin")).toMatchObject({
-      abundance: 4,
-      conviction: 0,
+    expect(first.kind).toBe("manual_resolution_required");
+    expect(second.kind).toBe("manual_resolution_required");
+    expect("resultingState" in first).toBe(false);
+    expect(first.plan.supplicants.find((person) => person.denizenId === denizen("p1"))?.woeProjection).toEqual({
+      kind: "determined",
+      from: 2,
+      to: 1,
     });
-    expect("resultingState" in unfunded).toBe(false);
+    expect(second.plan.supplicants.find((person) => person.denizenId === denizen("p2"))?.woeProjection).toEqual({
+      kind: "determined",
+      from: 3,
+      to: 2,
+    });
   });
 
-  it("produces no resulting state for choices_required, manual blockers, or late Prophet production", () => {
+  it("produces no resulting state for choices_required or genuine manual blockers", () => {
     const artisan = computeHierophantVisionsResolution(state({
       temples: [ordinaryTemple("krolis", { abundance: 3, conviction: 3 }), hestarTemple()],
       supplicants: [supplicant({ id: "art", classId: "artisan", woe: 2, templeId: "krolis" })],
@@ -263,8 +272,93 @@ describe("Hierophant Visions pure resolution result", () => {
       {},
       { reliableProphetDenizenIds: [denizen("prophet-r")] },
     );
-    expect(prophet.kind).toBe("manual_resolution_required");
-    expect("resultingState" in prophet).toBe(false);
-    expect(prophet.plan.blockers.some((blocker) => blocker.kind === "reliable_prophet_production")).toBe(true);
+    expect(prophet.kind).toBe("ready");
+    if (prophet.kind === "ready") {
+      expect(prophet.resultingState.supplicants[0]?.woe).toBe(0);
+      expect(prophet.plan.blockers).toEqual([]);
+    }
+  });
+});
+
+describe("Hierophant Visions pure resolution — V1 resource/Woe ownership", () => {
+  it("keeps a supported Woe-1 Peasant hosted at Woe 0 and spends Abundance once", () => {
+    const hierophant = state({
+      supplicants: [supplicant({ id: "peasant-b", classId: "peasant", woe: 1, templeId: "krolis" })],
+    });
+    const before = snapshot(hierophant);
+    const result = computeHierophantVisionsResolution(hierophant);
+    expect(snapshot(hierophant)).toBe(before);
+    expect(result.kind).toBe("ready");
+    if (result.kind !== "ready") return;
+    expect(result.resultingState.supplicants).toEqual([
+      { ...hierophant.supplicants[0], woe: 0 },
+    ]);
+    expect(result.resultingState.temples.find((temple) => temple.templeId === "krolis")).toMatchObject({
+      abundance: 4,
+      conviction: 4,
+    });
+    expect(result.facts.woeChanges).toEqual([
+      { denizenId: denizen("peasant-b"), templeId: "krolis", from: 1, to: 0 },
+    ]);
+    expect(result.facts.resourceDeltas).toEqual([
+      { templeId: "krolis", resource: "abundance", before: 5, after: 4, delta: -1 },
+    ]);
+    expect(result.facts.thresholdCues).toEqual([
+      { denizenId: denizen("peasant-b"), templeId: "krolis", kind: "ready_for_benefaction" },
+    ]);
+    expect(result.facts).not.toHaveProperty("benefactions");
+    expect(result.facts).not.toHaveProperty("departures");
+  });
+
+  it("keeps an unsupported Woe-4 person hosted at Woe 5 without Cult state", () => {
+    const hierophant = state({
+      supplicants: [supplicant({ id: "gentry-cult", classId: "gentry", woe: 4, templeId: "krolis" })],
+    });
+    const cultsBefore = snapshot(hierophant.cults);
+    const result = computeHierophantVisionsResolution(hierophant);
+    expect(result.kind).toBe("ready");
+    if (result.kind !== "ready") return;
+    expect(result.resultingState.supplicants).toEqual([
+      { ...hierophant.supplicants[0], woe: 5 },
+    ]);
+    expect(snapshot(result.resultingState.cults)).toBe(cultsBefore);
+    expect(result.plan.blockers).toEqual([]);
+    expect(result.facts.thresholdCues).toEqual([
+      { denizenId: denizen("gentry-cult"), templeId: "krolis", kind: "cult_departure_due" },
+    ]);
+  });
+
+  it("does not block Reliable Prophet + Woe 1 → 0 now that Visions owns no production", () => {
+    const result = computeHierophantVisionsResolution(
+      state({
+        supplicants: [supplicant({ id: "peasant-gift", classId: "peasant", woe: 1, templeId: "krolis" })],
+        prophets: [{ denizenId: denizen("prophet-r"), host: { kind: "temple", templeId: "krolis" } }],
+      }),
+      {},
+      { reliableProphetDenizenIds: [denizen("prophet-r")] },
+    );
+    expect(result.kind).toBe("ready");
+    if (result.kind !== "ready") return;
+    expect(result.resultingState.supplicants[0]?.woe).toBe(0);
+    expect(result.plan.blockers).toEqual([]);
+  });
+
+  it("still produces no resulting state for a genuine Collapse shortage", () => {
+    const hierophant = state({
+      temples: [
+        ordinaryTemple("krolis", { abundance: 0, conviction: 4 }),
+        hestarTemple({ abundance: 0, conviction: 5 }),
+      ],
+      supplicants: [
+        supplicant({ id: "early", classId: "gentry", woe: 2, templeId: "krolis" }),
+        supplicant({ id: "peasant-short", classId: "peasant", woe: 2, templeId: "krolis" }),
+      ],
+    });
+    const result = computeHierophantVisionsResolution(hierophant);
+    expect(result.kind).toBe("manual_resolution_required");
+    expect("resultingState" in result).toBe(false);
+    expect(result.plan.blockers.some((blocker) => blocker.kind === "resource_shortage_collapse")).toBe(true);
+    expect(hierophant.supplicants.map((person) => person.woe)).toEqual([2, 2]);
+    expect(hierophant.temples.find((temple) => temple.templeId === "krolis")?.abundance).toBe(0);
   });
 });

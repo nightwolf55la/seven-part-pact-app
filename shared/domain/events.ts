@@ -781,6 +781,52 @@ export interface HierophantSupplicantCreatedEventV1 {
   readonly data: HierophantSupplicantCreatedDataV1;
 }
 
+export interface HierophantVisionsResolvedWoeChangeV1 {
+  readonly denizenId: DenizenId;
+  readonly templeId: HierophantTempleId;
+  readonly from: number;
+  readonly to: number;
+  readonly support: "supported" | "unsupported" | "not_determined" | "not_applicable";
+}
+
+export interface HierophantVisionsResolvedResourceDeltaV1 {
+  readonly templeId: HierophantTempleId;
+  readonly resource: "abundance" | "conviction";
+  readonly before: number;
+  readonly after: number;
+  readonly delta: number;
+}
+
+export interface HierophantVisionsResolvedHestarUseV1 {
+  readonly kind: "fallback" | "donor";
+  readonly denizenId: DenizenId;
+  readonly hostedTempleId: HierophantTempleId;
+  readonly sourceTempleId: HierophantTempleId;
+  readonly resource: "abundance" | "conviction";
+  readonly amount: number;
+}
+
+export interface HierophantVisionsResolvedChoicesV1 {
+  readonly artisanPayments?: Readonly<Partial<Record<string, "abundance" | "conviction">>>;
+  readonly hestarFallback?: Readonly<Partial<Record<string, boolean>>>;
+  readonly hestarDonors?: Readonly<Partial<Record<string, HierophantTempleId>>>;
+  readonly supplicantOrder?: readonly DenizenId[];
+}
+
+export interface HierophantVisionsResolvedDataV1 {
+  readonly monthOrdinal: number | null;
+  readonly choices: HierophantVisionsResolvedChoicesV1;
+  readonly woeChanges: readonly HierophantVisionsResolvedWoeChangeV1[];
+  readonly resourceDeltas: readonly HierophantVisionsResolvedResourceDeltaV1[];
+  readonly hestarUses: readonly HierophantVisionsResolvedHestarUseV1[];
+}
+
+export interface HierophantVisionsResolvedEventV1 {
+  readonly type: "hierophant_visions_resolved";
+  readonly version: 1;
+  readonly data: HierophantVisionsResolvedDataV1;
+}
+
 export interface SupplicantAddedDataV1 {
   readonly supplicant: HierophantSupplicant;
 }
@@ -1185,6 +1231,7 @@ export type HierophantEvent =
   | TempleHolidayChangedEventV1
   | FlameLawsChangedEventV1
   | HierophantSupplicantCreatedEventV1
+  | HierophantVisionsResolvedEventV1
   | SupplicantAddedEventV1
   | SupplicantUpdatedEventV1
   | SupplicantRemovedEventV1

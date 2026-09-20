@@ -91,6 +91,7 @@ import {
   setSelectedFlameLawsFingerprint,
   addSupplicantFingerprint,
   createHierophantSupplicantFingerprint,
+  resolveHierophantVisionsFingerprint,
   updateSupplicantFingerprint,
   removeSupplicantFingerprint,
   addProphetFingerprint,
@@ -145,6 +146,9 @@ import {
   applyAddSupplicant,
   applyCreateHierophantSupplicant,
   canonicalizeCreateHierophantSupplicantInput,
+  applyResolveHierophantVisions,
+  canonicalizeHierophantVisionsChoices,
+  assertHierophantVisionsRevision,
   applyUpdateSupplicant,
   applyRemoveSupplicant,
   applyAddProphet,
@@ -497,6 +501,7 @@ import { assertCampaignNotDeleting } from "./deletionBarrier";
 import { MOVABLE_PLANET_IDS } from "../shared/domain";
 import {
   assertM5ExpectedCampaignIdMatches,
+  validateM5ExpectedCampaignId,
   executeConvexOrdinaryLogicalCommand,
   loadCanonicalV2ForMutation,
   type CanonicalCampaign,
@@ -2261,6 +2266,68 @@ export const createHierophantSupplicant = mutation({
         };
       },
     );
+  },
+});
+
+const hierophantVisionsChoicesArg = v.object({
+  artisanPayments: v.optional(v.record(v.string(), v.union(v.literal("abundance"), v.literal("conviction")))),
+  hestarFallback: v.optional(v.record(v.string(), v.boolean())),
+  hestarDonors: v.optional(v.record(v.string(), v.string())),
+  supplicantOrder: v.optional(v.array(v.string())),
+});
+
+export const resolveHierophantVisions = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    expectedRevision: v.number(),
+    choices: hierophantVisionsChoicesArg,
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
+    if (!Number.isSafeInteger(args.expectedRevision) || args.expectedRevision < 0) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid expectedRevision: ${args.expectedRevision}`);
+    }
+    const choices = canonicalizeHierophantVisionsChoices(args.choices);
+    const fingerprint = resolveHierophantVisionsFingerprint(
+      args.expectedCampaignId,
+      args.expectedRevision,
+      choices,
+    );
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
+
+    const replay = await checkIdempotency(
+      ctx,
+      campaign.campaignId,
+      args.commandId,
+      "resolve_hierophant_visions",
+      fingerprint,
+    );
+    if (replay) return { kind: "accepted" as const, revision: replay.newRevision };
+
+    assertHierophantVisionsRevision(campaign.currentRevision, args.expectedRevision);
+
+    const result = applyResolveHierophantVisions(campaign.currentState, choices);
+    if (result.kind !== "ready") {
+      return {
+        kind: result.kind,
+        requiredChoices: result.plan.requiredChoices,
+        blockers: result.plan.blockers,
+      };
+    }
+
+    const receipt = await commitM3Command(
+      ctx,
+      args.commandId,
+      "resolve_hierophant_visions",
+      fingerprint,
+      campaign,
+      result,
+    );
+    return { kind: "accepted" as const, revision: receipt.newRevision };
   },
 });
 

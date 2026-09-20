@@ -117,10 +117,11 @@ function paneBody(
   loreCompendiumRef: ReturnType<typeof useQuery<typeof api.m3Queries.getLoreCompendiumReference>>,
   sorcererRef: ReturnType<typeof useQuery<typeof api.m3Queries.getSorcererReference>>,
   campaignId: string,
+  campaignRevision: number,
   layout: "full" | "narrow",
 ) {
   if (surface === "world") return renderWorld(worldRef, campaignId);
-  if (surface === "hierophant") return renderHierophant(hierRef, worldRef, campaignId, sorcererRef, loreCompendiumUiStateFromQuery(loreCompendiumRef));
+  if (surface === "hierophant") return renderHierophant(hierRef, worldRef, campaignId, campaignRevision, sorcererRef, loreCompendiumUiStateFromQuery(loreCompendiumRef));
   if (surface === "mariner") return renderMariner(marinerRef, worldRef, ref, campaignId, sorcererRef, loreCompendiumUiStateFromQuery(loreCompendiumRef));
   if (surface === "necromancer") {
     return renderNecromancer(necromancerRef, worldRef, ref, campaignId, loreCompendiumUiStateFromQuery(loreCompendiumRef), sorcererRef);
@@ -152,6 +153,7 @@ function renderHierophant(
   hierRef: ReturnType<typeof useQuery<typeof api.m3Queries.getHierophantReference>>,
   worldRef: ReturnType<typeof useQuery<typeof api.m3Queries.getWorldReference>>,
   campaignId: string,
+  campaignRevision: number,
   sorcererRef: ReturnType<typeof useQuery<typeof api.m3Queries.getSorcererReference>>,
   loreCompendium: ReturnType<typeof loreCompendiumUiStateFromQuery>,
 ) {
@@ -166,6 +168,7 @@ function renderHierophant(
       hierophant={hierRef.hierophant}
       world={worldRef}
       campaignId={campaignId}
+      campaignRevision={campaignRevision}
       sorcererPresence={sorcererRef?.presentation.externalPresence ?? []}
       loreCompendium={loreCompendium}
     />
@@ -470,7 +473,7 @@ export default function PlayShell({
         ) : showSecondary && surfaceState.secondary ? (
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 min-w-0">
-              {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, faustianRef, loreCompendiumRef, sorcererRef, campaignId, "full")}
+              {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, faustianRef, loreCompendiumRef, sorcererRef, campaignId, campaignRevision, "full")}
             </div>
             <div className="hidden md:block md:w-80 lg:w-96 flex-shrink-0">
               <div className="flex items-center gap-1 mb-2">
@@ -502,12 +505,12 @@ export default function PlayShell({
                   Fwd
                 </button>
               </div>
-              {paneBody(surfaceState.secondary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, faustianRef, loreCompendiumRef, sorcererRef, campaignId, "narrow")}
+              {paneBody(surfaceState.secondary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, faustianRef, loreCompendiumRef, sorcererRef, campaignId, campaignRevision, "narrow")}
             </div>
           </div>
         ) : (
           <div className="w-full">
-            {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, faustianRef, loreCompendiumRef, sorcererRef, campaignId, "full")}
+            {paneBody(surfaceState.primary.current, playRef, worldRef, hierRef, marinerRef, necromancerRef, faustianRef, loreCompendiumRef, sorcererRef, campaignId, campaignRevision, "full")}
           </div>
         )}
       </div>

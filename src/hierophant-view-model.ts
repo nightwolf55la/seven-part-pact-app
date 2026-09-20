@@ -596,10 +596,10 @@ export function formatVisionsSupplicantLine(
   if (variant === "detail" && preview.woeProjection.kind === "determined") {
     parts.push(`Next Visions: Woe ${preview.woeProjection.from} → ${preview.woeProjection.to}`);
   }
-  if (variant === "detail" && preview.departure.kind === "benefaction") {
-    parts.push(`Next Visions: Benefaction · +${preview.departure.amount} ${formatVisionsResourceName(preview.departure.resource)}`);
+  if (variant === "detail" && preview.thresholdCue.kind === "ready_for_benefaction") {
+    parts.push("Next Visions: Ready for Benefaction");
   }
-  if (variant === "detail" && preview.departure.kind === "cult_threshold") {
+  if (variant === "detail" && preview.thresholdCue.kind === "cult_departure_due") {
     parts.push("Next Visions: Cult departure due");
   }
   if (variant === "detail" && preview.choiceRequired && preview.demand.kind === "artisan") {

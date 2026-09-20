@@ -64,6 +64,10 @@ export interface HierophantVisionsBoardChoices {
   readonly onOrderSelect: (denizenId: DenizenId) => void;
   readonly onOrderUndo: () => void;
   readonly onOrderReset: () => void;
+  readonly resolveAvailable: boolean;
+  readonly resolvePending: boolean;
+  readonly resolveGuidance: string | null;
+  readonly onResolveVisions: () => void;
 }
 
 export interface HierophantSupplyBoardInteraction {
@@ -605,19 +609,19 @@ function SupplicantPiece({
             onSet={onSetWoe}
           />
         </div>
-        {(projectedTo !== null && projectedTo !== person.woe) || demand !== null || threshold !== null || preview?.departure.kind === "benefaction" || (preview?.departure.kind === "cult_threshold" && person.woe < 5) ? (
+        {(projectedTo !== null && projectedTo !== person.woe) || demand !== null || threshold !== null || preview?.thresholdCue.kind === "ready_for_benefaction" || (preview?.thresholdCue.kind === "cult_departure_due" && person.woe < 5) ? (
           <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0">
             {projectedTo !== null && projectedTo !== person.woe && (
               <p className="text-[10px] text-slate-600 dark:text-slate-300" data-woe-forecast={person.denizenId} aria-label={`Next Visions: Woe ${person.woe} → ${projectedTo}`}>
                 Next Visions: {person.woe} → {projectedTo}
               </p>
             )}
-            {preview?.departure.kind === "benefaction" && (
+            {preview?.thresholdCue.kind === "ready_for_benefaction" && person.woe !== 0 && (
               <p className="text-[10px] text-slate-600 dark:text-slate-300">
-                Next Visions: Benefaction
+                Next Visions: Ready for Benefaction
               </p>
             )}
-            {preview?.departure.kind === "cult_threshold" && person.woe < 5 && (
+            {preview?.thresholdCue.kind === "cult_departure_due" && person.woe < 5 && (
               <p className="text-[10px] text-slate-600 dark:text-slate-300">
                 Next Visions: Cult departure due
               </p>
@@ -1108,6 +1112,23 @@ export default function HierophantTempleBoard({
           {summary.join(" · ")}
         </p>
       )}
+      <section aria-label="Resolve Visions" className="flex flex-col gap-2">
+        {choices.resolveGuidance !== null && (
+          <p className="text-xs font-semibold text-rose-800 dark:text-rose-200">
+            {choices.resolveGuidance}
+          </p>
+        )}
+        {choices.resolveAvailable && (
+          <button
+            type="button"
+            className="self-start text-xs font-medium rounded-lg px-3 py-1.5 cursor-pointer bg-amber-800 dark:bg-amber-200 text-white dark:text-amber-950 hover:bg-amber-700 dark:hover:bg-amber-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            disabled={choices.resolvePending}
+            onClick={choices.onResolveVisions}
+          >
+            Resolve Visions
+          </button>
+        )}
+      </section>
       <section
         aria-label="Supplicant supply"
         className="rounded-lg border border-dashed border-amber-800/30 bg-amber-50/40 px-3 py-2 dark:border-amber-500/25 dark:bg-amber-950/20"

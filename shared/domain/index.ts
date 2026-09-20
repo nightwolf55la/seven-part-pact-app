@@ -142,6 +142,8 @@ export type {
   TempleResourcesAdjustedEventV1,
   HierophantSupplicantCreatedDataV1,
   HierophantSupplicantCreatedEventV1,
+  HierophantVisionsResolvedDataV1,
+  HierophantVisionsResolvedEventV1,
   HierophantEvent,
   MarinerEvent,
   MarinerInitializedDataV1,
@@ -412,6 +414,7 @@ export {
   setSelectedFlameLawsFingerprint,
   addSupplicantFingerprint,
   createHierophantSupplicantFingerprint,
+  resolveHierophantVisionsFingerprint,
   updateSupplicantFingerprint,
   removeSupplicantFingerprint,
   addProphetFingerprint,
@@ -1070,7 +1073,7 @@ export type {
   HierophantVisionsDemand,
   HierophantVisionsSupport,
   HierophantVisionsWoeProjection,
-  HierophantVisionsDeparture,
+  HierophantVisionsThresholdCue,
   HierophantVisionsRequiredChoice,
   HierophantVisionsBlocker,
   HierophantVisionsResourceProjection,
@@ -1082,7 +1085,8 @@ export type {
   HierophantVisionsPlan,
   HierophantVisionsResourceDeltaFact,
   HierophantVisionsWoeFact,
-  HierophantVisionsBenefactionFact,
+  HierophantVisionsThresholdCueFact,
+  HierophantVisionsHestarUseFact,
   HierophantVisionsOutcomeFacts,
   HierophantVisionsResolution,
 } from "./hierophant-visions";
@@ -2082,10 +2086,15 @@ export {
 export type {
   CreateHierophantSupplicantInput,
   HierophantOperabilityTransitionResult,
+  ResolveHierophantVisionsApplyResult,
 } from "./hierophant-operability-transitions";
 export {
   canonicalizeCreateHierophantSupplicantInput,
   applyCreateHierophantSupplicant,
+  canonicalizeHierophantVisionsChoices,
+  hierophantVisionsContextFromCampaign,
+  applyResolveHierophantVisions,
+  assertHierophantVisionsRevision,
 } from "./hierophant-operability-transitions";
 
 // --- V5 Integration Transitions (candidate, not active) ---

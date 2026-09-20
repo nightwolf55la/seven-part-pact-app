@@ -2242,6 +2242,49 @@ const hierophantSupplicantCreatedEventV1Validator = v.object({
   }),
 });
 
+const hierophantVisionsResourceValidator = v.union(v.literal("abundance"), v.literal("conviction"));
+
+const hierophantVisionsResolvedEventV1Validator = v.object({
+  type: v.literal("hierophant_visions_resolved"),
+  version: v.literal(1),
+  data: v.object({
+    monthOrdinal: v.union(v.number(), v.null()),
+    choices: v.object({
+      artisanPayments: v.optional(v.record(v.string(), hierophantVisionsResourceValidator)),
+      hestarFallback: v.optional(v.record(v.string(), v.boolean())),
+      hestarDonors: v.optional(v.record(v.string(), v.string())),
+      supplicantOrder: v.optional(v.array(v.string())),
+    }),
+    woeChanges: v.array(v.object({
+      denizenId: v.string(),
+      templeId: v.string(),
+      from: v.number(),
+      to: v.number(),
+      support: v.union(
+        v.literal("supported"),
+        v.literal("unsupported"),
+        v.literal("not_determined"),
+        v.literal("not_applicable"),
+      ),
+    })),
+    resourceDeltas: v.array(v.object({
+      templeId: v.string(),
+      resource: hierophantVisionsResourceValidator,
+      before: v.number(),
+      after: v.number(),
+      delta: v.number(),
+    })),
+    hestarUses: v.array(v.object({
+      kind: v.union(v.literal("fallback"), v.literal("donor")),
+      denizenId: v.string(),
+      hostedTempleId: v.string(),
+      sourceTempleId: v.string(),
+      resource: hierophantVisionsResourceValidator,
+      amount: v.number(),
+    })),
+  }),
+});
+
 const supplicantUpdatedEventV1Validator = v.object({
   type: v.literal("supplicant_updated"),
   version: v.literal(1),
@@ -3476,6 +3519,7 @@ export const campaignEventValidator = v.union(
   templeHolidayChangedEventV1Validator,
   flameLawsChangedEventV1Validator,
   hierophantSupplicantCreatedEventV1Validator,
+  hierophantVisionsResolvedEventV1Validator,
   supplicantAddedEventV1Validator,
   supplicantUpdatedEventV1Validator,
   supplicantRemovedEventV1Validator,

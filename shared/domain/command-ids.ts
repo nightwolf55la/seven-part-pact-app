@@ -390,6 +390,17 @@ export function createHierophantSupplicantFingerprint(expectedCampaignId: string
   return `create_hierophant_supplicant:v1:${canonicalJsonStringify({ expectedCampaignId, input })}`;
 }
 
+export function resolveHierophantVisionsFingerprint(
+  expectedCampaignId: string,
+  expectedRevision: number,
+  choices: unknown,
+): string {
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+    throw new Error(`resolveHierophantVisionsFingerprint requires a non-negative safe integer expectedRevision, got ${expectedRevision}`);
+  }
+  return `resolve_hierophant_visions:v1:${canonicalJsonStringify({ expectedCampaignId, expectedRevision, choices })}`;
+}
+
 export function addSupplicantFingerprint(expectedCampaignId: string, supplicant: unknown): string {
   return `add_supplicant:v1:${canonicalJsonStringify({ expectedCampaignId, supplicant })}`;
 }

@@ -196,6 +196,8 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Changed selected Laws of the Flame";
     case "hierophant_supplicant_created":
       return `Received Supplicant "${event.data.denizenName}"`;
+    case "hierophant_visions_resolved":
+      return "Resolved Hierophant Visions";
     case "supplicant_added":
       return "Added Supplicant";
     case "supplicant_updated":
@@ -607,6 +609,7 @@ export function mapEventToActivityEntry(
     case "temple_holiday_changed":
     case "flame_laws_changed":
     case "hierophant_supplicant_created":
+    case "hierophant_visions_resolved":
     case "supplicant_added":
     case "supplicant_updated":
     case "supplicant_removed":

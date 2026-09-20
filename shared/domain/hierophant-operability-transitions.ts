@@ -13,6 +13,12 @@ import type {
 } from "./hierophant-state";
 import { applyCreateDenizenV5Candidate } from "./world-subject-transitions";
 import { applyAddSupplicant } from "./hierophant-transitions";
+import {
+  computeHierophantVisionsResolution,
+  type HierophantVisionsChoices,
+  type HierophantVisionsContext,
+  type HierophantVisionsPlan,
+} from "./hierophant-visions";
 
 export interface CreateHierophantSupplicantInput {
   readonly denizenId: DenizenId;
@@ -134,4 +140,125 @@ export function applyCreateHierophantSupplicant(
       },
     }],
   };
+}
+
+export function hierophantVisionsContextFromCampaign(
+  state: CampaignStateV5,
+): HierophantVisionsContext {
+  const reliableProphetDenizenIds: DenizenId[] = [];
+  for (const denizen of state.world.denizens) {
+    const status = denizen.powerfulProfile?.status;
+    if (status?.kind === "standard" && status.value === "reliable") {
+      reliableProphetDenizenIds.push(denizen.denizenId);
+    }
+  }
+  return { reliableProphetDenizenIds };
+}
+
+export function canonicalizeHierophantVisionsChoices(
+  choices: HierophantVisionsChoices,
+): HierophantVisionsChoices {
+  const artisanPayments: Record<string, "abundance" | "conviction"> = {};
+  for (const [id, resource] of Object.entries(choices.artisanPayments ?? {})) {
+    if (resource !== "abundance" && resource !== "conviction") continue;
+    artisanPayments[id] = resource;
+  }
+  const hestarFallback: Record<string, boolean> = {};
+  for (const [id, value] of Object.entries(choices.hestarFallback ?? {})) {
+    if (value !== true && value !== false) continue;
+    hestarFallback[id] = value;
+  }
+  const hestarDonors: Record<string, HierophantTempleId> = {};
+  for (const [id, templeId] of Object.entries(choices.hestarDonors ?? {})) {
+    if (templeId === undefined || !isValidHierophantTempleId(templeId) || templeId === "hestar") continue;
+    hestarDonors[id] = templeId;
+  }
+  const seen = new Set<string>();
+  const supplicantOrder: DenizenId[] = [];
+  for (const id of choices.supplicantOrder ?? []) {
+    if (typeof id !== "string" || id.trim() === "" || seen.has(id)) continue;
+    seen.add(id);
+    supplicantOrder.push(id as DenizenId);
+  }
+  return {
+    ...(Object.keys(artisanPayments).length > 0 ? { artisanPayments } : {}),
+    ...(Object.keys(hestarFallback).length > 0 ? { hestarFallback } : {}),
+    ...(Object.keys(hestarDonors).length > 0 ? { hestarDonors } : {}),
+    ...(supplicantOrder.length > 0 ? { supplicantOrder } : {}),
+  };
+}
+
+export type ResolveHierophantVisionsApplyResult =
+  | {
+      readonly kind: "ready";
+      readonly nextState: CampaignStateV5;
+      readonly events: readonly HierophantEvent[];
+    }
+  | {
+      readonly kind: "choices_required";
+      readonly plan: HierophantVisionsPlan;
+    }
+  | {
+      readonly kind: "manual_resolution_required";
+      readonly plan: HierophantVisionsPlan;
+    };
+
+export function applyResolveHierophantVisions(
+  state: CampaignStateV5,
+  rawChoices: HierophantVisionsChoices,
+): ResolveHierophantVisionsApplyResult {
+  if (state.hierophant.temples.length === 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Hierophant Temples have not been initialized");
+  }
+  const choices = canonicalizeHierophantVisionsChoices(rawChoices);
+  const resolution = computeHierophantVisionsResolution(
+    state.hierophant,
+    choices,
+    hierophantVisionsContextFromCampaign(state),
+  );
+  if (resolution.kind !== "ready") {
+    return { kind: resolution.kind, plan: resolution.plan };
+  }
+  const supportById = new Map(
+    resolution.plan.supplicants.map((preview) => [preview.denizenId, preview.support]),
+  );
+  return {
+    kind: "ready",
+    nextState: {
+      ...state,
+      hierophant: resolution.resultingState,
+    },
+    events: [{
+      type: "hierophant_visions_resolved",
+      version: 1,
+      data: {
+        monthOrdinal: state.calendar.monthOrdinal,
+        choices: resolution.facts.suppliedChoices,
+        woeChanges: resolution.facts.woeChanges.map((change) => ({
+          denizenId: change.denizenId,
+          templeId: change.templeId,
+          from: change.from,
+          to: change.to,
+          support: supportById.get(change.denizenId) ?? "not_determined",
+        })),
+        resourceDeltas: resolution.facts.resourceDeltas,
+        hestarUses: resolution.facts.hestarUses,
+      },
+    }],
+  };
+}
+
+export function assertHierophantVisionsRevision(
+  currentRevision: number,
+  expectedRevision: number,
+): void {
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid expectedRevision: ${expectedRevision}`);
+  }
+  if (currentRevision !== expectedRevision) {
+    throw new DomainError(
+      "STALE_CAMPAIGN_REVISION",
+      `Visions preview is out of date. Review the current board and try again. Expected revision ${expectedRevision}, current is ${currentRevision}`,
+    );
+  }
 }

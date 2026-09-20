@@ -34,11 +34,10 @@ export type HierophantVisionsWoeProjection =
   | { readonly kind: "determined"; readonly from: number; readonly to: number }
   | { readonly kind: "undetermined" };
 
-export type HierophantVisionsDeparture =
+export type HierophantVisionsThresholdCue =
   | { readonly kind: "none" }
-  | { readonly kind: "benefaction"; readonly resource: HierophantVisionsResource; readonly amount: number }
-  | { readonly kind: "cult_threshold" }
-  | { readonly kind: "undetermined" };
+  | { readonly kind: "ready_for_benefaction" }
+  | { readonly kind: "cult_departure_due" };
 
 export type HierophantVisionsRequiredChoice =
   | {
@@ -70,13 +69,6 @@ export type HierophantVisionsRequiredChoice =
     };
 
 export type HierophantVisionsBlocker =
-  | {
-      readonly kind: "cult_threshold";
-      readonly denizenId: DenizenId;
-      readonly templeId: HierophantTempleId;
-      readonly woeBefore: number;
-      readonly woeAfter: number;
-    }
   | {
       readonly kind: "resource_shortage_collapse";
       readonly denizenId: DenizenId | null;
@@ -155,7 +147,7 @@ export interface HierophantVisionsSupplicantPreview {
   readonly support: HierophantVisionsSupport;
   readonly demand: HierophantVisionsDemand;
   readonly woeProjection: HierophantVisionsWoeProjection;
-  readonly departure: HierophantVisionsDeparture;
+  readonly thresholdCue: HierophantVisionsThresholdCue;
   readonly choiceRequired: boolean;
   readonly blockerKind: HierophantVisionsBlocker["kind"] | null;
 }
@@ -182,6 +174,7 @@ export interface HierophantVisionsPlan {
   readonly blockers: readonly HierophantVisionsBlocker[];
   readonly temples: readonly HierophantVisionsTemplePreview[];
   readonly supplicants: readonly HierophantVisionsSupplicantPreview[];
+  readonly hestarUses: readonly HierophantVisionsHestarUseFact[];
 }
 
 export interface HierophantVisionsResourceDeltaFact {
@@ -199,9 +192,17 @@ export interface HierophantVisionsWoeFact {
   readonly to: number;
 }
 
-export interface HierophantVisionsBenefactionFact {
+export interface HierophantVisionsThresholdCueFact {
   readonly denizenId: DenizenId;
   readonly templeId: HierophantTempleId;
+  readonly kind: Exclude<HierophantVisionsThresholdCue["kind"], "none">;
+}
+
+export interface HierophantVisionsHestarUseFact {
+  readonly kind: "fallback" | "donor";
+  readonly denizenId: DenizenId;
+  readonly hostedTempleId: HierophantTempleId;
+  readonly sourceTempleId: HierophantTempleId;
   readonly resource: HierophantVisionsResource;
   readonly amount: number;
 }
@@ -212,8 +213,8 @@ export interface HierophantVisionsOutcomeFacts {
   readonly supplicantIds: readonly DenizenId[];
   readonly resourceDeltas: readonly HierophantVisionsResourceDeltaFact[];
   readonly woeChanges: readonly HierophantVisionsWoeFact[];
-  readonly departures: readonly HierophantVisionsBenefactionFact[];
-  readonly benefactions: readonly HierophantVisionsBenefactionFact[];
+  readonly thresholdCues: readonly HierophantVisionsThresholdCueFact[];
+  readonly hestarUses: readonly HierophantVisionsHestarUseFact[];
 }
 
 export type HierophantVisionsResolution =
@@ -244,17 +245,6 @@ const FIXED_CLASS_COST: Record<Exclude<HierophantBuiltinClassId, "artisan">, {
   gentry: { resource: "conviction", amount: 2 },
 };
 
-const CLASS_BENEFACTION: Record<HierophantBuiltinClassId, {
-  readonly resource: HierophantVisionsResource;
-  readonly amount: number;
-}> = {
-  gentry: { resource: "abundance", amount: 4 },
-  merchant: { resource: "abundance", amount: 2 },
-  artisan: { resource: "abundance", amount: 1 },
-  peasant: { resource: "conviction", amount: 1 },
-  pariah: { resource: "conviction", amount: 2 },
-};
-
 interface MutableStock {
   abundance: number;
   conviction: number;
@@ -269,7 +259,6 @@ interface ClassifiedSupplicant {
     | { readonly kind: "fixed"; readonly resource: HierophantVisionsResource; readonly amount: number }
     | { readonly kind: "artisan" }
     | { readonly kind: "unknown" };
-  readonly benefaction: { readonly resource: HierophantVisionsResource; readonly amount: number } | null;
 }
 
 function supportedClassIdsForDoctrine(
@@ -365,11 +354,6 @@ function classCostFor(classId: HierophantClassId): ClassifiedSupplicant["classCo
   return { kind: "fixed", resource: cost.resource, amount: cost.amount };
 }
 
-function benefactionFor(classId: HierophantClassId): ClassifiedSupplicant["benefaction"] {
-  if (!isValidHierophantBuiltinClassId(classId)) return null;
-  return CLASS_BENEFACTION[classId];
-}
-
 function stockOf(stock: MutableStock, resource: HierophantVisionsResource): number {
   return resource === "abundance" ? stock.abundance : stock.conviction;
 }
@@ -419,7 +403,6 @@ function classify(
       temple,
       support,
       classCost: { kind: "none" },
-      benefaction: null,
     };
   }
   return {
@@ -427,7 +410,6 @@ function classify(
     temple,
     support,
     classCost: classCostFor(person.classId),
-    benefaction: person.woe === 1 ? benefactionFor(person.classId) : null,
   };
 }
 
@@ -450,22 +432,6 @@ function resolvedPayment(
   return { resource: picked, amount: 1 };
 }
 
-function otherBenefactionOf(
-  entries: readonly ClassifiedSupplicant[],
-  selfId: DenizenId,
-  resource: HierophantVisionsResource,
-): number {
-  let total = 0;
-  for (const entry of entries) {
-    if (entry.person.denizenId === selfId) continue;
-    if (entry.support !== "supported") continue;
-    if (entry.benefaction !== null && entry.benefaction.resource === resource) {
-      total += entry.benefaction.amount;
-    }
-  }
-  return total;
-}
-
 function sortIds(ids: readonly DenizenId[]): DenizenId[] {
   return [...ids].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
@@ -486,7 +452,7 @@ function orderCovers(
 interface WorkingPreview {
   demand: HierophantVisionsDemand;
   woeProjection: HierophantVisionsWoeProjection;
-  departure: HierophantVisionsDeparture;
+  thresholdCue: HierophantVisionsThresholdCue;
   choiceRequired: boolean;
   blockerKind: HierophantVisionsBlocker["kind"] | null;
 }
@@ -501,42 +467,28 @@ function emptyWorking(entry: ClassifiedSupplicant): WorkingPreview {
           ? { kind: "artisan" }
           : { kind: "unknown" },
     woeProjection: { kind: "undetermined" },
-    departure: { kind: "undetermined" },
+    thresholdCue: { kind: "none" },
     choiceRequired: false,
     blockerKind: null,
   };
 }
 
-function applyUnsupported(entry: ClassifiedSupplicant, working: WorkingPreview, blockers: HierophantVisionsBlocker[]): void {
+function thresholdCueFor(woeAfter: number): HierophantVisionsThresholdCue {
+  if (woeAfter === 0) return { kind: "ready_for_benefaction" };
+  if (woeAfter >= CULT_WOE_THRESHOLD) return { kind: "cult_departure_due" };
+  return { kind: "none" };
+}
+
+function applyUnsupported(entry: ClassifiedSupplicant, working: WorkingPreview): void {
   const to = entry.person.woe + 1;
   working.woeProjection = { kind: "determined", from: entry.person.woe, to };
-  if (to >= CULT_WOE_THRESHOLD) {
-    working.departure = { kind: "cult_threshold" };
-    working.blockerKind = "cult_threshold";
-    blockers.push({
-      kind: "cult_threshold",
-      denizenId: entry.person.denizenId,
-      templeId: entry.temple.templeId,
-      woeBefore: entry.person.woe,
-      woeAfter: to,
-    });
-  } else {
-    working.departure = { kind: "none" };
-  }
+  working.thresholdCue = thresholdCueFor(to);
 }
 
 function applyPaid(entry: ClassifiedSupplicant, working: WorkingPreview): void {
   const to = Math.max(0, entry.person.woe - 1);
   working.woeProjection = { kind: "determined", from: entry.person.woe, to };
-  if (entry.person.woe === 1 && entry.benefaction !== null) {
-    working.departure = {
-      kind: "benefaction",
-      resource: entry.benefaction.resource,
-      amount: entry.benefaction.amount,
-    };
-  } else {
-    working.departure = { kind: "none" };
-  }
+  working.thresholdCue = thresholdCueFor(to);
 }
 
 export function planHierophantVisions(
@@ -581,6 +533,7 @@ export function planHierophantVisions(
     readonly amount: number;
   }> = [];
   const shortageTemples = new Map<string, { resource: HierophantVisionsResource; consequence: "collapse" | "blasphemy" }>();
+  const hestarUses: HierophantVisionsHestarUseFact[] = [];
 
   for (const entry of classified) {
     const preview = emptyWorking(entry);
@@ -605,7 +558,7 @@ export function planHierophantVisions(
       continue;
     }
     if (entry.support === "unsupported") {
-      applyUnsupported(entry, preview, blockers);
+      applyUnsupported(entry, preview);
       continue;
     }
     if (entry.classCost.kind === "unknown") {
@@ -675,29 +628,23 @@ export function planHierophantVisions(
       sum + (entry.benefaction?.resource === "conviction" ? entry.benefaction.amount : 0), 0);
 
     const canPayAllFromStart = totalA <= stock.abundance && totalC <= stock.conviction;
-    const giftCanCoverA = stock.abundance < totalA && stock.abundance + benefA >= totalA;
-    const giftCanCoverC = stock.conviction < totalC && stock.conviction + benefC >= totalC;
-    if (giftCanCoverA || giftCanCoverC) {
-      for (const row of determinedPayers) orderSensitiveIds.push(row.entry.person.denizenId);
+    if (totalA > stock.abundance && stock.abundance > 0) {
+      for (const row of determinedPayers) {
+        if (row.payment.resource === "abundance") orderSensitiveIds.push(row.entry.person.denizenId);
+      }
+    }
+    if (totalC > stock.conviction && stock.conviction > 0) {
+      for (const row of determinedPayers) {
+        if (row.payment.resource === "conviction") orderSensitiveIds.push(row.entry.person.denizenId);
+      }
     }
 
     for (const row of determinedPayers) {
       const preview = working.get(row.entry.person.denizenId)!;
       const startHave = stockOf(stock, row.payment.resource);
-      const gifts = otherBenefactionOf(payers, row.entry.person.denizenId, row.payment.resource);
-      const canEverPayLocally = startHave + gifts >= row.payment.amount;
       const needsHelp = startHave < row.payment.amount;
 
       if (!needsHelp) continue;
-      if (canEverPayLocally) {
-        orderSensitiveIds.push(row.entry.person.denizenId);
-        const donors = payers.filter((candidate) =>
-          candidate.person.denizenId !== row.entry.person.denizenId
-          && candidate.benefaction?.resource === row.payment.resource,
-        );
-        for (const donor of donors) orderSensitiveIds.push(donor.person.denizenId);
-        continue;
-      }
 
       if (temple.kind === "hestar") {
         const donors = eligibleHestarDonorIds(
@@ -799,23 +746,8 @@ export function planHierophantVisions(
     }
 
     const artisanPayers = payers.filter((entry) => entry.classCost.kind === "artisan");
-    if (artisanPayers.length > 0 && !canPayAllFromStart === false) {
-      for (const artisan of artisanPayers) {
-        if (choices.artisanPayments?.[artisan.person.denizenId] !== undefined) continue;
-        const picked = artisanResourceAt(stock, undefined);
-        if (picked === "ambiguous") continue;
-        const otherA = totalA - (picked === "abundance" ? 1 : 0);
-        const otherC = totalC - (picked === "conviction" ? 1 : 0);
-        const remainingA = stock.abundance - otherA;
-        const remainingC = stock.conviction - otherC;
-        const otherBenefLeadingOpposite = picked === "abundance" ? benefC : benefA;
-        const margin = picked === "abundance"
-          ? remainingA - remainingC
-          : remainingC - remainingA;
-        if (margin <= otherBenefLeadingOpposite) {
-          for (const payer of payers) orderSensitiveIds.push(payer.person.denizenId);
-        }
-      }
+    if (artisanPayers.length > 0 && canPayAllFromStart === false) {
+      for (const payer of payers) orderSensitiveIds.push(payer.person.denizenId);
     }
   }
 
@@ -911,8 +843,24 @@ export function planHierophantVisions(
       return false;
     }
     applyPaid(entry, preview);
-    if (entry.benefaction !== null) {
-      addStock(local, entry.benefaction.resource, entry.benefaction.amount);
+    if (useDonor && chosenDonor !== undefined) {
+      hestarUses.push({
+        kind: "donor",
+        denizenId: entry.person.denizenId,
+        hostedTempleId: entry.temple.templeId,
+        sourceTempleId: chosenDonor,
+        resource: payment.resource,
+        amount: payment.amount,
+      });
+    } else if (useHestar && hestar !== undefined) {
+      hestarUses.push({
+        kind: "fallback",
+        denizenId: entry.person.denizenId,
+        hostedTempleId: entry.temple.templeId,
+        sourceTempleId: hestar.templeId,
+        resource: payment.resource,
+        amount: payment.amount,
+      });
     }
     return true;
   }
@@ -972,23 +920,29 @@ export function planHierophantVisions(
   }
   const prophetProductionTemples = new Set<HierophantTempleId>();
   for (const [templeId, prophetIds] of reliableProphetsByTemple) {
+    const before = startingStock.get(templeId);
+    const after = endingStock.get(templeId);
+    if (before === undefined || after === undefined) continue;
     const productions: Array<{
       readonly denizenId: DenizenId;
       readonly resource: HierophantVisionsResource;
       readonly amount: number;
     }> = [];
-    for (const entry of classified) {
-      if (entry.temple.templeId !== templeId) continue;
-      const preview = working.get(entry.person.denizenId);
-      if (preview === undefined || preview.departure.kind !== "benefaction") continue;
+    if (after.abundance > before.abundance) {
       productions.push({
-        denizenId: entry.person.denizenId,
-        resource: preview.departure.resource,
-        amount: preview.departure.amount,
+        denizenId: prophetIds[0]!,
+        resource: "abundance",
+        amount: after.abundance - before.abundance,
+      });
+    }
+    if (after.conviction > before.conviction) {
+      productions.push({
+        denizenId: prophetIds[0]!,
+        resource: "conviction",
+        amount: after.conviction - before.conviction,
       });
     }
     if (productions.length === 0) continue;
-    productions.sort((a, b) => (a.denizenId < b.denizenId ? -1 : a.denizenId > b.denizenId ? 1 : 0));
     prophetProductionTemples.add(templeId);
     blockers.push({
       kind: "reliable_prophet_production",
@@ -996,12 +950,6 @@ export function planHierophantVisions(
       prophetDenizenIds: uniqueIds(prophetIds),
       productions,
     });
-    for (const production of productions) {
-      const preview = working.get(production.denizenId);
-      if (preview !== undefined && preview.blockerKind === null) {
-        preview.blockerKind = "reliable_prophet_production";
-      }
-    }
   }
 
   const temples: HierophantVisionsTemplePreview[] = hierophant.temples.map((temple) => {
@@ -1076,7 +1024,7 @@ export function planHierophantVisions(
       support: entry.support,
       demand: preview.demand,
       woeProjection: preview.woeProjection,
-      departure: preview.departure,
+      thresholdCue: preview.thresholdCue,
       choiceRequired: preview.choiceRequired,
       blockerKind: preview.blockerKind,
     };
@@ -1094,6 +1042,7 @@ export function planHierophantVisions(
     blockers,
     temples,
     supplicants,
+    hestarUses,
   };
 }
 
@@ -1116,6 +1065,34 @@ function resultingTemple(
   stock: { readonly abundance: number; readonly conviction: number },
 ): HierophantTemple {
   return { ...temple, abundance: stock.abundance, conviction: stock.conviction };
+}
+
+function normalizeAppliedChoices(
+  choices: HierophantVisionsChoices,
+  plan: HierophantVisionsPlan,
+): HierophantVisionsChoices {
+  const artisanPayments: Record<string, HierophantVisionsResource> = {};
+  for (const preview of plan.supplicants) {
+    if (classCostFor(preview.classId).kind !== "artisan") continue;
+    const picked = choices.artisanPayments?.[preview.denizenId];
+    if (picked === undefined) continue;
+    artisanPayments[preview.denizenId] = picked;
+  }
+  const hestarFallback: Record<string, boolean> = {};
+  const hestarDonors: Record<string, HierophantTempleId> = {};
+  for (const use of plan.hestarUses) {
+    if (use.kind === "fallback") hestarFallback[use.denizenId] = true;
+    else hestarDonors[use.denizenId] = use.sourceTempleId;
+  }
+  const materialOrder = (choices.supplicantOrder?.length ?? 0) > 1
+    ? choices.supplicantOrder
+    : undefined;
+  return {
+    ...(Object.keys(artisanPayments).length > 0 ? { artisanPayments } : {}),
+    ...(Object.keys(hestarFallback).length > 0 ? { hestarFallback } : {}),
+    ...(Object.keys(hestarDonors).length > 0 ? { hestarDonors } : {}),
+    ...(materialOrder === undefined ? {} : { supplicantOrder: materialOrder }),
+  };
 }
 
 function assembleReadyResolution(
@@ -1156,7 +1133,7 @@ function assembleReadyResolution(
   const personPreview = new Map(plan.supplicants.map((preview) => [preview.denizenId, preview]));
   const resultingSupplicants: HierophantSupplicant[] = [];
   const woeChanges: HierophantVisionsWoeFact[] = [];
-  const departures: HierophantVisionsBenefactionFact[] = [];
+  const thresholdCues: HierophantVisionsThresholdCueFact[] = [];
   for (const person of hierophant.supplicants) {
     const preview = personPreview.get(person.denizenId);
     if (preview === undefined) {
@@ -1170,16 +1147,13 @@ function assembleReadyResolution(
       from: preview.woeProjection.from,
       to: preview.woeProjection.to,
     });
-    if (preview.departure.kind === "benefaction") {
-      departures.push({
+    if (preview.thresholdCue.kind !== "none") {
+      thresholdCues.push({
         denizenId: person.denizenId,
         templeId: preview.templeId,
-        resource: preview.departure.resource,
-        amount: preview.departure.amount,
+        kind: preview.thresholdCue.kind,
       });
-      continue;
     }
-    if (preview.departure.kind !== "none") return null;
     resultingSupplicants.push({ ...person, woe: preview.woeProjection.to });
   }
 
@@ -1193,15 +1167,15 @@ function assembleReadyResolution(
     plan,
     resultingState,
     facts: {
-      suppliedChoices: choices,
+      suppliedChoices: normalizeAppliedChoices(choices, plan),
       templeIds: hierophant.temples.map((temple) => temple.templeId),
       supplicantIds: hierophant.supplicants
         .filter((person) => person.host.kind === "temple")
         .map((person) => person.denizenId),
       resourceDeltas,
       woeChanges,
-      departures,
-      benefactions: departures,
+      thresholdCues,
+      hestarUses: plan.hestarUses,
     },
   };
 }

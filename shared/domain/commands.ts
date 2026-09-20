@@ -50,6 +50,7 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "set_selected_flame_laws",
   "add_supplicant",
   "create_hierophant_supplicant",
+  "resolve_hierophant_visions",
   "update_supplicant",
   "remove_supplicant",
   "add_prophet",
@@ -247,6 +248,7 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "set_selected_flame_laws":
     case "add_supplicant":
     case "create_hierophant_supplicant":
+    case "resolve_hierophant_visions":
     case "update_supplicant":
     case "remove_supplicant":
     case "add_prophet":
