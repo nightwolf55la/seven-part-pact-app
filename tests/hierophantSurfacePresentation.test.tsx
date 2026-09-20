@@ -42,6 +42,7 @@ vi.mock("../convex/_generated/api.js", () => ({
       setTempleHoliday: "m3Commands.setTempleHoliday",
       createHierophantSupplicant: "m3Commands.createHierophantSupplicant",
       resolveHierophantVisions: "m3Commands.resolveHierophantVisions",
+      transferHierophantHestarResource: "m3Commands.transferHierophantHestarResource",
       addSupplicant: "m3Commands.addSupplicant",
       updateSupplicant: "m3Commands.updateSupplicant",
       updateDenizen: "m3Commands.updateDenizen",
@@ -1326,76 +1327,76 @@ function cancelReceiveIfOpen(container: HTMLElement): void {
   cancel?.click();
 }
 
+const pieceWorld: WorldReference = {
+  denizens: [
+    { denizenId: "den_ann", name: "Acolyte Ann", representation: "individual", description: null },
+    { denizenId: "den_blank", name: "Peasant", representation: "individual", description: null },
+    { denizenId: "den_ready", name: "Mercy", representation: "individual", description: null },
+    { denizenId: "den_high", name: "Weary Bran", representation: "individual", description: null },
+    { denizenId: "den_prophet", name: "Prophet Ilya", representation: "individual", description: null },
+  ],
+  isles: [],
+  places: [
+    { placeId: "plc_krolis", name: "Krolis Grounds", description: null, placement: { kind: "unspecified" } },
+  ],
+};
+
+const pieceState = {
+  ...EMPTY_HIEROPHANT_STATE,
+  temples: [
+    ordinaryBoardTemple("krolis"),
+    ordinaryBoardTemple("notor"),
+    hestarBoardTemple(),
+    ordinaryBoardTemple("ushin"),
+    ordinaryBoardTemple("zephon"),
+  ],
+  prophets: [
+    { denizenId: "den_prophet" as never, host: { kind: "temple" as const, templeId: "krolis" as const } },
+  ],
+  supplicants: [
+    {
+      denizenId: "den_ann" as never,
+      classId: "peasant" as const,
+      woe: 1,
+      host: { kind: "temple" as const, templeId: "krolis" as const, area: "courtyard" as const },
+    },
+    {
+      denizenId: "den_blank" as never,
+      classId: "peasant" as const,
+      woe: 5,
+      host: { kind: "temple" as const, templeId: "krolis" as const, area: "agiary" as const },
+    },
+    {
+      denizenId: "den_ready" as never,
+      classId: "artisan" as const,
+      woe: 0,
+      host: { kind: "temple" as const, templeId: "notor" as const, area: "courtyard" as const },
+    },
+    {
+      denizenId: "den_high" as never,
+      classId: "gentry" as const,
+      woe: 7,
+      host: { kind: "temple" as const, templeId: "notor" as const, area: "agiary" as const },
+    },
+  ],
+};
+
+function renderPieces() {
+  return renderChoiceSurface(pieceState as typeof EMPTY_HIEROPHANT_STATE, pieceWorld, {
+    sorcererPresence: [
+      {
+        kind: "researcher",
+        denizenId: "den_00000000-0000-0000-0000-0000000000aa" as never,
+        name: "Lina the Seer",
+        operationalThisMonth: true,
+        positionId: "srp_temple_krolis",
+        target: { kind: "hierophant_temple", templeId: "krolis" },
+      },
+    ],
+  });
+}
+
 describe("Hierophant physical piece controls", () => {
-  const pieceWorld: WorldReference = {
-    denizens: [
-      { denizenId: "den_ann", name: "Acolyte Ann", representation: "individual", description: null },
-      { denizenId: "den_blank", name: "Peasant", representation: "individual", description: null },
-      { denizenId: "den_ready", name: "Mercy", representation: "individual", description: null },
-      { denizenId: "den_high", name: "Weary Bran", representation: "individual", description: null },
-      { denizenId: "den_prophet", name: "Prophet Ilya", representation: "individual", description: null },
-    ],
-    isles: [],
-    places: [
-      { placeId: "plc_krolis", name: "Krolis Grounds", description: null, placement: { kind: "unspecified" } },
-    ],
-  };
-
-  const pieceState = {
-    ...EMPTY_HIEROPHANT_STATE,
-    temples: [
-      ordinaryBoardTemple("krolis"),
-      ordinaryBoardTemple("notor"),
-      hestarBoardTemple(),
-      ordinaryBoardTemple("ushin"),
-      ordinaryBoardTemple("zephon"),
-    ],
-    prophets: [
-      { denizenId: "den_prophet" as never, host: { kind: "temple" as const, templeId: "krolis" as const } },
-    ],
-    supplicants: [
-      {
-        denizenId: "den_ann" as never,
-        classId: "peasant" as const,
-        woe: 1,
-        host: { kind: "temple" as const, templeId: "krolis" as const, area: "courtyard" as const },
-      },
-      {
-        denizenId: "den_blank" as never,
-        classId: "peasant" as const,
-        woe: 5,
-        host: { kind: "temple" as const, templeId: "krolis" as const, area: "agiary" as const },
-      },
-      {
-        denizenId: "den_ready" as never,
-        classId: "artisan" as const,
-        woe: 0,
-        host: { kind: "temple" as const, templeId: "notor" as const, area: "courtyard" as const },
-      },
-      {
-        denizenId: "den_high" as never,
-        classId: "gentry" as const,
-        woe: 7,
-        host: { kind: "temple" as const, templeId: "notor" as const, area: "agiary" as const },
-      },
-    ],
-  };
-
-  function renderPieces() {
-    return renderChoiceSurface(pieceState as typeof EMPTY_HIEROPHANT_STATE, pieceWorld, {
-      sorcererPresence: [
-        {
-          kind: "researcher",
-          denizenId: "den_00000000-0000-0000-0000-0000000000aa" as never,
-          name: "Lina the Seer",
-          operationalThisMonth: true,
-          positionId: "srp_temple_krolis",
-          target: { kind: "hierophant_temple", templeId: "krolis" },
-        },
-      ],
-    });
-  }
-
   function woeTarget(piece: HTMLElement, value: number): HTMLButtonElement {
     return piece.querySelector(`[data-woe-target="${value}"]`) as HTMLButtonElement;
   }
@@ -1449,8 +1450,10 @@ describe("Hierophant physical piece controls", () => {
     expect(high.querySelectorAll('[data-woe-filled="true"]')).toHaveLength(5);
     expect(container.querySelector('[aria-label="Benefaction & Depart"]')).toBeNull();
     expect(container.querySelector('[aria-label="Depart for Cult"]')).toBeNull();
-    expect(container.textContent).not.toContain("To Hestar");
-    expect(container.textContent).not.toContain("From Hestar");
+    expect(
+      container.querySelector('[data-temple-resource="krolis"][data-resource-counter="abundance"]')
+        ?.getAttribute("data-resource-controls"),
+    ).toBe("hidden");
     expect(container.querySelector("[data-supplicant-piece][draggable='true']")).toBeNull();
     const advanced = Array.from(container.querySelectorAll("summary")).find((el) =>
       el.textContent?.includes("Advanced / Correct Board"),
@@ -1820,6 +1823,193 @@ describe("Resolve Visions action", () => {
     expect(container.querySelector('[data-woe-threshold="cult"]')?.textContent).toBe("Cult departure due");
     expect(container.querySelector('[aria-label="Depart for Cult"]')).toBeNull();
     expect(container.querySelector('[aria-label="Benefaction & Depart"]')).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("Hierophant Hestar resource sharing UI", () => {
+  function transferArgs() {
+    return mockMutations["m3Commands.transferHierophantHestarResource"]?.mock.calls.map((call) => call[0]) ?? [];
+  }
+
+  it("keeps To/From Hestar quiet at rest and reveals them on focus", () => {
+    const { container, root } = renderPieces();
+    const counter = container.querySelector('[data-temple-resource="krolis"][data-resource-counter="abundance"]') as HTMLElement;
+    const toHestar = buttonWithText(counter, "To Hestar");
+    const fromHestar = buttonWithText(counter, "From Hestar");
+    expect(toHestar).toBeDefined();
+    expect(fromHestar).toBeDefined();
+    expect(counter.getAttribute("data-resource-controls")).toBe("hidden");
+    expect(toHestar?.getAttribute("data-hestar-share")).toBe("hidden");
+    flushSync(() => { toHestar!.focus(); });
+    expect(counter.getAttribute("data-resource-controls")).toBe("revealed");
+    expect(toHestar?.getAttribute("data-hestar-share")).toBe("revealed");
+    expect(fromHestar?.getAttribute("data-hestar-share")).toBe("revealed");
+    const decrease = container.querySelector('[aria-label="Decrease Temple Krolis Abundance"]') as HTMLButtonElement;
+    expect(decrease.className).not.toMatch(/opacity-0/);
+    root.unmount();
+    container.remove();
+  });
+
+  it("sends one To Hestar mutation and reverses endpoints for From Hestar", async () => {
+    mockMutations["m3Commands.transferHierophantHestarResource"] = vi.fn(async () => ({ kind: "accepted", revision: 5 }));
+    mockMutations["m3Commands.adjustTempleResources"] = vi.fn(async () => {});
+    const { container, root } = renderPieces();
+    const krolis = container.querySelector('[data-temple-resource="krolis"][data-resource-counter="abundance"]') as HTMLElement;
+    const toHestar = buttonWithText(krolis, "To Hestar")!;
+    flushSync(() => { toHestar.click(); });
+    await settleQueuedMutation();
+    expect(mockMutations["m3Commands.transferHierophantHestarResource"]).toHaveBeenCalledTimes(1);
+    expect(transferArgs()[0]).toMatchObject({
+      expectedCampaignId: CAMPAIGN_ID,
+      expectedRevision: 4,
+      resource: "abundance",
+      sourceTempleId: "krolis",
+      destinationTempleId: "hestar",
+    });
+    expect(transferArgs()[0]).not.toHaveProperty("sourceAfter");
+    expect(transferArgs()[0]).not.toHaveProperty("destinationAfter");
+    expect(transferArgs()[0]).not.toHaveProperty("amount");
+    const conviction = container.querySelector('[data-temple-resource="krolis"][data-resource-counter="conviction"]') as HTMLElement;
+    flushSync(() => { buttonWithText(conviction, "From Hestar")!.click(); });
+    await settleQueuedMutation();
+    expect(mockMutations["m3Commands.transferHierophantHestarResource"]).toHaveBeenCalledTimes(2);
+    expect(transferArgs()[1]).toMatchObject({
+      resource: "conviction",
+      sourceTempleId: "hestar",
+      destinationTempleId: "krolis",
+    });
+    expect(mockMutations["m3Commands.adjustTempleResources"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("projects the pair immediately, blocks a second click, and surfaces a stale error", async () => {
+    const gates: Array<{ resolve: () => void; reject: (error: Error) => void }> = [];
+    mockMutations["m3Commands.transferHierophantHestarResource"] = vi.fn(() => new Promise((resolve, reject) => {
+      gates.push({ resolve: () => resolve({ kind: "accepted", revision: 5 }), reject });
+    }));
+    const { container, root } = renderPieces();
+    const krolis = container.querySelector('[data-temple-resource="krolis"][data-resource-counter="abundance"]') as HTMLElement;
+    const hestar = container.querySelector('[data-temple-resource="hestar"][data-resource-counter="abundance"]') as HTMLElement;
+    const toHestar = buttonWithText(krolis, "To Hestar")!;
+    flushSync(() => { toHestar.click(); toHestar.click(); });
+    expect(krolis.querySelector("[data-resource-value]")?.textContent).toBe("4");
+    expect(hestar.querySelector("[data-resource-value]")?.textContent).toBe("5");
+    expect(krolis.getAttribute("data-resource-pending")).toBe("true");
+    expect(hestar.getAttribute("data-resource-pending")).toBe("true");
+    expect(mockMutations["m3Commands.transferHierophantHestarResource"]).toHaveBeenCalledTimes(1);
+    expect(toHestar.disabled).toBe(true);
+    await settleQueuedMutation(() => gates[0]!.reject(new Error("stale Hestar transfer")));
+    expect(krolis.querySelector("[data-resource-value]")?.textContent).toBe("5");
+    expect(hestar.querySelector("[data-resource-value]")?.textContent).toBe("4");
+    expect(krolis.getAttribute("data-resource-pending")).toBe("false");
+    expect(krolis.querySelector("[data-resource-error]")?.textContent).toMatch(/stale/i);
+    expect(toHestar.disabled).toBe(false);
+    root.unmount();
+    container.remove();
+  });
+
+  it("explains a Blasphemous ordinary Temple instead of offering a working transfer", () => {
+    const blasphemous = {
+      ...pieceState,
+      temples: pieceState.temples.map((temple) =>
+        temple.templeId === "krolis"
+          ? { ...temple, doctrine: { kind: "blasphemy" as const, blasphemyId: "law_of_the_wolf" as const } }
+          : temple,
+      ),
+    };
+    const { container, root } = renderChoiceSurface(blasphemous as typeof EMPTY_HIEROPHANT_STATE, pieceWorld);
+    const krolis = container.querySelector('[data-temple-resource="krolis"][data-resource-counter="abundance"]') as HTMLElement;
+    const toHestar = buttonWithText(krolis, "To Hestar");
+    const fromHestar = buttonWithText(krolis, "From Hestar");
+    expect(toHestar === undefined || toHestar.disabled).toBe(true);
+    expect(fromHestar === undefined || fromHestar.disabled).toBe(true);
+    flushSync(() => {
+      const focusable = (toHestar ?? krolis.querySelector("button")) as HTMLButtonElement;
+      focusable.focus();
+    });
+    expect(krolis.textContent).toContain("Cannot share with Hestar while Blasphemous");
+    root.unmount();
+    container.remove();
+  });
+
+  it("opens a Hestar Send/Take chooser of ordinary Temples and sends the selected intent", async () => {
+    mockMutations["m3Commands.transferHierophantHestarResource"] = vi.fn(async () => ({ kind: "accepted", revision: 5 }));
+    const { container, root } = renderPieces();
+    const hestar = container.querySelector('[data-temple-resource="hestar"][data-resource-counter="abundance"]') as HTMLElement;
+    const send = buttonWithText(hestar, "Send to...");
+    const take = buttonWithText(hestar, "Take from...");
+    expect(send).toBeDefined();
+    expect(take).toBeDefined();
+    expect(hestar.getAttribute("data-resource-controls")).toBe("hidden");
+    flushSync(() => { send!.click(); });
+    const chooser = container.querySelector('[data-hestar-share-chooser="send"]') as HTMLElement;
+    expect(chooser).not.toBeNull();
+    expect(chooser.textContent).toContain("Temple Krolis");
+    expect(chooser.textContent).toContain("Temple Notor");
+    expect(chooser.textContent).toContain("Temple Ushin");
+    expect(chooser.textContent).toContain("Temple Zephon");
+    flushSync(() => {
+      Array.from(chooser.querySelectorAll("button")).find((button) => button.textContent?.includes("Notor"))!.click();
+    });
+    await settleQueuedMutation();
+    expect(transferArgs()[0]).toMatchObject({
+      resource: "abundance",
+      sourceTempleId: "hestar",
+      destinationTempleId: "notor",
+    });
+    flushSync(() => { take!.click(); });
+    const takeChooser = container.querySelector('[data-hestar-share-chooser="take"]') as HTMLElement;
+    expect(takeChooser).not.toBeNull();
+    flushSync(() => {
+      Array.from(takeChooser.querySelectorAll("button")).find((button) => button.textContent?.includes("Krolis"))!.click();
+    });
+    await settleQueuedMutation();
+    expect(transferArgs()[1]).toMatchObject({
+      resource: "abundance",
+      sourceTempleId: "krolis",
+      destinationTempleId: "hestar",
+    });
+    expect(container.textContent).not.toMatch(/\bProvide\b/);
+    expect(container.textContent).not.toMatch(/Abundance → Conviction|Conviction → Abundance|1:1|2:1|half as much/i);
+    root.unmount();
+    container.remove();
+  });
+
+  it("disables a Blasphemous chooser candidate and a zero-resource direction", () => {
+    const blasphemous = {
+      ...pieceState,
+      temples: pieceState.temples.map((temple) =>
+        temple.templeId === "notor"
+          ? { ...temple, doctrine: { kind: "blasphemy" as const, blasphemyId: "law_of_the_wolf" as const } }
+          : temple,
+      ),
+    };
+    const { container, root, rerender } = renderChoiceSurface(blasphemous as typeof EMPTY_HIEROPHANT_STATE, pieceWorld);
+    const hestar = container.querySelector('[data-temple-resource="hestar"][data-resource-counter="abundance"]') as HTMLElement;
+    flushSync(() => { buttonWithText(hestar, "Send to...")!.click(); });
+    const sendChooser = container.querySelector('[data-hestar-share-chooser="send"]') as HTMLElement;
+    const notorSend = Array.from(sendChooser.querySelectorAll("button")).find((button) => button.textContent?.includes("Notor"))!;
+    expect(notorSend.disabled).toBe(true);
+    expect(sendChooser.textContent).toMatch(/Blasphemous/);
+    const empty = {
+      ...blasphemous,
+      temples: blasphemous.temples.map((temple) => {
+        if (temple.templeId === "hestar" || temple.templeId === "ushin") return { ...temple, abundance: 0 };
+        return temple;
+      }),
+    };
+    rerender(empty as typeof EMPTY_HIEROPHANT_STATE, pieceWorld);
+    const emptyHestar = container.querySelector('[data-temple-resource="hestar"][data-resource-counter="abundance"]') as HTMLElement;
+    expect(buttonWithText(emptyHestar, "Send to...")!.disabled).toBe(true);
+    const ushin = container.querySelector('[data-temple-resource="ushin"][data-resource-counter="abundance"]') as HTMLElement;
+    expect(buttonWithText(ushin, "To Hestar")!.disabled).toBe(true);
+    expect(buttonWithText(ushin, "From Hestar")!.disabled).toBe(true);
+    const krolis = container.querySelector('[data-temple-resource="krolis"][data-resource-counter="abundance"]') as HTMLElement;
+    expect(buttonWithText(krolis, "To Hestar")!.disabled).toBe(false);
+    expect(buttonWithText(krolis, "From Hestar")!.disabled).toBe(true);
     root.unmount();
     container.remove();
   });

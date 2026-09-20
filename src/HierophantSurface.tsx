@@ -106,6 +106,10 @@ import {
   type HierophantResourceIntentController,
   type HierophantResourceKind,
 } from "./hierophant-resource-intent";
+import {
+  createHierophantHestarTransferController,
+  type HierophantHestarTransferController,
+} from "./hierophant-hestar-transfer";
 
 type HierophantTab = "overview" | "temples" | "people" | "cults" | "definitions";
 
@@ -238,6 +242,7 @@ export default function HierophantSurface({
   const setTempleHoliday = useMutation(api.m3Commands.setTempleHoliday);
   const createHierophantSupplicant = useMutation(api.m3Commands.createHierophantSupplicant);
   const resolveHierophantVisions = useMutation(api.m3Commands.resolveHierophantVisions);
+  const transferHierophantHestarResource = useMutation(api.m3Commands.transferHierophantHestarResource);
   const addSupplicant = useMutation(api.m3Commands.addSupplicant);
   const updateSupplicant = useMutation(api.m3Commands.updateSupplicant);
   const updateDenizen = useMutation(api.m3Commands.updateDenizen);
@@ -261,8 +266,12 @@ export default function HierophantSurface({
   templesRef.current = hierophant.temples;
   const campaignIdRef = useRef(campaignId);
   campaignIdRef.current = campaignId;
+  const campaignRevisionRef = useRef(campaignRevision);
+  campaignRevisionRef.current = campaignRevision;
   const adjustTempleResourcesRef = useRef(adjustTempleResources);
   adjustTempleResourcesRef.current = adjustTempleResources;
+  const transferHierophantHestarResourceRef = useRef(transferHierophantHestarResource);
+  transferHierophantHestarResourceRef.current = transferHierophantHestarResource;
   const [, setResourceIntentGen] = useState(0);
   const resourceIntentsRef = useRef<HierophantResourceIntentController | null>(null);
   if (resourceIntentsRef.current === null) {
@@ -288,6 +297,26 @@ export default function HierophantSurface({
     });
   }
   const resourceIntents = resourceIntentsRef.current;
+  const hestarTransferRef = useRef<HierophantHestarTransferController | null>(null);
+  if (hestarTransferRef.current === null) {
+    hestarTransferRef.current = createHierophantHestarTransferController({
+      nextCommandId: newCommandId,
+      dispatch: async (intent) => {
+        await transferHierophantHestarResourceRef.current({
+          commandId: intent.commandId,
+          expectedCampaignId: campaignIdRef.current,
+          expectedRevision: campaignRevisionRef.current,
+          resource: intent.resource,
+          sourceTempleId: intent.sourceTempleId,
+          destinationTempleId: intent.destinationTempleId,
+        });
+      },
+      onChange: () => {
+        flushSync(() => setResourceIntentGen((n) => n + 1));
+      },
+    });
+  }
+  const hestarTransfer = hestarTransferRef.current;
   for (const temple of hierophant.temples) {
     resourceIntents.observeAuthoritative(temple.templeId, "abundance", temple.abundance);
     resourceIntents.observeAuthoritative(temple.templeId, "conviction", temple.conviction);
@@ -1136,13 +1165,37 @@ export default function HierophantSurface({
                 });
               },
               onAdjustResource: (templeId, resource, delta) => {
+                if (hestarTransfer.busy) return;
                 const temple = hierophant.temples.find((entry) => entry.templeId === templeId);
                 if (temple === undefined) return;
                 const authoritative = resource === "abundance" ? temple.abundance : temple.conviction;
                 resourceIntentsRef.current?.enqueue(templeId, resource, delta, authoritative);
               },
-              resourceView: (templeId, resource, authoritative) =>
-                resourceIntents.view(templeId, resource, authoritative),
+              resourceView: (templeId, resource, authoritative) => {
+                const intentView = resourceIntents.view(templeId, resource, authoritative);
+                const transferView = hestarTransfer.view(templeId, resource, authoritative);
+                if (intentView.pending) return intentView;
+                if (transferView.pending || transferView.error !== null) return transferView;
+                return intentView;
+              },
+              transferBusy: hestarTransfer.busy,
+              onTransferHestarResource: (resource, sourceTempleId, destinationTempleId) => {
+                if (hestarTransfer.busy) return;
+                const source = templesRef.current.find((entry) => entry.templeId === sourceTempleId);
+                const destination = templesRef.current.find((entry) => entry.templeId === destinationTempleId);
+                if (source === undefined || destination === undefined) return;
+                const sourceAuthoritative = resource === "abundance" ? source.abundance : source.conviction;
+                const destinationAuthoritative = resource === "abundance" ? destination.abundance : destination.conviction;
+                if (resourceIntents.view(sourceTempleId, resource, sourceAuthoritative).pending) return;
+                if (resourceIntents.view(destinationTempleId, resource, destinationAuthoritative).pending) return;
+                hestarTransfer.request({
+                  resource,
+                  sourceTempleId,
+                  destinationTempleId,
+                  sourceAuthoritative,
+                  destinationAuthoritative,
+                });
+              },
             }}
           />
           {(() => {

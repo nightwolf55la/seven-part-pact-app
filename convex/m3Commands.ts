@@ -92,6 +92,7 @@ import {
   addSupplicantFingerprint,
   createHierophantSupplicantFingerprint,
   resolveHierophantVisionsFingerprint,
+  transferHierophantHestarResourceFingerprint,
   updateSupplicantFingerprint,
   removeSupplicantFingerprint,
   addProphetFingerprint,
@@ -149,6 +150,8 @@ import {
   applyResolveHierophantVisions,
   canonicalizeHierophantVisionsChoices,
   assertHierophantVisionsRevision,
+  applyTransferHierophantHestarResource,
+  assertHierophantHestarTransferRevision,
   applyUpdateSupplicant,
   applyRemoveSupplicant,
   applyAddProphet,
@@ -2323,6 +2326,63 @@ export const resolveHierophantVisions = mutation({
       ctx,
       args.commandId,
       "resolve_hierophant_visions",
+      fingerprint,
+      campaign,
+      result,
+    );
+    return { kind: "accepted" as const, revision: receipt.newRevision };
+  },
+});
+
+const hierophantHestarResourceArg = v.union(v.literal("abundance"), v.literal("conviction"));
+
+export const transferHierophantHestarResource = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    expectedRevision: v.number(),
+    resource: hierophantHestarResourceArg,
+    sourceTempleId: v.string(),
+    destinationTempleId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
+    if (!Number.isSafeInteger(args.expectedRevision) || args.expectedRevision < 0) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid expectedRevision: ${args.expectedRevision}`);
+    }
+    const fingerprint = transferHierophantHestarResourceFingerprint(
+      args.expectedCampaignId,
+      args.expectedRevision,
+      args.resource,
+      args.sourceTempleId,
+      args.destinationTempleId,
+    );
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
+
+    const replay = await checkIdempotency(
+      ctx,
+      campaign.campaignId,
+      args.commandId,
+      "transfer_hierophant_hestar_resource",
+      fingerprint,
+    );
+    if (replay) return { kind: "accepted" as const, revision: replay.newRevision };
+
+    assertHierophantHestarTransferRevision(campaign.currentRevision, args.expectedRevision);
+
+    const result = applyTransferHierophantHestarResource(campaign.currentState, {
+      resource: args.resource,
+      sourceTempleId: args.sourceTempleId as HierophantTempleId,
+      destinationTempleId: args.destinationTempleId as HierophantTempleId,
+    });
+
+    const receipt = await commitM3Command(
+      ctx,
+      args.commandId,
+      "transfer_hierophant_hestar_resource",
       fingerprint,
       campaign,
       result,

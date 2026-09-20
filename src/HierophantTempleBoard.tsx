@@ -99,6 +99,12 @@ export interface HierophantPieceControls {
     resource: HierophantResourceKind,
     authoritative: number,
   ) => HierophantResourcePoolView;
+  readonly transferBusy: boolean;
+  readonly onTransferHestarResource: (
+    resource: HierophantResourceKind,
+    sourceTempleId: string,
+    destinationTempleId: string,
+  ) => void;
 }
 
 function SupplyClassPiece({
@@ -314,6 +320,7 @@ function ResourceCounter({
   templeName,
   view,
   onAdjust,
+  share,
 }: {
   readonly label: "Abundance" | "Conviction";
   readonly before: number;
@@ -323,6 +330,26 @@ function ResourceCounter({
   readonly templeName: string;
   readonly view: HierophantResourcePoolView;
   readonly onAdjust: (resource: HierophantResourceKind, delta: 1 | -1) => void;
+  readonly share: {
+    readonly role: "ordinary" | "hestar";
+    readonly blasphemous: boolean;
+    readonly canToHestar: boolean;
+    readonly canFromHestar: boolean;
+    readonly canSend: boolean;
+    readonly canTake: boolean;
+    readonly candidates: readonly {
+      readonly templeId: string;
+      readonly name: string;
+      readonly blasphemous: boolean;
+      readonly canSendTo: boolean;
+      readonly canTakeFrom: boolean;
+    }[];
+    readonly busy: boolean;
+    readonly onToHestar: () => void;
+    readonly onFromHestar: () => void;
+    readonly onSendTo: (templeId: string) => void;
+    readonly onTakeFrom: (templeId: string) => void;
+  };
 }) {
   const resource: HierophantResourceKind = label === "Abundance" ? "abundance" : "conviction";
   const shown = view.displayed;
@@ -331,14 +358,20 @@ function ResourceCounter({
     : null;
   const restLabel = `${label} ${shown}`;
   const [revealed, setRevealed] = useState(false);
+  const [chooser, setChooser] = useState<null | "send" | "take">(null);
+  const shareVisible = revealed || chooser !== null;
+  const shareAttr = shareVisible ? "revealed" : "hidden";
   const controlClass = `h-5 w-5 rounded border border-stone-600/40 text-xs font-bold transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
-    revealed ? "opacity-100" : "opacity-0"
+    revealed || chooser !== null ? "opacity-100" : "opacity-0"
+  }`;
+  const shareButtonClass = `rounded border border-stone-600/40 px-1 py-0 text-[10px] font-semibold leading-tight transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-not-allowed disabled:opacity-50 ${
+    shareVisible ? "opacity-100" : "opacity-0"
   }`;
   return (
     <div
       data-resource-counter={resource}
       data-temple-resource={templeId}
-      data-resource-controls={revealed ? "revealed" : "hidden"}
+      data-resource-controls={shareVisible ? "revealed" : "hidden"}
       data-resource-pending={view.pending ? "true" : "false"}
       aria-busy={view.pending}
       className={`relative flex min-w-[4.75rem] flex-col items-center rounded-lg border-2 px-2 py-1 shadow-sm ${
@@ -350,10 +383,16 @@ function ResourceCounter({
       }`}
       aria-label={forecast === null ? restLabel : `${restLabel}, Next Visions ${forecast}`}
       onMouseEnter={() => setRevealed(true)}
-      onMouseLeave={() => setRevealed(false)}
+      onMouseLeave={() => {
+        setRevealed(false);
+        if (chooser === null) return;
+      }}
       onFocusCapture={() => setRevealed(true)}
       onBlurCapture={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setRevealed(false);
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setRevealed(false);
+          setChooser(null);
+        }
       }}
     >
       <span className="text-[10px] font-semibold uppercase tracking-wide">{label}</span>
@@ -362,10 +401,10 @@ function ResourceCounter({
           type="button"
           className={`${controlClass} disabled:pointer-events-none`}
           aria-label={`Decrease ${templeName} ${label}`}
-          disabled={shown <= 0}
+          disabled={shown <= 0 || share.busy}
           onClick={(event) => {
             event.stopPropagation();
-            if (shown <= 0) return;
+            if (shown <= 0 || share.busy) return;
             onAdjust(resource, -1);
           }}
         >
@@ -384,13 +423,140 @@ function ResourceCounter({
           type="button"
           className={controlClass}
           aria-label={`Increase ${templeName} ${label}`}
+          disabled={share.busy}
           onClick={(event) => {
             event.stopPropagation();
+            if (share.busy) return;
             onAdjust(resource, 1);
           }}
         >
           +
         </button>
+      </div>
+      <div className="mt-0.5 flex min-h-[1.1rem] flex-col items-center gap-0.5">
+        {share.role === "ordinary" && (
+          <>
+            {!share.blasphemous && (
+              <div className="flex flex-wrap justify-center gap-0.5">
+                <button
+                  type="button"
+                  className={shareButtonClass}
+                  data-hestar-share={shareAttr}
+                  disabled={!share.canToHestar}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (!share.canToHestar) return;
+                    share.onToHestar();
+                  }}
+                >
+                  To Hestar
+                </button>
+                <button
+                  type="button"
+                  className={shareButtonClass}
+                  data-hestar-share={shareAttr}
+                  disabled={!share.canFromHestar}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (!share.canFromHestar) return;
+                    share.onFromHestar();
+                  }}
+                >
+                  From Hestar
+                </button>
+              </div>
+            )}
+            {share.blasphemous && (
+              <span
+                className={`max-w-[9rem] text-center text-[9px] font-medium leading-tight text-rose-800 dark:text-rose-200 ${
+                  shareVisible ? "opacity-100" : "opacity-0"
+                }`}
+              >
+                Cannot share with Hestar while Blasphemous
+              </span>
+            )}
+          </>
+        )}
+        {share.role === "hestar" && (
+          <>
+            <div className="flex flex-wrap justify-center gap-0.5">
+              <button
+                type="button"
+                className={shareButtonClass}
+                data-hestar-share={shareAttr}
+                aria-haspopup="menu"
+                aria-expanded={chooser === "send"}
+                disabled={!share.canSend}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (!share.canSend && chooser !== "send") return;
+                  setChooser((current) => current === "send" ? null : "send");
+                }}
+              >
+                Send to...
+              </button>
+              <button
+                type="button"
+                className={shareButtonClass}
+                data-hestar-share={shareAttr}
+                aria-haspopup="menu"
+                aria-expanded={chooser === "take"}
+                disabled={!share.canTake}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (!share.canTake && chooser !== "take") return;
+                  setChooser((current) => current === "take" ? null : "take");
+                }}
+              >
+                Take from...
+              </button>
+            </div>
+            {chooser !== null && (
+              <div
+                role="menu"
+                data-hestar-share-chooser={chooser}
+                className="absolute left-1/2 top-full z-20 mt-1 w-44 -translate-x-1/2 rounded-md border border-stone-500 bg-stone-50 p-1 text-left shadow-md dark:border-stone-400 dark:bg-stone-900"
+              >
+                {share.candidates.map((candidate) => {
+                  const enabled = chooser === "send" ? candidate.canSendTo : candidate.canTakeFrom;
+                  return (
+                    <button
+                      key={candidate.templeId}
+                      type="button"
+                      role="menuitem"
+                      disabled={!enabled}
+                      className="flex w-full flex-col rounded px-1.5 py-1 text-left text-[11px] font-medium hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-amber-950/60"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (!enabled) return;
+                        if (chooser === "send") share.onSendTo(candidate.templeId);
+                        else share.onTakeFrom(candidate.templeId);
+                        setChooser(null);
+                      }}
+                    >
+                      <span>{candidate.name}</span>
+                      {candidate.blasphemous && (
+                        <span className="text-[9px] font-medium text-rose-800 dark:text-rose-200">
+                          Cannot share with Hestar while Blasphemous
+                        </span>
+                      )}
+                      {!candidate.blasphemous && !enabled && chooser === "send" && (
+                        <span className="text-[9px] font-medium text-slate-600 dark:text-slate-300">
+                          Hestar has none
+                        </span>
+                      )}
+                      {!candidate.blasphemous && !enabled && chooser === "take" && (
+                        <span className="text-[9px] font-medium text-slate-600 dark:text-slate-300">
+                          {candidate.name} has none
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
       </div>
       {view.pending && <span className="sr-only">Saving {label}</span>}
       {view.error !== null && (
@@ -710,6 +876,38 @@ function TemplePiece({
   const groups = areaGroups(hosted, isHestar);
   const status = boardStatus(temple);
   const name = templeDisplayName(temple, places);
+  const hestarTemple = hierophant.temples.find((entry) => entry.kind === "hestar" || entry.templeId === "hestar");
+  const ordinaryTemples = hierophant.temples.filter((entry) => entry.kind === "ordinary");
+  function resourceCount(entry: HierophantTemple, resource: HierophantResourceKind): number {
+    return resource === "abundance" ? entry.abundance : entry.conviction;
+  }
+  function shareFor(resource: HierophantResourceKind) {
+    const hestarCount = hestarTemple === undefined ? 0 : resourceCount(hestarTemple, resource);
+    const ownCount = resourceCount(temple, resource);
+    const blasphemous = temple.kind === "ordinary" && temple.doctrine.kind === "blasphemy";
+    return {
+      role: (temple.kind === "hestar" ? "hestar" : "ordinary") as "ordinary" | "hestar",
+      blasphemous,
+      canToHestar: !pieces.transferBusy && !blasphemous && ownCount >= 1,
+      canFromHestar: !pieces.transferBusy && !blasphemous && hestarCount >= 1,
+      canSend: !pieces.transferBusy && hestarCount >= 1,
+      canTake: !pieces.transferBusy && ordinaryTemples.some((entry) => (
+        entry.doctrine.kind !== "blasphemy" && resourceCount(entry, resource) >= 1
+      )),
+      candidates: ordinaryTemples.map((entry) => ({
+        templeId: entry.templeId,
+        name: templeDisplayName(entry, places),
+        blasphemous: entry.doctrine.kind === "blasphemy",
+        canSendTo: !pieces.transferBusy && hestarCount >= 1 && entry.doctrine.kind !== "blasphemy",
+        canTakeFrom: !pieces.transferBusy && entry.doctrine.kind !== "blasphemy" && resourceCount(entry, resource) >= 1,
+      })),
+      busy: pieces.transferBusy,
+      onToHestar: () => pieces.onTransferHestarResource(resource, temple.templeId, "hestar"),
+      onFromHestar: () => pieces.onTransferHestarResource(resource, "hestar", temple.templeId),
+      onSendTo: (templeId: string) => pieces.onTransferHestarResource(resource, "hestar", templeId),
+      onTakeFrom: (templeId: string) => pieces.onTransferHestarResource(resource, templeId, "hestar"),
+    };
+  }
   const templePreview: HierophantVisionsTemplePreview | undefined = plan.temples.find((entry) => entry.templeId === temple.templeId);
   const fallbackChoice = choices.openChoices.find(
     (choice) => choice.kind === "hestar_fallback" && choice.templeId === temple.templeId,
@@ -795,6 +993,7 @@ function TemplePiece({
             templeName={name}
             view={pieces.resourceView(temple.templeId, "abundance", temple.abundance)}
             onAdjust={(resource, delta) => pieces.onAdjustResource(temple.templeId, resource, delta)}
+            share={shareFor("abundance")}
           />
           <ResourceCounter
             label="Conviction"
@@ -805,6 +1004,7 @@ function TemplePiece({
             templeName={name}
             view={pieces.resourceView(temple.templeId, "conviction", temple.conviction)}
             onAdjust={(resource, delta) => pieces.onAdjustResource(temple.templeId, resource, delta)}
+            share={shareFor("conviction")}
           />
         </div>
         <div className="rounded-md border border-amber-900/20 bg-amber-50/80 px-2 py-1 dark:border-amber-200/20 dark:bg-amber-950/30">

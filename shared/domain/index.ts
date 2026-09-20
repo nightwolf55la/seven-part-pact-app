@@ -144,6 +144,8 @@ export type {
   HierophantSupplicantCreatedEventV1,
   HierophantVisionsResolvedDataV1,
   HierophantVisionsResolvedEventV1,
+  HierophantHestarResourceTransferredDataV1,
+  HierophantHestarResourceTransferredEventV1,
   HierophantEvent,
   MarinerEvent,
   MarinerInitializedDataV1,
@@ -415,6 +417,7 @@ export {
   addSupplicantFingerprint,
   createHierophantSupplicantFingerprint,
   resolveHierophantVisionsFingerprint,
+  transferHierophantHestarResourceFingerprint,
   updateSupplicantFingerprint,
   removeSupplicantFingerprint,
   addProphetFingerprint,
@@ -2087,6 +2090,7 @@ export type {
   CreateHierophantSupplicantInput,
   HierophantOperabilityTransitionResult,
   ResolveHierophantVisionsApplyResult,
+  TransferHierophantHestarResourceInput,
 } from "./hierophant-operability-transitions";
 export {
   canonicalizeCreateHierophantSupplicantInput,
@@ -2095,6 +2099,8 @@ export {
   hierophantVisionsContextFromCampaign,
   applyResolveHierophantVisions,
   assertHierophantVisionsRevision,
+  applyTransferHierophantHestarResource,
+  assertHierophantHestarTransferRevision,
 } from "./hierophant-operability-transitions";
 
 // --- V5 Integration Transitions (candidate, not active) ---

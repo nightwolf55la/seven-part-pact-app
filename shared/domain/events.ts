@@ -827,6 +827,23 @@ export interface HierophantVisionsResolvedEventV1 {
   readonly data: HierophantVisionsResolvedDataV1;
 }
 
+export interface HierophantHestarResourceTransferredDataV1 {
+  readonly resource: "abundance" | "conviction";
+  readonly sourceTempleId: HierophantTempleId;
+  readonly destinationTempleId: HierophantTempleId;
+  readonly amount: 1;
+  readonly sourceBefore: number;
+  readonly sourceAfter: number;
+  readonly destinationBefore: number;
+  readonly destinationAfter: number;
+}
+
+export interface HierophantHestarResourceTransferredEventV1 {
+  readonly type: "hierophant_hestar_resource_transferred";
+  readonly version: 1;
+  readonly data: HierophantHestarResourceTransferredDataV1;
+}
+
 export interface SupplicantAddedDataV1 {
   readonly supplicant: HierophantSupplicant;
 }
@@ -1232,6 +1249,7 @@ export type HierophantEvent =
   | FlameLawsChangedEventV1
   | HierophantSupplicantCreatedEventV1
   | HierophantVisionsResolvedEventV1
+  | HierophantHestarResourceTransferredEventV1
   | SupplicantAddedEventV1
   | SupplicantUpdatedEventV1
   | SupplicantRemovedEventV1

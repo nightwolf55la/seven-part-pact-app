@@ -8,6 +8,7 @@ import { isValidHierophantTempleId } from "./hierophant-catalogs";
 import type {
   HierophantClassId,
   HierophantSupplicant,
+  HierophantTemple,
   HierophantTempleArea,
   HierophantTempleStatus,
 } from "./hierophant-state";
@@ -264,6 +265,130 @@ export function assertHierophantVisionsRevision(
     throw new DomainError(
       "STALE_CAMPAIGN_REVISION",
       `Visions preview is out of date. Review the current board and try again. Expected revision ${expectedRevision}, current is ${currentRevision}`,
+    );
+  }
+}
+
+export interface TransferHierophantHestarResourceInput {
+  readonly resource: "abundance" | "conviction";
+  readonly sourceTempleId: HierophantTempleId;
+  readonly destinationTempleId: HierophantTempleId;
+}
+
+const HESTAR_TRANSFER_AMOUNT = 1 as const;
+
+function isHestarTemple(temple: HierophantTemple): boolean {
+  return temple.kind === "hestar" || temple.templeId === "hestar";
+}
+
+function resourceCount(temple: HierophantTemple, resource: "abundance" | "conviction"): number {
+  return resource === "abundance" ? temple.abundance : temple.conviction;
+}
+
+function withResource(
+  temple: HierophantTemple,
+  resource: "abundance" | "conviction",
+  value: number,
+): HierophantTemple {
+  return resource === "abundance"
+    ? { ...temple, abundance: value }
+    : { ...temple, conviction: value };
+}
+
+export function applyTransferHierophantHestarResource(
+  state: CampaignStateV5,
+  rawInput: TransferHierophantHestarResourceInput,
+): HierophantOperabilityTransitionResult {
+  if (state.hierophant.temples.length === 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Hierophant Temples have not been initialized");
+  }
+  if (rawInput.resource !== "abundance" && rawInput.resource !== "conviction") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid resource: ${String(rawInput.resource)}`);
+  }
+  if (!isValidHierophantTempleId(rawInput.sourceTempleId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Temple not found: ${String(rawInput.sourceTempleId)}`);
+  }
+  if (!isValidHierophantTempleId(rawInput.destinationTempleId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Temple not found: ${String(rawInput.destinationTempleId)}`);
+  }
+  if (rawInput.sourceTempleId === rawInput.destinationTempleId) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Source and destination Temples must be different");
+  }
+  const source = state.hierophant.temples.find((temple) => temple.templeId === rawInput.sourceTempleId);
+  const destination = state.hierophant.temples.find((temple) => temple.templeId === rawInput.destinationTempleId);
+  if (source === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Temple not found: ${rawInput.sourceTempleId}`);
+  }
+  if (destination === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Temple not found: ${rawInput.destinationTempleId}`);
+  }
+  const sourceIsHestar = isHestarTemple(source);
+  const destinationIsHestar = isHestarTemple(destination);
+  if (sourceIsHestar === destinationIsHestar) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      "Hestar resource sharing requires exactly one endpoint to be Hestar",
+    );
+  }
+  const ordinary = sourceIsHestar ? destination : source;
+  if (ordinary.kind !== "ordinary") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "The other endpoint must be one ordinary Hierophant Temple");
+  }
+  if (ordinary.doctrine.kind === "blasphemy") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Cannot share with Hestar while Blasphemous");
+  }
+  const sourceBefore = resourceCount(source, rawInput.resource);
+  const destinationBefore = resourceCount(destination, rawInput.resource);
+  if (sourceBefore < HESTAR_TRANSFER_AMOUNT) {
+    const label = rawInput.resource === "abundance" ? "Abundance" : "Conviction";
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `${label} source has 0 available`);
+  }
+  const sourceAfter = sourceBefore - HESTAR_TRANSFER_AMOUNT;
+  const destinationAfter = destinationBefore + HESTAR_TRANSFER_AMOUNT;
+  if (sourceAfter < 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Transfer would create a negative resource count");
+  }
+  const temples = state.hierophant.temples.map((temple) => {
+    if (temple.templeId === source.templeId) return withResource(temple, rawInput.resource, sourceAfter);
+    if (temple.templeId === destination.templeId) return withResource(temple, rawInput.resource, destinationAfter);
+    return temple;
+  });
+  return {
+    nextState: {
+      ...state,
+      hierophant: {
+        ...state.hierophant,
+        temples,
+      },
+    },
+    events: [{
+      type: "hierophant_hestar_resource_transferred",
+      version: 1,
+      data: {
+        resource: rawInput.resource,
+        sourceTempleId: source.templeId,
+        destinationTempleId: destination.templeId,
+        amount: HESTAR_TRANSFER_AMOUNT,
+        sourceBefore,
+        sourceAfter,
+        destinationBefore,
+        destinationAfter,
+      },
+    }],
+  };
+}
+
+export function assertHierophantHestarTransferRevision(
+  currentRevision: number,
+  expectedRevision: number,
+): void {
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid expectedRevision: ${expectedRevision}`);
+  }
+  if (currentRevision !== expectedRevision) {
+    throw new DomainError(
+      "STALE_CAMPAIGN_REVISION",
+      `Hestar transfer is out of date. Expected revision ${expectedRevision}, current is ${currentRevision}`,
     );
   }
 }

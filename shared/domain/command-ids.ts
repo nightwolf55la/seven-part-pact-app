@@ -401,6 +401,25 @@ export function resolveHierophantVisionsFingerprint(
   return `resolve_hierophant_visions:v1:${canonicalJsonStringify({ expectedCampaignId, expectedRevision, choices })}`;
 }
 
+export function transferHierophantHestarResourceFingerprint(
+  expectedCampaignId: string,
+  expectedRevision: number,
+  resource: "abundance" | "conviction" | string,
+  sourceTempleId: string,
+  destinationTempleId: string,
+): string {
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+    throw new Error(`transferHierophantHestarResourceFingerprint requires a non-negative safe integer expectedRevision, got ${expectedRevision}`);
+  }
+  return `transfer_hierophant_hestar_resource:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    expectedRevision,
+    resource,
+    sourceTempleId,
+    destinationTempleId,
+  })}`;
+}
+
 export function addSupplicantFingerprint(expectedCampaignId: string, supplicant: unknown): string {
   return `add_supplicant:v1:${canonicalJsonStringify({ expectedCampaignId, supplicant })}`;
 }
