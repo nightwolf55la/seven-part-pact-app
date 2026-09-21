@@ -78,7 +78,7 @@ Before starting new repository work, verify current `main`, status, and HEAD rat
 
 ## Current Milestone State
 
-As of September 20, 2026, **all seven Wizard Domains have structural CampaignState foundations**, M5.3 shared Lore/Compendium foundations are complete, and M5.4 active-table operability work is in progress at a deliberate pace. Lore/Compendium, Sorcerer, Hierophant, Necromancer, Mariner, and Faustian (M5.4A-F) operability Workstreams are complete. M5.4 Table-Readiness UI/UX Batch 2 is merged (PR #29) and retired as an implementation Workstream. M5.4-2F Faustian Table-Readiness is merged (PR #32) and **HUMAN VERIFIED / ACCEPTED** for its table-readiness tranche; a follow-up Faustian UX-refinement Workstream is now approved as continued refinement, not a correction of that acceptance. **M5.4-2H Hierophant Steer / Benefaction is complete** on branch `m5-4/table-readiness-ux-hierophant` (feature PR pending merge). The former deadline-driven minimum table-readiness posture is no longer the project's active optimization target; Domain surfaces may continue toward genuinely pleasant sustained use. Faustian is not a substitute for all of M5.4. Warlock and Sage remain deferred unless the human changes priority. CampaignState V5 remains PRE-ACTIVATION.
+As of September 21, 2026, **all seven Wizard Domains have structural CampaignState foundations**, M5.3 shared Lore/Compendium foundations are complete, and M5.4 active-table operability work is in progress at a deliberate pace. Lore/Compendium, Sorcerer, Hierophant, Necromancer, Mariner, and Faustian (M5.4A-F) operability Workstreams are complete. M5.4 Table-Readiness UI/UX Batch 2 is merged (PR #29) and retired as an implementation Workstream. M5.4-2F Faustian Table-Readiness is merged (PR #32) and **HUMAN VERIFIED / ACCEPTED** for its table-readiness tranche; a follow-up Faustian UX-refinement Workstream is now approved as continued refinement, not a correction of that acceptance. M5.4-2H Hierophant Table-Readiness is merged (PR #31) and **CLOSED / MERGED / RETIRED**. Closure does not mean Hierophant UX is complete and does not mean all of M5.4 is complete. Four peer Domain UX-refinement Workstreams — Hierophant, Mariner, Necromancer, and Faustian — should begin implementation from the same post-closure `main` baseline. The former deadline-driven minimum table-readiness posture is no longer the project's active optimization target; Domain surfaces may continue toward genuinely pleasant sustained use. Faustian is not a substitute for all of M5.4. Warlock and Sage remain deferred unless the human changes priority. CampaignState V5 remains PRE-ACTIVATION.
 
 ### M1 — Realtime Foundation
 
@@ -434,28 +434,78 @@ Nonblocking deferred UX/minor debt:
 
 No Production deployment. CampaignState V5 remains PRE-ACTIVATION.
 
-#### M5.4-2H — Hierophant Steer Time, atomic Steer, and Benefaction
+#### M5.4-2H — Hierophant Table-Readiness
 
-**COMPLETE / READY FOR MERGE** on workstream branch `m5-4/table-readiness-ux-hierophant`. Feature branch `cursor/hierophant-steer-time-2bde`.
+**CLOSED / MERGED / RETIRED.** PR #31.
 
-Delivered the Master-approved in-place PRE-ACTIVATION V5 `TimeDestination` variant `{ kind: "hierophant_supplicant", denizenId }`, ordinary Planning/Story scheduling of Time onto a current Supplicant, atomic `steerHierophantSupplicant` (spend matching Time + move + remove 1 Woe + one semantic event + one revision/snapshot), and explicit `departHierophantSupplicantWithBenefaction`. Woe 1 → 0 persists; Benefaction is not automatic. Real Convex cloud Preview proof on `cursor/hierophant-steer-time-2bde` / `perceptive-guineapig-864` (not Development, not Production). CampaignState V5 remains PRE-ACTIVATION. No V6. No migration.
+This Workstream is retired as table-readiness implementation. Closure does **not** mean Hierophant UX is complete and does **not** mean all of M5.4 is complete. Historical acceptance is preserved; later Hierophant UX-refinement is continued sustained-use quality, not a correction of this closure.
 
-See `docs/m5-4-2h-hierophant-steer-benefaction.md`.
+Former branch: `m5-4/table-readiness-ux-hierophant`
 
-Do not continue this Workstream into Doctrine/Sermon, Cult departure, Hestar Provide, or general Hierophant polish. Merge, then start later Hierophant UX-refinement from post-merge `main`. Do not mark all of M5.4 complete.
+Feature HEAD before merge: `2a92089c5c7d0d0692a21fe2ec7add9196d2fb6e`
+
+Merge/`main` SHA: `127ca1794dc6c47d296c5154c238c632affa4a71`
+
+This is a later table-readiness layer on top of the prior M5.4A-HN Temple-board/operability foundation. It does not replace that history.
+
+Major completed / **HUMAN VERIFIED** bodies:
+
+- physical/table-readiness Temple board foundation;
+- direct Woe editing and threshold presentation;
+- direct resource interaction;
+- Supplicant supply / Receive;
+- Visions V1 (**HUMAN VERIFIED**);
+- atomic same-resource Hestar sharing;
+- typed Hierophant-Supplicant Time targeting;
+- atomic Steer;
+- explicit Benefaction & Depart.
+
+Settled **APPLICATION DESIGN**:
+
+1. Threshold states:
+   - Woe 0 may persist;
+   - Woe 5+ may persist;
+   - Visions, Steer, and direct Woe changes do not automatically invoke Benefaction or Cult departure;
+   - Benefaction & Depart is explicit human intent.
+2. Typed Supplicant Time:
+   - Steer exposed a real representability gap because SOURCE requires Time scheduled on a particular Supplicant;
+   - PRE-ACTIVATION V5 now includes the narrow Time destination `{ kind: "hierophant_supplicant", denizenId }`;
+   - this was intentional in-place PRE-ACTIVATION evolution;
+   - no V6/migration was introduced;
+   - do not replace this with note/free-text targeting or generic Domain-Time inference.
+3. Steer:
+   - spends the matching pending targeted Time;
+   - moves the Supplicant;
+   - removes 1 Woe;
+   - one authoritative semantic transaction/event/revision.
+
+Closing Steer/Benefaction proof is recorded in `docs/m5-4-2h-hierophant-steer-benefaction.md`, including real Convex cloud Preview on `cursor/hierophant-steer-time-2bde` / `perceptive-guineapig-864` (not Development, not Production).
+
+Unresolved / deferred Hierophant items:
+
+- Depart for Cult remains blocked on unresolved Cult placement/creation semantics;
+- Hestar Provide remains unresolved because of contradictory source wording;
+- Doctrine/Sermon interaction remains later refinement;
+- broader Hierophant visual/interaction polish remains valid future work.
+
+No Production deployment. CampaignState V5 remains PRE-ACTIVATION.
 
 #### Remaining M5.4 active-table and UX-refinement work
 
-Domain UX continuation is **Domain-specific**, not another giant UI/UX catch-all Workstream. Batch 2 is retired. M5.4-2F Faustian table-readiness is retired for its tranche with acceptance preserved. Multiple Domain-local UX-refinement Workstreams may run in parallel on separate branches when work stays predominantly Domain-local UI/presentation/interaction (see `AGENT_WORKFLOW.md`).
+Domain UX continuation is **Domain-specific**, not another giant UI/UX catch-all Workstream. Batch 2 is retired. M5.4-2F Faustian table-readiness is retired for its tranche with acceptance preserved. M5.4-2H Hierophant Table-Readiness is **CLOSED / MERGED / RETIRED** (PR #31). Multiple Domain-local UX-refinement Workstreams may run in parallel on separate branches when work stays predominantly Domain-local UI/presentation/interaction (see `AGENT_WORKFLOW.md`).
+
+The next phase has four peer Domain-specific UX-refinement Workstreams. Their goal is sustained-use quality, not minimum table-readiness. All four should begin implementation from the same authoritative post-closure `main` baseline after this documentation checkpoint merges.
 
 Current topology:
 
-- **Hierophant UX/operability Workstream: COMPLETE for M5.4-2H.** Visions V1 is **HUMAN VERIFIED**. Hestar transfer, typed Supplicant Time, atomic Steer, and explicit Benefaction & Depart are delivered. Cult departure remains blocked on unresolved Cult semantics. Do not continue this branch into Doctrine/Sermon, Hestar Provide, or general Hierophant polish.
-- **Mariner: NEW dedicated UX-refinement Workstream.** Continue from the verified Batch-2 source-board/direct-manipulation baseline. Do not restart old Mariner UI. UX-025 Stability/Wind remains known partial work but is not the entire scope.
-- **Necromancer: NEW dedicated UX-refinement Workstream.** Continue from the post-Batch-2 Gates board. Focus on actual common-play interaction and presentation friction.
-- **Faustian: NEW follow-up UX-refinement Workstream approved.** M5.4-2F remains **HUMAN VERIFIED / ACCEPTED** for its prior tranche; the new body is continued refinement, not a correction of failed acceptance. Start from the merged source-shaped card table; do not rebuild it.
+- **Hierophant — NEW UX Refinement Workstream.** Continue from the merged M5.4-2H Temple-board / table-readiness baseline. Preserve historical acceptance; do not rebuild the board.
+- **Mariner — UX Refinement Workstream.** Continue from the verified Batch-2 source-board/direct-manipulation baseline. Do not restart old Mariner UI. UX-025 Stability/Wind remains known partial work but is not the entire scope.
+- **Necromancer — UX Refinement Workstream.** Continue from the post-Batch-2 Gates board. Focus on actual common-play interaction and presentation friction.
+- **Faustian — follow-up UX Refinement Workstream.** M5.4-2F remains **HUMAN VERIFIED / ACCEPTED** for its prior tranche; the new body is continued refinement, not a correction of failed acceptance. Start from the merged source-shaped card table; do not rebuild it.
 - **Cross-Domain UX** (deferred UX-005 / UX-006 / UX-011 / UX-015 / UX-020 / UX-021 and related shared conventions) remains a separate concern, not assigned opportunistically to a Domain branch.
 - **Warlock and Sage** remain deferred unless the human changes priority.
+
+Domain-local UI/presentation/interaction may proceed in parallel under the existing `AGENT_WORKFLOW.md` exception. Shared schema, persistence, command architecture, cross-Domain systems, major PlayShell architecture, and substantial unresolved rules interpretations still require Master coordination.
 
 Warlock and Sage are intentionally deferred while they have no active players. Their existing structural state remains authoritative and may be consumed by active-Domain cross-references.
 
@@ -511,9 +561,9 @@ Final hardening for trusted long-running campaigns: deployment/environment safet
 
 ### Current Next Action
 
-Faustian M5.4A-F is merged (PR #27). M5.4 Table-Readiness UI/UX Batch 1 is merged (PR #28) and still needs **human retest**. Batch 2 is merged (PR #29) and retired as an implementation Workstream; **Mariner direct-manipulation HUMAN VERIFIED** (2026-09-18), remaining visual/layout **HUMAN VERIFIED** (2026-09-19), and **real Convex cloud Preview integration** on preview `m5-4/table-readiness-ux-batch-2` / `dependable-loris-864` are recorded on `main`. M5.4-2F Faustian Table-Readiness is merged (PR #32) and **HUMAN VERIFIED / ACCEPTED FOR THIS M5.4 TABLE-READINESS TRANCHE**; broader Faustian UI/visual/layout polish remains later work. UX-025 remains PARTIALLY ADDRESSED (Map Stability / prevailing Wind unencoded). Do not mark all of M5.4 complete.
+Faustian M5.4A-F is merged (PR #27). M5.4 Table-Readiness UI/UX Batch 1 is merged (PR #28) and still needs **human retest**. Batch 2 is merged (PR #29) and retired as an implementation Workstream; **Mariner direct-manipulation HUMAN VERIFIED** (2026-09-18), remaining visual/layout **HUMAN VERIFIED** (2026-09-19), and **real Convex cloud Preview integration** on preview `m5-4/table-readiness-ux-batch-2` / `dependable-loris-864` are recorded on `main`. M5.4-2F Faustian Table-Readiness is merged (PR #32) and **HUMAN VERIFIED / ACCEPTED FOR THIS M5.4 TABLE-READINESS TRANCHE**; broader Faustian UI/visual/layout polish remains later work. M5.4-2H Hierophant Table-Readiness is merged (PR #31) and **CLOSED / MERGED / RETIRED**. UX-025 remains PARTIALLY ADDRESSED (Map Stability / prevailing Wind unencoded). Do not mark all of M5.4 complete.
 
-**M5.4-2H is complete / ready to merge.** After merge, start the new Hierophant, Mariner, Necromancer, and Faustian UX-refinement implementation branches from one shared post-merge `main` baseline. Cross-Domain UX remains separate. Warlock/Sage remain deferred unless the human changes priority. CampaignState V5 remains PRE-ACTIVATION. Do not treat "table readiness" as a deadline or binary M5.4 completion gate.
+After this documentation checkpoint merges, start the four peer Domain UX-refinement Workstreams — **Hierophant**, **Mariner**, **Necromancer**, and **Faustian** — from one shared post-closure `main` baseline. Their goal is sustained-use quality, not minimum table-readiness. Cross-Domain UX remains separate. Warlock/Sage remain deferred unless the human changes priority. CampaignState V5 remains PRE-ACTIVATION. Do not treat "table readiness" as a deadline or binary M5.4 completion gate. Do not rush M5.5 merely to satisfy historical minimum-operability checklists.
 
 ## Explicit Pre-V5-Activation Architecture Review Items
 
