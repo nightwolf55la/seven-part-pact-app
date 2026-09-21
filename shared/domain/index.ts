@@ -142,6 +142,14 @@ export type {
   TempleResourcesAdjustedEventV1,
   HierophantSupplicantCreatedDataV1,
   HierophantSupplicantCreatedEventV1,
+  HierophantVisionsResolvedDataV1,
+  HierophantVisionsResolvedEventV1,
+  HierophantHestarResourceTransferredDataV1,
+  HierophantHestarResourceTransferredEventV1,
+  HierophantSupplicantSteeredDataV1,
+  HierophantSupplicantSteeredEventV1,
+  HierophantSupplicantBenefactionDepartedDataV1,
+  HierophantSupplicantBenefactionDepartedEventV1,
   HierophantEvent,
   MarinerEvent,
   MarinerInitializedDataV1,
@@ -412,6 +420,10 @@ export {
   setSelectedFlameLawsFingerprint,
   addSupplicantFingerprint,
   createHierophantSupplicantFingerprint,
+  resolveHierophantVisionsFingerprint,
+  transferHierophantHestarResourceFingerprint,
+  steerHierophantSupplicantFingerprint,
+  departHierophantSupplicantWithBenefactionFingerprint,
   updateSupplicantFingerprint,
   removeSupplicantFingerprint,
   addProphetFingerprint,
@@ -733,6 +745,10 @@ export type {
   SpecialUseDestination,
   TimeDestinationV4,
   TimeDestinationKindV4,
+  HierophantSupplicantDestination,
+  HierophantTimeDestination,
+  HierophantTimeDestinationKind,
+  WizardTimeDestination,
   DevilCommunityDestination,
   DevilSchemesDestination,
   DevilCompanionDestination,
@@ -757,10 +773,13 @@ export type {
 export {
   ALLOCATION_RESOLUTIONS,
   TIME_DESTINATION_KINDS_V4,
+  HIEROPHANT_TIME_DESTINATION_KINDS,
+  WIZARD_TIME_DESTINATION_KINDS_V5,
   DEVIL_ONLY_TIME_DESTINATION_KINDS,
   TIME_DESTINATION_KINDS_V5,
   TIME_DESTINATION_KINDS,
   isDevilOnlyTimeDestination,
+  isHierophantTimeDestination,
   isWizardTimeDestination,
   isDevilTimeDestination,
 } from "./time-model";
@@ -985,6 +1004,7 @@ export type {
   HestarHierophantStartingTempleDefinition,
   HierophantBuiltinClassId,
   HierophantBuiltinClassDefinition,
+  HierophantBuiltinClassBenefaction,
   HierophantBuiltinDoctrineId,
   HierophantBuiltinBlasphemyId,
   HierophantBuiltinDoctrineDefinition,
@@ -1007,7 +1027,9 @@ export {
   isValidHierophantFlameLawId,
   HIEROPHANT_BUILTIN_CLASS_IDS,
   HIEROPHANT_BUILTIN_CLASS_DEFINITIONS,
+  HIEROPHANT_BUILTIN_CLASS_BENEFACTION,
   isValidHierophantBuiltinClassId,
+  hierophantBuiltinClassBenefaction,
   HIEROPHANT_BUILTIN_DOCTRINE_IDS,
   HIEROPHANT_BUILTIN_BLASPHEMY_IDS,
   HIEROPHANT_BUILTIN_DOCTRINE_DEFINITIONS,
@@ -1064,6 +1086,30 @@ export type {
   HierophantState,
 } from "./hierophant-state";
 export { EMPTY_HIEROPHANT_STATE } from "./hierophant-state";
+
+export type {
+  HierophantVisionsResource,
+  HierophantVisionsDemand,
+  HierophantVisionsSupport,
+  HierophantVisionsWoeProjection,
+  HierophantVisionsThresholdCue,
+  HierophantVisionsRequiredChoice,
+  HierophantVisionsBlocker,
+  HierophantVisionsResourceProjection,
+  HierophantVisionsTemplePreview,
+  HierophantVisionsSupplicantPreview,
+  HierophantVisionsChoices,
+  HierophantVisionsContext,
+  HierophantVisionsPlanKind,
+  HierophantVisionsPlan,
+  HierophantVisionsResourceDeltaFact,
+  HierophantVisionsWoeFact,
+  HierophantVisionsThresholdCueFact,
+  HierophantVisionsHestarUseFact,
+  HierophantVisionsOutcomeFacts,
+  HierophantVisionsResolution,
+} from "./hierophant-visions";
+export { planHierophantVisions, computeHierophantVisionsResolution, hierophantVisionsSupport, hierophantDoctrinePairSupportedClassIds } from "./hierophant-visions";
 
 export { validateHierophantStructure, validateHierophantReferenceIntegrity } from "./hierophant-validation";
 
@@ -2059,10 +2105,24 @@ export {
 export type {
   CreateHierophantSupplicantInput,
   HierophantOperabilityTransitionResult,
+  ResolveHierophantVisionsApplyResult,
+  TransferHierophantHestarResourceInput,
+  SteerHierophantSupplicantInput,
+  DepartHierophantSupplicantWithBenefactionInput,
 } from "./hierophant-operability-transitions";
 export {
   canonicalizeCreateHierophantSupplicantInput,
   applyCreateHierophantSupplicant,
+  canonicalizeHierophantVisionsChoices,
+  hierophantVisionsContextFromCampaign,
+  applyResolveHierophantVisions,
+  assertHierophantVisionsRevision,
+  applyTransferHierophantHestarResource,
+  assertHierophantHestarTransferRevision,
+  applySteerHierophantSupplicant,
+  assertHierophantSteerRevision,
+  applyDepartHierophantSupplicantWithBenefaction,
+  assertHierophantBenefactionDepartRevision,
 } from "./hierophant-operability-transitions";
 
 // --- V5 Integration Transitions (candidate, not active) ---

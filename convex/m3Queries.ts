@@ -3,6 +3,41 @@ import { validateCampaignState, evaluateSetupReadiness, displayNameFromOrdinal, 
 import type { MovablePlanetId } from "../shared/domain";
 import type { LunarPhase } from "../shared/domain";
 
+function hierophantSupplicantLabels(current: ReturnType<typeof validateCampaignState>) {
+  const names = new Map(current.world.denizens.map((denizen) => [denizen.denizenId as string, denizen.name]));
+  return current.hierophant.supplicants.map((person) => ({
+    denizenId: person.denizenId as string,
+    name: names.get(person.denizenId as string) ?? (person.denizenId as string),
+  }));
+}
+
+function pendingHierophantSteerTime(current: ReturnType<typeof validateCampaignState>) {
+  if (current.lifecycle.kind !== "play") return [];
+  const wizardNameById = new Map(current.wizards.map((wizard) => [wizard.wizardId as string, wizard.name]));
+  const rows: {
+    allocationId: string;
+    denizenId: string;
+    wizardId: string;
+    wizardName: string;
+    resolution: "pending" | "spent" | "wasted";
+  }[] = [];
+  for (const tp of current.lifecycle.currentMonth.timeParticipants) {
+    const wizardId = wizardIdOfParticipant(tp.participant) as string | null;
+    if (wizardId === null) continue;
+    for (const alloc of tp.allocations) {
+      if (alloc.destination?.kind !== "hierophant_supplicant") continue;
+      rows.push({
+        allocationId: alloc.allocationId as string,
+        denizenId: alloc.destination.denizenId as string,
+        wizardId,
+        wizardName: wizardNameById.get(wizardId) ?? wizardId,
+        resolution: alloc.resolution,
+      });
+    }
+  }
+  return rows;
+}
+
 export const getCampaignSetup = query({
   args: {},
   handler: async (ctx) => {
@@ -165,6 +200,7 @@ export const getPlanningWorkspace = query({
       timeParticipants,
       engagements,
       modeledWizards,
+      hierophantSupplicants: hierophantSupplicantLabels(current),
     };
   },
 });
@@ -249,6 +285,7 @@ export const getStoryWorkspace = query({
       engagements,
       modeledWizards,
       orreryPositions,
+      hierophantSupplicants: hierophantSupplicantLabels(current),
     };
   },
 });
@@ -581,6 +618,7 @@ export const getHierophantReference = query({
       campaignId: doc.campaignId as string,
       campaignRevision: doc.campaignRevision as number,
       hierophant: current.hierophant,
+      steerTime: pendingHierophantSteerTime(current),
     };
   },
 });

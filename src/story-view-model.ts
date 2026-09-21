@@ -55,6 +55,7 @@ export interface StoryWorkspaceData extends WorkspaceDataLike {
   readonly engagements: readonly StoryEngagement[];
   readonly modeledWizards: readonly ModeledWizard[];
   readonly orreryPositions: OrreryPositions;
+  readonly hierophantSupplicants: readonly { denizenId: string; name: string }[];
 }
 
 export interface StoryWarning {
@@ -123,6 +124,8 @@ export function classifyAllocationActions(
     resolveOrrery = true;
     waste = true;
   } else if (dest.kind === "engagement") {
+    waste = true;
+  } else if (dest.kind === "hierophant_supplicant") {
     waste = true;
   } else if (MANUAL_SPEND_KINDS.has(dest.kind)) {
     markSpent = true;
@@ -213,6 +216,7 @@ export const STORY_RESCHEDULE_CHOICES: readonly DestinationChoice[] = [
   "meeting",
   "domain",
   "special_use",
+  "hierophant_supplicant",
 ] as const;
 
 // --- Engagement target reschedule choices (excludes not_targeted) ---

@@ -31,6 +31,7 @@ import type {
   CompanionRelationshipId,
   DenizenId,
   IsleId,
+  AllocationId,
   LoreCollectionId,
   LoreEntryId,
   PlaceId,
@@ -48,6 +49,7 @@ import type {
   HierophantDogmaEntryId,
   HierophantProphet,
   HierophantSupplicant,
+  HierophantSupplicantHost,
   HierophantTemple,
   HierophantTempleArea,
   HierophantTempleStatus,
@@ -781,6 +783,100 @@ export interface HierophantSupplicantCreatedEventV1 {
   readonly data: HierophantSupplicantCreatedDataV1;
 }
 
+export interface HierophantVisionsResolvedWoeChangeV1 {
+  readonly denizenId: DenizenId;
+  readonly templeId: HierophantTempleId;
+  readonly from: number;
+  readonly to: number;
+  readonly support: "supported" | "unsupported" | "not_determined" | "not_applicable";
+}
+
+export interface HierophantVisionsResolvedResourceDeltaV1 {
+  readonly templeId: HierophantTempleId;
+  readonly resource: "abundance" | "conviction";
+  readonly before: number;
+  readonly after: number;
+  readonly delta: number;
+}
+
+export interface HierophantVisionsResolvedHestarUseV1 {
+  readonly kind: "fallback" | "donor";
+  readonly denizenId: DenizenId;
+  readonly hostedTempleId: HierophantTempleId;
+  readonly sourceTempleId: HierophantTempleId;
+  readonly resource: "abundance" | "conviction";
+  readonly amount: number;
+}
+
+export interface HierophantVisionsResolvedChoicesV1 {
+  readonly artisanPayments?: Readonly<Partial<Record<string, "abundance" | "conviction">>>;
+  readonly hestarFallback?: Readonly<Partial<Record<string, boolean>>>;
+  readonly hestarDonors?: Readonly<Partial<Record<string, HierophantTempleId>>>;
+  readonly supplicantOrder?: readonly DenizenId[];
+}
+
+export interface HierophantVisionsResolvedDataV1 {
+  readonly monthOrdinal: number | null;
+  readonly choices: HierophantVisionsResolvedChoicesV1;
+  readonly woeChanges: readonly HierophantVisionsResolvedWoeChangeV1[];
+  readonly resourceDeltas: readonly HierophantVisionsResolvedResourceDeltaV1[];
+  readonly hestarUses: readonly HierophantVisionsResolvedHestarUseV1[];
+}
+
+export interface HierophantVisionsResolvedEventV1 {
+  readonly type: "hierophant_visions_resolved";
+  readonly version: 1;
+  readonly data: HierophantVisionsResolvedDataV1;
+}
+
+export interface HierophantHestarResourceTransferredDataV1 {
+  readonly resource: "abundance" | "conviction";
+  readonly sourceTempleId: HierophantTempleId;
+  readonly destinationTempleId: HierophantTempleId;
+  readonly amount: 1;
+  readonly sourceBefore: number;
+  readonly sourceAfter: number;
+  readonly destinationBefore: number;
+  readonly destinationAfter: number;
+}
+
+export interface HierophantHestarResourceTransferredEventV1 {
+  readonly type: "hierophant_hestar_resource_transferred";
+  readonly version: 1;
+  readonly data: HierophantHestarResourceTransferredDataV1;
+}
+
+export interface HierophantSupplicantSteeredDataV1 {
+  readonly denizenId: DenizenId;
+  readonly denizenName: string;
+  readonly allocationId: AllocationId;
+  readonly fromHost: HierophantSupplicantHost;
+  readonly toHost: HierophantSupplicantHost;
+  readonly woeBefore: number;
+  readonly woeAfter: number;
+}
+export interface HierophantSupplicantSteeredEventV1 {
+  readonly type: "hierophant_supplicant_steered";
+  readonly version: 1;
+  readonly data: HierophantSupplicantSteeredDataV1;
+}
+
+export interface HierophantSupplicantBenefactionDepartedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly denizenName: string;
+  readonly classId: HierophantClassId;
+  readonly templeId: HierophantTempleId;
+  readonly resource: "abundance" | "conviction";
+  readonly amount: number;
+  readonly resourceBefore: number;
+  readonly resourceAfter: number;
+}
+export interface HierophantSupplicantBenefactionDepartedEventV1 {
+  readonly type: "hierophant_supplicant_benefaction_departed";
+  readonly version: 1;
+  readonly data: HierophantSupplicantBenefactionDepartedDataV1;
+}
+
 export interface SupplicantAddedDataV1 {
   readonly supplicant: HierophantSupplicant;
 }
@@ -1185,6 +1281,10 @@ export type HierophantEvent =
   | TempleHolidayChangedEventV1
   | FlameLawsChangedEventV1
   | HierophantSupplicantCreatedEventV1
+  | HierophantVisionsResolvedEventV1
+  | HierophantHestarResourceTransferredEventV1
+  | HierophantSupplicantSteeredEventV1
+  | HierophantSupplicantBenefactionDepartedEventV1
   | SupplicantAddedEventV1
   | SupplicantUpdatedEventV1
   | SupplicantRemovedEventV1

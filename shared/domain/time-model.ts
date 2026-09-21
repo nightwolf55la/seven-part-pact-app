@@ -62,6 +62,18 @@ export const TIME_DESTINATION_KINDS_V4 = [
   "meeting", "domain", "engagement", "special_use",
 ] as const;
 
+export interface HierophantSupplicantDestination {
+  readonly kind: "hierophant_supplicant";
+  readonly denizenId: DenizenId;
+}
+
+export const HIEROPHANT_TIME_DESTINATION_KINDS = [
+  "hierophant_supplicant",
+] as const;
+
+export type HierophantTimeDestinationKind = (typeof HIEROPHANT_TIME_DESTINATION_KINDS)[number];
+export type HierophantTimeDestination = HierophantSupplicantDestination;
+
 export type TimeDestinationKindV4 = (typeof TIME_DESTINATION_KINDS_V4)[number];
 
 export interface DevilCommunityDestination {
@@ -121,10 +133,17 @@ export const DEVIL_ONLY_TIME_DESTINATION_KINDS = [
 
 export type DevilOnlyTimeDestinationKind = (typeof DEVIL_ONLY_TIME_DESTINATION_KINDS)[number];
 
-export type TimeDestinationV5 = TimeDestinationV4 | DevilOnlyTimeDestination;
+export type WizardTimeDestination = TimeDestinationV4 | HierophantTimeDestination;
+
+export const WIZARD_TIME_DESTINATION_KINDS_V5 = [
+  ...TIME_DESTINATION_KINDS_V4,
+  ...HIEROPHANT_TIME_DESTINATION_KINDS,
+] as const;
+
+export type TimeDestinationV5 = WizardTimeDestination | DevilOnlyTimeDestination;
 
 export const TIME_DESTINATION_KINDS_V5 = [
-  ...TIME_DESTINATION_KINDS_V4,
+  ...WIZARD_TIME_DESTINATION_KINDS_V5,
   ...DEVIL_ONLY_TIME_DESTINATION_KINDS,
 ] as const;
 
@@ -140,8 +159,14 @@ export function isDevilOnlyTimeDestination(
   return (DEVIL_ONLY_TIME_DESTINATION_KINDS as readonly string[]).includes(dest.kind);
 }
 
-export function isWizardTimeDestination(dest: TimeDestination): dest is TimeDestinationV4 {
-  return (TIME_DESTINATION_KINDS_V4 as readonly string[]).includes(dest.kind);
+export function isHierophantTimeDestination(
+  dest: TimeDestination,
+): dest is HierophantTimeDestination {
+  return (HIEROPHANT_TIME_DESTINATION_KINDS as readonly string[]).includes(dest.kind);
+}
+
+export function isWizardTimeDestination(dest: TimeDestination): dest is WizardTimeDestination {
+  return (WIZARD_TIME_DESTINATION_KINDS_V5 as readonly string[]).includes(dest.kind);
 }
 
 export function isDevilTimeDestination(dest: TimeDestination): dest is DevilTimeDestination {

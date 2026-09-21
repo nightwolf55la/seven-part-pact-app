@@ -17,6 +17,7 @@ import {
   denizenLabel,
   deriveSupplicantSupport,
   baseBenefactionReference,
+  formatVisionsTempleWarnings,
   hierophantSetupReady,
   hierophantSourceSetupReady,
   hostedProphets,
@@ -32,9 +33,14 @@ import {
   newDogmaEntryId,
   newPlaceId,
   placeLabel,
+  persistableSupplicantName,
+  personPieceName,
+  supplicantGivenName,
   templeDisplayName,
   templeEditCapabilities,
+  templeSupportedClassLabels,
   unresolvedStartingTemples,
+  woeThresholdCueLabel,
 } from "../src/hierophant-view-model";
 import type { HierophantProphet, HierophantSupplicant, HierophantTemple } from "../shared/domain";
 
@@ -286,8 +292,69 @@ describe("Hierophant command payload helpers", () => {
     expect(baseBenefactionReference("hcl_custom")).toEqual({ kind: "not_determined" });
   });
 
+  it("shows Blasphemous Doctrine pair support rather than supporting nobody", () => {
+    const blasphemous: HierophantTemple = {
+      templeId: "krolis",
+      kind: "ordinary",
+      placeId: "plc_krolis" as HierophantTemple["placeId"],
+      hostSeatId: "hierophant",
+      status: "active",
+      abundance: 5,
+      conviction: 4,
+      doctrine: { kind: "blasphemy", blasphemyId: "old_land_demands_blood" },
+    };
+    expect(deriveSupplicantSupport(blasphemous, "peasant", [])).toBe("supported");
+    expect(deriveSupplicantSupport(blasphemous, "artisan", [])).toBe("supported");
+    expect(deriveSupplicantSupport(blasphemous, "gentry", [])).toBe("unsupported");
+    expect(templeSupportedClassLabels(blasphemous, [], [])).toEqual(["Artisan", "Peasant"]);
+  });
+
+  it("uses table-facing Visions warning copy and names Hestar donors", () => {
+    expect(formatVisionsTempleWarnings({
+      templeId: "krolis",
+      abundance: { before: 5, delta: null, after: null },
+      conviction: { before: 4, delta: 0, after: 4 },
+      shortage: null,
+      hestarFallback: "not_needed",
+      hestarDonor: "not_needed",
+      reliableProphetProduction: true,
+      orderChoiceRequired: false,
+      unresolved: true,
+    })).toEqual(["Prophet affects this production · resolve at the table"]);
+    expect(formatVisionsTempleWarnings({
+      templeId: "hestar",
+      abundance: { before: 0, delta: null, after: null },
+      conviction: { before: 5, delta: 0, after: 5 },
+      shortage: null,
+      hestarFallback: "not_needed",
+      hestarDonor: "choice_required",
+      reliableProphetProduction: false,
+      orderChoiceRequired: false,
+      unresolved: true,
+    }, { donorAmount: 1, donorResource: "abundance", donorLabels: ["Krolis", "Zephon"] })).toEqual([
+      "Hestar needs 1 Abundance · choose Krolis or Zephon",
+    ]);
+  });
+
   it("treats empty temples as uninitialized", () => {
     expect(isHierophantInitialized(EMPTY_HIEROPHANT_STATE)).toBe(false);
     expect(isHierophantInitialized({ temples: [{ templeId: "krolis" }] as never })).toBe(true);
+  });
+
+  it("keeps a generated Class identity when the display name is empty", () => {
+    expect(persistableSupplicantName("", "Peasant")).toBe("Peasant");
+    expect(persistableSupplicantName("  Marta  ", "Peasant")).toBe("Marta");
+    expect(supplicantGivenName("Peasant", "Peasant")).toBeNull();
+    expect(supplicantGivenName("Acolyte Ann", "Peasant")).toBe("Acolyte Ann");
+    expect(supplicantGivenName("Unknown Denizen", "Peasant")).toBeNull();
+    expect(personPieceName("Unknown Denizen")).toBeNull();
+    expect(personPieceName("Prophet Ilya")).toBe("Prophet Ilya");
+  });
+
+  it("labels current Woe thresholds without implying they have already fired", () => {
+    expect(woeThresholdCueLabel(0)).toBe("Ready for Benefaction");
+    expect(woeThresholdCueLabel(4)).toBeNull();
+    expect(woeThresholdCueLabel(5)).toBe("Cult departure due");
+    expect(woeThresholdCueLabel(7)).toBe("Cult departure due");
   });
 });

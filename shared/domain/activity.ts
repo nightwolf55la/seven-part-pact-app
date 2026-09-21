@@ -5,6 +5,10 @@ import type {
 } from "./events";
 import { displayNameFromOrdinal } from "./calendar";
 import { MARINER_BOARD_ISLE_DEFINITIONS, MARINER_SEA_REGION_DEFINITIONS } from "./mariner-catalogs";
+import {
+  hierophantStartingTempleDisplayName,
+  isValidHierophantStartingTempleId,
+} from "./hierophant-catalogs";
 
 function marinerBoardIsleLabel(boardIsleId: string): string {
   return MARINER_BOARD_ISLE_DEFINITIONS.find((definition) => definition.boardIsleId === boardIsleId)?.displayName
@@ -196,6 +200,25 @@ function describeConfigEvent(event: CampaignEvent): string {
       return "Changed selected Laws of the Flame";
     case "hierophant_supplicant_created":
       return `Received Supplicant "${event.data.denizenName}"`;
+    case "hierophant_visions_resolved":
+      return "Resolved Hierophant Visions";
+    case "hierophant_hestar_resource_transferred": {
+      const resource = event.data.resource === "abundance" ? "Abundance" : "Conviction";
+      if (event.data.destinationTempleId === "hestar") {
+        return `Transferred ${resource} to Hestar`;
+      }
+      const destination = isValidHierophantStartingTempleId(event.data.destinationTempleId)
+        ? hierophantStartingTempleDisplayName(event.data.destinationTempleId).replace(/^Temple /, "")
+        : event.data.destinationTempleId;
+      if (event.data.sourceTempleId === "hestar") {
+        return `Transferred ${resource} from Hestar to ${destination}`;
+      }
+      return `Transferred ${resource}`;
+    }
+    case "hierophant_supplicant_steered":
+      return `Steered Supplicant "${event.data.denizenName}"`;
+    case "hierophant_supplicant_benefaction_departed":
+      return `Departed Supplicant "${event.data.denizenName}" with Benefaction`;
     case "supplicant_added":
       return "Added Supplicant";
     case "supplicant_updated":
@@ -607,6 +630,10 @@ export function mapEventToActivityEntry(
     case "temple_holiday_changed":
     case "flame_laws_changed":
     case "hierophant_supplicant_created":
+    case "hierophant_visions_resolved":
+    case "hierophant_hestar_resource_transferred":
+    case "hierophant_supplicant_steered":
+    case "hierophant_supplicant_benefaction_departed":
     case "supplicant_added":
     case "supplicant_updated":
     case "supplicant_removed":
