@@ -52,6 +52,14 @@ import {
   type HierophantSupplyClassId,
   type HierophantSupplyZone,
 } from "./hierophant-supply";
+import {
+  beginHierophantSteerDrag,
+  endHierophantSteerDrag,
+  hierophantSteerDragIsActive,
+  liveHierophantSteerDenizenId,
+  readHierophantSteerDragDenizenId,
+  writeHierophantSteerDragData,
+} from "./hierophant-steer";
 
 export interface HierophantVisionsBoardChoices {
   readonly plan: HierophantVisionsPlan;
@@ -81,6 +89,22 @@ export interface HierophantSupplyBoardInteraction {
     temple: HierophantTemple,
     zone: HierophantSupplyZone,
     classIdFromDrag?: string | null,
+  ) => void;
+  readonly onCancel: () => void;
+}
+
+export interface HierophantSteerBoardInteraction {
+  readonly draggingDenizenId: string | null;
+  readonly hoverKey: string | null;
+  readonly notice: { readonly denizenId: string; readonly reason: string } | null;
+  readonly pendingDenizenIds: ReadonlySet<string>;
+  readonly peekDraggingDenizenId: () => string | null;
+  readonly onBegin: (denizenId: string) => void;
+  readonly onHover: (key: string | null) => void;
+  readonly onDeliver: (
+    temple: HierophantTemple,
+    zone: HierophantSupplyZone,
+    denizenIdFromDrag?: string | null,
   ) => void;
   readonly onCancel: () => void;
 }
@@ -138,6 +162,7 @@ function SupplyClassPiece({
       }`}
       onDragStart={(event: DragEvent<HTMLDivElement>) => {
         ignoreClickRef.current = true;
+        endHierophantSteerDrag();
         beginHierophantSupplyDrag(classId);
         writeHierophantSupplyDragData(event.dataTransfer, classId);
         supply.onBegin(classId);
@@ -215,65 +240,107 @@ function SupplyDropZone({
   temple,
   zone,
   supply,
+  steer,
   children,
   className = "",
 }: {
   readonly temple: HierophantTemple;
   readonly zone: HierophantSupplyZone;
   readonly supply: HierophantSupplyBoardInteraction | null;
+  readonly steer: HierophantSteerBoardInteraction | null;
   readonly children: ReactNode;
   readonly className?: string;
 }) {
   const dest = resolveHierophantSupplyDestination(temple, zone);
   const key = `${temple.templeId}:${zone}`;
-  const renderedActive = supply !== null && supply.activeClassId !== null;
-  const hovering = renderedActive && supply.hoverKey === key;
-  const highlight = hovering && dest !== null ? dest.highlight : null;
-  const idleHint = renderedActive && dest !== null && dest.highlight === "recommended" && !hovering
+  const renderedSupplyActive = supply !== null && supply.activeClassId !== null;
+  const renderedSteerActive = steer !== null && steer.draggingDenizenId !== null;
+  const hoveringSupply = renderedSupplyActive && supply.hoverKey === key;
+  const hoveringSteer = renderedSteerActive && steer.hoverKey === key;
+  const highlight = hoveringSupply && dest !== null ? dest.highlight : hoveringSteer ? "recommended" : null;
+  const idleHint = renderedSupplyActive && dest !== null && dest.highlight === "recommended" && !hoveringSupply
     ? "ring-1 ring-amber-300/80 dark:ring-amber-700/80"
-    : renderedActive && dest !== null && dest.highlight === "alternative" && !hovering
+    : renderedSupplyActive && dest !== null && dest.highlight === "alternative" && !hoveringSupply
       ? "ring-1 ring-amber-200/70 dark:ring-amber-800/70"
-      : "";
-  function dragIsLive(dataTransfer: DataTransfer | null | undefined): boolean {
+      : renderedSteerActive && !hoveringSteer
+        ? "ring-1 ring-amber-300/80 dark:ring-amber-700/80"
+        : "";
+  function supplyIsLive(dataTransfer: DataTransfer | null | undefined): boolean {
     if (supply === null) return false;
     return hierophantSupplyDragIsActive(dataTransfer, supply.peekActiveClassId, supply.activeClassId);
   }
-  function deliver(dataTransfer?: DataTransfer | null): void {
+  function steerIsLive(dataTransfer: DataTransfer | null | undefined): boolean {
+    if (steer === null) return false;
+    return hierophantSteerDragIsActive(dataTransfer, steer.peekDraggingDenizenId, steer.draggingDenizenId);
+  }
+  function deliverSupply(dataTransfer?: DataTransfer | null): void {
     if (supply === null) return;
-    if (!dragIsLive(dataTransfer ?? null)) return;
+    if (!supplyIsLive(dataTransfer ?? null)) return;
     supply.onDeliver(
       temple,
       zone,
       readHierophantSupplyDragClass(dataTransfer ?? null) ?? liveHierophantSupplyClass(),
     );
   }
+  function deliverSteer(dataTransfer?: DataTransfer | null): void {
+    if (steer === null) return;
+    if (!steerIsLive(dataTransfer ?? null)) return;
+    const denizenId = readHierophantSteerDragDenizenId(dataTransfer ?? null) ?? liveHierophantSteerDenizenId();
+    endHierophantSteerDrag();
+    steer.onDeliver(temple, zone, denizenId);
+  }
   return (
     <div
       data-supply-drop={zone}
+      data-steer-drop={zone}
       className={`${className} ${supplyHighlightClass(highlight)} ${idleHint} rounded-md transition-shadow`}
       onDragEnter={(event) => {
-        if (supply === null || !dragIsLive(event.dataTransfer)) return;
+        if (steerIsLive(event.dataTransfer)) {
+          event.preventDefault();
+          steer?.onHover(key);
+          return;
+        }
+        if (supply === null || !supplyIsLive(event.dataTransfer)) return;
         event.preventDefault();
         supply.onHover(key);
       }}
       onDragOver={(event) => {
-        if (supply === null || !dragIsLive(event.dataTransfer)) return;
+        if (steerIsLive(event.dataTransfer)) {
+          event.preventDefault();
+          if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+          steer?.onHover(key);
+          return;
+        }
+        if (supply === null || !supplyIsLive(event.dataTransfer)) return;
         event.preventDefault();
         if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
         supply.onHover(key);
       }}
       onDragLeave={(event) => {
         if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        if (steer?.hoverKey === key) steer.onHover(null);
         if (supply?.hoverKey === key) supply.onHover(null);
       }}
       onDrop={(event) => {
         event.preventDefault();
-        deliver(event.dataTransfer);
+        if (steerIsLive(event.dataTransfer)) {
+          deliverSteer(event.dataTransfer);
+          return;
+        }
+        if (supplyIsLive(event.dataTransfer)) {
+          deliverSupply(event.dataTransfer);
+        }
       }}
       onClick={(event) => {
-        if (!renderedActive || dest === null) return;
-        event.stopPropagation();
-        deliver();
+        if (renderedSupplyActive && dest !== null) {
+          event.stopPropagation();
+          deliverSupply();
+          return;
+        }
+        if (renderedSteerActive) {
+          event.stopPropagation();
+          deliverSteer();
+        }
       }}
     >
       {children}
@@ -675,6 +742,7 @@ function SupplicantPiece({
   onArtisanPayment,
   onHestarFallback,
   onOrderSelect,
+  steer,
 }: {
   readonly person: HierophantSupplicant;
   readonly preview: HierophantVisionsSupplicantPreview | undefined;
@@ -692,6 +760,7 @@ function SupplicantPiece({
   readonly onArtisanPayment: (resource: HierophantVisionsResource) => void;
   readonly onHestarFallback: (useHestar: boolean) => void;
   readonly onOrderSelect: () => void;
+  readonly steer: HierophantSteerBoardInteraction | null;
 }) {
   const storedName = denizenLabel(denizens, person.denizenId);
   const klass = classLabel(person.classId, campaignClasses);
@@ -717,25 +786,57 @@ function SupplicantPiece({
     if (orderSelectable && orderIndex === null) onOrderSelect();
   };
   const subjectLabel = givenName ?? klass;
+  const timeScheduled = steer?.pendingDenizenIds.has(person.denizenId) === true;
+  const steerable = person.woe >= 1;
   const primaryLabel = orderSelectable && orderIndex === null
     ? `Add ${klass}${givenName === null ? "" : ` ${givenName}`} to Visions order`
     : accessible;
+  const ignoreClickRef = useRef(false);
   return (
     <li>
       <div
         data-supplicant-piece={person.denizenId}
+        data-steer-draggable={steerable ? "true" : "false"}
+        data-steer-time={timeScheduled ? "pending" : "none"}
+        draggable={steerable}
         className={`relative rounded-md border px-2 py-1 shadow-sm ${
           danger
             ? "border-rose-400 bg-rose-50 dark:border-rose-500 dark:bg-rose-950/40"
             : "border-amber-800/40 bg-amber-50 dark:border-amber-600/50 dark:bg-amber-950/30"
-        } ${selected ? "ring-1 ring-amber-700 dark:ring-amber-300" : ""}`}
+        } ${selected ? "ring-1 ring-amber-700 dark:ring-amber-300" : ""} ${
+          steerable ? "cursor-grab active:cursor-grabbing" : ""
+        }`}
+        onDragStart={(event: DragEvent<HTMLDivElement>) => {
+          if (!steerable) {
+            event.preventDefault();
+            return;
+          }
+          ignoreClickRef.current = true;
+          endHierophantSupplyDrag();
+          beginHierophantSteerDrag(person.denizenId);
+          writeHierophantSteerDragData(event.dataTransfer, person.denizenId);
+          steer?.onBegin(person.denizenId);
+        }}
+        onDragEnd={() => {
+          window.setTimeout(() => {
+            endHierophantSteerDrag();
+            steer?.onCancel();
+            ignoreClickRef.current = false;
+          }, 0);
+        }}
       >
         <button
           type="button"
           className="w-full text-left cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
           aria-label={primaryLabel}
           aria-pressed={selected}
-          onClick={primaryAction}
+          onClick={() => {
+            if (ignoreClickRef.current) {
+              ignoreClickRef.current = false;
+              return;
+            }
+            primaryAction();
+          }}
           onKeyDown={(event) => activate(event, primaryAction)}
         >
           <PersonPieceHeader
@@ -765,6 +866,11 @@ function SupplicantPiece({
                 }`}
               >
                 {support}
+              </span>
+            )}
+            {timeScheduled && (
+              <span data-steer-time-badge="" className="text-[11px] font-semibold text-amber-900 dark:text-amber-100">
+                Time scheduled
               </span>
             )}
           </div>
@@ -854,6 +960,7 @@ function TemplePiece({
   onSelect,
   choices,
   supply,
+  steer,
   pieces,
 }: {
   readonly temple: HierophantTemple;
@@ -866,6 +973,7 @@ function TemplePiece({
   readonly onSelect: () => void;
   readonly choices: HierophantVisionsBoardChoices;
   readonly supply: HierophantSupplyBoardInteraction | null;
+  readonly steer: HierophantSteerBoardInteraction | null;
   readonly pieces: HierophantPieceControls;
 }) {
   const isHestar = temple.kind === "hestar";
@@ -1070,7 +1178,8 @@ function TemplePiece({
           temple={temple}
           zone="blocked"
           supply={supply}
-          className={supply?.activeClassId !== null ? "min-h-[1.75rem]" : ""}
+          steer={steer}
+          className={supply?.activeClassId !== null || steer?.draggingDenizenId !== null ? "min-h-[1.75rem]" : ""}
         >
           <p className="text-xs font-semibold text-rose-800 dark:text-rose-200">
             {supply?.blockNotice?.templeId === temple.templeId ? supply.blockNotice.reason : null}
@@ -1124,6 +1233,7 @@ function TemplePiece({
                   onArtisanPayment={(resource) => choices.onArtisanPayment(person.denizenId, resource)}
                   onHestarFallback={(useHestar) => choices.onHestarFallback(person.denizenId, useHestar)}
                   onOrderSelect={() => choices.onOrderSelect(person.denizenId)}
+                  steer={steer}
                 />
               ))}
             </ul>
@@ -1132,7 +1242,7 @@ function TemplePiece({
         );
         if (zone === null) return <div key={group.key}>{section}</div>;
         return (
-          <SupplyDropZone key={group.key} temple={temple} zone={zone} supply={supply}>
+          <SupplyDropZone key={group.key} temple={temple} zone={zone} supply={supply} steer={steer}>
             {section}
           </SupplyDropZone>
         );
@@ -1208,6 +1318,7 @@ export default function HierophantTempleBoard({
   onSelectTemple,
   choices,
   supply,
+  steer,
   pieces,
 }: {
   readonly hierophant: HierophantState;
@@ -1218,6 +1329,7 @@ export default function HierophantTempleBoard({
   readonly onSelectTemple: (templeId: string) => void;
   readonly choices: HierophantVisionsBoardChoices;
   readonly supply: HierophantSupplyBoardInteraction;
+  readonly steer: HierophantSteerBoardInteraction;
   readonly pieces: HierophantPieceControls;
 }) {
   const plan = choices.plan;
@@ -1248,12 +1360,21 @@ export default function HierophantTempleBoard({
         onSelect={() => onSelectTemple(temple.templeId)}
         choices={choices}
         supply={supply}
+        steer={steer}
         pieces={pieces}
       />
     );
   }
   return (
     <div className="flex flex-col gap-3">
+      {steer.notice !== null && (
+        <p
+          data-steer-notice=""
+          className="rounded-lg border border-amber-300 bg-amber-50/80 px-3 py-2 text-sm font-medium text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-50"
+        >
+          {steer.notice.reason}
+        </p>
+      )}
       {orderChoice?.kind === "supplicant_order" && (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50/80 px-3 py-2 text-sm dark:border-amber-800 dark:bg-amber-950/40">
           <span className="font-medium">Choose Visions order</span>
@@ -1368,6 +1489,7 @@ export default function HierophantTempleBoard({
               onSelect={() => onSelectTemple(temple.templeId)}
               choices={choices}
               supply={supply}
+              steer={steer}
               pieces={pieces}
             />
           ))}

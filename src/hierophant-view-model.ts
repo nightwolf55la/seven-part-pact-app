@@ -719,11 +719,44 @@ export function buildCreateHierophantSupplicantPayload(args: {
 export const TIME_RECORDING_BOUNDARY =
   "Resolve or record Time in the shared workflow; this control records the Domain result.";
 
+export { STEER_NEEDS_TIME_GUIDANCE, STEER_CHOOSE_WEEK_GUIDANCE } from "./hierophant-steer";
+
+export function buildSteerHierophantSupplicantPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly expectedRevision: number;
+  readonly allocationId: string;
+  readonly denizenId: string;
+  readonly destinationTempleId: string;
+  readonly destinationArea: "courtyard" | "agiary" | null;
+}) {
+  return {
+    commandId: args.commandId,
+    expectedCampaignId: args.expectedCampaignId,
+    expectedRevision: args.expectedRevision,
+    allocationId: args.allocationId,
+    denizenId: args.denizenId,
+    destinationTempleId: args.destinationTempleId,
+    destinationArea: args.destinationArea,
+  };
+}
+
+export function buildDepartHierophantSupplicantWithBenefactionPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly expectedRevision: number;
+  readonly denizenId: string;
+}) {
+  return {
+    commandId: args.commandId,
+    expectedCampaignId: args.expectedCampaignId,
+    expectedRevision: args.expectedRevision,
+    denizenId: args.denizenId,
+  };
+}
+
 export const SERMON_DEFER_GUIDANCE =
   "Sermon is not automated. Insufficient Abundance causes Collapse; insufficient Conviction makes Doctrine Blasphemous, and a Prophet at the Temple may leave, become Disruptive, and found a Cult. Record the table's resolved Doctrine, status, people, and resources with the correction tools.";
-
-export const STEER_DEFER_GUIDANCE =
-  "Steer is not automated. Source Steer moves a Supplicant, removes one Woe, and on last Woe the Supplicant departs with a class Benefaction. Record those exact results separately; do not treat host/Woe correction as Steer.";
 
 export const HOLIDAY_DEFER_GUIDANCE =
   "Holiday celebration is not automated. The marker records that a Holiday is marked. Granting Benefactions, including Reliable Prophet production modifiers, remains a table-resolved recording.";

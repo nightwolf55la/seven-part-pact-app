@@ -93,6 +93,8 @@ import {
   createHierophantSupplicantFingerprint,
   resolveHierophantVisionsFingerprint,
   transferHierophantHestarResourceFingerprint,
+  steerHierophantSupplicantFingerprint,
+  departHierophantSupplicantWithBenefactionFingerprint,
   updateSupplicantFingerprint,
   removeSupplicantFingerprint,
   addProphetFingerprint,
@@ -152,6 +154,10 @@ import {
   assertHierophantVisionsRevision,
   applyTransferHierophantHestarResource,
   assertHierophantHestarTransferRevision,
+  applySteerHierophantSupplicant,
+  assertHierophantSteerRevision,
+  applyDepartHierophantSupplicantWithBenefaction,
+  assertHierophantBenefactionDepartRevision,
   applyUpdateSupplicant,
   applyRemoveSupplicant,
   applyAddProphet,
@@ -1081,17 +1087,7 @@ export const rescheduleTime = mutation({
     commandId: v.string(),
     expectedMonthOrdinal: v.number(),
     allocationId: v.string(),
-    destination: v.union(
-      v.object({ kind: v.literal("companion"), element: v.string() }),
-      v.object({ kind: v.literal("map_isle_sanctum") }),
-      v.object({ kind: v.literal("familiar") }),
-      v.object({ kind: v.literal("orrery") }),
-      v.object({ kind: v.literal("meeting") }),
-      v.object({ kind: v.literal("domain") }),
-      v.object({ kind: v.literal("engagement"), engagementId: v.string() }),
-      v.object({ kind: v.literal("special_use"), description: v.string() }),
-      v.null(),
-    ),
+    destination: v.union(timeDestinationV5Validator, v.null()),
     note: v.union(v.string(), v.null()),
   },
   handler: async (ctx, args) => {
@@ -2383,6 +2379,118 @@ export const transferHierophantHestarResource = mutation({
       ctx,
       args.commandId,
       "transfer_hierophant_hestar_resource",
+      fingerprint,
+      campaign,
+      result,
+    );
+    return { kind: "accepted" as const, revision: receipt.newRevision };
+  },
+});
+
+const hierophantTempleAreaArg = v.union(v.literal("courtyard"), v.literal("agiary"), v.null());
+
+export const steerHierophantSupplicant = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    expectedRevision: v.number(),
+    allocationId: v.string(),
+    denizenId: v.string(),
+    destinationTempleId: v.string(),
+    destinationArea: hierophantTempleAreaArg,
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
+    if (!Number.isSafeInteger(args.expectedRevision) || args.expectedRevision < 0) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid expectedRevision: ${args.expectedRevision}`);
+    }
+    if (!isValidAllocationId(args.allocationId)) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid allocationId: ${args.allocationId}`);
+    }
+    const fingerprint = steerHierophantSupplicantFingerprint(
+      args.expectedCampaignId,
+      args.expectedRevision,
+      args.allocationId,
+      args.denizenId,
+      args.destinationTempleId,
+      args.destinationArea,
+    );
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
+
+    const replay = await checkIdempotency(
+      ctx,
+      campaign.campaignId,
+      args.commandId,
+      "steer_hierophant_supplicant",
+      fingerprint,
+    );
+    if (replay) return { kind: "accepted" as const, revision: replay.newRevision };
+
+    assertHierophantSteerRevision(campaign.currentRevision, args.expectedRevision);
+
+    const result = applySteerHierophantSupplicant(campaign.currentState, {
+      allocationId: args.allocationId as AllocationId,
+      denizenId: args.denizenId as DenizenId,
+      destinationTempleId: args.destinationTempleId as HierophantTempleId,
+      destinationArea: args.destinationArea,
+    });
+
+    const receipt = await commitM3Command(
+      ctx,
+      args.commandId,
+      "steer_hierophant_supplicant",
+      fingerprint,
+      campaign,
+      result,
+    );
+    return { kind: "accepted" as const, revision: receipt.newRevision };
+  },
+});
+
+export const departHierophantSupplicantWithBenefaction = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    expectedRevision: v.number(),
+    denizenId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
+    if (!Number.isSafeInteger(args.expectedRevision) || args.expectedRevision < 0) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid expectedRevision: ${args.expectedRevision}`);
+    }
+    const fingerprint = departHierophantSupplicantWithBenefactionFingerprint(
+      args.expectedCampaignId,
+      args.expectedRevision,
+      args.denizenId,
+    );
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
+
+    const replay = await checkIdempotency(
+      ctx,
+      campaign.campaignId,
+      args.commandId,
+      "depart_hierophant_supplicant_with_benefaction",
+      fingerprint,
+    );
+    if (replay) return { kind: "accepted" as const, revision: replay.newRevision };
+
+    assertHierophantBenefactionDepartRevision(campaign.currentRevision, args.expectedRevision);
+
+    const result = applyDepartHierophantSupplicantWithBenefaction(campaign.currentState, {
+      denizenId: args.denizenId as DenizenId,
+    });
+
+    const receipt = await commitM3Command(
+      ctx,
+      args.commandId,
+      "depart_hierophant_supplicant_with_benefaction",
       fingerprint,
       campaign,
       result,

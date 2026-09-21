@@ -763,7 +763,7 @@ describe("resolve_hierophant_visions validators and registration", () => {
   it("preflights non-ready results before canonical commit", () => {
     const source = readFileSync(join(__dirname, "../convex/m3Commands.ts"), "utf8");
     const start = source.indexOf("export const resolveHierophantVisions");
-    const end = source.indexOf("export const updateSupplicant");
+    const end = source.indexOf("export const transferHierophantHestarResource");
     const body = source.slice(start, end);
     expect(start).toBeGreaterThan(-1);
     expect(body).toContain("assertHierophantVisionsRevision");

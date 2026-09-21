@@ -31,6 +31,7 @@ import type {
   CompanionRelationshipId,
   DenizenId,
   IsleId,
+  AllocationId,
   LoreCollectionId,
   LoreEntryId,
   PlaceId,
@@ -48,6 +49,7 @@ import type {
   HierophantDogmaEntryId,
   HierophantProphet,
   HierophantSupplicant,
+  HierophantSupplicantHost,
   HierophantTemple,
   HierophantTempleArea,
   HierophantTempleStatus,
@@ -844,6 +846,37 @@ export interface HierophantHestarResourceTransferredEventV1 {
   readonly data: HierophantHestarResourceTransferredDataV1;
 }
 
+export interface HierophantSupplicantSteeredDataV1 {
+  readonly denizenId: DenizenId;
+  readonly denizenName: string;
+  readonly allocationId: AllocationId;
+  readonly fromHost: HierophantSupplicantHost;
+  readonly toHost: HierophantSupplicantHost;
+  readonly woeBefore: number;
+  readonly woeAfter: number;
+}
+export interface HierophantSupplicantSteeredEventV1 {
+  readonly type: "hierophant_supplicant_steered";
+  readonly version: 1;
+  readonly data: HierophantSupplicantSteeredDataV1;
+}
+
+export interface HierophantSupplicantBenefactionDepartedDataV1 {
+  readonly denizenId: DenizenId;
+  readonly denizenName: string;
+  readonly classId: HierophantClassId;
+  readonly templeId: HierophantTempleId;
+  readonly resource: "abundance" | "conviction";
+  readonly amount: number;
+  readonly resourceBefore: number;
+  readonly resourceAfter: number;
+}
+export interface HierophantSupplicantBenefactionDepartedEventV1 {
+  readonly type: "hierophant_supplicant_benefaction_departed";
+  readonly version: 1;
+  readonly data: HierophantSupplicantBenefactionDepartedDataV1;
+}
+
 export interface SupplicantAddedDataV1 {
   readonly supplicant: HierophantSupplicant;
 }
@@ -1250,6 +1283,8 @@ export type HierophantEvent =
   | HierophantSupplicantCreatedEventV1
   | HierophantVisionsResolvedEventV1
   | HierophantHestarResourceTransferredEventV1
+  | HierophantSupplicantSteeredEventV1
+  | HierophantSupplicantBenefactionDepartedEventV1
   | SupplicantAddedEventV1
   | SupplicantUpdatedEventV1
   | SupplicantRemovedEventV1

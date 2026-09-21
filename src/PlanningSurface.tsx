@@ -153,6 +153,7 @@ export default function PlanningSurface({ phase, monthOrdinal: _monthOrdinal, de
                 index={idx}
                 allocation={alloc}
                 data={data}
+                denizens={denizens}
                 monthOrdinal={monthOrdinal}
                 scheduleTime={scheduleTime}
                 pending={schedulePending}
@@ -242,6 +243,7 @@ interface AllocationCardProps {
   index: number;
   allocation: PlanningWorkspaceData["timeParticipants"][number]["allocations"][number];
   data: PlanningWorkspaceData;
+  denizens?: readonly { denizenId: string; name: string }[] | null;
   monthOrdinal: number;
   scheduleTime: ReturnType<typeof useMutation<typeof api.m3Commands.scheduleTime>>;
   pending: boolean;
@@ -256,6 +258,7 @@ function AllocationCard({
   index,
   allocation,
   data,
+  denizens,
   monthOrdinal,
   scheduleTime,
   pending,
@@ -264,6 +267,7 @@ function AllocationCard({
   error,
 }: AllocationCardProps) {
   const isPending = allocation.resolution === "pending";
+  const labelData = { ...data, denizens };
 
   const [draftChoice, setDraftChoice] = useState<DestinationChoice>(() => {
     if (allocation.destination === null) return "unscheduled";
@@ -281,10 +285,14 @@ function AllocationCard({
     if (allocation.destination?.kind === "engagement") return allocation.destination.engagementId;
     return "";
   });
+  const [draftDenizenId, setDraftDenizenId] = useState(() => {
+    if (allocation.destination?.kind === "hierophant_supplicant") return allocation.destination.denizenId;
+    return "";
+  });
   const [draftNote, setDraftNote] = useState<string | null>(allocation.note);
 
   const handleSave = useCallback(async () => {
-    const dest = buildTimeDestination(draftChoice, draftCompanion, draftSpecialUse, draftEngagementId);
+    const dest = buildTimeDestination(draftChoice, draftCompanion, draftSpecialUse, draftEngagementId, draftDenizenId);
     if (draftChoice !== "unscheduled" && dest === null) {
       setError("Please fill in the required details for this destination.");
       return;
@@ -296,7 +304,7 @@ function AllocationCard({
         commandId: generateCommandId(),
         expectedMonthOrdinal: monthOrdinal,
         allocationId: allocation.allocationId,
-        destination: dest,
+        destination: dest as never,
         note: draftNote,
       });
     } catch (err) {
@@ -305,7 +313,7 @@ function AllocationCard({
     } finally {
       setPending(false);
     }
-  }, [draftChoice, draftCompanion, draftSpecialUse, draftEngagementId, draftNote, monthOrdinal, allocation.allocationId, scheduleTime, setPending, setError]);
+  }, [draftChoice, draftCompanion, draftSpecialUse, draftEngagementId, draftDenizenId, draftNote, monthOrdinal, allocation.allocationId, scheduleTime, setPending, setError]);
 
   const actingWizardId = data.timeParticipants.find((tp) =>
     tp.allocations.some((a) => a.allocationId === allocation.allocationId),
@@ -330,7 +338,7 @@ function AllocationCard({
 
       {!isPending ? (
         <div className="text-sm text-slate-500 dark:text-slate-400">
-          {destinationLabel(allocation.destination, data)}
+          {destinationLabel(allocation.destination, labelData)}
           {allocation.note !== null && (
             <span className="block text-xs mt-1">Note: {allocation.note}</span>
           )}
@@ -350,6 +358,7 @@ function AllocationCard({
               <option value="orrery">Orrery</option>
               <option value="meeting">Wizardmoot / Meeting</option>
               <option value="domain">Domain</option>
+              <option value="hierophant_supplicant">Hierophant Supplicant</option>
               <option value="engagement">Engagement</option>
               <option value="special_use">Special Use</option>
             </select>
@@ -405,6 +414,26 @@ function AllocationCard({
               </select>
             )}
 
+            {draftChoice === "hierophant_supplicant" && (
+              <select
+                value={draftDenizenId}
+                onChange={(e) => setDraftDenizenId(e.target.value)}
+                aria-label="Hierophant Supplicant"
+                className="text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-slate-700 dark:text-slate-200"
+              >
+                <option value="">
+                  {data.hierophantSupplicants.length === 0
+                    ? "No current Supplicants"
+                    : "Select Supplicant…"}
+                </option>
+                {data.hierophantSupplicants.map((person) => (
+                  <option key={person.denizenId} value={person.denizenId}>
+                    {person.name}
+                  </option>
+                ))}
+              </select>
+            )}
+
             <input
               type="text"
               value={draftNote ?? ""}
@@ -423,7 +452,7 @@ function AllocationCard({
               {pending ? "Saving…" : "Save Time"}
             </button>
             <span className="text-xs text-slate-400">
-              Current: {destinationLabel(allocation.destination, data)}
+              Current: {destinationLabel(allocation.destination, labelData)}
             </span>
           </div>
         </>

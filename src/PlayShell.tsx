@@ -171,6 +171,7 @@ function renderHierophant(
       campaignRevision={campaignRevision}
       sorcererPresence={sorcererRef?.presentation.externalPresence ?? []}
       loreCompendium={loreCompendium}
+      steerTime={hierRef.steerTime}
     />
   );
 }

@@ -178,6 +178,8 @@ const M3_COMMAND_EVENT_MAP: Record<string, { required: string[]; optional?: stri
   create_hierophant_supplicant: { required: ["hierophant_supplicant_created"] },
   resolve_hierophant_visions: { required: ["hierophant_visions_resolved"] },
   transfer_hierophant_hestar_resource: { required: ["hierophant_hestar_resource_transferred"] },
+  steer_hierophant_supplicant: { required: ["hierophant_supplicant_steered"] },
+  depart_hierophant_supplicant_with_benefaction: { required: ["hierophant_supplicant_benefaction_departed"] },
   update_supplicant: { required: ["supplicant_updated"] },
   remove_supplicant: { required: ["supplicant_removed"] },
   add_prophet: { required: ["prophet_added"] },

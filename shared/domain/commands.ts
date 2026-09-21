@@ -52,6 +52,8 @@ export const CAMPAIGN_COMMAND_TYPES = [
   "create_hierophant_supplicant",
   "resolve_hierophant_visions",
   "transfer_hierophant_hestar_resource",
+  "steer_hierophant_supplicant",
+  "depart_hierophant_supplicant_with_benefaction",
   "update_supplicant",
   "remove_supplicant",
   "add_prophet",
@@ -251,6 +253,8 @@ export function isLogicalStateCommandType(commandType: CampaignCommandType): boo
     case "create_hierophant_supplicant":
     case "resolve_hierophant_visions":
     case "transfer_hierophant_hestar_resource":
+    case "steer_hierophant_supplicant":
+    case "depart_hierophant_supplicant_with_benefaction":
     case "update_supplicant":
     case "remove_supplicant":
     case "add_prophet":

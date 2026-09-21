@@ -43,6 +43,8 @@ vi.mock("../convex/_generated/api.js", () => ({
       createHierophantSupplicant: "m3Commands.createHierophantSupplicant",
       resolveHierophantVisions: "m3Commands.resolveHierophantVisions",
       transferHierophantHestarResource: "m3Commands.transferHierophantHestarResource",
+      steerHierophantSupplicant: "m3Commands.steerHierophantSupplicant",
+      departHierophantSupplicantWithBenefaction: "m3Commands.departHierophantSupplicantWithBenefaction",
       addSupplicant: "m3Commands.addSupplicant",
       updateSupplicant: "m3Commands.updateSupplicant",
       updateDenizen: "m3Commands.updateDenizen",
@@ -838,7 +840,10 @@ function choiceWorld(extra: WorldReference["denizens"] = []): WorldReference {
 function renderChoiceSurface(
   hierophant: typeof EMPTY_HIEROPHANT_STATE,
   world: WorldReference = choiceWorld(),
-  extras: { sorcererPresence?: Parameters<typeof HierophantSurface>[0]["sorcererPresence"] } = {},
+  extras: {
+    sorcererPresence?: Parameters<typeof HierophantSurface>[0]["sorcererPresence"];
+    steerTime?: Parameters<typeof HierophantSurface>[0]["steerTime"];
+  } = {},
 ) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -851,6 +856,7 @@ function renderChoiceSurface(
         campaignId: CAMPAIGN_ID,
         campaignRevision: 4,
         sorcererPresence: extras.sorcererPresence,
+        steerTime: extras.steerTime,
       }));
     });
   }
@@ -1454,7 +1460,8 @@ describe("Hierophant physical piece controls", () => {
       container.querySelector('[data-temple-resource="krolis"][data-resource-counter="abundance"]')
         ?.getAttribute("data-resource-controls"),
     ).toBe("hidden");
-    expect(container.querySelector("[data-supplicant-piece][draggable='true']")).toBeNull();
+    expect(container.querySelector('[data-supplicant-piece="den_ann"]')?.getAttribute("draggable")).toBe("true");
+    expect(container.querySelector('[data-supplicant-piece="den_ready"]')?.getAttribute("draggable")).toBe("false");
     const advanced = Array.from(container.querySelectorAll("summary")).find((el) =>
       el.textContent?.includes("Advanced / Correct Board"),
     );
@@ -1500,6 +1507,83 @@ describe("Hierophant physical piece controls", () => {
     expect(mockMutations["m3Commands.removeSupplicant"]).not.toHaveBeenCalled();
     expect(mockMutations["m3Commands.establishCult"]).not.toHaveBeenCalled();
     expect(mockMutations["m3Commands.adjustTempleResources"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("asks the table to schedule Time on the Supplicant instead of consuming another week", () => {
+    mockMutations["m3Commands.steerHierophantSupplicant"] = vi.fn(async () => {});
+    const { container, root } = renderPieces();
+    const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
+    const zone = supplyDrop(container, "notor", "courtyard")!;
+    expect(named.getAttribute("data-steer-time")).toBe("none");
+    flushSync(() => { named.dispatchEvent(new Event("dragstart", { bubbles: true })); });
+    flushSync(() => {
+      zone.dispatchEvent(new Event("dragenter", { bubbles: true }));
+      zone.dispatchEvent(new Event("dragover", { bubbles: true }));
+      zone.dispatchEvent(new Event("drop", { bubbles: true }));
+    });
+    flushSync(() => { named.dispatchEvent(new Event("dragend", { bubbles: true })); });
+    expect(container.querySelector("[data-steer-notice]")?.textContent).toContain(
+      "Schedule Time on this Supplicant",
+    );
+    expect(mockMutations["m3Commands.steerHierophantSupplicant"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("Steers by spending the matching scheduled week and does not auto-Benefaction", async () => {
+    mockMutations["m3Commands.steerHierophantSupplicant"] = vi.fn(async () => {});
+    mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"] = vi.fn(async () => {});
+    mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {});
+    const { container, root } = renderChoiceSurface(pieceState as typeof EMPTY_HIEROPHANT_STATE, pieceWorld, {
+      steerTime: [{
+        allocationId: "alc_00000000-0000-0000-0000-000000000001",
+        denizenId: "den_ann",
+        wizardId: "wiz_a",
+        wizardName: "Wizard A",
+        resolution: "pending",
+      }],
+    });
+    const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
+    expect(named.getAttribute("data-steer-time")).toBe("pending");
+    const zone = supplyDrop(container, "hestar", "hestar")!;
+    flushSync(() => { named.dispatchEvent(new Event("dragstart", { bubbles: true })); });
+    flushSync(() => {
+      zone.dispatchEvent(new Event("drop", { bubbles: true }));
+    });
+    flushSync(() => { named.dispatchEvent(new Event("dragend", { bubbles: true })); });
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.steerHierophantSupplicant"]).toHaveBeenCalledTimes(1);
+    const args = mockMutations["m3Commands.steerHierophantSupplicant"].mock.calls[0][0];
+    expect(args.allocationId).toBe("alc_00000000-0000-0000-0000-000000000001");
+    expect(args.denizenId).toBe("den_ann");
+    expect(args.destinationTempleId).toBe("hestar");
+    expect(args.destinationArea).toBeNull();
+    expect(mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.updateSupplicant"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("offers Benefaction & Depart on a Woe 0 Temple-hosted Supplicant", async () => {
+    mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"] = vi.fn(async () => {});
+    mockMutations["m3Commands.steerHierophantSupplicant"] = vi.fn(async () => {});
+    const { container, root } = renderPieces();
+    const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
+    flushSync(() => { ready.querySelector("button")!.click(); });
+    const depart = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent === "Benefaction & Depart",
+    );
+    expect(depart).toBeDefined();
+    flushSync(() => { depart!.click(); });
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"].mock.calls[0][0]).toMatchObject({
+      denizenId: "den_ready",
+      expectedRevision: 4,
+    });
+    expect(mockMutations["m3Commands.steerHierophantSupplicant"]).not.toHaveBeenCalled();
     root.unmount();
     container.remove();
   });

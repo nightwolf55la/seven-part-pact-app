@@ -1,4 +1,4 @@
-import type { TimeDestination, TimeDestinationV4 } from "../shared/domain/time-model";
+import type { TimeDestination } from "../shared/domain/time-model";
 import type { EngagementTarget } from "../shared/domain/engagement";
 import type { WizardId, DenizenId } from "../shared/domain/ids";
 
@@ -38,6 +38,7 @@ export interface PlanningWorkspaceData {
   readonly timeParticipants: readonly PlanningTimeParticipant[];
   readonly engagements: readonly PlanningEngagement[];
   readonly modeledWizards: readonly ModeledWizard[];
+  readonly hierophantSupplicants: readonly { denizenId: string; name: string }[];
 }
 
 export interface PlanningWarning {
@@ -65,6 +66,8 @@ export function selectParticipant(
 export interface WorkspaceDataLike {
   readonly engagements: readonly { engagementId: string; actingWizardId: string }[];
   readonly modeledWizards: readonly ModeledWizard[];
+  readonly hierophantSupplicants?: readonly { denizenId: string; name: string }[];
+  readonly denizens?: readonly { denizenId: string; name: string }[] | null;
 }
 
 function wizardNameById(data: WorkspaceDataLike, wizardId: string): string | null {
@@ -115,6 +118,11 @@ export function destinationLabel(
       return `Devil Denizen: ${dest.denizenId}`;
     case "devil_seized_domain":
       return `Devil Domain: ${dest.seatId}`;
+    case "hierophant_supplicant": {
+      const found = data?.hierophantSupplicants?.find((person) => person.denizenId === dest.denizenId)
+        ?? data?.denizens?.find((person) => person.denizenId === dest.denizenId);
+      return `Hierophant Supplicant: ${found ? found.name : dest.denizenId}`;
+    }
   }
 }
 
@@ -182,14 +190,16 @@ export type DestinationChoice =
   | "meeting"
   | "domain"
   | "engagement"
-  | "special_use";
+  | "special_use"
+  | "hierophant_supplicant";
 
 export function buildTimeDestination(
   choice: DestinationChoice,
   companionElement: string,
   specialUseDescription: string,
   engagementId?: string,
-): TimeDestinationV4 | null {
+  denizenId?: string,
+): TimeDestination | null {
   switch (choice) {
     case "unscheduled":
       return null;
@@ -212,6 +222,9 @@ export function buildTimeDestination(
     case "special_use":
       if (specialUseDescription.trim().length === 0) return null;
       return { kind: "special_use", description: specialUseDescription };
+    case "hierophant_supplicant":
+      if (!denizenId || denizenId.trim().length === 0) return null;
+      return { kind: "hierophant_supplicant", denizenId: denizenId as DenizenId };
   }
 }
 
