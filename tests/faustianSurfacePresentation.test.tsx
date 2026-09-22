@@ -15,6 +15,7 @@ import {
 import { makeTestCampaignStateV5 } from "./test-state";
 import FaustianSurface from "../src/FaustianSurface";
 import {
+  buildFaustianTablePresentation,
   FACEDOWN_SCHEME_LABEL,
   FACEDOWN_TWIST_LABEL,
   FAUSTIAN_TABLE_MIN_WIDTH_PX,
@@ -510,14 +511,111 @@ describe("Faustian surface presentation", () => {
     expect(rail?.querySelector('[data-faustian-zone="devil-deck"]')?.textContent).toMatch(/\d+/);
   });
 
-  it("does not render dashed empty card silhouettes in unoccupied Communities", () => {
+  it("keeps lightweight empty Scheme and Accomplice lane footprints without dashed card silhouettes", () => {
     const { container } = renderSurface();
     const pisces = container.querySelector('[data-faustian-community="pisces"]');
     expect(pisces).not.toBeNull();
-    expect(pisces?.querySelector("[data-faustian-empty-slot]")).toBeNull();
+    expect(pisces?.querySelector('[data-faustian-lane="schemes"][data-faustian-lane-occupancy="empty"]')).not.toBeNull();
+    expect(pisces?.querySelector('[data-faustian-lane="accomplices"][data-faustian-lane-occupancy="empty"]')).not.toBeNull();
+    expect(pisces?.querySelector("[data-faustian-lane-empty]")).not.toBeNull();
     expect(pisces?.innerHTML ?? "").not.toMatch(/border-dashed/);
     const aries = container.querySelector('[data-faustian-community="aries"]');
     expect(aries?.querySelectorAll("[data-faustian-card]").length).toBeGreaterThan(0);
+  });
+
+  it("gives every Community stable Scheme and Accomplice lanes plus a separate pawn tray", () => {
+    const { container } = renderSurface();
+    const communities = container.querySelectorAll("[data-faustian-community]");
+    expect(communities.length).toBe(12);
+    for (const community of communities) {
+      expect(community.querySelector('[data-faustian-lane="schemes"]')).not.toBeNull();
+      expect(community.querySelector('[data-faustian-lane="accomplices"]')).not.toBeNull();
+      expect(community.querySelector("[data-faustian-pawn-tray]")).not.toBeNull();
+      const lanes = community.querySelectorAll("[data-faustian-lane]");
+      const pawnTray = community.querySelector("[data-faustian-pawn-tray]");
+      expect(pawnTray?.closest("[data-faustian-lane]")).toBeNull();
+    }
+  });
+
+  it("shows all four Faustian Deck suit totals on the table without opening the deck inspector", () => {
+    const faustian = crowdedAries();
+    const presentation = buildFaustianTablePresentation({
+      faustian,
+      sorcererPresence: [],
+      denizens: [],
+      wizards: [],
+      currentMonthOrdinal: 0,
+    });
+    const { container } = renderSurface({ faustian });
+    const deckZone = container.querySelector('[data-faustian-zone="faustian-deck"]');
+    const totals = deckZone?.querySelector("[data-faustian-suit-totals]");
+    expect(totals).not.toBeNull();
+    expect(totals?.querySelectorAll("[data-faustian-suit-total]").length).toBe(4);
+    for (const suit of presentation.suitSummaries) {
+      expect(totals?.textContent).toContain(suit.label);
+      expect(totals?.textContent).toContain(String(suit.faustianDeckCount));
+    }
+    expect(container.querySelector("[aria-label='Faustian inspector']")?.textContent ?? "").not.toContain("composition only");
+  });
+
+  it("preserves Scheme pile source order and responsive fan metadata without identity-sensitive attributes", () => {
+    const { container: fullContainer } = renderSurface({ layout: "full" });
+    const { container: narrowContainer } = renderSurface({ layout: "narrow" });
+    const fullLane = fullContainer.querySelector('[data-faustian-community="aries"] [data-faustian-lane="schemes"]');
+    const narrowLane = narrowContainer.querySelector('[data-faustian-community="aries"] [data-faustian-lane="schemes"]');
+    const fullFan = fullLane?.querySelector("[data-faustian-fan]");
+    const narrowFan = narrowLane?.querySelector("[data-faustian-fan]");
+    expect(fullFan).not.toBeNull();
+    expect(narrowFan).not.toBeNull();
+    expect(fullFan?.getAttribute("data-faustian-fan-step")).not.toBe(narrowFan?.getAttribute("data-faustian-fan-step"));
+    const keys = Array.from(fullLane!.querySelectorAll("[data-faustian-card]")).map((el) => el.getAttribute("data-faustian-card"));
+    expect(keys.filter((kind) => kind === "scheme").length).toBeGreaterThan(1);
+    for (const el of fullLane!.querySelectorAll("[data-faustian-lane], [data-faustian-fan], [data-faustian-lane-empty]")) {
+      expect(el.getAttribute("data-faustian-instance-key") ?? "").toBe("");
+      expect(el.outerHTML).not.toMatch(/hearts_|spades_|clubs_|diamonds_/);
+    }
+  });
+
+  it("structures Twist spotlight, Machination cards, and pending challenges as distinct regions", () => {
+    let faustian = crowdedAries();
+    faustian = {
+      ...faustian,
+      pendingMachinationChallenges: [{
+        challengeId: "fpmc_00000000-0000-0000-0000-000000000001" as never,
+        kind: "one_pair",
+        sourceMonthOrdinal: 2 as never,
+        dueMonthOrdinal: 3 as never,
+        scoringHandCardIds: [SCHEME_A],
+        groups: [{
+          groupId: "fpmg_00000000-0000-0000-0000-000000000001" as never,
+          responsibleWizardId: null,
+          originalCardIds: [SCHEME_A],
+          status: "pending",
+          completedByWizardId: null,
+          completedMonthOrdinal: null,
+        }],
+        outcomeDependentTwistCardIds: [TWIST],
+      }],
+    };
+    const { container } = renderSurface({ faustian });
+    const machinations = container.querySelector('[data-faustian-zone="machinations"]');
+    expect(machinations?.querySelector("[data-faustian-twist-spotlight]")).not.toBeNull();
+    expect(machinations?.querySelector("[data-faustian-machination-cards]")).not.toBeNull();
+    expect(machinations?.querySelector("[data-faustian-challenge-queue]")).not.toBeNull();
+    const tableTwist = Array.from(machinations!.querySelectorAll('[data-faustian-card="machination"]')).find((el) =>
+      (el.getAttribute("aria-label") ?? "").includes("Active Twist"),
+    );
+    expect(tableTwist?.textContent ?? "").not.toMatch(/Ace of Spades|A♠/);
+  });
+
+  it("does not leak facedown identity through new lane or suit-total hooks", () => {
+    const { container } = renderSurface();
+    expect(container.innerHTML).not.toContain("hearts_3");
+    expect(container.innerHTML).not.toContain("spades_ace");
+    for (const el of container.querySelectorAll("[data-faustian-lane], [data-faustian-suit-total], [data-faustian-fan]")) {
+      expect(el.outerHTML).not.toMatch(/hearts_|spades_|clubs_|diamonds_/);
+      expect(el.getAttribute("title") ?? "").not.toMatch(/Ace of Spades|Three of Hearts/i);
+    }
   });
 
   it("keeps Scheme and Accomplice tokens free of Community-name glance text", () => {
