@@ -8,6 +8,32 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+
+export type MarinerBoardActionFocus =
+  | { readonly kind: "route"; readonly routeId: string }
+  | { readonly kind: "storm"; readonly regionId: MarinerSeaRegionId }
+  | { readonly kind: "beast"; readonly denizenId: string }
+  | { readonly kind: "market"; readonly boardIsleId: MarinerBoardIsleId };
+
+export function marinerBoardActionPending(
+  globalPending: boolean,
+  focus: MarinerBoardActionFocus | null,
+  expected: MarinerBoardActionFocus,
+): boolean {
+  if (!globalPending || focus === null) return false;
+  switch (expected.kind) {
+    case "route":
+      return focus.kind === "route" && focus.routeId === expected.routeId;
+    case "storm":
+      return focus.kind === "storm" && focus.regionId === expected.regionId;
+    case "beast":
+      return focus.kind === "beast" && focus.denizenId === expected.denizenId;
+    case "market":
+      return focus.kind === "market" && focus.boardIsleId === expected.boardIsleId;
+    default:
+      return false;
+  }
+}
 import {
   MARINER_BOARD_ISLE_IDS,
   createUndescribedRareMarinerMarket,
@@ -402,9 +428,15 @@ export function useMarinerBoardInteractions(args: {
   marinerRef.current = mariner;
   const pendingRef = useRef(pending);
   pendingRef.current = pending;
-  const run = useCallback(async (action: () => Promise<void>) => {
+  const [actionPendingFocus, setActionPendingFocus] = useState<MarinerBoardActionFocus | null>(null);
+  const run = useCallback(async (action: () => Promise<void>, focus?: MarinerBoardActionFocus) => {
     pendingRef.current = true;
-    return runMutation(action);
+    if (focus !== undefined) setActionPendingFocus(focus);
+    try {
+      return await runMutation(action);
+    } finally {
+      if (focus !== undefined) setActionPendingFocus(null);
+    }
   }, [runMutation]);
   const hasPendingDirectIntent = pendingRaiderDirection !== null
     || pendingShipRampage !== null
@@ -481,7 +513,10 @@ export function useMarinerBoardInteractions(args: {
       destinationRegionId,
       ...expectedForMoveStorm(session.snapshot, session.sourceRegionId, destinationRegionId),
     });
-    await run(async () => { await moveMarinerStorm(payload); });
+    await run(async () => { await moveMarinerStorm(payload); }, {
+      kind: "storm",
+      regionId: session.sourceRegionId,
+    });
   }, [campaignId, moveMarinerStorm, run]);
 
   const commitShipMove = useCallback(async (
@@ -516,7 +551,7 @@ export function useMarinerBoardInteractions(args: {
       });
       return;
     }
-    await run(async () => { await moveMarinerShip(payload); });
+    await run(async () => { await moveMarinerShip(payload); }, { kind: "route", routeId: sourceRouteId });
   }, [campaignId, moveMarinerShip, run]);
 
   const commitCreateShip = useCallback(async (
@@ -546,7 +581,7 @@ export function useMarinerBoardInteractions(args: {
       ...expectedForCreateShip(snapshot, targetRouteId),
       rampageResolutions: [],
     });
-    await run(async () => { await createMarinerShip(payload); });
+    await run(async () => { await createMarinerShip(payload); }, { kind: "route", routeId: targetRouteId });
   }, [campaignId, createMarinerShip, run]);
 
   const commitRoutePieceDrop = useCallback(async (
@@ -692,7 +727,7 @@ export function useMarinerBoardInteractions(args: {
       ...expectedForMoveBeast(snapshot, beast.denizenId, sourceRegionId, destinationRegionId),
       rampageResolution: null,
     });
-    await run(async () => { await moveMarinerBeast(payload); });
+    await run(async () => { await moveMarinerBeast(payload); }, { kind: "beast", denizenId: beast.denizenId });
   }, [campaignId, moveMarinerBeast, run]);
 
   const commitBeastNest = useCallback(async (
@@ -709,7 +744,7 @@ export function useMarinerBoardInteractions(args: {
       boardIsleId,
       ...expectedForNestBeast(snapshot, beast.denizenId, boardIsleId),
     });
-    await run(async () => { await nestMarinerBeast(payload); });
+    await run(async () => { await nestMarinerBeast(payload); }, { kind: "beast", denizenId: beast.denizenId });
   }, [campaignId, nestMarinerBeast, run]);
 
   const commitTrayMarketDrop = useCallback(async (
@@ -749,7 +784,7 @@ export function useMarinerBoardInteractions(args: {
         expectedNestingBeastDenizenId: expected.expectedNestingBeastDenizenId,
       },
     });
-    await run(async () => { await relocateMarinerNestingBeast(payload); });
+    await run(async () => { await relocateMarinerNestingBeast(payload); }, { kind: "beast", denizenId: beast.denizenId });
   }, [campaignId, relocateMarinerNestingBeast, run]);
 
   const commitRelocateNestingBeastToSea = useCallback(async (
@@ -785,7 +820,7 @@ export function useMarinerBoardInteractions(args: {
         rampageResolution: null,
       },
     });
-    await run(async () => { await relocateMarinerNestingBeast(payload); });
+    await run(async () => { await relocateMarinerNestingBeast(payload); }, { kind: "beast", denizenId: beast.denizenId });
   }, [campaignId, relocateMarinerNestingBeast, run]);
 
   const commitTrayRareMarketDrop = useCallback(async (
@@ -820,7 +855,10 @@ export function useMarinerBoardInteractions(args: {
       destinationBoardIsleId,
       ...expectedForMoveMarket(session.snapshot, session.sourceBoardIsleId, destinationBoardIsleId),
     });
-    await run(async () => { await moveMarinerMarket(payload); });
+    await run(async () => { await moveMarinerMarket(payload); }, {
+      kind: "market",
+      boardIsleId: session.sourceBoardIsleId,
+    });
   }, [campaignId, moveMarinerMarket, run]);
 
 
@@ -1860,7 +1898,7 @@ export function useMarinerBoardInteractions(args: {
         ...expectedForMoveShip(intent.snapshot, intent.sourceRouteId, intent.destinationRouteId),
         rampageResolutions,
       });
-      const ok = await run(async () => { await moveMarinerShip(payload); });
+      const ok = await run(async () => { await moveMarinerShip(payload); }, { kind: "route", routeId: intent.sourceRouteId });
       if (ok) setPendingShipRampage(null);
       return;
     }
@@ -1872,7 +1910,7 @@ export function useMarinerBoardInteractions(args: {
       ...expectedForCreateShip(intent.snapshot, intent.targetRouteId),
       rampageResolutions,
     });
-    const ok = await run(async () => { await createMarinerShip(payload); });
+    const ok = await run(async () => { await createMarinerShip(payload); }, { kind: "route", routeId: intent.targetRouteId });
     if (ok) setPendingShipRampage(null);
   }, [campaignId, createMarinerShip, moveMarinerShip, pendingShipRampage, run]);
 
@@ -1908,7 +1946,10 @@ export function useMarinerBoardInteractions(args: {
           rampageResolution,
         },
       });
-      const ok = await run(async () => { await relocateMarinerNestingBeast(payload); });
+      const ok = await run(async () => { await relocateMarinerNestingBeast(payload); }, {
+        kind: "beast",
+        denizenId: intent.beast.denizenId,
+      });
       if (ok) setPendingBeastRampage(null);
       return;
     }
@@ -1926,7 +1967,10 @@ export function useMarinerBoardInteractions(args: {
       ),
       rampageResolution,
     });
-    const ok = await run(async () => { await moveMarinerBeast(payload); });
+    const ok = await run(async () => { await moveMarinerBeast(payload); }, {
+      kind: "beast",
+      denizenId: intent.beast.denizenId,
+    });
     if (ok) setPendingBeastRampage(null);
   }, [campaignId, moveMarinerBeast, pendingBeastRampage, relocateMarinerNestingBeast, run]);
 
@@ -1935,6 +1979,7 @@ export function useMarinerBoardInteractions(args: {
   }, []);
 
   return {
+    actionPendingFocus,
     dragVisual,
     stormDragSourceId,
     beastDragSourceId,

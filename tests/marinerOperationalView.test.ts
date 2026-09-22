@@ -9,11 +9,13 @@ import {
 } from "../shared/domain";
 import { MARINER_BOARD_ISLE_IDS } from "../shared/domain";
 import {
+  formatMarinerRouteHazardReason,
   marinerIsleOperationalView,
   marinerRouteOperationalView,
   marinerSeaOperationalView,
 } from "../src/mariner-operational-view";
-import { isRouteUnderImmediateHazard } from "../shared/domain";
+import { isRouteUnderImmediateHazard, immediateHazardRouteIds } from "../shared/domain";
+import { marinerRouteImmediateHazardReasons } from "../src/mariner-route-hazard-reasons";
 
 function isleId(n: number): IsleId {
   return `isl_00000000-0000-0000-0000-${String(n).padStart(12, "0")}` as IsleId;
@@ -105,8 +107,25 @@ describe("Mariner operational view (encoded facts only)", () => {
     expect(isRouteUnderImmediateHazard(THREATENED_SHIP_ROUTE, hazardBoard)).toBe(true);
     const view = marinerRouteOperationalView(mariner, THREATENED_SHIP_ROUTE);
     expect(view.threatened).toBe(true);
+    expect(view.hazardReasons.length).toBeGreaterThan(0);
+    expect(view.hazardReasons.every((reason) => formatMarinerRouteHazardReason(reason).length > 0)).toBe(true);
     const quiet = marinerRouteOperationalView(mariner, SHIP_ROUTE);
     expect(quiet.threatened).toBe(false);
+    expect(quiet.hazardReasons).toEqual([]);
+  });
+
+  it("keeps threatened semantics aligned with immediateHazardRouteIds for every Route", () => {
+    const mariner = board();
+    const hazardBoard = { seaRegions: mariner.seaRegions, beasts: mariner.beasts, routes: mariner.routes };
+    const hazardSet = immediateHazardRouteIds(hazardBoard);
+    for (const route of mariner.routes) {
+      const reasons = marinerRouteImmediateHazardReasons(route.routeId as never, hazardBoard);
+      const legacyThreat = route.occupancy.kind !== "empty" && hazardSet.has(route.routeId as never);
+      const view = marinerRouteOperationalView(mariner, route.routeId);
+      expect(reasons.length > 0).toBe(hazardSet.has(route.routeId as never));
+      expect(view.threatened).toBe(legacyThreat);
+      expect(view.threatened).toBe(route.occupancy.kind !== "empty" && reasons.length > 0);
+    }
   });
 
   it("exposes adjacent/default Storm destinations without calling them legal", () => {

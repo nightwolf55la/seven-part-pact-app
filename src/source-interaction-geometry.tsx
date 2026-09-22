@@ -312,6 +312,7 @@ export function SourceRouteOccupancyMarker({
   toward,
   color,
   threatened,
+  actionPending,
   onSelect,
   onPointerDown,
   onContextMenu,
@@ -323,6 +324,7 @@ export function SourceRouteOccupancyMarker({
   toward?: string;
   color: string;
   threatened?: boolean;
+  actionPending?: boolean;
   onSelect: () => void;
   onPointerDown?: (event: ReactPointerEvent) => void;
   onContextMenu?: (event: ReactMouseEvent<SVGGElement>) => void;
@@ -371,6 +373,7 @@ export function SourceRouteOccupancyMarker({
       data-route-occupancy-marker={kind}
       data-raider-toward={toward}
       data-route-threatened={threatened ? "true" : undefined}
+      data-board-action-pending={actionPending ? "true" : undefined}
       data-draggable-route-piece="true"
       aria-label={label}
       style={{ cursor: onPointerDown === undefined ? undefined : "grab" }}

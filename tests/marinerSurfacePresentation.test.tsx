@@ -827,7 +827,9 @@ describe("Mariner source-map piece presentation", () => {
     const raider = container.querySelector('[data-piece="raider"]');
     expect(raider?.getAttribute("aria-label")).toContain("Raider toward");
     expect(raider?.getAttribute("data-raider-toward")).toBe("ishana");
-    expect(container.querySelector('[data-piece="beast"]')?.textContent).toContain("Beast");
+    const beastPiece = container.querySelector('[data-piece="beast"]');
+    expect(beastPiece?.getAttribute("data-beast-board-label")).toBe("Krak");
+    expect(beastPiece?.getAttribute("aria-label")).toContain("Kraken-kin");
     expect(container.querySelector('[data-piece="market"][data-isle-id="scuttleport"]')).not.toBeNull();
     expect(container.querySelector('[data-piece="ravage"][data-isle-id="druntyr"]')?.getAttribute("aria-label")).toBe("Ravage 3");
     root.unmount();
@@ -4685,6 +4687,98 @@ describe("M5.4 UX B2 post-drop interaction unlock", () => {
     await flushScheduledClickSuppressionReset();
     await beginPieceDrag(stormPiece(container, "sidereal_sea"), seaHit(container, "wizard_strait"), 508);
     expect(container.querySelector("[data-drag-ghost]")).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("M5.4 Mariner UX refinement (Body A)", () => {
+  const THREATENED_SHIP_ROUTE = marinerRouteId(
+    { kind: "board_isle", boardIsleId: "halcyon_isles" },
+    { kind: "board_isle", boardIsleId: "tahv" },
+  );
+
+  function marinerWithThreatenedRoute() {
+    const base = initializedMariner();
+    const routes = base.routes.map((route) => (
+      route.routeId === THREATENED_SHIP_ROUTE
+        ? { ...route, occupancy: { kind: "ship" as const } }
+        : route
+    ));
+    return { ...base, routes };
+  }
+
+  it("keeps Laws and Beast administration reachable behind disclosure without removing map-first inspector", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    expect(container.querySelector('[data-mariner-advanced-panel="laws"] summary')).not.toBeNull();
+    expect(container.querySelector('[data-mariner-advanced-panel="beasts"] summary')).not.toBeNull();
+    expect(container.querySelector("[data-route-inspector]")).toBeNull();
+    const route = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`) as Element;
+    flushSync(() => { route.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(container.querySelector("[data-route-inspector]")).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("exposes board control help in a compact disclosure while preserving the instruction contract", () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const help = container.querySelector("[data-board-interaction-help]");
+    expect(help).not.toBeNull();
+    expect(help?.querySelector("[data-board-instruction]")?.textContent).toMatch(/Drag from the tray to place or replace/);
+    expect(help?.querySelector("[data-board-instruction]")?.textContent).toMatch(/R reverses a selected Raider/);
+    root.unmount();
+    container.remove();
+  });
+
+  it("renders distinct compact Beast board labels for multiple Beasts", () => {
+    const mariner = initializedMariner();
+    const withSecond = {
+      ...mariner,
+      beasts: [
+        ...mariner.beasts,
+        {
+          denizenId: DEN_B as DenizenId,
+          element: "fire" as const,
+          definitionId: "dragon" as const,
+          condition: "distrusting" as const,
+          location: { kind: "sea_region" as const, regionId: "bay_of_ishana" as const },
+        },
+      ],
+    };
+    const { container, root } = renderSurface(withSecond, WIZARD);
+    const labels = [...container.querySelectorAll("[data-beast-board-label]")].map(
+      (node) => node.getAttribute("data-beast-board-label"),
+    );
+    expect(labels.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(labels).size).toBe(labels.length);
+    root.unmount();
+    container.remove();
+  });
+
+  it("lists concise Route hazard reasons only when the Route is threatened", async () => {
+    const { container, root } = renderSurface(marinerWithThreatenedRoute(), WIZARD);
+    const quiet = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${SHIP_ROUTE}"]`) as Element;
+    flushSync(() => { quiet.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(container.querySelector("[data-route-hazard-reasons]")).toBeNull();
+    const threatened = container.querySelector(`[data-map-layer="route-hit"][data-route-id="${THREATENED_SHIP_ROUTE}"]`) as Element;
+    flushSync(() => { threatened.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    const reasons = container.querySelector("[data-route-hazard-reasons]");
+    expect(reasons).not.toBeNull();
+    expect(reasons?.textContent).toMatch(/Typhoon-scale/i);
+    root.unmount();
+    container.remove();
+  });
+
+  it("marks the manipulated piece while its mutation is pending and clears after settlement", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    let resolve!: () => void;
+    const promise = new Promise<void>((r) => { resolve = r; });
+    mockMutations["m3Commands.moveMarinerStorm"].mockImplementation(() => promise);
+    await dragStormPiece(container, "sidereal_sea", seaHit(container, "wizard_strait"), 601);
+    const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]');
+    expect(storm?.getAttribute("data-board-action-pending")).toBe("true");
+    await act(async () => { resolve(); });
+    expect(storm?.getAttribute("data-board-action-pending")).toBeNull();
     root.unmount();
     container.remove();
   });

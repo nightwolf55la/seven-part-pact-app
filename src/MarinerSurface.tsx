@@ -141,7 +141,9 @@ import {
   MARINER_SEA_GEOMETRY,
 } from "./mariner-map-geometry";
 import { MARINER_SOURCE_BOARD, marinerOverlayLengthToBoard, marinerOverlayPointToBoard } from "./source-board-assets";
+import { marinerBeastBoardMarkerLabel } from "./mariner-beast-board-label";
 import {
+  formatMarinerRouteHazardReason,
   marinerIsleOperationalView,
   marinerRouteOperationalView,
   marinerSeaOperationalView,
@@ -155,6 +157,7 @@ import {
   MarinerBoardContextMenu,
   MarinerPieceSupplyTray,
   RarityEditor,
+  marinerBoardActionPending,
   useMarinerBoardInteractions,
   type PendingShipRampage,
 } from "./mariner-board-interactions";
@@ -473,6 +476,7 @@ export default function MarinerSurface({
               recommendedDestinationIds: marinerSeaOperationalView(mariner, stormGuide.sourceRegionId).adjacentRegionIds,
             }}
             board={board}
+            globalPending={pending}
             onSelect={(next) => {
               if (board.consumeSuppressClick()) return;
               if (stormGuide !== null && next.kind !== "region") {
@@ -491,9 +495,14 @@ export default function MarinerSurface({
               onBeginMarket={board.beginTrayMarketPointer}
               onBeginRareMarket={board.beginTrayRareMarketPointer}
             />
-            <p data-board-instruction className="text-[11px] leading-tight text-slate-500 dark:text-slate-400">
-              Drag from the tray to place or replace • Drag pieces to move • Right-click for actions • R reverses a selected Raider • Delete removes • Raider arrows point toward their destination
-            </p>
+            <details data-board-interaction-help className="max-w-xl text-[11px] leading-tight text-slate-500 dark:text-slate-400">
+              <summary className="cursor-pointer select-none text-slate-600 dark:text-slate-300 hover:text-teal-800 dark:hover:text-teal-200">
+                Board controls
+              </summary>
+              <p data-board-instruction className="mt-1 pr-2">
+                Drag from the tray to place or replace • Drag pieces to move • Right-click for actions • R reverses a selected Raider • Delete removes • Raider arrows point toward their destination
+              </p>
+            </details>
           </div>
           <BoardDragGhost visual={board.dragVisual} />
           <MarinerBoardContextMenu
@@ -688,67 +697,87 @@ export default function MarinerSurface({
           />
         </BoardOverlayInspector>
       </div>
-      <LawsPanel
-        mariner={mariner}
-        lawDraft={lawDraft}
-        setLawDraft={setLawDraft}
-        pending={pending}
-        onSave={() => {
-          const payload = buildSetSelectedSeaLawsPayload({
-            commandId: newCommandId(),
-            expectedCampaignId: campaignId,
-            expectedSelectedLawOfSeaIds: mariner.selectedLawOfSeaIds,
-            selectedLawIds: lawDraft,
-          });
-          void run(async () => {
-            await setSelectedSeaLaws(payload);
-          });
-        }}
-      />
-      <BeastPanel
-        mariner={mariner}
-        world={world}
-        unusedDenizens={unusedBeastDenizens}
-        pending={pending}
-        confirmRemove={confirmRemove}
-        setConfirmRemove={setConfirmRemove}
-        onAdd={async (beast) => {
-          const payload = buildAddMarinerBeastPayload({
-            commandId: newCommandId(),
-            expectedCampaignId: campaignId,
-            beast,
-          });
-          return run(async () => {
-            await addMarinerBeast(payload);
-          });
-        }}
-        onUpdate={async (baseline, next) => {
-          const fields = buildUpdateMarinerBeastFields(baseline, next);
-          if (fields === null) return false;
-          const payload = buildUpdateMarinerBeastPayload({
-            commandId: newCommandId(),
-            expectedCampaignId: campaignId,
-            denizenId: baseline.denizenId,
-            fields,
-          });
-          return run(async () => {
-            await updateMarinerBeast(payload);
-          });
-        }}
-        onRemove={async (expectedBeast) => {
-          const payload = buildRemoveMarinerBeastPayload({
-            commandId: newCommandId(),
-            expectedCampaignId: campaignId,
-            denizenId: expectedBeast.denizenId,
-            expectedBeast,
-          });
-          const ok = await run(async () => {
-            await removeMarinerBeast(payload);
-          });
-          if (ok) setConfirmRemove(null);
-          return ok;
-        }}
-      />
+      <details
+        data-mariner-advanced-panel="laws"
+        className="rounded-lg border border-slate-200 dark:border-slate-700 p-2"
+      >
+        <summary className="cursor-pointer select-none text-sm font-medium text-slate-700 dark:text-slate-200 px-1">
+          Laws of the Sea — adjust selection
+        </summary>
+        <div className="mt-2">
+          <LawsPanel
+            mariner={mariner}
+            lawDraft={lawDraft}
+            setLawDraft={setLawDraft}
+            pending={pending}
+            onSave={() => {
+              const payload = buildSetSelectedSeaLawsPayload({
+                commandId: newCommandId(),
+                expectedCampaignId: campaignId,
+                expectedSelectedLawOfSeaIds: mariner.selectedLawOfSeaIds,
+                selectedLawIds: lawDraft,
+              });
+              void run(async () => {
+                await setSelectedSeaLaws(payload);
+              });
+            }}
+          />
+        </div>
+      </details>
+      <details
+        data-mariner-advanced-panel="beasts"
+        className="rounded-lg border border-slate-200 dark:border-slate-700 p-2"
+      >
+        <summary className="cursor-pointer select-none text-sm font-medium text-slate-700 dark:text-slate-200 px-1">
+          Beast administration — correction &amp; records
+        </summary>
+        <div className="mt-2">
+          <BeastPanel
+            mariner={mariner}
+            world={world}
+            unusedDenizens={unusedBeastDenizens}
+            pending={pending}
+            confirmRemove={confirmRemove}
+            setConfirmRemove={setConfirmRemove}
+            onAdd={async (beast) => {
+              const payload = buildAddMarinerBeastPayload({
+                commandId: newCommandId(),
+                expectedCampaignId: campaignId,
+                beast,
+              });
+              return run(async () => {
+                await addMarinerBeast(payload);
+              });
+            }}
+            onUpdate={async (baseline, next) => {
+              const fields = buildUpdateMarinerBeastFields(baseline, next);
+              if (fields === null) return false;
+              const payload = buildUpdateMarinerBeastPayload({
+                commandId: newCommandId(),
+                expectedCampaignId: campaignId,
+                denizenId: baseline.denizenId,
+                fields,
+              });
+              return run(async () => {
+                await updateMarinerBeast(payload);
+              });
+            }}
+            onRemove={async (expectedBeast) => {
+              const payload = buildRemoveMarinerBeastPayload({
+                commandId: newCommandId(),
+                expectedCampaignId: campaignId,
+                denizenId: expectedBeast.denizenId,
+                expectedBeast,
+              });
+              const ok = await run(async () => {
+                await removeMarinerBeast(payload);
+              });
+              if (ok) setConfirmRemove(null);
+              return ok;
+            }}
+          />
+        </div>
+      </details>
     </div>
   );
 }
@@ -1073,6 +1102,7 @@ function MarinerMap({
   selection,
   stormGuide,
   board,
+  globalPending,
   onSelect,
   onPickGuideDestination,
   sorcererPresence,
@@ -1085,6 +1115,7 @@ function MarinerMap({
     recommendedDestinationIds: readonly MarinerSeaRegionId[];
   } | null;
   board: ReturnType<typeof useMarinerBoardInteractions>;
+  globalPending: boolean;
   onSelect: (selection: Selection) => void;
   onPickGuideDestination: (regionId: MarinerSeaRegionId) => void;
   sorcererPresence: readonly SorcererExternalPresence[];
@@ -1359,6 +1390,10 @@ function MarinerMap({
             ? (occupancy.toward.kind === "board_isle" ? occupancy.toward.boardIsleId : occupancy.toward.externalLandId)
             : undefined;
           const operational = marinerRouteOperationalView(mariner, route.routeId);
+          const routeActionPending = marinerBoardActionPending(globalPending, board.actionPendingFocus, {
+            kind: "route",
+            routeId: route.routeId,
+          });
           return (
             <SourceRouteOccupancyMarker
               key={`marker-${route.routeId}`}
@@ -1368,6 +1403,7 @@ function MarinerMap({
               label={occupancy.kind === "ship" ? "Ship" : `Raider toward ${towardLabel(occupancy.toward)}`}
               toward={toward}
               threatened={operational.threatened}
+              actionPending={routeActionPending}
               color={color}
               onSelect={() => onSelect({ kind: "route", routeId: route.routeId })}
               onPointerDown={(event) => board.beginRoutePiecePointer(route.routeId, occupancy, event)}
@@ -1484,6 +1520,10 @@ function MarinerMap({
                     data-storm-count={stormCount}
                     data-storm-piece={storms.typhoon ? "typhoon" : "storm"}
                     data-typhoon={storms.typhoon ? "true" : "false"}
+                    data-board-action-pending={marinerBoardActionPending(globalPending, board.actionPendingFocus, {
+                      kind: "storm",
+                      regionId: sea.regionId,
+                    }) ? "true" : undefined}
                     aria-label={storms.typhoon
                       ? `Move one Storm from ${seaName} (${stormCount} Storms, Typhoon)`
                       : `Move one Storm from ${seaName}`}
@@ -1512,13 +1552,20 @@ function MarinerMap({
                 {beasts.map((beast, index) => {
                   const selected = selection?.kind === "beast" && selection.denizenId === beast.denizenId;
                   const draggable = beast.condition === "distrusting";
+                  const boardLabel = marinerBeastBoardMarkerLabel(beast, denizenName(world.denizens, beast.denizenId));
+                  const beastActionPending = marinerBoardActionPending(globalPending, board.actionPendingFocus, {
+                    kind: "beast",
+                    denizenId: beast.denizenId,
+                  });
                   return (
                   <g
                     key={beast.denizenId}
                     data-piece="beast"
                     data-beast-id={beast.denizenId}
+                    data-beast-board-label={boardLabel}
                     data-beast-selected={selected ? "true" : undefined}
                     data-draggable-beast={draggable ? "true" : undefined}
+                    data-board-action-pending={beastActionPending ? "true" : undefined}
                     aria-label={`Beast ${denizenName(world.denizens, beast.denizenId)}`}
                     transform={`translate(${sea.slots.beast.x + index * 16} ${sea.slots.beast.y})`}
                     style={{
@@ -1539,7 +1586,7 @@ function MarinerMap({
                       />
                     )}
                     <polygon points="0,-12 10,-2 6,12 -6,12 -10,-2" fill="#14532d" stroke="#052e16" />
-                    <text x={0} y={20} textAnchor="middle" fontSize={8} fill="#14532d">Beast</text>
+                    <text x={0} y={4} textAnchor="middle" fontSize={7} fontWeight={600} fill="#ecfdf5">{boardLabel}</text>
                   </g>
                   );
                 })}
@@ -1637,13 +1684,20 @@ function MarinerMap({
                 {beasts.map((beast, index) => {
                   const selectedBeast = selection?.kind === "beast" && selection.denizenId === beast.denizenId;
                   const draggable = beast.condition === "friendly_nesting";
+                  const boardLabel = marinerBeastBoardMarkerLabel(beast, denizenName(world.denizens, beast.denizenId));
+                  const beastActionPending = marinerBoardActionPending(globalPending, board.actionPendingFocus, {
+                    kind: "beast",
+                    denizenId: beast.denizenId,
+                  });
                   return (
                   <g
                     key={beast.denizenId}
                     data-piece="beast"
                     data-beast-id={beast.denizenId}
+                    data-beast-board-label={boardLabel}
                     data-beast-selected={selectedBeast ? "true" : undefined}
                     data-draggable-beast={draggable ? "true" : undefined}
+                    data-board-action-pending={beastActionPending ? "true" : undefined}
                     aria-label={`Beast ${denizenName(world.denizens, beast.denizenId)}`}
                     transform={`translate(${isle.slots.beast.x + index * 16} ${isle.slots.beast.y})`}
                     style={{
@@ -1664,7 +1718,7 @@ function MarinerMap({
                       />
                     )}
                     <polygon points="0,-12 10,-2 6,12 -6,12 -10,-2" fill="#14532d" stroke="#052e16" />
-                    <text x={0} y={20} textAnchor="middle" fontSize={8} fill="#14532d">Beast</text>
+                    <text x={0} y={4} textAnchor="middle" fontSize={7} fontWeight={600} fill="#ecfdf5">{boardLabel}</text>
                   </g>
                   );
                 })}
@@ -1886,21 +1940,29 @@ function RouteInspector({
     });
   }
   return (
-    <section className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
+    <section data-route-inspector className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 space-y-3">
       <h3 className="text-sm font-semibold">Route inspector</h3>
       <p className="text-sm">
         {routeEndpointLabel(definition.endpointA, mariner, world.isles)} — {routeEndpointLabel(definition.endpointB, mariner, world.isles)}
       </p>
-      <p className="text-xs text-slate-500">Current: {routeOccupancyLabel(current.occupancy, mariner, world.isles)}</p>
+      <p className="text-sm font-medium">{routeOccupancyLabel(current.occupancy, mariner, world.isles)}</p>
       {current.occupancy.kind === "raider" && (
-        <p className="text-sm">Raids toward {towardLabel(current.occupancy.toward)}</p>
+        <p className="text-sm text-slate-600 dark:text-slate-300">Raids toward {towardLabel(current.occupancy.toward)}</p>
       )}
       {operational.adjacentSeaIds.length > 0 && (
         <p className="text-xs text-slate-500">
           Adjacent Seas: {operational.adjacentSeaIds.map((id) => seaRegionDisplayName(id)).join(", ")}
         </p>
       )}
-      {operational.threatened && <p className="text-xs text-amber-800 dark:text-amber-200">Threatened by current Storm/Typhoon-scale conditions.</p>}
+      {operational.threatened && operational.hazardReasons.length > 0 && (
+        <ul data-route-hazard-reasons className="text-xs text-amber-800 dark:text-amber-200 space-y-1 list-disc pl-4">
+          {operational.hazardReasons.map((reason) => (
+            <li key={`${reason.kind}-${reason.kind === "typhoon_scale" ? reason.regionId : `${reason.beastRegionId}-${reason.stormRegionId}`}`}>
+              {formatMarinerRouteHazardReason(reason)}
+            </li>
+          ))}
+        </ul>
+      )}
       {current.occupancy.kind === "empty" && !createShipOpen && (
         <button
           className={btnClass}
