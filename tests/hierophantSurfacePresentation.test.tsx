@@ -1452,7 +1452,9 @@ describe("Hierophant physical piece controls", () => {
     expect(high.querySelector('[aria-label="Woe 7"]')).not.toBeNull();
     expect(high.textContent).toContain("Woe 7");
     expect(high.querySelectorAll('[data-woe-filled="true"]')).toHaveLength(5);
-    expect(ready.querySelector('[data-piece-benefaction] [aria-label="Benefaction & Depart"]')).not.toBeNull();
+    const readyBenefaction = ready.querySelector('[data-piece-benefaction] button') as HTMLButtonElement;
+    expect(readyBenefaction.getAttribute("aria-label")).toBe("Benefaction & Depart Mercy");
+    expect(readyBenefaction.textContent).toBe("Benefaction & Depart");
     expect(named.querySelector('[data-piece-benefaction]')).toBeNull();
     expect(unnamed.querySelector('[data-piece-benefaction]')).toBeNull();
     expect(container.querySelector('[aria-label="Depart for Cult"]')).toBeNull();
@@ -1572,8 +1574,10 @@ describe("Hierophant physical piece controls", () => {
     mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {});
     const { container, root } = renderPieces();
     const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
-    const depart = ready.querySelector('[data-piece-benefaction] [aria-label="Benefaction & Depart"]') as HTMLButtonElement;
+    const depart = ready.querySelector('[data-piece-benefaction] button') as HTMLButtonElement;
     expect(depart).not.toBeNull();
+    expect(depart.getAttribute("aria-label")).toBe("Benefaction & Depart Mercy");
+    expect(depart.textContent).toBe("Benefaction & Depart");
     flushSync(() => { depart.click(); });
     await Promise.resolve();
     expect(mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"]).toHaveBeenCalledTimes(1);
@@ -1602,7 +1606,8 @@ describe("Hierophant physical piece controls", () => {
     mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {});
     const { container, root } = renderPieces();
     const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
-    const depart = ready.querySelector('[data-piece-benefaction] [aria-label="Benefaction & Depart"]') as HTMLButtonElement;
+    const depart = ready.querySelector('[data-piece-benefaction] button') as HTMLButtonElement;
+    expect(depart.getAttribute("aria-label")).toBe("Benefaction & Depart Mercy");
     let dragStarted = false;
     ready.addEventListener("dragstart", () => {
       dragStarted = true;
@@ -1626,7 +1631,8 @@ describe("Hierophant physical piece controls", () => {
     }));
     const { container, root } = renderPieces();
     const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
-    const depart = ready.querySelector('[data-piece-benefaction] [aria-label="Benefaction & Depart"]') as HTMLButtonElement;
+    const depart = ready.querySelector('[data-piece-benefaction] button') as HTMLButtonElement;
+    expect(depart.getAttribute("aria-label")).toBe("Benefaction & Depart Mercy");
     const namedWoe = container.querySelector('[data-supplicant-piece="den_ann"] [data-woe-target="0"]') as HTMLButtonElement;
     flushSync(() => { depart.focus(); });
     flushSync(() => {
@@ -1645,8 +1651,9 @@ describe("Hierophant physical piece controls", () => {
     });
     flushSync(() => {});
     const departAfter = container.querySelector(
-      '[data-supplicant-piece="den_ready"] [data-piece-benefaction] [aria-label="Benefaction & Depart"]',
+      '[data-supplicant-piece="den_ready"] [data-piece-benefaction] button',
     ) as HTMLButtonElement;
+    expect(departAfter.getAttribute("aria-label")).toBe("Benefaction & Depart Mercy");
     expect(departAfter.getAttribute("aria-busy")).toBe("false");
     expect(container.querySelector('[data-supplicant-piece="den_ready"]')).not.toBeNull();
     root.unmount();
@@ -1943,9 +1950,11 @@ describe("Resolve Visions action", () => {
     }) as typeof EMPTY_HIEROPHANT_STATE);
     expect(container.querySelector('[data-supplicant-piece="den_ann"] [aria-label="Woe 0"]')).not.toBeNull();
     expect(container.querySelector('[data-woe-threshold="benefaction"]')?.textContent).toBe("Ready for Benefaction");
-    expect(
-      container.querySelector('[data-supplicant-piece="den_ann"] [data-piece-benefaction] [aria-label="Benefaction & Depart"]'),
-    ).not.toBeNull();
+    const annBenefaction = container.querySelector(
+      '[data-supplicant-piece="den_ann"] [data-piece-benefaction] button',
+    ) as HTMLButtonElement;
+    expect(annBenefaction.getAttribute("aria-label")).toBe("Benefaction & Depart Acolyte Ann");
+    expect(annBenefaction.textContent).toBe("Benefaction & Depart");
     root.unmount();
     container.remove();
   });
