@@ -133,12 +133,18 @@ function PlayingCardToken({
   );
 }
 
-function fanStepRem(layout: "full" | "narrow", visibleCount: number): number {
-  if (visibleCount <= 1) return 0;
-  if (layout === "narrow") return 1.45;
-  if (visibleCount >= 4) return 0.95;
-  if (visibleCount === 3) return 1.1;
-  return 1.25;
+function fanCardOverlapClass(layout: "full" | "narrow", index: number, visibleCount: number): string {
+  if (index === 0) return "relative shrink-0";
+  if (layout === "narrow") {
+    return "relative shrink-0 -ml-[1.45rem]";
+  }
+  if (visibleCount >= 4) {
+    return "relative shrink-0 -ml-[1.05rem] md:-ml-[0.95rem] lg:-ml-[0.8rem] xl:-ml-[0.6rem] 2xl:-ml-[0.45rem]";
+  }
+  if (visibleCount === 3) {
+    return "relative shrink-0 -ml-[1.2rem] md:-ml-[1.05rem] lg:-ml-[0.9rem] xl:-ml-[0.65rem] 2xl:-ml-[0.5rem]";
+  }
+  return "relative shrink-0 -ml-[1.35rem] md:-ml-[1.15rem] lg:-ml-[0.95rem] xl:-ml-[0.7rem] 2xl:-ml-[0.55rem]";
 }
 
 function FannedPile({
@@ -163,19 +169,20 @@ function FannedPile({
   if (cards.totalCount === 0) {
     return null;
   }
-  const fanStep = fanStepRem(layout, cards.visible.length);
+  const fanOverlapMode = layout === "narrow" ? "layout-narrow" : "viewport-responsive";
   return (
     <div className="flex flex-col gap-1">
       <div
         className="flex min-h-[6.35rem] items-end"
         data-faustian-fan=""
-        data-faustian-fan-step={fanStep > 0 ? String(fanStep) : undefined}
+        data-faustian-fan-overlap={fanOverlapMode}
+        data-faustian-fan-visible={cards.visible.length > 1 ? String(cards.visible.length) : undefined}
       >
         {cards.visible.map((card, index) => (
           <div
             key={card.instanceKey}
-            className="relative shrink-0"
-            style={index === 0 ? undefined : { marginLeft: `-${fanStep}rem` }}
+            data-faustian-fan-card=""
+            className={fanCardOverlapClass(layout, index, cards.visible.length)}
           >
             <PlayingCardToken
               card={card}

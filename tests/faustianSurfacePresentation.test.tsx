@@ -558,20 +558,27 @@ describe("Faustian surface presentation", () => {
     expect(container.querySelector("[aria-label='Faustian inspector']")?.textContent ?? "").not.toContain("composition only");
   });
 
-  it("preserves Scheme pile source order and responsive fan metadata without identity-sensitive attributes", () => {
+  it("uses viewport-responsive fan overlap in full layout and fixed tight overlap in narrow layout", () => {
     const { container: fullContainer } = renderSurface({ layout: "full" });
     const { container: narrowContainer } = renderSurface({ layout: "narrow" });
     const fullLane = fullContainer.querySelector('[data-faustian-community="aries"] [data-faustian-lane="schemes"]');
     const narrowLane = narrowContainer.querySelector('[data-faustian-community="aries"] [data-faustian-lane="schemes"]');
     const fullFan = fullLane?.querySelector("[data-faustian-fan]");
     const narrowFan = narrowLane?.querySelector("[data-faustian-fan]");
-    expect(fullFan).not.toBeNull();
-    expect(narrowFan).not.toBeNull();
-    expect(fullFan?.getAttribute("data-faustian-fan-step")).not.toBe(narrowFan?.getAttribute("data-faustian-fan-step"));
-    const keys = Array.from(fullLane!.querySelectorAll("[data-faustian-card]")).map((el) => el.getAttribute("data-faustian-card"));
-    expect(keys.filter((kind) => kind === "scheme").length).toBeGreaterThan(1);
-    for (const el of fullLane!.querySelectorAll("[data-faustian-lane], [data-faustian-fan], [data-faustian-lane-empty]")) {
-      expect(el.getAttribute("data-faustian-instance-key") ?? "").toBe("");
+    expect(fullFan?.getAttribute("data-faustian-fan-overlap")).toBe("viewport-responsive");
+    expect(narrowFan?.getAttribute("data-faustian-fan-overlap")).toBe("layout-narrow");
+    const fullWrappers = fullFan!.querySelectorAll("[data-faustian-fan-card]");
+    const narrowWrappers = narrowFan!.querySelectorAll("[data-faustian-fan-card]");
+    expect(fullWrappers.length).toBeGreaterThan(1);
+    expect(narrowWrappers.length).toBe(fullWrappers.length);
+    expect(fullWrappers[1]?.className).toMatch(/xl:-ml-/);
+    expect(fullWrappers[1]?.className).toMatch(/2xl:-ml-/);
+    expect(narrowWrappers[1]?.className).not.toMatch(/xl:-ml-/);
+    expect(narrowWrappers[1]?.className).toMatch(/-ml-\[1\.45rem\]/);
+    const fullLabels = Array.from(fullLane!.querySelectorAll("[data-faustian-card]")).map((el) => el.textContent ?? "");
+    const narrowLabels = Array.from(narrowLane!.querySelectorAll("[data-faustian-card]")).map((el) => el.textContent ?? "");
+    expect(narrowLabels).toEqual(fullLabels);
+    for (const el of fullLane!.querySelectorAll("[data-faustian-fan], [data-faustian-fan-card]")) {
       expect(el.outerHTML).not.toMatch(/hearts_|spades_|clubs_|diamonds_/);
     }
   });
