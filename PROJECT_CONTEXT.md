@@ -35,6 +35,57 @@ Apply prospectively / when concrete UX friction exposes a problematic
 validator.
 Do not perform a repository-wide validator relaxation.
 
+### Direct board manipulation
+
+Direct board/card/piece manipulation primarily means:
+
+**Record this representable board state.**
+
+It does not silently mean:
+
+**Perform the printed rules procedure that could ordinarily have produced this
+state.**
+
+Examples:
+
+- dragging an existing piece means record that piece at the destination;
+- placing a supply piece means record the placement;
+- changing a counter means record the counter value;
+- changing Doctrine means record current Doctrine;
+- changing a status means record current status.
+
+Do not automatically infer or apply merely from direct state manipulation:
+
+- spending Time;
+- spending resources;
+- threshold consequences;
+- associated procedures;
+- narrative intent;
+- other compound printed-rule consequences.
+
+A named semantic/rules operation may still exist as an explicit bookkeeping
+helper. When the player deliberately invokes that named operation, the server
+may authoritatively apply its established deterministic compound consequences.
+
+The normal UX model is therefore:
+
+1. direct board manipulation = simple authoritative state manipulation where
+   representable and safe;
+2. explicit named rules action = optional rules-aware bookkeeping helper;
+3. source guidance / warnings / previews = assistive and normally nonblocking.
+
+**Simple authoritative state manipulation** does not mean raw client-side
+writes or bypassing canonical persistence. Server authority, transactions,
+stale-write protection, idempotency, structural validation, audit/snapshots,
+destructive safety, representability, and recovery invariants remain unchanged.
+
+Minimal normalization required to keep the resulting board state structurally
+representable is allowed. Do not use that as a pretext to execute an associated
+rules procedure.
+
+This principle applies across **all** Seven-Part Pact Domain boards and should
+be propagated into future Domain Workstream charters.
+
 ## Sources of Truth
 
 For written game rules, the authoritative sources are the uploaded/current Rulebook, Grimoire, seven Codices, Cards, and Materials.
@@ -327,7 +378,7 @@ Delivered the active-table Hierophant and Necromancer board pass:
 
 No CampaignState schema change or migration occurred. Persistence, snapshots, audit, Undo/Redo, checkpoints, backup/recovery, and command-idempotency semantics remain unchanged. CampaignState V5 remains PRE-ACTIVATION.
 
-Deliberate M5.4A-HN automation deferrals included complete Sermon, Steer Supplicant, Holiday celebration, Rebuff, automatic 5+ Souls -> Foe, compound Ghoul-Caller creation, atomic Clear Hostility + Lore, and broad monthly procedure automation. **M5.4-2H later delivered Steer and Benefaction & Depart.** Hestar resource conversion remains an unresolved **SOURCE** contradiction between same-amount and half-amount conversion and is not application canon.
+Deliberate M5.4A-HN automation deferrals included complete Sermon, Steer Supplicant, Holiday celebration, Rebuff, automatic 5+ Souls -> Foe, compound Ghoul-Caller creation, atomic Clear Hostility + Lore, and broad monthly procedure automation. **M5.4-2H later delivered Steer and Benefaction & Depart.** **SOURCE** still records contradictory Hestar Provide conversion wording (detailed rule: same-amount; later summary: half-amount). Human **APPLICATION CANON** resolves Hestar Provide as **1:1** using the detailed rule (ordinary-Temple Conviction → equal Hestar Abundance; ordinary-Temple Abundance → equal Hestar Conviction), distinct from the already-implemented same-resource Hestar fallback-sharing rule.
 
 See `docs/m5-4a-hn-temples-gates-operability.md`.
 
@@ -484,9 +535,11 @@ Closing Steer/Benefaction proof is recorded in `docs/m5-4-2h-hierophant-steer-be
 Unresolved / deferred Hierophant items:
 
 - Depart for Cult remains blocked on unresolved Cult placement/creation semantics;
-- Hestar Provide remains unresolved because of contradictory source wording;
+- Hestar Provide conversion ratio is settled **APPLICATION CANON** at **1:1** per the detailed source rule (see above); implementation remains later work;
 - Doctrine/Sermon interaction remains later refinement;
 - broader Hierophant visual/interaction polish remains valid future work.
+
+**NON-SETTLED DESIGN HYPOTHESIS (Cult UX):** When Cult UX is designed, explicitly evaluate using horizontal desktop space for Cult information—such as a right-side/lateral Cult region—rather than defaulting to vertical stacking below the Temple board. This is an idea to evaluate, not settled architecture.
 
 No Production deployment. CampaignState V5 remains PRE-ACTIVATION.
 
