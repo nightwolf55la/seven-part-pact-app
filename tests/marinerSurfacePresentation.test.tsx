@@ -60,6 +60,7 @@ import { endpointKey } from "../src/mariner-board-pointer";
 import { associatePathEndsWithRouteEndpoints } from "../src/mariner-marker-orientation";
 import { marinerRouteSymbolId, sourceRoutePathBoardEnds } from "../src/source-interaction-geometry";
 import { marinerOverlayPointToBoard } from "../src/source-board-assets";
+import { MARINER_BOARD_ACTION_PENDING_CLASS } from "../src/mariner-board-pending-presentation";
 
 const ADD_SHIP_LABEL = "Add Ship";
 const MOVE_RAIDER_LABEL = "Move Raider";
@@ -4764,21 +4765,94 @@ describe("M5.4 Mariner UX refinement (Body A)", () => {
     flushSync(() => { threatened.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
     const reasons = container.querySelector("[data-route-hazard-reasons]");
     expect(reasons).not.toBeNull();
-    expect(reasons?.textContent).toMatch(/Typhoon-scale/i);
+    expect(reasons?.textContent).toMatch(/Immediate shipping hazard from/i);
     root.unmount();
     container.remove();
   });
 
-  it("marks the manipulated piece while its mutation is pending and clears after settlement", async () => {
+  function expectVisiblePending(piece: Element | null, pending: boolean): void {
+    if (pending) {
+      expect(piece?.classList.contains(MARINER_BOARD_ACTION_PENDING_CLASS)).toBe(true);
+      expect(piece?.getAttribute("data-board-action-pending")).toBe("true");
+      expect(piece?.getAttribute("aria-busy")).toBe("true");
+      expect(piece?.querySelector(".mariner-board-action-pending-ring")).not.toBeNull();
+    } else {
+      expect(piece?.classList.contains(MARINER_BOARD_ACTION_PENDING_CLASS)).toBe(false);
+      expect(piece?.getAttribute("data-board-action-pending")).toBeNull();
+      expect(piece?.getAttribute("aria-busy")).toBeNull();
+      expect(piece?.querySelector(".mariner-board-action-pending-ring")).toBeNull();
+    }
+  }
+
+  it("shows visible Storm pending during mutation and clears after settlement", async () => {
     const { container, root } = renderSurface(initializedMariner(), WIZARD);
     let resolve!: () => void;
     const promise = new Promise<void>((r) => { resolve = r; });
     mockMutations["m3Commands.moveMarinerStorm"].mockImplementation(() => promise);
     await dragStormPiece(container, "sidereal_sea", seaHit(container, "wizard_strait"), 601);
     const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]');
-    expect(storm?.getAttribute("data-board-action-pending")).toBe("true");
+    expectVisiblePending(storm, true);
     await act(async () => { resolve(); });
-    expect(storm?.getAttribute("data-board-action-pending")).toBeNull();
+    expectVisiblePending(storm, false);
+    root.unmount();
+    container.remove();
+  });
+
+  it("shows visible Route pending during ship move settlement", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    let resolve!: () => void;
+    const promise = new Promise<void>((r) => { resolve = r; });
+    mockMutations["m3Commands.moveMarinerShip"].mockImplementation(() => promise);
+    await dragRoutePiece(container, SHIP_ROUTE, SUNKEN_ORRERY_FAR, 603);
+    const ship = container.querySelector(
+      `[data-draggable-route-piece="true"][data-route-id="${SHIP_ROUTE}"]`,
+    );
+    expectVisiblePending(ship, true);
+    await act(async () => { resolve(); });
+    expectVisiblePending(ship, false);
+    root.unmount();
+    container.remove();
+  });
+
+  it("shows visible Beast pending during move settlement", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    let resolve!: () => void;
+    const promise = new Promise<void>((r) => { resolve = r; });
+    mockMutations["m3Commands.moveMarinerBeast"].mockImplementation(() => promise);
+    await dragBeastPiece(container, DEN_A, seaHit(container, "wizard_strait"), 604);
+    const beast = container.querySelector(`[data-beast-id="${DEN_A}"]`);
+    expectVisiblePending(beast, true);
+    await act(async () => { resolve(); });
+    expectVisiblePending(beast, false);
+    root.unmount();
+    container.remove();
+  });
+
+  it("shows visible Market pending during relocation settlement", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    let resolve!: () => void;
+    const promise = new Promise<void>((r) => { resolve = r; });
+    mockMutations["m3Commands.moveMarinerMarket"].mockImplementation(() => promise);
+    await dragMarketPiece(container, "ishana", isleHit(container, "orrery"), 605);
+    const market = container.querySelector('[data-piece="market"][data-isle-id="ishana"]');
+    expectVisiblePending(market, true);
+    await act(async () => { resolve(); });
+    expectVisiblePending(market, false);
+    root.unmount();
+    container.remove();
+  });
+
+  it("clears visible pending after a failed settlement without latching pointer drag", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    mockMutations["m3Commands.moveMarinerStorm"].mockImplementation(() => Promise.reject(new Error("stale")));
+    await dragStormPiece(container, "sidereal_sea", seaHit(container, "wizard_strait"), 606);
+    const storm = container.querySelector('[data-draggable-storm="true"][data-region-id="sidereal_sea"]');
+    await act(async () => { await Promise.resolve(); });
+    expectVisiblePending(storm, false);
+    expect(container.querySelector("[data-drag-ghost]")).toBeNull();
+    await flushScheduledClickSuppressionReset();
+    await beginPieceDrag(stormPiece(container, "sidereal_sea"), seaHit(container, "wizard_strait"), 607);
+    expect(container.querySelector("[data-drag-ghost]")).not.toBeNull();
     root.unmount();
     container.remove();
   });

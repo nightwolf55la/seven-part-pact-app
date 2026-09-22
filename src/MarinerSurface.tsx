@@ -142,6 +142,7 @@ import {
 } from "./mariner-map-geometry";
 import { MARINER_SOURCE_BOARD, marinerOverlayLengthToBoard, marinerOverlayPointToBoard } from "./source-board-assets";
 import { marinerBeastBoardMarkerLabel } from "./mariner-beast-board-label";
+import { MarinerBoardPendingRing, marinerBoardPendingPresentation } from "./mariner-board-pending-presentation";
 import {
   formatMarinerRouteHazardReason,
   marinerIsleOperationalView,
@@ -1512,7 +1513,13 @@ function MarinerMap({
             const researchers = marinerSeaResearchers(sorcererPresence, sea.regionId);
             return (
               <g key={`pieces-${sea.regionId}`}>
-                {storms.tokenCount > 0 && (
+                {storms.tokenCount > 0 && (() => {
+                  const stormPending = marinerBoardActionPending(globalPending, board.actionPendingFocus, {
+                    kind: "storm",
+                    regionId: sea.regionId,
+                  });
+                  const stormPendingPresentation = marinerBoardPendingPresentation(stormPending);
+                  return (
                   <g
                     data-piece="storm"
                     data-draggable-storm="true"
@@ -1520,10 +1527,9 @@ function MarinerMap({
                     data-storm-count={stormCount}
                     data-storm-piece={storms.typhoon ? "typhoon" : "storm"}
                     data-typhoon={storms.typhoon ? "true" : "false"}
-                    data-board-action-pending={marinerBoardActionPending(globalPending, board.actionPendingFocus, {
-                      kind: "storm",
-                      regionId: sea.regionId,
-                    }) ? "true" : undefined}
+                    data-board-action-pending={stormPendingPresentation["data-board-action-pending"]}
+                    className={stormPendingPresentation.className}
+                    aria-busy={stormPendingPresentation["aria-busy"]}
                     aria-label={storms.typhoon
                       ? `Move one Storm from ${seaName} (${stormCount} Storms, Typhoon)`
                       : `Move one Storm from ${seaName}`}
@@ -1547,8 +1553,10 @@ function MarinerMap({
                       </g>
                     ))}
                     <title>{storms.accessibleCount}</title>
+                    {stormPending && <MarinerBoardPendingRing radius={22} />}
                   </g>
-                )}
+                  );
+                })()}
                 {beasts.map((beast, index) => {
                   const selected = selection?.kind === "beast" && selection.denizenId === beast.denizenId;
                   const draggable = beast.condition === "distrusting";
@@ -1557,6 +1565,7 @@ function MarinerMap({
                     kind: "beast",
                     denizenId: beast.denizenId,
                   });
+                  const beastPendingPresentation = marinerBoardPendingPresentation(beastActionPending);
                   return (
                   <g
                     key={beast.denizenId}
@@ -1565,7 +1574,9 @@ function MarinerMap({
                     data-beast-board-label={boardLabel}
                     data-beast-selected={selected ? "true" : undefined}
                     data-draggable-beast={draggable ? "true" : undefined}
-                    data-board-action-pending={beastActionPending ? "true" : undefined}
+                    data-board-action-pending={beastPendingPresentation["data-board-action-pending"]}
+                    className={beastPendingPresentation.className}
+                    aria-busy={beastPendingPresentation["aria-busy"]}
                     aria-label={`Beast ${denizenName(world.denizens, beast.denizenId)}`}
                     transform={`translate(${sea.slots.beast.x + index * 16} ${sea.slots.beast.y})`}
                     style={{
@@ -1575,6 +1586,7 @@ function MarinerMap({
                     onPointerDown={(event) => board.beginBeastPointer(beast, event)}
                     onContextMenu={(event) => board.openBeastContextMenu(beast, event)}
                   >
+                    {beastActionPending && <MarinerBoardPendingRing radius={18} />}
                     {selected && (
                       <circle
                         data-beast-selection-halo
@@ -1633,12 +1645,21 @@ function MarinerMap({
             const beasts = beastsOnIsle(mariner.beasts, isle.boardIsleId);
             return (
               <g key={`isle-pieces-${isle.boardIsleId}`}>
-                {market && (
+                {market && (() => {
+                  const marketPending = marinerBoardActionPending(globalPending, board.actionPendingFocus, {
+                    kind: "market",
+                    boardIsleId: isle.boardIsleId,
+                  });
+                  const marketPendingPresentation = marinerBoardPendingPresentation(marketPending);
+                  return (
                   <g
                     data-piece="market"
                     data-isle-id={isle.boardIsleId}
                     data-draggable-market="true"
                     data-rarity={hasRarity ? "true" : "false"}
+                    data-board-action-pending={marketPendingPresentation["data-board-action-pending"]}
+                    className={marketPendingPresentation.className}
+                    aria-busy={marketPendingPresentation["aria-busy"]}
                     aria-label={marinerMarketTokenAriaLabel(marketState)}
                     transform={`translate(${isle.slots.market.x} ${isle.slots.market.y})`}
                     style={{ cursor: "grab" }}
@@ -1664,8 +1685,10 @@ function MarinerMap({
                     <text x={0} y={16} textAnchor="middle" fontSize={8} fill="#78350f">
                       {marinerMarketTokenLabel(marketState)}
                     </text>
+                    {marketPending && <MarinerBoardPendingRing radius={14} />}
                   </g>
-                )}
+                  );
+                })()}
                 {ravage > 0 && (
                   <g
                     data-piece="ravage"
@@ -1689,6 +1712,7 @@ function MarinerMap({
                     kind: "beast",
                     denizenId: beast.denizenId,
                   });
+                  const beastPendingPresentation = marinerBoardPendingPresentation(beastActionPending);
                   return (
                   <g
                     key={beast.denizenId}
@@ -1697,7 +1721,9 @@ function MarinerMap({
                     data-beast-board-label={boardLabel}
                     data-beast-selected={selectedBeast ? "true" : undefined}
                     data-draggable-beast={draggable ? "true" : undefined}
-                    data-board-action-pending={beastActionPending ? "true" : undefined}
+                    data-board-action-pending={beastPendingPresentation["data-board-action-pending"]}
+                    className={beastPendingPresentation.className}
+                    aria-busy={beastPendingPresentation["aria-busy"]}
                     aria-label={`Beast ${denizenName(world.denizens, beast.denizenId)}`}
                     transform={`translate(${isle.slots.beast.x + index * 16} ${isle.slots.beast.y})`}
                     style={{
@@ -1707,6 +1733,7 @@ function MarinerMap({
                     onPointerDown={(event) => board.beginBeastPointer(beast, event)}
                     onContextMenu={(event) => board.openBeastContextMenu(beast, event)}
                   >
+                    {beastActionPending && <MarinerBoardPendingRing radius={18} />}
                     {selectedBeast && (
                       <circle
                         data-beast-selection-halo
@@ -1957,7 +1984,7 @@ function RouteInspector({
       {operational.threatened && operational.hazardReasons.length > 0 && (
         <ul data-route-hazard-reasons className="text-xs text-amber-800 dark:text-amber-200 space-y-1 list-disc pl-4">
           {operational.hazardReasons.map((reason) => (
-            <li key={`${reason.kind}-${reason.kind === "typhoon_scale" ? reason.regionId : `${reason.beastRegionId}-${reason.stormRegionId}`}`}>
+            <li key={`${reason.kind}-${reason.regionId}`}>
               {formatMarinerRouteHazardReason(reason)}
             </li>
           ))}

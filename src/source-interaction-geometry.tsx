@@ -9,6 +9,7 @@ import necromancerInteractionGeometryRaw from "./assets/source-boards/necromance
 import { mapEndpointPoint } from "./mariner-map-geometry";
 import { raiderHeadingTowardRouteEndpoint } from "./mariner-marker-orientation";
 import { marinerOverlayPointToBoard } from "./source-board-assets";
+import { MarinerBoardPendingRing, marinerBoardPendingPresentation } from "./mariner-board-pending-presentation";
 
 /** Generated PowerPoint-native interaction sprites. Referenced by application IDs; never parsed for identity. */
 export const MARINER_INTERACTION_GEOMETRY_RAW = marinerInteractionGeometryRaw;
@@ -365,6 +366,7 @@ export function SourceRouteOccupancyMarker({
     host.setAttribute("transform", `translate(${pose.x} ${pose.y}) rotate(${headingDeg})`);
     host.setAttribute("data-marker-from", "exact-source-path");
   }, [href, kind, toward]);
+  const pendingPresentation = marinerBoardPendingPresentation(actionPending === true);
   return (
     <g
       ref={hostRef}
@@ -373,8 +375,10 @@ export function SourceRouteOccupancyMarker({
       data-route-occupancy-marker={kind}
       data-raider-toward={toward}
       data-route-threatened={threatened ? "true" : undefined}
-      data-board-action-pending={actionPending ? "true" : undefined}
+      data-board-action-pending={pendingPresentation["data-board-action-pending"]}
       data-draggable-route-piece="true"
+      className={pendingPresentation.className}
+      aria-busy={pendingPresentation["aria-busy"]}
       aria-label={label}
       style={{ cursor: onPointerDown === undefined ? undefined : "grab" }}
       onPointerDown={onPointerDown}
@@ -384,6 +388,7 @@ export function SourceRouteOccupancyMarker({
         onSelect();
       }}
     >
+      {actionPending === true && <MarinerBoardPendingRing radius={11} />}
       {kind === "ship" ? (
         <g data-ship-pictogram="hull-mast-sail">
           <path

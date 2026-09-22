@@ -41,10 +41,7 @@ export interface MarinerRouteOperationalView {
 }
 
 export function formatMarinerRouteHazardReason(reason: MarinerRouteHazardReason): string {
-  if (reason.kind === "typhoon_scale") {
-    return `Typhoon-scale storms in ${seaRegionDisplayName(reason.regionId)}`;
-  }
-  return `Route between Beast (${seaRegionDisplayName(reason.beastRegionId)}) and Storm (${seaRegionDisplayName(reason.stormRegionId)})`;
+  return `Immediate shipping hazard from ${seaRegionDisplayName(reason.regionId)}`;
 }
 
 export interface MarinerSeaOperationalView {

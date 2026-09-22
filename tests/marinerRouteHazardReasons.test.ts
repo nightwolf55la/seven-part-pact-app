@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { DenizenId, IsleId, MarinerBoardIsleId, MarinerRouteOccupancy, MarinerState } from "../shared/domain";
 import {
@@ -71,6 +73,13 @@ function assertReasonEquivalence(state: MarinerState): void {
 }
 
 describe("marinerRouteImmediateHazardReasons", () => {
+  it("derives region attribution from immediateHazardRouteIdsCausedBy only", () => {
+    const source = readFileSync(resolve("src/mariner-route-hazard-reasons.ts"), "utf8");
+    expect(source).toContain("immediateHazardRouteIdsCausedBy");
+    expect(source).toContain("immediateHazardRouteIds");
+    expect(source).not.toMatch(/regionIsTyphoonScale|seaRegionHasBeast|sharedBoundingRouteIds|stormCount\(/);
+  });
+
   it("matches the shipping-hazards truth table for Typhoon-scale regions", () => {
     const state = mariner({
       storms: { thyrian_sea: 2, kings_gulf: 1 },
@@ -80,7 +89,7 @@ describe("marinerRouteImmediateHazardReasons", () => {
       },
     });
     assertReasonEquivalence(state);
-    expect(marinerRouteImmediateHazardReasons(THYRIAN_FAR_REACH, state).some((r) => r.kind === "typhoon_scale")).toBe(true);
+    expect(marinerRouteImmediateHazardReasons(THYRIAN_FAR_REACH, state).length).toBeGreaterThan(0);
     expect(marinerRouteImmediateHazardReasons(ISHANA_TAHV, state)).toEqual([]);
   });
 
@@ -105,7 +114,7 @@ describe("marinerRouteImmediateHazardReasons", () => {
       routes: { [THYRIAN_DRUNTYR]: { kind: "ship" }, [RUINS_SCUTTLE_THYRAS]: { kind: "ship" } },
     });
     assertReasonEquivalence(boundary);
-    expect(marinerRouteImmediateHazardReasons(THYRIAN_DRUNTYR, boundary).some((r) => r.kind === "beast_storm_boundary")).toBe(true);
+    expect(marinerRouteImmediateHazardReasons(THYRIAN_DRUNTYR, boundary).length).toBeGreaterThan(0);
     expect(marinerRouteImmediateHazardReasons(RUINS_SCUTTLE_THYRAS, boundary)).toEqual([]);
   });
 
@@ -118,5 +127,6 @@ describe("marinerRouteImmediateHazardReasons", () => {
     const second = marinerRouteImmediateHazardReasons(THYRIAN_FAR_REACH, state);
     expect(first).toEqual(second);
     expect(first.length).toBeLessThanOrEqual(4);
+    expect(first.every((reason) => reason.kind === "focus_region")).toBe(true);
   });
 });
