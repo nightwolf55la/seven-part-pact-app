@@ -241,6 +241,9 @@ export default function HierophantSurface({
   const [steerDestArea, setSteerDestArea] = useState<"" | "courtyard" | "agiary">("");
   const [steerAllocationId, setSteerAllocationId] = useState("");
   const steerDenizenRef = useRef<string | null>(null);
+  const [benefactionPendingDenizenIds, setBenefactionPendingDenizenIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const [receiveDraft, setReceiveDraft] = useState<{
     commandId: string;
     denizenId: string;
@@ -362,6 +365,38 @@ export default function HierophantSurface({
     );
     const choice = resolveSteerAllocationChoice(steerTime, denizenId);
     setSteerAllocationId(choice.kind === "single" ? choice.row.allocationId : "");
+  }
+
+  function commitBenefactionDepart(denizenId: string): void {
+    if (benefactionPendingDenizenIds.has(denizenId)) return;
+    const person = hierophant.supplicants.find((entry) => entry.denizenId === denizenId);
+    if (person === undefined || person.woe !== 0) return;
+    if (person.host.kind !== "temple") return;
+    const benefaction = baseBenefactionReference(person.classId);
+    if (benefaction.kind === "not_determined") return;
+    setBenefactionPendingDenizenIds((current) => new Set(current).add(denizenId));
+    setError(null);
+    void (async () => {
+      try {
+        await departHierophantSupplicantWithBenefaction(
+          buildDepartHierophantSupplicantWithBenefactionPayload({
+            commandId: newCommandId(),
+            expectedCampaignId: campaignIdRef.current,
+            expectedRevision: campaignRevisionRef.current,
+            denizenId,
+          }),
+        );
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Mutation failed.";
+        setError(message);
+      } finally {
+        setBenefactionPendingDenizenIds((current) => {
+          const next = new Set(current);
+          next.delete(denizenId);
+          return next;
+        });
+      }
+    })();
   }
 
   function commitSteer(args: {
@@ -1314,6 +1349,8 @@ export default function HierophantSurface({
                   destinationAuthoritative,
                 });
               },
+              benefactionPendingDenizenIds,
+              onBenefactionDepart: commitBenefactionDepart,
             }}
           />
           {(() => {
@@ -1373,6 +1410,14 @@ export default function HierophantSurface({
                       {cue !== null && (
                         <p className="text-xs font-semibold text-rose-800 dark:text-rose-200">{cue}</p>
                       )}
+                      <details
+                        data-inspector-corrections=""
+                        className="rounded-md border border-slate-200/80 bg-slate-50/60 p-2 text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300"
+                      >
+                        <summary className="cursor-pointer text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          Corrections &amp; board fallbacks
+                        </summary>
+                        <div className="mt-2 space-y-2">
                       <label className="block text-xs">
                         Display name (optional)
                         <input
@@ -1543,26 +1588,26 @@ export default function HierophantSurface({
                             )}
                             <button
                               type="button"
-                              className={btnClass}
-                              disabled={pending || benefaction.kind === "not_determined" || !templeHost}
+                              className={ghostBtn}
+                              disabled={
+                                benefactionPendingDenizenIds.has(selectedPerson.denizenId)
+                                || benefaction.kind === "not_determined"
+                                || !templeHost
+                              }
+                              aria-busy={benefactionPendingDenizenIds.has(selectedPerson.denizenId)}
                               onClick={() => {
-                                void runQuiet(async () => {
-                                  await departHierophantSupplicantWithBenefaction(
-                                    buildDepartHierophantSupplicantWithBenefactionPayload({
-                                      commandId: newCommandId(),
-                                      expectedCampaignId: campaignIdRef.current,
-                                      expectedRevision: campaignRevisionRef.current,
-                                      denizenId: selectedPerson.denizenId,
-                                    }),
-                                  );
-                                });
+                                commitBenefactionDepart(selectedPerson.denizenId);
                               }}
                             >
-                              Benefaction & Depart
+                              {benefactionPendingDenizenIds.has(selectedPerson.denizenId)
+                                ? "Benefaction & Depart…"
+                                : "Benefaction & Depart"}
                             </button>
                           </div>
                         );
                       })()}
+                        </div>
+                      </details>
                     </section>
                   );
                 })()}

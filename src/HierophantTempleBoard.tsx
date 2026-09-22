@@ -36,6 +36,7 @@ import {
   templeSupportedClassIds,
   shortTempleBoardLabel,
   woeThresholdCueLabel,
+  baseBenefactionReference,
 } from "./hierophant-view-model";
 import { formatVisionsPreviewChoiceSummary } from "./hierophant-visions-preview";
 import HierophantClassBadge from "./hierophant-class-badge";
@@ -129,6 +130,8 @@ export interface HierophantPieceControls {
     sourceTempleId: string,
     destinationTempleId: string,
   ) => void;
+  readonly benefactionPendingDenizenIds: ReadonlySet<string>;
+  readonly onBenefactionDepart: (denizenId: string) => void;
 }
 
 function SupplyClassPiece({
@@ -743,6 +746,8 @@ function SupplicantPiece({
   onHestarFallback,
   onOrderSelect,
   steer,
+  benefactionPending,
+  onBenefactionDepart,
 }: {
   readonly person: HierophantSupplicant;
   readonly preview: HierophantVisionsSupplicantPreview | undefined;
@@ -761,6 +766,8 @@ function SupplicantPiece({
   readonly onHestarFallback: (useHestar: boolean) => void;
   readonly onOrderSelect: () => void;
   readonly steer: HierophantSteerBoardInteraction | null;
+  readonly benefactionPending: boolean;
+  readonly onBenefactionDepart: () => void;
 }) {
   const storedName = denizenLabel(denizens, person.denizenId);
   const klass = classLabel(person.classId, campaignClasses);
@@ -788,6 +795,9 @@ function SupplicantPiece({
   const subjectLabel = givenName ?? klass;
   const timeScheduled = steer?.pendingDenizenIds.has(person.denizenId) === true;
   const steerable = person.woe >= 1;
+  const benefactionEligible = person.woe === 0
+    && person.host.kind === "temple"
+    && baseBenefactionReference(person.classId).kind !== "not_determined";
   const primaryLabel = orderSelectable && orderIndex === null
     ? `Add ${klass}${givenName === null ? "" : ` ${givenName}`} to Visions order`
     : accessible;
@@ -839,11 +849,16 @@ function SupplicantPiece({
           }}
           onKeyDown={(event) => activate(event, primaryAction)}
         >
-          <PersonPieceHeader
-            type="Supplicant"
-            name={givenName}
-            typeClassName="text-amber-900 dark:text-amber-200"
-          />
+          <div data-supplicant-primary="" className="flex items-start justify-between gap-2 pr-6">
+            <div className="min-w-0">
+              <p data-supplicant-name="" className="truncate text-sm font-semibold leading-tight text-amber-950 dark:text-amber-50">
+                {givenName ?? klass}
+              </p>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-amber-900/80 dark:text-amber-200/80">
+                Supplicant
+              </p>
+            </div>
+          </div>
           {orderIndex !== null && (
             <span
               className="absolute right-1 top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-800 px-1 text-[11px] font-bold text-amber-50 dark:bg-amber-200 dark:text-amber-950"
@@ -868,21 +883,69 @@ function SupplicantPiece({
                 {support}
               </span>
             )}
-            {timeScheduled && (
-              <span data-steer-time-badge="" className="text-[11px] font-semibold text-amber-900 dark:text-amber-100">
-                Time scheduled
-              </span>
-            )}
           </div>
-          <WoePips
-            woe={person.woe}
-            denizenId={person.denizenId}
-            subjectLabel={subjectLabel}
-            onSet={onSetWoe}
-          />
+          <div data-supplicant-current-woe="" className="shrink-0">
+            <WoePips
+              woe={person.woe}
+              denizenId={person.denizenId}
+              subjectLabel={subjectLabel}
+              onSet={onSetWoe}
+            />
+          </div>
         </div>
-        {(projectedTo !== null && projectedTo !== person.woe) || demand !== null || threshold !== null || preview?.thresholdCue.kind === "ready_for_benefaction" || (preview?.thresholdCue.kind === "cult_departure_due" && person.woe < 5) ? (
-          <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0">
+        {timeScheduled && (
+          <p className="mt-0.5">
+            <span
+              data-steer-time-badge=""
+              className="inline-flex rounded border border-amber-700/50 bg-amber-100/90 px-1.5 py-0.5 text-[11px] font-semibold text-amber-950 dark:border-amber-400/60 dark:bg-amber-900/50 dark:text-amber-50"
+            >
+              Time scheduled
+            </span>
+          </p>
+        )}
+        {threshold !== null && (
+          <p
+            className="mt-0.5 text-[11px] font-semibold text-rose-900 dark:text-rose-100"
+            data-woe-threshold={person.woe === 0 ? "benefaction" : "cult"}
+          >
+            {threshold}
+          </p>
+        )}
+        {benefactionEligible && (
+          <div className="mt-1" data-piece-benefaction="">
+            <button
+              type="button"
+              className="w-full rounded-md border border-emerald-800/50 bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-950 hover:bg-emerald-200/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-400/40 dark:bg-emerald-950/50 dark:text-emerald-50 dark:hover:bg-emerald-900/60"
+              aria-label="Benefaction & Depart"
+              aria-busy={benefactionPending}
+              disabled={benefactionPending}
+              onMouseDown={(event) => {
+                event.stopPropagation();
+              }}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (benefactionPending) return;
+                onBenefactionDepart();
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.stopPropagation();
+                }
+                activate(event, () => {
+                  if (benefactionPending) return;
+                  onBenefactionDepart();
+                });
+              }}
+            >
+              {benefactionPending ? "Benefaction & Depart…" : "Benefaction & Depart"}
+            </button>
+          </div>
+        )}
+        {(projectedTo !== null && projectedTo !== person.woe) || demand !== null || preview?.thresholdCue.kind === "ready_for_benefaction" || (preview?.thresholdCue.kind === "cult_departure_due" && person.woe < 5) ? (
+          <div data-supplicant-secondary="" className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0 text-slate-600 dark:text-slate-400">
             {projectedTo !== null && projectedTo !== person.woe && (
               <p className="text-[10px] text-slate-600 dark:text-slate-300" data-woe-forecast={person.denizenId} aria-label={`Next Visions: Woe ${person.woe} → ${projectedTo}`}>
                 Next Visions: {person.woe} → {projectedTo}
@@ -899,15 +962,7 @@ function SupplicantPiece({
               </p>
             )}
             {demand !== null && (
-              <p className="text-[11px] text-slate-700 dark:text-slate-200">{demand}</p>
-            )}
-            {threshold !== null && (
-              <p
-                className="text-[11px] font-semibold text-rose-900 dark:text-rose-100"
-                data-woe-threshold={person.woe === 0 ? "benefaction" : "cult"}
-              >
-                {threshold}
-              </p>
+              <p className="text-[10px] text-slate-700 dark:text-slate-300">{demand}</p>
             )}
           </div>
         ) : null}
@@ -1234,6 +1289,8 @@ function TemplePiece({
                   onHestarFallback={(useHestar) => choices.onHestarFallback(person.denizenId, useHestar)}
                   onOrderSelect={() => choices.onOrderSelect(person.denizenId)}
                   steer={steer}
+                  benefactionPending={pieces.benefactionPendingDenizenIds.has(person.denizenId)}
+                  onBenefactionDepart={() => pieces.onBenefactionDepart(person.denizenId)}
                 />
               ))}
             </ul>

@@ -1411,11 +1411,9 @@ describe("Hierophant physical piece controls", () => {
     const { container, root } = renderPieces();
     const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
     const unnamed = container.querySelector('[data-supplicant-piece="den_blank"]') as HTMLElement;
-    expect(named.querySelector("[data-piece-type]")?.textContent).toBe("Supplicant");
-    expect(named.querySelector("[data-piece-name]")?.textContent).toBe("Acolyte Ann");
-    expect(named.querySelector("[data-piece-header]")?.textContent).toContain("Supplicant");
-    expect(named.querySelector("[data-piece-header]")?.textContent).toContain("Acolyte Ann");
-    expect(unnamed.querySelector("[data-piece-type]")?.textContent).toBe("Supplicant");
+    expect(named.querySelector("[data-supplicant-name]")?.textContent).toBe("Acolyte Ann");
+    expect(named.textContent).toContain("Supplicant");
+    expect(unnamed.querySelector("[data-supplicant-name]")?.textContent).toBe("Peasant");
     expect(unnamed.querySelector("[data-piece-name]")).toBeNull();
     expect(unnamed.textContent).not.toContain("Unnamed");
     const unnamedBadge = unnamed.querySelector('[data-class-badge="peasant"]') as HTMLElement;
@@ -1454,7 +1452,9 @@ describe("Hierophant physical piece controls", () => {
     expect(high.querySelector('[aria-label="Woe 7"]')).not.toBeNull();
     expect(high.textContent).toContain("Woe 7");
     expect(high.querySelectorAll('[data-woe-filled="true"]')).toHaveLength(5);
-    expect(container.querySelector('[aria-label="Benefaction & Depart"]')).toBeNull();
+    expect(ready.querySelector('[data-piece-benefaction] [aria-label="Benefaction & Depart"]')).not.toBeNull();
+    expect(named.querySelector('[data-piece-benefaction]')).toBeNull();
+    expect(unnamed.querySelector('[data-piece-benefaction]')).toBeNull();
     expect(container.querySelector('[aria-label="Depart for Cult"]')).toBeNull();
     expect(
       container.querySelector('[data-temple-resource="krolis"][data-resource-counter="abundance"]')
@@ -1566,17 +1566,15 @@ describe("Hierophant physical piece controls", () => {
     container.remove();
   });
 
-  it("offers Benefaction & Depart on a Woe 0 Temple-hosted Supplicant", async () => {
+  it("offers piece-attached Benefaction & Depart on a Woe 0 Temple-hosted Supplicant", async () => {
     mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"] = vi.fn(async () => {});
     mockMutations["m3Commands.steerHierophantSupplicant"] = vi.fn(async () => {});
+    mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {});
     const { container, root } = renderPieces();
     const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
-    flushSync(() => { ready.querySelector("button")!.click(); });
-    const depart = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent === "Benefaction & Depart",
-    );
-    expect(depart).toBeDefined();
-    flushSync(() => { depart!.click(); });
+    const depart = ready.querySelector('[data-piece-benefaction] [aria-label="Benefaction & Depart"]') as HTMLButtonElement;
+    expect(depart).not.toBeNull();
+    flushSync(() => { depart.click(); });
     await Promise.resolve();
     expect(mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"]).toHaveBeenCalledTimes(1);
     expect(mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"].mock.calls[0][0]).toMatchObject({
@@ -1584,6 +1582,97 @@ describe("Hierophant physical piece controls", () => {
       expectedRevision: 4,
     });
     expect(mockMutations["m3Commands.steerHierophantSupplicant"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.updateSupplicant"]).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-supplicant-piece="den_ready"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("does not offer piece Benefaction from Next Visions projection alone", () => {
+    const { container, root } = renderPieces();
+    const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
+    expect(named.querySelector('[aria-label="Next Visions: Woe 1 → 0"]')).not.toBeNull();
+    expect(named.querySelector('[data-piece-benefaction]')).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps piece Benefaction off the drag path and selection/Woe side effects", async () => {
+    mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"] = vi.fn(async () => {});
+    mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {});
+    const { container, root } = renderPieces();
+    const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
+    const depart = ready.querySelector('[data-piece-benefaction] [aria-label="Benefaction & Depart"]') as HTMLButtonElement;
+    let dragStarted = false;
+    ready.addEventListener("dragstart", () => {
+      dragStarted = true;
+    });
+    flushSync(() => {
+      depart.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      depart.click();
+    });
+    await Promise.resolve();
+    expect(dragStarted).toBe(false);
+    expect(mockMutations["m3Commands.updateSupplicant"]).not.toHaveBeenCalled();
+    expect(ready.querySelector("button[aria-pressed]")?.getAttribute("aria-pressed")).not.toBe("true");
+    root.unmount();
+    container.remove();
+  });
+
+  it("supports keyboard activation and scoped pending feedback for piece Benefaction", async () => {
+    let release: (() => void) | undefined;
+    mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"] = vi.fn(() => new Promise<void>((resolve) => {
+      release = resolve;
+    }));
+    const { container, root } = renderPieces();
+    const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
+    const depart = ready.querySelector('[data-piece-benefaction] [aria-label="Benefaction & Depart"]') as HTMLButtonElement;
+    const namedWoe = container.querySelector('[data-supplicant-piece="den_ann"] [data-woe-target="0"]') as HTMLButtonElement;
+    flushSync(() => { depart.focus(); });
+    flushSync(() => {
+      depart.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    expect(mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"]).toHaveBeenCalledTimes(1);
+    expect(depart.getAttribute("aria-busy")).toBe("true");
+    expect(depart.disabled).toBe(true);
+    expect(depart.textContent).toBe("Benefaction & Depart…");
+    expect(namedWoe.disabled).toBe(false);
+    flushSync(() => { depart.click(); });
+    expect(mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"]).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      release?.();
+      await Promise.resolve();
+    });
+    flushSync(() => {});
+    const departAfter = container.querySelector(
+      '[data-supplicant-piece="den_ready"] [data-piece-benefaction] [aria-label="Benefaction & Depart"]',
+    ) as HTMLButtonElement;
+    expect(departAfter.getAttribute("aria-busy")).toBe("false");
+    expect(container.querySelector('[data-supplicant-piece="den_ready"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("reuses the same Benefaction operation from inspector fallback controls", async () => {
+    mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"] = vi.fn(async () => {});
+    const { container, root } = renderPieces();
+    flushSync(() => { templeSelectButton(container, "Temple Notor").click(); });
+    flushSync(() => {
+      (container.querySelector('[data-supplicant-piece="den_ready"] button') as HTMLButtonElement).click();
+    });
+    const corrections = container.querySelector("[data-inspector-corrections]") as HTMLDetailsElement;
+    expect(corrections).not.toBeNull();
+    flushSync(() => { corrections.open = true; });
+    const depart = Array.from(corrections.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Benefaction & Depart"),
+    );
+    expect(depart).toBeDefined();
+    flushSync(() => { depart!.click(); });
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"].mock.calls[0][0]).toMatchObject({
+      denizenId: "den_ready",
+    });
     root.unmount();
     container.remove();
   });
@@ -1854,7 +1943,9 @@ describe("Resolve Visions action", () => {
     }) as typeof EMPTY_HIEROPHANT_STATE);
     expect(container.querySelector('[data-supplicant-piece="den_ann"] [aria-label="Woe 0"]')).not.toBeNull();
     expect(container.querySelector('[data-woe-threshold="benefaction"]')?.textContent).toBe("Ready for Benefaction");
-    expect(container.querySelector('[aria-label="Benefaction & Depart"]')).toBeNull();
+    expect(
+      container.querySelector('[data-supplicant-piece="den_ann"] [data-piece-benefaction] [aria-label="Benefaction & Depart"]'),
+    ).not.toBeNull();
     root.unmount();
     container.remove();
   });
