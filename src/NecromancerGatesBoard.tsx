@@ -15,6 +15,11 @@ import {
   necromancerPathSymbolId,
 } from "./source-interaction-geometry";
 import {
+  SpaceOccupants,
+  useNecromancerBoardDrag,
+  type NecromancerBoardDirectMove,
+} from "./necromancer-board-pieces";
+import {
   NECROMANCER_BUILTIN_GATE_IDS,
   NECROMANCER_BUILTIN_GATE_MAP_POINTS,
   NECROMANCER_BUILTIN_PATH_SPACE_DEFINITIONS,
@@ -28,12 +33,12 @@ import {
   gateBoardTitle,
   namedOccupantTokens,
   necromancerDomainDisruptiveArcanists,
+  occupiableRefKey,
   occupantSummaryLabel,
   piecesAtSpace,
   researcherOperationalLabel,
   visibleOccupantTokens,
-  visibleSoulBeadCount,
-  type BoardOccupantToken,
+  type NecromancerLocalFeedback,
   type NecromancerWizardNameRef,
 } from "./necromancer-view-model";
 
@@ -51,11 +56,34 @@ function activate(event: KeyboardEvent<Element>, action: () => void): void {
 const INTERACTIVE_FOCUS_CLASS =
   "outline-none focus:outline-none focus-visible:outline-none [&_[data-focus-ring]]:opacity-0 [&:focus-visible_[data-focus-ring]]:opacity-100";
 
-function occupantFill(kind: BoardOccupantToken["kind"]): string {
-  if (kind === "foe") return "#7f1d1d";
-  if (kind === "ally") return "#1e3a8a";
-  if (kind === "ghoul_caller") return "#4a044e";
-  return "#334155";
+function gateFramePresentation(status: "ordinary" | "hostile" | "destroyed", selected: boolean): {
+  fill: string;
+  stroke: string;
+  strokeWidth: number;
+  dash: string | undefined;
+} {
+  if (status === "destroyed") {
+    return {
+      fill: "url(#nec-destroyed-hatch)",
+      stroke: selected ? "#e2e8f0" : "#94a3b8",
+      strokeWidth: selected ? 4 : 3,
+      dash: "6 5",
+    };
+  }
+  if (status === "hostile") {
+    return {
+      fill: "url(#nec-hostile-hatch)",
+      stroke: selected ? "#7c2d12" : "#c2410c",
+      strokeWidth: selected ? 4 : 3,
+      dash: undefined,
+    };
+  }
+  return {
+    fill: selected ? "rgba(221,214,254,0.35)" : "transparent",
+    stroke: selected ? "#5b21b6" : "transparent",
+    strokeWidth: selected ? 3 : 2,
+    dash: undefined,
+  };
 }
 
 export default function NecromancerGatesBoard({
@@ -65,6 +93,9 @@ export default function NecromancerGatesBoard({
   selection,
   onSelect,
   sorcererPresence,
+  localFeedback = null,
+  onDirectMove,
+  onLocalReject,
 }: {
   necromancer: NecromancerState;
   world: WorldReference;
@@ -72,14 +103,32 @@ export default function NecromancerGatesBoard({
   selection: Selection | null;
   onSelect: (selection: Selection) => void;
   sorcererPresence: readonly SorcererExternalPresence[];
+  localFeedback?: NecromancerLocalFeedback | null;
+  onDirectMove: (move: NecromancerBoardDirectMove) => void;
+  onLocalReject: (key: string, kind: "rejected" | "stale", message: string) => void;
 }) {
   const finalDeath = NECROMANCER_STATIC_TERMINAL_PRESENTATIONS.find((exit) => exit.terminalId === "final_death");
   const researchers = finalDeathResearchers(sorcererPresence);
   const disruptive = necromancerDomainDisruptiveArcanists(sorcererPresence);
+  const { dragKey, hintKeys, pointerHandlers } = useNecromancerBoardDrag({
+    necromancer,
+    onSelect,
+    onDirectMove,
+    onLocalReject,
+  });
 
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-stone-50 dark:bg-slate-950 p-2 overflow-hidden">
+        {localFeedback !== null && (
+          <p
+            data-board-local-feedback
+            role={localFeedback.kind === "pending" ? "status" : "alert"}
+            className="px-2 pb-1 text-xs text-amber-800 dark:text-amber-200"
+          >
+            {localFeedback.message}
+          </p>
+        )}
         <svg
           role="img"
           aria-label="Gates of Death board"
@@ -147,89 +196,111 @@ export default function NecromancerGatesBoard({
             const symbolId = isValidNecromancerBuiltinPathSpaceId(pathSpaceId)
               ? necromancerPathSymbolId(pathSpaceId)
               : null;
+            const occupiableKey = occupiableRefKey(location);
+            const dropHint = hintKeys.has(occupiableKey);
+            const select = () => onSelect({ kind: "path", pathSpaceId });
             return (
-              <g
-                key={pathSpaceId}
-                role="button"
-                tabIndex={0}
-                aria-label={`${label}. ${occupantSummaryLabel(tokens, pieces.souls)}`}
-                className={INTERACTIVE_FOCUS_CLASS}
-                style={{ outline: "none" }}
-                onClick={() => onSelect({ kind: "path", pathSpaceId })}
-                onKeyDown={(event) => activate(event, () => onSelect({ kind: "path", pathSpaceId }))}
-              >
-                {sourceHref !== null && symbolId !== null ? (
-                  <>
-                    <circle cx={point.x} cy={point.y} r={14} fill="transparent" stroke="transparent" />
-                    <use
-                      href={sourceHref}
-                      fill={selected ? "#ddd6fe" : "transparent"}
-                      stroke={selected ? "#4c1d95" : "transparent"}
-                      strokeWidth={selected ? 3 : 0}
-                    />
-                    {selected && (
+              <g key={pathSpaceId} data-occupiable-cluster={occupiableKey}>
+                <g
+                  role="button"
+                  tabIndex={0}
+                  data-occupiable-key={occupiableKey}
+                  data-drop-hint={dropHint ? "true" : undefined}
+                  aria-label={`${label}. ${occupantSummaryLabel(tokens, pieces.souls)}`}
+                  className={INTERACTIVE_FOCUS_CLASS}
+                  style={{ outline: "none" }}
+                  onClick={select}
+                  onKeyDown={(event) => activate(event, select)}
+                >
+                  {sourceHref !== null && symbolId !== null ? (
+                    <>
+                      <circle cx={point.x} cy={point.y} r={14} fill="transparent" stroke="transparent" />
                       <use
                         href={sourceHref}
-                        data-selection-halo
+                        fill={selected ? "#ddd6fe" : dropHint ? "rgba(167,139,250,0.35)" : "transparent"}
+                        stroke={selected ? "#4c1d95" : dropHint ? "#6d28d9" : "transparent"}
+                        strokeWidth={selected || dropHint ? 3 : 0}
+                      />
+                      {selected && (
+                        <use
+                          href={sourceHref}
+                          data-selection-halo
+                          data-source-geometry={symbolId}
+                          fill="none"
+                          stroke="#6d28d9"
+                          strokeWidth={4}
+                          opacity={0.45}
+                          pointerEvents="none"
+                        />
+                      )}
+                      <use
+                        href={sourceHref}
+                        data-focus-ring
                         data-source-geometry={symbolId}
                         fill="none"
-                        stroke="#6d28d9"
-                        strokeWidth={4}
-                        opacity={0.45}
+                        stroke="#7c3aed"
+                        strokeWidth={5}
                         pointerEvents="none"
                       />
-                    )}
-                    <use
-                      href={sourceHref}
-                      data-focus-ring
-                      data-source-geometry={symbolId}
-                      fill="none"
-                      stroke="#7c3aed"
-                      strokeWidth={5}
-                      pointerEvents="none"
-                    />
-                  </>
-                ) : (
-                  <>
-                    <circle
-                      cx={point.x}
-                      cy={point.y}
-                      r={14}
-                      fill={selected ? "#ddd6fe" : "transparent"}
-                      stroke={selected ? "#4c1d95" : "transparent"}
-                      strokeWidth={selected ? 3 : 0}
-                    />
-                    {selected && (
+                    </>
+                  ) : (
+                    <>
                       <circle
-                        data-selection-halo
+                        cx={point.x}
+                        cy={point.y}
+                        r={14}
+                        fill={selected ? "#ddd6fe" : "transparent"}
+                        stroke={selected ? "#4c1d95" : "transparent"}
+                        strokeWidth={selected ? 3 : 0}
+                      />
+                      {selected && (
+                        <circle
+                          data-selection-halo
+                          cx={point.x}
+                          cy={point.y}
+                          r={18}
+                          fill="none"
+                          stroke="#6d28d9"
+                          strokeWidth={4}
+                          opacity={0.4}
+                          pointerEvents="none"
+                        />
+                      )}
+                      <circle
+                        data-focus-ring
                         cx={point.x}
                         cy={point.y}
                         r={18}
                         fill="none"
-                        stroke="#6d28d9"
-                        strokeWidth={4}
-                        opacity={0.4}
+                        stroke="#7c3aed"
+                        strokeWidth={5}
                         pointerEvents="none"
                       />
-                    )}
-                    <circle
-                      data-focus-ring
-                      cx={point.x}
-                      cy={point.y}
-                      r={18}
-                      fill="none"
-                      stroke="#7c3aed"
-                      strokeWidth={5}
-                      pointerEvents="none"
-                    />
-                  </>
-                )}
-                <SpaceTokens
+                    </>
+                  )}
+                </g>
+                <SpaceOccupants
                   originX={point.x}
                   originY={point.y + 10}
+                  from={location}
                   souls={pieces.souls}
                   visible={visible}
                   overflowCount={overflowCount}
+                  feedback={localFeedback}
+                  dragKey={dragKey}
+                  onSelectSpace={select}
+                  piecePointerHandlers={(token) => pointerHandlers({
+                    pieceKey: token.key,
+                    kind: token.move.kind === "none" ? "foe" : token.move.kind,
+                    from: location,
+                    subject: token.move.kind === "foe" ? token.move.subject : undefined,
+                    denizenId: token.move.kind === "ally" || token.move.kind === "ghoul_caller" ? token.move.denizenId : undefined,
+                  })}
+                  soulPointerHandlers={(pieceKey) => pointerHandlers({
+                    pieceKey,
+                    kind: "soul",
+                    from: location,
+                  })}
                 />
                 {warning !== null && (
                   <text x={point.x} y={point.y + 38} textAnchor="middle" fontSize={7} fill="#9a3412">5+ Souls pending</text>
@@ -247,120 +318,184 @@ export default function NecromancerGatesBoard({
             const { visible, overflowCount } = visibleOccupantTokens(tokens);
             const selected = selection?.kind === "gate" && selection.gateId === gateId;
             const status = gate.status;
-            const fill = status === "destroyed"
-              ? "url(#nec-destroyed-hatch)"
-              : status === "hostile"
-                ? "url(#nec-hostile-hatch)"
-                : selected ? "rgba(221,214,254,0.35)" : "transparent";
-            const textFill = status === "destroyed" ? "#e2e8f0" : "#0f172a";
-            const stroke = status === "destroyed" ? "#94a3b8" : status === "hostile" ? "#9a3412" : selected ? "#5b21b6" : "transparent";
+            const frame = gateFramePresentation(status, selected);
+            const textFill = status === "destroyed" ? "#e2e8f0" : status === "hostile" ? "#7c2d12" : "#0f172a";
             const warning = fivePlusSoulWarning(pieces.souls);
             const transformEligible = canTransformSoulIntoAlly(gate, pieces.souls);
             const builtin = isValidNecromancerBuiltinGateId(gateId);
             const symbolId = builtin ? necromancerGateSymbolId(gateId) : null;
             const sourceHref = symbolId !== null ? `#${symbolId}` : null;
+            const occupiableKey = occupiableRefKey(location);
+            const dropHint = hintKeys.has(occupiableKey);
+            const select = () => onSelect({ kind: "gate", gateId });
             return (
-              <g
-                key={gateId}
-                role="button"
-                tabIndex={0}
-                aria-label={gateBoardAriaLabel(gate) + `. ${occupantSummaryLabel(tokens, pieces.souls)}${transformEligible ? ". Transform Soul into Ally available." : ""}`}
-                className={INTERACTIVE_FOCUS_CLASS}
-                style={{ outline: "none" }}
-                onClick={() => onSelect({ kind: "gate", gateId })}
-                onKeyDown={(event) => activate(event, () => onSelect({ kind: "gate", gateId }))}
-              >
-                {sourceHref !== null && symbolId !== null ? (
-                  <>
-                    <use
-                      href={sourceHref}
-                      fill={fill}
-                      stroke={stroke}
-                      strokeWidth={selected ? 3 : 2}
-                      strokeDasharray={status === "destroyed" ? "5 4" : undefined}
-                    />
-                    {selected && (
+              <g key={gateId} data-occupiable-cluster={occupiableKey}>
+                <g
+                  role="button"
+                  tabIndex={0}
+                  data-occupiable-key={occupiableKey}
+                  data-gate-status={status}
+                  data-gate-frame={status}
+                  data-drop-hint={dropHint ? "true" : undefined}
+                  aria-label={gateBoardAriaLabel(gate) + `. ${occupantSummaryLabel(tokens, pieces.souls)}${transformEligible ? ". Transform Soul into Ally available." : ""}`}
+                  className={INTERACTIVE_FOCUS_CLASS}
+                  style={{ outline: "none" }}
+                  onClick={select}
+                  onKeyDown={(event) => activate(event, select)}
+                >
+                  {sourceHref !== null && symbolId !== null ? (
+                    <>
+                      {status === "hostile" && (
+                        <use
+                          href={sourceHref}
+                          data-gate-frame-halo="hostile"
+                          fill="none"
+                          stroke="#ea580c"
+                          strokeWidth={8}
+                          opacity={0.55}
+                          pointerEvents="none"
+                        />
+                      )}
+                      {status === "destroyed" && (
+                        <use
+                          href={sourceHref}
+                          data-gate-frame-halo="destroyed"
+                          fill="none"
+                          stroke="#cbd5e1"
+                          strokeWidth={7}
+                          strokeDasharray="7 6"
+                          opacity={0.9}
+                          pointerEvents="none"
+                        />
+                      )}
                       <use
                         href={sourceHref}
-                        data-selection-halo
+                        fill={dropHint && status === "ordinary" ? "rgba(167,139,250,0.35)" : frame.fill}
+                        stroke={frame.stroke}
+                        strokeWidth={frame.strokeWidth}
+                        strokeDasharray={frame.dash}
+                      />
+                      {selected && (
+                        <use
+                          href={sourceHref}
+                          data-selection-halo
+                          data-source-geometry={symbolId}
+                          fill="none"
+                          stroke="#6d28d9"
+                          strokeWidth={5}
+                          opacity={0.45}
+                          pointerEvents="none"
+                        />
+                      )}
+                      <use
+                        href={sourceHref}
+                        data-focus-ring
                         data-source-geometry={symbolId}
                         fill="none"
-                        stroke="#6d28d9"
-                        strokeWidth={5}
-                        opacity={0.45}
+                        stroke="#7c3aed"
+                        strokeWidth={6}
                         pointerEvents="none"
                       />
-                    )}
-                    <use
-                      href={sourceHref}
-                      data-focus-ring
-                      data-source-geometry={symbolId}
-                      fill="none"
-                      stroke="#7c3aed"
-                      strokeWidth={6}
-                      pointerEvents="none"
-                    />
-                  </>
-                ) : (
-                  <>
-                    {selected && (
+                    </>
+                  ) : (
+                    <>
+                      {selected && (
+                        <ellipse
+                          data-selection-halo
+                          cx={point.x}
+                          cy={point.y}
+                          rx={56}
+                          ry={68}
+                          fill="none"
+                          stroke="#6d28d9"
+                          strokeWidth={5}
+                          opacity={0.4}
+                          pointerEvents="none"
+                        />
+                      )}
+                      <NecromancerGateShape
+                        x={point.x}
+                        y={point.y}
+                        fill={frame.fill}
+                        stroke={frame.stroke}
+                        strokeWidth={frame.strokeWidth}
+                        strokeDasharray={frame.dash}
+                      />
                       <ellipse
-                        data-selection-halo
+                        data-focus-ring
                         cx={point.x}
                         cy={point.y}
                         rx={56}
                         ry={68}
                         fill="none"
-                        stroke="#6d28d9"
-                        strokeWidth={5}
-                        opacity={0.4}
+                        stroke="#7c3aed"
+                        strokeWidth={6}
                         pointerEvents="none"
                       />
-                    )}
-                    <NecromancerGateShape
-                      x={point.x}
-                      y={point.y}
-                      fill={fill}
-                      stroke={stroke}
-                      strokeWidth={selected ? 3 : 2}
-                      strokeDasharray={status === "destroyed" ? "5 4" : undefined}
-                    />
-                    <ellipse
-                      data-focus-ring
-                      cx={point.x}
-                      cy={point.y}
-                      rx={56}
-                      ry={68}
-                      fill="none"
-                      stroke="#7c3aed"
-                      strokeWidth={6}
-                      pointerEvents="none"
-                    />
-                  </>
-                )}
-                <text
-                  x={point.x}
-                  y={point.y - 8}
-                  textAnchor="middle"
-                  fontSize={12}
-                  fontWeight={700}
-                  fill={gate.origin === "builtin" ? "transparent" : textFill}
-                >
-                  {gateBoardTitle(gate)}
-                </text>
-                <text x={point.x} y={point.y + 8} textAnchor="middle" fontSize={8} fill={textFill}>
-                  {status === "ordinary" ? "" : status === "hostile" ? "Hostile" : "Destroyed"}
-                </text>
-                <SpaceTokens
+                    </>
+                  )}
+                  <text
+                    x={point.x}
+                    y={point.y - 8}
+                    textAnchor="middle"
+                    fontSize={12}
+                    fontWeight={700}
+                    fill={gate.origin === "builtin" ? "transparent" : textFill}
+                  >
+                    {gateBoardTitle(gate)}
+                  </text>
+                  {status !== "ordinary" && (
+                    <g data-gate-status-chip={status} pointerEvents="none">
+                      <rect
+                        x={point.x - 34}
+                        y={point.y - 2}
+                        width={68}
+                        height={14}
+                        rx={3}
+                        fill={status === "hostile" ? "#9a3412" : "#1e293b"}
+                        stroke={status === "hostile" ? "#fdba74" : "#cbd5e1"}
+                        strokeWidth={status === "destroyed" ? 1.25 : 1}
+                        strokeDasharray={status === "destroyed" ? "3 2" : undefined}
+                      />
+                      <text
+                        x={point.x}
+                        y={point.y + 8}
+                        textAnchor="middle"
+                        fontSize={8}
+                        fontWeight={700}
+                        fill={status === "hostile" ? "#fff7ed" : "#e2e8f0"}
+                      >
+                        {status === "hostile" ? "Hostile" : "Destroyed"}
+                      </text>
+                    </g>
+                  )}
+                </g>
+                <SpaceOccupants
                   originX={point.x}
                   originY={point.y + 18}
+                  from={location}
                   souls={pieces.souls}
                   visible={visible}
                   overflowCount={overflowCount}
                   light={status === "destroyed"}
+                  feedback={localFeedback}
+                  dragKey={dragKey}
+                  onSelectSpace={select}
+                  piecePointerHandlers={(token) => pointerHandlers({
+                    pieceKey: token.key,
+                    kind: token.move.kind === "none" ? "foe" : token.move.kind,
+                    from: location,
+                    subject: token.move.kind === "foe" ? token.move.subject : undefined,
+                    denizenId: token.move.kind === "ally" || token.move.kind === "ghoul_caller" ? token.move.denizenId : undefined,
+                  })}
+                  soulPointerHandlers={(pieceKey) => pointerHandlers({
+                    pieceKey,
+                    kind: "soul",
+                    from: location,
+                  })}
                 />
                 {warning !== null && (
-                  <text x={point.x} y={point.y + 40} textAnchor="middle" fontSize={7} fill={status === "destroyed" ? "#fecaca" : "#9a3412"}>
+                  <text x={point.x} y={point.y + 52} textAnchor="middle" fontSize={7} fill={status === "destroyed" ? "#fecaca" : "#9a3412"}>
                     5+ Souls pending
                   </text>
                 )}
@@ -386,62 +521,5 @@ export default function NecromancerGatesBoard({
         </section>
       )}
     </div>
-  );
-}
-
-function SpaceTokens({
-  originX,
-  originY,
-  souls,
-  visible,
-  overflowCount,
-  light = false,
-}: {
-  originX: number;
-  originY: number;
-  souls: number;
-  visible: readonly BoardOccupantToken[];
-  overflowCount: number;
-  light?: boolean;
-}) {
-  const beads = visibleSoulBeadCount(souls);
-  const fill = light ? "#e2e8f0" : "#4c1d95";
-  return (
-    <g data-soul-beads={souls}>
-      {Array.from({ length: beads }, (_, index) => (
-        <circle
-          key={`bead-${index}`}
-          cx={originX - 18 + index * 5}
-          cy={originY}
-          r={2}
-          fill={fill}
-        />
-      ))}
-      {souls > 0 && (
-        <text x={originX + 22} y={originY + 3} textAnchor="start" fontSize={8} fill={fill}>
-          {souls}
-        </text>
-      )}
-      {visible.map((token, index) => (
-        <g key={token.key}>
-          <rect
-            x={originX - 40 + index * 28}
-            y={originY + 6}
-            width={26}
-            height={10}
-            rx={2}
-            fill={occupantFill(token.kind)}
-          />
-          <text x={originX - 27 + index * 28} y={originY + 14} textAnchor="middle" fontSize={6} fill="#f8fafc">
-            {token.name.length > 4 ? `${token.name.slice(0, 4)}…` : token.name}
-          </text>
-        </g>
-      ))}
-      {overflowCount > 0 && (
-        <text x={originX + 40} y={originY + 14} textAnchor="start" fontSize={7} fill={fill}>
-          +{overflowCount}
-        </text>
-      )}
-    </g>
   );
 }

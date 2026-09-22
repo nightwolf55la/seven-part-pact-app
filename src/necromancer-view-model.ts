@@ -43,6 +43,7 @@ import {
   isNecromancerWizardFoe,
   isNecromancerDenizenFoe,
   isReliableOrDisruptiveStatus,
+  powerfulStatusLabel,
   pactSeatDisplayName,
   type NecromancerAbominationKind,
   type NecromancerAllyState,
@@ -1549,6 +1550,26 @@ export function buildUpdateNecromancerGhoulCallerPayload(args: {
   };
 }
 
+export function buildRelocateNecromancerGhoulCallerPayload(args: {
+  readonly commandId: string;
+  readonly expectedCampaignId: string;
+  readonly expected: NecromancerGhoulCallerState;
+  readonly location: NecromancerGhoulCallerState["location"];
+}): ReturnType<typeof buildUpdateNecromancerGhoulCallerPayload> {
+  return buildUpdateNecromancerGhoulCallerPayload({
+    commandId: args.commandId,
+    expectedCampaignId: args.expectedCampaignId,
+    denizenId: args.expected.denizenId,
+    expected: args.expected,
+    location: args.location,
+    pettyDeadCount: args.expected.pettyDeadCount,
+    primaryElement: args.expected.primaryElement,
+    aesthetic: args.expected.aesthetic,
+    strangeQuirk: args.expected.strangeQuirk,
+    ageYears: args.expected.ageYears,
+  });
+}
+
 export function buildRemoveNecromancerGhoulCallerPayload(args: {
   readonly commandId: string;
   readonly expectedCampaignId: string;
@@ -1744,11 +1765,200 @@ export function gateBoardAriaLabel(gate: NecromancerGateState): string {
   return `${gateBoardTitle(gate)} ${gate.status}`;
 }
 
+export const NECROMANCER_DIRECT_MOVE_OPERATIONS = {
+  foe: {
+    command: "update_necromancer_foe",
+    mutation: "updateNecromancerFoe",
+    atomic: true,
+    lifecycle: "command_event_revision",
+  },
+  ally: {
+    command: "update_necromancer_ally",
+    mutation: "updateNecromancerAlly",
+    atomic: true,
+    lifecycle: "command_event_revision",
+  },
+  ghoul_caller: {
+    command: "update_necromancer_ghoul_caller",
+    mutation: "updateNecromancerGhoulCaller",
+    atomic: true,
+    lifecycle: "command_event_revision",
+  },
+  soul: {
+    command: "move_necromancer_souls",
+    mutation: "moveNecromancerSouls",
+    atomic: true,
+    lifecycle: "command_event_revision",
+    amount: 1,
+  },
+} as const;
+
+export const BOARD_NAME_LINE_MAX_CHARS = 12;
+
+export type GhoulCallerDispositionKind = "reliable" | "disruptive" | "other" | "unset";
+
+export interface GhoulCallerDispositionPresentation {
+  readonly kind: GhoulCallerDispositionKind;
+  readonly label: string;
+}
+
+export function ghoulCallerDispositionPresentation(
+  status: PowerfulDenizenStatus | null | undefined,
+): GhoulCallerDispositionPresentation {
+  if (status == null) return { kind: "unset", label: "Status unset" };
+  if (status.kind === "standard" && (status.value === "reliable" || status.value === "disruptive")) {
+    return { kind: status.value, label: powerfulStatusLabel(status) };
+  }
+  return { kind: "other", label: powerfulStatusLabel(status) };
+}
+
+export function compactBoardNameLines(name: string, maxPerLine: number = BOARD_NAME_LINE_MAX_CHARS): readonly string[] {
+  const trimmed = name.trim();
+  if (trimmed.length === 0) return [""];
+  if (trimmed.length <= maxPerLine) return [trimmed];
+  const words = trimmed.split(/\s+/);
+  if (words.length >= 2) {
+    const first = clipBoardName(words[0]!, maxPerLine);
+    const rest = words.slice(1).join(" ");
+    return [first, clipBoardName(rest, maxPerLine)];
+  }
+  return [clipBoardName(trimmed, maxPerLine)];
+}
+
+function clipBoardName(value: string, maxPerLine: number): string {
+  if (value.length <= maxPerLine) return value;
+  return `${value.slice(0, Math.max(1, maxPerLine - 1))}…`;
+}
+
+export function isEdgeOfLifeSpace(
+  ref: NecromancerOccupiableSpaceRef,
+  necromancer: Pick<NecromancerState, "gates" | "pathSpaces">,
+): boolean {
+  if (ref.kind === "gate") {
+    const gate = necromancer.gates.find((candidate) => candidate.gateId === ref.gateId);
+    return gate !== undefined && gateBandOf(gate) === "near";
+  }
+  const path = necromancer.pathSpaces.find((candidate) => candidate.pathSpaceId === ref.pathSpaceId);
+  if (path === undefined) return false;
+  if (path.origin === "builtin") return isBuiltinEdgeOfLifePathSpaceId(path.pathSpaceId);
+  return path.region === "edge_of_life";
+}
+
+export function ordinaryDirectMoveDestinations(
+  kind: "foe" | "ally" | "ghoul_caller" | "soul",
+  necromancer: NecromancerState,
+  from: NecromancerOccupiableSpaceRef,
+): readonly NecromancerOccupiableSpaceRef[] {
+  const fromKey = occupiableRefKey(from);
+  if (kind === "ghoul_caller") {
+    return activeEdgeOfLifePathSpaces(necromancer)
+      .map((path) => ({ kind: "path" as const, pathSpaceId: path.pathSpaceId }))
+      .filter((space) => occupiableRefKey(space) !== fromKey);
+  }
+  return activeOccupiableSpaces(necromancer).filter((space) => occupiableRefKey(space) !== fromKey);
+}
+
+export function depthReachRegions(depthValue: number | null | undefined): readonly string[] {
+  if (depthValue === null || depthValue === undefined || depthValue <= 0) return [];
+  const regions = ["Edge of Life", "Near Gates"];
+  if (depthValue >= 2) {
+    regions.push("Far Lands", "Far Gates");
+  }
+  if (depthValue >= 3) {
+    regions.push("Abyss", "Furthest Gates");
+  }
+  return regions;
+}
+
+export function depthReachCue(depthValue: number | null | undefined): string {
+  if (depthValue === null || depthValue === undefined) {
+    return "Reachable at current Depth: none recorded";
+  }
+  if (depthValue <= 0) {
+    return "Reachable at current Depth: not currently on the Gates";
+  }
+  return `Reachable at current Depth: ${depthReachRegions(depthValue).join(", ")}`;
+}
+
+export interface NecromancerPressureCounts {
+  readonly hostileGates: number;
+  readonly destroyedGates: number;
+  readonly fivePlusSoulSpaces: number;
+  readonly foesAtEdgeOfLife: number;
+  readonly escapedFoes: number;
+}
+
+export function necromancerPressureCounts(necromancer: NecromancerState): NecromancerPressureCounts {
+  return {
+    hostileGates: necromancer.gates.filter((gate) => gate.status === "hostile").length,
+    destroyedGates: necromancer.gates.filter((gate) => gate.status === "destroyed").length,
+    fivePlusSoulSpaces: necromancer.souls.filter((entry) => entry.count >= FIVE_PLUS_SOUL_THRESHOLD).length,
+    foesAtEdgeOfLife: necromancer.foes.filter((foe) => foe.location.kind !== "escaped" && isEdgeOfLifeSpace(foe.location, necromancer)).length,
+    escapedFoes: escapedFoes(necromancer.foes).length,
+  };
+}
+
+export function necromancerPressureCue(necromancer: NecromancerState): string {
+  const counts = necromancerPressureCounts(necromancer);
+  const parts: string[] = [];
+  if (counts.hostileGates > 0) parts.push(`${counts.hostileGates} Hostile`);
+  if (counts.destroyedGates > 0) parts.push(`${counts.destroyedGates} Destroyed`);
+  if (counts.fivePlusSoulSpaces > 0) parts.push(`${counts.fivePlusSoulSpaces} spaces with 5+ Souls`);
+  if (counts.foesAtEdgeOfLife > 0) parts.push(`${counts.foesAtEdgeOfLife} Foes at Edge of Life`);
+  if (counts.escapedFoes > 0) parts.push(`${counts.escapedFoes} escaped Foes`);
+  if (parts.length === 0) return "No current board pressure";
+  return `Pressure: ${parts.join(" · ")}`;
+}
+
+export function necromancerCommandFeedbackKind(message: string): "stale" | "rejected" {
+  if (
+    message.includes("STALE_COMMAND_PRECONDITION")
+    || /\bstale\b/i.test(message)
+    || /expected .+ but current/i.test(message)
+  ) {
+    return "stale";
+  }
+  return "rejected";
+}
+
+export interface NecromancerLocalFeedback {
+  readonly key: string;
+  readonly kind: "pending" | "rejected" | "stale";
+  readonly message: string;
+}
+
+export const NECROMANCER_STALE_INTENT_MESSAGE =
+  "The board changed since this move started. The previous intent was not applied.";
+
+export const GHOUL_CALLER_EDGE_CONFINEMENT_MESSAGE =
+  "Ghoul-Callers stay on the Edge of Life.";
+
+export type BoardPieceMoveRef =
+  | {
+      readonly kind: "foe";
+      readonly op: typeof NECROMANCER_DIRECT_MOVE_OPERATIONS.foe.command;
+      readonly subject: NecromancerFoeSubjectRef;
+    }
+  | {
+      readonly kind: "ally";
+      readonly op: typeof NECROMANCER_DIRECT_MOVE_OPERATIONS.ally.command;
+      readonly denizenId: string;
+    }
+  | {
+      readonly kind: "ghoul_caller";
+      readonly op: typeof NECROMANCER_DIRECT_MOVE_OPERATIONS.ghoul_caller.command;
+      readonly denizenId: string;
+    }
+  | { readonly kind: "none" };
+
 export interface BoardOccupantToken {
   readonly key: string;
   readonly kind: "foe" | "ally" | "ghoul_caller" | "wizard_traversal";
   readonly name: string;
   readonly roleLabel: string;
+  readonly dispositionKind: GhoulCallerDispositionKind | null;
+  readonly dispositionLabel: string | null;
+  readonly move: BoardPieceMoveRef;
 }
 
 export function namedOccupantTokens(
@@ -1763,6 +1973,13 @@ export function namedOccupantTokens(
       kind: "foe",
       name: foeDisplayName(denizens, wizards, foe),
       roleLabel: "Foe",
+      dispositionKind: null,
+      dispositionLabel: null,
+      move: {
+        kind: "foe",
+        op: NECROMANCER_DIRECT_MOVE_OPERATIONS.foe.command,
+        subject: foe.subject,
+      },
     });
   }
   for (const ally of pieces.allies) {
@@ -1771,14 +1988,31 @@ export function namedOccupantTokens(
       kind: "ally",
       name: denizenName(denizens, ally.denizenId),
       roleLabel: "Ally",
+      dispositionKind: null,
+      dispositionLabel: null,
+      move: {
+        kind: "ally",
+        op: NECROMANCER_DIRECT_MOVE_OPERATIONS.ally.command,
+        denizenId: ally.denizenId,
+      },
     });
   }
   for (const ghoul of pieces.ghoulCallers) {
+    const disposition = ghoulCallerDispositionPresentation(
+      denizens.find((denizen) => denizen.denizenId === ghoul.denizenId)?.powerfulProfile?.status,
+    );
     tokens.push({
       key: `ghoul:${ghoul.denizenId}`,
       kind: "ghoul_caller",
       name: denizenName(denizens, ghoul.denizenId),
       roleLabel: "Ghoul-Caller",
+      dispositionKind: disposition.kind,
+      dispositionLabel: disposition.label,
+      move: {
+        kind: "ghoul_caller",
+        op: NECROMANCER_DIRECT_MOVE_OPERATIONS.ghoul_caller.command,
+        denizenId: ghoul.denizenId,
+      },
     });
   }
   for (const traversal of pieces.wizardTraversals) {
@@ -1788,9 +2022,21 @@ export function namedOccupantTokens(
       kind: "wizard_traversal",
       name,
       roleLabel: "Wizard traversal",
+      dispositionKind: null,
+      dispositionLabel: null,
+      move: { kind: "none" },
     });
   }
   return tokens;
+}
+
+export function boardPieceAriaLabel(token: BoardOccupantToken): string {
+  const disposition = token.dispositionLabel === null ? "" : `, ${token.dispositionLabel}`;
+  return `${token.roleLabel} ${token.name}${disposition}`;
+}
+
+export function soulBeadAriaLabel(index: number, souls: number): string {
+  return `Soul ${index + 1} of ${souls}`;
 }
 
 export function visibleOccupantTokens(
@@ -1808,7 +2054,8 @@ export function visibleOccupantTokens(
 export function occupantSummaryLabel(tokens: readonly BoardOccupantToken[], souls: number): string {
   const parts = [`${souls} Souls`];
   for (const token of tokens) {
-    parts.push(`${token.roleLabel} ${token.name}`);
+    const disposition = token.dispositionLabel === null ? "" : ` ${token.dispositionLabel}`;
+    parts.push(`${token.roleLabel} ${token.name}${disposition}`);
   }
   return parts.join(". ");
 }

@@ -106,6 +106,7 @@ import {
   gateBandOf,
   gateDisplayName,
   gateStatusLabel,
+  ghoulCallerDispositionPresentation,
   HOSTILE_GATE_REMINDER,
   isNecromancerInitialized,
   namedOccupantTokens,
@@ -138,10 +139,16 @@ import {
   TIME_RECORDING_BOUNDARY,
   withSetupArrangement,
   worldIsleName,
+  depthReachCue,
+  necromancerPressureCue,
+  necromancerCommandFeedbackKind,
+  buildRelocateNecromancerGhoulCallerPayload,
+  type NecromancerLocalFeedback,
   type NecromancerSetupDraft,
   type NecromancerWizardNameRef,
   type NecromancerWizardRef,
 } from "./necromancer-view-model";
+import type { NecromancerBoardDirectMove } from "./necromancer-board-pieces";
 
 export type { NecromancerWizardRef };
 
@@ -268,6 +275,7 @@ export default function NecromancerSurface({
 
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [localFeedback, setLocalFeedback] = useState<NecromancerLocalFeedback | null>(null);
   const [setup, setSetup] = useState<NecromancerSetupDraft>(emptyNecromancerSetupDraft);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [editingLaws, setEditingLaws] = useState(false);
@@ -328,6 +336,90 @@ export default function NecromancerSurface({
     } finally {
       setPending(false);
     }
+  }
+
+  async function runLocal(key: string, action: () => Promise<void>): Promise<boolean> {
+    setPending(true);
+    setError(null);
+    setLocalFeedback({ key, kind: "pending", message: "Updating…" });
+    try {
+      await action();
+      setLocalFeedback(null);
+      return true;
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Mutation failed.";
+      setLocalFeedback({ key, kind: necromancerCommandFeedbackKind(message), message });
+      return false;
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function handleDirectMove(move: NecromancerBoardDirectMove): Promise<void> {
+    if (move.kind === "foe") {
+      const foe = necromancer.foes.find((candidate) => {
+        if (move.subject.kind === "denizen") {
+          return candidate.subject.kind === "denizen" && candidate.subject.denizenId === move.subject.denizenId;
+        }
+        return candidate.subject.kind === "wizard" && move.subject.kind === "wizard"
+          && candidate.subject.wizardId === move.subject.wizardId;
+      });
+      if (foe === undefined || foe.location.kind === "escaped") return;
+      const payload = buildUpdateNecromancerFoePayload({
+        commandId: newCommandId(),
+        expectedCampaignId: campaignId,
+        subject: foe.subject,
+        expectedLocation: foe.location,
+        location: move.to,
+      });
+      await runLocal(move.pieceKey, async () => {
+        await updateNecromancerFoe(payload);
+      });
+      return;
+    }
+    if (move.kind === "ally") {
+      const ally = necromancer.allies.find((candidate) => candidate.denizenId === move.denizenId);
+      if (ally === undefined) return;
+      const payload = buildUpdateNecromancerAllyPayload({
+        commandId: newCommandId(),
+        expectedCampaignId: campaignId,
+        denizenId: ally.denizenId,
+        expectedLocation: ally.location,
+        location: move.to,
+      });
+      await runLocal(move.pieceKey, async () => {
+        await updateNecromancerAlly(payload);
+      });
+      return;
+    }
+    if (move.kind === "ghoul_caller") {
+      const ghoul = necromancer.ghoulCallers.find((candidate) => candidate.denizenId === move.denizenId);
+      if (ghoul === undefined) return;
+      const payload = buildRelocateNecromancerGhoulCallerPayload({
+        commandId: newCommandId(),
+        expectedCampaignId: campaignId,
+        expected: ghoul,
+        location: { kind: "path", pathSpaceId: move.to.kind === "path" ? move.to.pathSpaceId : ghoul.location.pathSpaceId },
+      });
+      if (payload === null || move.to.kind !== "path") return;
+      await runLocal(move.pieceKey, async () => {
+        await updateNecromancerGhoulCaller(payload);
+      });
+      return;
+    }
+    const payload = buildMoveNecromancerSoulsPayload({
+      commandId: newCommandId(),
+      expectedCampaignId: campaignId,
+      from: move.from,
+      to: move.to,
+      amount: 1,
+      expectedFromCount: move.expectedFromCount,
+      expectedToCount: move.expectedToCount,
+    });
+    if (payload === null) return;
+    await runLocal(move.pieceKey, async () => {
+      await moveNecromancerSouls(payload);
+    });
   }
 
   async function handleInitialize(): Promise<void> {
@@ -401,11 +493,15 @@ export default function NecromancerSurface({
     });
     setPending(true);
     setError(null);
+    setLocalFeedback({ key: "transform", kind: "pending", message: "Transforming…" });
     try {
       await transformNecromancerSoulIntoAlly(payload);
       setTransformDraft(null);
+      setLocalFeedback(null);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Mutation failed.");
+      const message = e instanceof Error ? e.message : "Mutation failed.";
+      setError(message);
+      setLocalFeedback({ key: "transform", kind: necromancerCommandFeedbackKind(message), message });
     } finally {
       setPending(false);
     }
@@ -437,7 +533,7 @@ export default function NecromancerSurface({
         </div>
       )}
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <HeaderSummary necromancerWizard={necromancerWizard} world={world} />
+        <HeaderSummary necromancerWizard={necromancerWizard} world={world} pressureCue={necromancerPressureCue(necromancer)} />
         <div className="flex flex-wrap items-start gap-3">
         <DepthPanel
           necromancer={necromancer}
@@ -519,6 +615,11 @@ export default function NecromancerSurface({
             setSelection(next);
           }}
           sorcererPresence={sorcererPresence}
+          localFeedback={localFeedback}
+          onDirectMove={(move) => { void handleDirectMove(move); }}
+          onLocalReject={(key, kind, message) => {
+            setLocalFeedback({ key, kind, message });
+          }}
         />
         <BoardOverlayInspector
           open={selection !== null}
@@ -540,6 +641,7 @@ export default function NecromancerSurface({
           moveToKey={moveToKey}
           setMoveToKey={setMoveToKey}
           pending={pending}
+          localFeedback={localFeedback}
           campaignId={campaignId}
           loreCompendium={loreCompendium}
           transformDraft={transformDraft}
@@ -552,11 +654,21 @@ export default function NecromancerSurface({
           }}
           onCancelTransform={cancelTransform}
           onTransformSoulIntoAlly={() => { void handleTransformSoulIntoAlly(); }}
+          onSetGhoulCallerStatus={async (denizenId, expected, value) => {
+            await runLocal(`ghoul-status:${denizenId}`, async () => {
+              await setPowerfulDenizenStatus({
+                commandId: newCommandId(),
+                expectedCampaignId: campaignId,
+                denizenId,
+                change: { expected, value },
+              });
+            });
+          }}
           onSetSouls={async () => {
             if (selectedLocation === null) return;
             const count = parseNonNegInt(soulDraft);
             if (count === null) {
-              setError("Soul count must be a non-negative integer.");
+              setLocalFeedback({ key: "soul-count", kind: "rejected", message: "Soul count must be a non-negative integer." });
               return;
             }
             const payload = buildSetNecromancerSoulCountPayload({
@@ -567,7 +679,7 @@ export default function NecromancerSurface({
               count,
             });
             if (payload === null) return;
-            await run(async () => {
+            await runLocal("soul-count", async () => {
               await setNecromancerSoulCount(payload);
             });
           }}
@@ -576,7 +688,7 @@ export default function NecromancerSurface({
             const amount = parseNonNegInt(moveAmount);
             const to = parseOccupiableRefKey(moveToKey);
             if (amount === null || amount === 0 || to === null) {
-              setError("Choose a destination and a positive Soul amount.");
+              setLocalFeedback({ key: "move-souls", kind: "rejected", message: "Choose a destination and a positive Soul amount." });
               return;
             }
             const payload = buildMoveNecromancerSoulsPayload({
@@ -589,10 +701,10 @@ export default function NecromancerSurface({
               expectedToCount: piecesAtSpace(necromancer, to).souls,
             });
             if (payload === null) {
-              setError("Choose a different destination and a positive amount.");
+              setLocalFeedback({ key: "move-souls", kind: "rejected", message: "Choose a different destination and a positive amount." });
               return;
             }
-            await run(async () => {
+            await runLocal("move-souls", async () => {
               await moveNecromancerSouls(payload);
             });
           }}
@@ -606,7 +718,7 @@ export default function NecromancerSurface({
               status,
             });
             if (payload === null) return;
-            await run(async () => {
+            await runLocal("gate-status", async () => {
               await setNecromancerGateStatus(payload);
             });
           }}
@@ -666,9 +778,11 @@ export default function NecromancerSurface({
 function HeaderSummary({
   necromancerWizard,
   world,
+  pressureCue,
 }: {
   necromancerWizard: NecromancerWizardRef | null;
   world: WorldReference;
+  pressureCue: string;
 }) {
   return (
     <div>
@@ -678,6 +792,7 @@ function HeaderSummary({
           ? "No current Necromancer Wizard."
           : `Necromancer Wizard ${necromancerWizard.name}. Home Isle: ${worldIsleName(world.isles, necromancerWizard.homeIsleId)}. Sanctum: ${placeName(world.places, necromancerWizard.sanctumPlaceId)}.`}
       </p>
+      <p data-necromancer-pressure className="text-xs text-slate-500 dark:text-slate-400 mt-1">{pressureCue}</p>
     </div>
   );
 }
@@ -1111,6 +1226,9 @@ function DepthPanel({
       {kind === "vacant_empty" && (
         <p className="text-xs text-slate-500 mt-1">No Depth is stored while the Necromancer seat is vacant.</p>
       )}
+      <p data-depth-reach className="text-xs text-slate-500 mt-1">
+        {depthReachCue(kind === "matched" ? authoritative : necromancer.depth?.value ?? null)}
+      </p>
     </section>
   );
 }
@@ -1226,6 +1344,7 @@ function Inspector({
   moveToKey,
   setMoveToKey,
   pending,
+  localFeedback,
   campaignId,
   loreCompendium,
   transformDraft,
@@ -1233,6 +1352,7 @@ function Inspector({
   onOpenTransform,
   onCancelTransform,
   onTransformSoulIntoAlly,
+  onSetGhoulCallerStatus,
   onSetSouls,
   onMoveSouls,
   onSetGateStatus,
@@ -1251,6 +1371,7 @@ function Inspector({
   moveToKey: string;
   setMoveToKey: (value: string) => void;
   pending: boolean;
+  localFeedback: NecromancerLocalFeedback | null;
   campaignId: string;
   loreCompendium: LoreCompendiumUiState;
   transformDraft: {
@@ -1265,6 +1386,11 @@ function Inspector({
   onOpenTransform: () => void;
   onCancelTransform: () => void;
   onTransformSoulIntoAlly: () => void;
+  onSetGhoulCallerStatus: (
+    denizenId: string,
+    expected: PowerfulDenizenStatus,
+    value: PowerfulDenizenStatus,
+  ) => Promise<void>;
   onSetSouls: () => Promise<void>;
   onMoveSouls: () => Promise<void>;
   onSetGateStatus: (status: NecromancerGateStatus) => Promise<void>;
@@ -1291,8 +1417,10 @@ function Inspector({
   const transformEligible = canTransformSoulIntoAlly(selectedGate, pieces.souls);
   const warning = fivePlusSoulWarning(pieces.souls);
   const showTransformForm = transformDraft !== null && selectedGate !== undefined && transformDraft.gateId === selectedGate.gateId;
+  const actionFeedback = (key: string) => localFeedback?.key === key ? localFeedback : null;
   return (
     <aside aria-label="Selected space" className="rounded-xl border border-slate-200 dark:border-slate-800 p-3 space-y-3">
+      <div data-inspector-common-play className="space-y-3">
       <div>
         <h3 className="text-sm font-semibold">
           {selectedGate !== undefined ? gateDisplayName(selectedGate) : selectedPath !== undefined ? pathSpaceDisplayName(selectedPath) : "Space"}
@@ -1314,34 +1442,56 @@ function Inspector({
           {warning}
         </p>
       )}
-      <PieceList label="Foes" items={pieces.foes.map((foe) => foeDisplayName(world.denizens, wizards, foe))} />
-      <PieceList
-        label="Wizard traversals"
-        items={pieces.wizardTraversals.map((traversal) => {
-          const name = wizards.find((wizard) => wizard.wizardId === traversal.wizardId)?.name ?? traversal.wizardId;
-          return `${name} · ${traversal.kind}`;
-        })}
-      />
-      <PieceList label="Allies" items={pieces.allies.map((ally) => denizenName(world.denizens, ally.denizenId))} />
-      <PieceList
-        label="Ghoul-Callers"
-        items={pieces.ghoulCallers.map((ghoul) => (
-          `${denizenName(world.denizens, ghoul.denizenId)} · ${ghoulCallerProfileLines(ghoul).join(" · ")}`
-        ))}
-      />
       <section aria-label="All occupants">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">All occupants</h4>
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Here now</h4>
         {occupants.length === 0 && pieces.souls === 0 ? (
           <p className="text-sm text-slate-500">Empty space.</p>
         ) : (
-          <ul className="text-sm list-disc pl-4">
+          <ul className="text-sm space-y-1">
             <li>{pieces.souls} Souls</li>
             {occupants.map((token) => (
-              <li key={token.key}>{token.roleLabel}: {token.name}</li>
+              <li key={token.key}>
+                {token.roleLabel}: {token.name}
+                {token.dispositionLabel !== null ? ` · ${token.dispositionLabel}` : ""}
+              </li>
             ))}
           </ul>
         )}
       </section>
+      {pieces.ghoulCallers.map((ghoul) => {
+        const name = denizenName(world.denizens, ghoul.denizenId);
+        const status = world.denizens.find((denizen) => denizen.denizenId === ghoul.denizenId)?.powerfulProfile?.status ?? null;
+        const disposition = ghoulCallerDispositionPresentation(status);
+        const feedback = actionFeedback(`ghoul-status:${ghoul.denizenId}`);
+        return (
+          <div key={ghoul.denizenId} className="space-y-1" data-inspector-ghoul-disposition={ghoul.denizenId}>
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ghoul-Caller disposition</h4>
+            <p className="text-sm">{name} · {disposition.label}</p>
+            <select
+              aria-label={`${name} Ghoul-Caller disposition`}
+              className={fieldClass}
+              value={status?.kind === "standard" && (status.value === "reliable" || status.value === "disruptive") ? status.value : ""}
+              disabled={pending || status === null || (status.kind === "standard" && status.value !== "reliable" && status.value !== "disruptive")}
+              onChange={(event) => {
+                if (status === null) return;
+                const value = event.target.value;
+                if (value !== "reliable" && value !== "disruptive") return;
+                void onSetGhoulCallerStatus(ghoul.denizenId, status, { kind: "standard", value });
+              }}
+            >
+              {status === null && <option value="">Status unset</option>}
+              {NECROMANCER_GHOUL_CALLER_DISPOSITIONS.map((option) => (
+                <option key={option} value={option}>{option === "reliable" ? "Reliable" : "Disruptive"}</option>
+              ))}
+            </select>
+            {feedback !== null && (
+              <p data-local-feedback={feedback.kind} role={feedback.kind === "pending" ? "status" : "alert"} className="text-xs text-amber-800 dark:text-amber-200">
+                {feedback.message}
+              </p>
+            )}
+          </div>
+        );
+      })}
       {(transformEligible || showTransformForm) && (
         <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-3">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Transform Soul into Ally</h4>
@@ -1368,7 +1518,7 @@ function Inspector({
               </label>
               <div className="flex flex-wrap gap-2">
                 <button type="submit" className={btnClass} disabled={pending}>
-                  {pending ? "Transforming…" : "Transform Soul into Ally"}
+                  {pending && actionFeedback("transform")?.kind === "pending" ? "Transforming…" : "Transform Soul into Ally"}
                 </button>
                 <button
                   type="button"
@@ -1380,6 +1530,11 @@ function Inspector({
                   Cancel
                 </button>
               </div>
+              {actionFeedback("transform") !== null && actionFeedback("transform")?.kind !== "pending" && (
+                <p data-local-feedback={actionFeedback("transform")!.kind} role="alert" className="text-xs text-red-700 dark:text-red-300">
+                  {actionFeedback("transform")!.message}
+                </p>
+              )}
             </form>
           )}
         </div>
@@ -1389,8 +1544,12 @@ function Inspector({
           <LoreContextPanel subject={gateLoreSubject} campaignId={campaignId} compact contextConstraint={{ kind: "any" }} />
         </div>
       )}
+      </div>
+      <details data-inspector-correction className="rounded-lg border border-slate-200 dark:border-slate-800 p-2">
+        <summary className="text-xs font-semibold cursor-pointer text-slate-500">Correct / Advanced</summary>
+        <p className="text-xs text-slate-500 mt-2">Recording and correction controls. These are not ordinary play actions.</p>
       {selectedGate !== undefined && (
-        <div className="space-y-1">
+        <div className="space-y-1 mt-2">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Gate status</h4>
           <p className="text-xs text-slate-500">Recording/correction. This is not a Cleanse Gate action.</p>
           {statusOptions.length === 0 && (
@@ -1408,9 +1567,14 @@ function Inspector({
               </button>
             ))}
           </div>
+          {actionFeedback("gate-status") !== null && (
+            <p data-local-feedback={actionFeedback("gate-status")!.kind} role={actionFeedback("gate-status")!.kind === "pending" ? "status" : "alert"} className="text-xs text-amber-800">
+              {actionFeedback("gate-status")!.message}
+            </p>
+          )}
         </div>
       )}
-      <div className="space-y-1">
+      <div className="space-y-1 mt-2">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Soul count</h4>
         <p className="text-xs text-slate-500">Recording/correction, not automated monthly movement.</p>
         <div className="flex gap-2 items-end">
@@ -1425,8 +1589,13 @@ function Inspector({
           </label>
           <button className={btnClass} disabled={pending} onClick={() => { void onSetSouls(); }}>Set count</button>
         </div>
+        {actionFeedback("soul-count") !== null && (
+          <p data-local-feedback={actionFeedback("soul-count")!.kind} role={actionFeedback("soul-count")!.kind === "pending" ? "status" : "alert"} className="text-xs text-amber-800">
+            {actionFeedback("soul-count")!.message}
+          </p>
+        )}
       </div>
-      <div className="space-y-1">
+      <div className="space-y-1 mt-2">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Move Souls</h4>
         <p className="text-xs text-slate-500">Recording/correction. Adjacency, direction, and blocking are not enforced here.</p>
         <label className="text-sm block">
@@ -1448,16 +1617,14 @@ function Inspector({
           emptyLabel="Select destination…"
         />
         <button className={btnClass} disabled={pending} onClick={() => { void onMoveSouls(); }}>Move Souls</button>
+        {actionFeedback("move-souls") !== null && (
+          <p data-local-feedback={actionFeedback("move-souls")!.kind} role={actionFeedback("move-souls")!.kind === "pending" ? "status" : "alert"} className="text-xs text-amber-800">
+            {actionFeedback("move-souls")!.message}
+          </p>
+        )}
       </div>
+      </details>
     </aside>
-  );
-}
-
-function PieceList({ label, items }: { label: string; items: readonly string[] }) {
-  return (
-    <p className="text-sm">
-      {label}: {items.length === 0 ? <span className="text-slate-500">none</span> : <strong>{items.join(", ")}</strong>}
-    </p>
   );
 }
 

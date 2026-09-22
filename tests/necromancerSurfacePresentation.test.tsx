@@ -346,7 +346,8 @@ describe("Gates board operability presentation", () => {
     const { container, root } = renderSurface({ necromancer });
     const beads = container.querySelector('[data-soul-beads="5000"]');
     expect(beads).not.toBeNull();
-    expect(beads!.querySelectorAll("circle")).toHaveLength(MAX_VISIBLE_SOUL_BEADS);
+    expect(beads!.querySelectorAll("[data-soul-bead]")).toHaveLength(MAX_VISIBLE_SOUL_BEADS);
+    expect(beads!.querySelectorAll('[data-board-piece="soul"]')).toHaveLength(MAX_VISIBLE_SOUL_BEADS);
     expect(container.textContent).toContain("5000");
     root.unmount();
     container.remove();
@@ -804,6 +805,359 @@ describe("Necromancer desktop board and Depth presentation", () => {
     expect(pathFocus).not.toBeNull();
     expect(gateFocus?.getAttribute("href") ?? gateFocus?.getAttribute("xlink:href")).toBe("#necromancer-gate-amber");
     expect(pathFocus?.getAttribute("href") ?? pathFocus?.getAttribute("xlink:href")).toBe("#necromancer-path-edge_sage");
+    root.unmount();
+    container.remove();
+  });
+});
+
+function pointerEvent(type: string, init: PointerEventInit): PointerEvent {
+  return new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 1, button: 0, ...init });
+}
+
+function dragOnto(piece: Element, destination: Element): void {
+  const dest = destination as HTMLElement;
+  document.elementFromPoint = () => dest;
+  flushSync(() => {
+    piece.dispatchEvent(pointerEvent("pointerdown", { clientX: 10, clientY: 10 }));
+  });
+  flushSync(() => {
+    piece.dispatchEvent(pointerEvent("pointermove", { clientX: 40, clientY: 40 }));
+  });
+  flushSync(() => {
+    piece.dispatchEvent(pointerEvent("pointerup", { clientX: 80, clientY: 80 }));
+  });
+}
+
+describe("N1 board-native pieces, gate frames, inspector hierarchy, and direct movement", () => {
+  it("presents Foe, Ally, and Ghoul-Caller with names, roles, and distinct piece kinds", () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      foes: [{
+        subject: { kind: "denizen", denizenId: "den_foe" as never },
+        location: { kind: "gate", gateId: "amber" },
+      }],
+      allies: [{ denizenId: "den_ally" as never, location: { kind: "gate", gateId: "amber" } }],
+      ghoulCallers: [{
+        denizenId: "den_ghoul" as never,
+        location: { kind: "path", pathSpaceId: "edge_sage" },
+        pettyDeadCount: 0,
+        primaryElement: "fire",
+        aesthetic: "ash",
+        strangeQuirk: "whispers",
+        ageYears: 40,
+      }],
+    });
+    const world: WorldReference = {
+      denizens: [
+        { denizenId: "den_foe", name: "Howling Foe", representation: "individual", description: null },
+        { denizenId: "den_ally", name: "Loyal Ally", representation: "individual", description: null },
+        {
+          denizenId: "den_ghoul",
+          name: "Ash Caller",
+          representation: "individual",
+          description: null,
+          powerfulProfile: {
+            taxonomies: [{ kind: "builtin", taxonomyId: "ghoul_caller" }],
+            status: { kind: "standard", value: "disruptive" },
+            goal: null,
+            methods: [],
+            truths: [],
+          },
+        },
+      ],
+      isles: [],
+      places: [],
+    };
+    const { container, root } = renderSurface({ necromancer, world });
+    const foe = container.querySelector('[data-board-piece="foe"]');
+    const ally = container.querySelector('[data-board-piece="ally"]');
+    const ghoul = container.querySelector('[data-board-piece="ghoul_caller"]');
+    expect(foe?.getAttribute("aria-label")).toBe("Foe Howling Foe");
+    expect(ally?.getAttribute("aria-label")).toBe("Ally Loyal Ally");
+    expect(ghoul?.getAttribute("aria-label")).toBe("Ghoul-Caller Ash Caller, Disruptive");
+    expect(foe?.getAttribute("data-role-label")).toBe("Foe");
+    expect(ally?.getAttribute("data-role-label")).toBe("Ally");
+    expect(ghoul?.getAttribute("data-role-label")).toBe("Ghoul-Caller");
+    expect(foe?.querySelector("polygon")).not.toBeNull();
+    expect(ally?.querySelector("ellipse")).not.toBeNull();
+    expect(ghoul?.querySelector("polygon")).not.toBeNull();
+    expect(foe?.textContent).toContain("Howling Foe");
+    expect(foe?.textContent).not.toMatch(/^Howl…$/);
+    expect(ghoul?.getAttribute("data-disposition")).toBe("disruptive");
+    expect(ghoul?.textContent).toContain("Disruptive");
+    expect(ghoul?.getAttribute("tabindex") ?? ghoul?.getAttribute("tabIndex")).toBe("0");
+    root.unmount();
+    container.remove();
+  });
+
+  it("distinguishes Hostile and Destroyed frames and keeps Destroyed selectable", () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      gateStatuses: { ivory: "hostile", terminus: "destroyed" },
+    });
+    const { container, root } = renderSurface({ necromancer });
+    const hostile = container.querySelector('[data-gate-status="hostile"]') as SVGElement;
+    const destroyed = container.querySelector('[data-gate-status="destroyed"]') as SVGElement;
+    expect(hostile).not.toBeNull();
+    expect(destroyed).not.toBeNull();
+    expect(hostile.getAttribute("data-gate-frame")).toBe("hostile");
+    expect(destroyed.getAttribute("data-gate-frame")).toBe("destroyed");
+    expect(hostile.querySelector('[data-gate-frame-halo="hostile"]')).not.toBeNull();
+    expect(destroyed.querySelector('[data-gate-frame-halo="destroyed"]')).not.toBeNull();
+    expect(hostile.querySelector('[data-gate-status-chip="hostile"]')?.textContent).toBe("Hostile");
+    expect(destroyed.querySelector('[data-gate-status-chip="destroyed"]')?.textContent).toBe("Destroyed");
+    expect(destroyed.getAttribute("tabindex") ?? destroyed.getAttribute("tabIndex")).toBe("0");
+    expect(destroyed.getAttribute("role")).toBe("button");
+    expect(getComputedStyle(destroyed).display).not.toBe("none");
+    flushSync(() => {
+      destroyed.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
+    expect(container.querySelector('[aria-label="Selected space"]')?.textContent).toContain("Terminus");
+    expect(container.querySelector('[aria-label="Selected space"]')?.textContent).toContain("destroyed");
+    root.unmount();
+    container.remove();
+  });
+
+  it("shows Depth reach and pressure cues from existing topology", () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      depth: { wizardId: MATCHED_WIZARD.wizardId as never, value: 2 },
+      gateStatuses: { ivory: "hostile" },
+    });
+    const { container, root } = renderSurface({ necromancer, necromancerWizard: MATCHED_WIZARD });
+    expect(container.querySelector("[data-depth-reach]")?.textContent).toContain("Reachable at current Depth:");
+    expect(container.querySelector("[data-depth-reach]")?.textContent).toContain("Far Lands");
+    expect(container.querySelector("[data-depth-reach]")?.textContent).not.toContain("Furthest Gates");
+    expect(container.querySelector("[data-necromancer-pressure]")?.textContent).toContain("Hostile");
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps common-play inspector actions primary and correction secondary but reachable", () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      souls: [{ location: { kind: "gate", gateId: "amber" }, count: 2 }],
+    });
+    const { container, root } = renderSurface({ necromancer });
+    clickBoardSpace(container, "I Amber ordinary");
+    const inspector = container.querySelector('[aria-label="Selected space"]');
+    const common = inspector?.querySelector("[data-inspector-common-play]");
+    const correction = inspector?.querySelector("[data-inspector-correction]");
+    expect(common?.textContent).toContain("Transform Soul into Ally");
+    expect(common?.textContent).toContain("Souls: 2");
+    expect(common?.querySelector('[aria-label="Soul count"]')).toBeNull();
+    expect(correction).not.toBeNull();
+    expect(correction?.querySelector("summary")?.textContent).toContain("Correct / Advanced");
+    expect(correction?.textContent).toContain("Gate status");
+    expect(correction?.textContent).toContain("Soul count");
+    expect(correction?.textContent).toContain("Move Souls");
+    expect((correction as HTMLDetailsElement).open).toBe(false);
+    flushSync(() => {
+      (correction as HTMLDetailsElement).open = true;
+    });
+    expect(inspector?.querySelector('[aria-label="Soul count"]')).not.toBeNull();
+    expect(inspector?.querySelector('[aria-label="Move Soul destination"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("exposes Transform Soul into Ally and Ghoul-Caller disposition in common play", () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      souls: [{ location: { kind: "gate", gateId: "amber" }, count: 1 }],
+      ghoulCallers: [{
+        denizenId: "den_ghoul" as never,
+        location: { kind: "path", pathSpaceId: "edge_sage" },
+        pettyDeadCount: 0,
+        primaryElement: "fire",
+        aesthetic: "ash",
+        strangeQuirk: "whispers",
+        ageYears: 40,
+      }],
+    });
+    const world: WorldReference = {
+      denizens: [{
+        denizenId: "den_ghoul",
+        name: "Ash Caller",
+        representation: "individual",
+        description: null,
+        powerfulProfile: {
+          taxonomies: [{ kind: "builtin", taxonomyId: "ghoul_caller" }],
+          status: { kind: "standard", value: "reliable" },
+          goal: null,
+          methods: [],
+          truths: [],
+        },
+      }],
+      isles: [],
+      places: [],
+    };
+    const { container, root } = renderSurface({ necromancer, world });
+    clickBoardSpace(container, "I Amber ordinary");
+    expect(container.querySelector("[data-inspector-common-play]")?.textContent).toContain("Transform Soul into Ally");
+    clickBoardSpace(container, "Sage Edge of Life");
+    const disposition = container.querySelector("[data-inspector-ghoul-disposition]");
+    expect(disposition?.textContent).toContain("Reliable");
+    expect(container.querySelector('[aria-label="Ash Caller Ghoul-Caller disposition"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("moves a Foe with one update_necromancer_foe invocation", async () => {
+    mockMutations["m3Commands.updateNecromancerFoe"] = vi.fn(async () => {});
+    const necromancer = buildInitializedDefaultNecromancerState({
+      foes: [{
+        subject: { kind: "denizen", denizenId: "den_foe" as never },
+        location: { kind: "gate", gateId: "amber" },
+      }],
+    });
+    const world: WorldReference = {
+      denizens: [{ denizenId: "den_foe", name: "Howling Foe", representation: "individual", description: null }],
+      isles: [],
+      places: [],
+    };
+    const { container, root } = renderSurface({ necromancer, world });
+    const piece = container.querySelector('[data-board-piece="foe"]')!;
+    const bronze = container.querySelector('[data-occupiable-key="gate:bronze"]')!;
+    expect(piece.getAttribute("data-direct-move-op")).toBe("update_necromancer_foe");
+    dragOnto(piece, bronze);
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.updateNecromancerFoe"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.updateNecromancerFoe"].mock.calls[0]?.[0]).toMatchObject({
+      subject: { kind: "denizen", denizenId: "den_foe" },
+      fields: {
+        location: {
+          expected: { kind: "gate", gateId: "amber" },
+          value: { kind: "gate", gateId: "bronze" },
+        },
+      },
+    });
+    expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("moves an Ally with one update_necromancer_ally invocation", async () => {
+    mockMutations["m3Commands.updateNecromancerAlly"] = vi.fn(async () => {});
+    const necromancer = buildInitializedDefaultNecromancerState({
+      allies: [{ denizenId: "den_ally" as never, location: { kind: "gate", gateId: "amber" } }],
+    });
+    const world: WorldReference = {
+      denizens: [{ denizenId: "den_ally", name: "Loyal Ally", representation: "individual", description: null }],
+      isles: [],
+      places: [],
+    };
+    const { container, root } = renderSurface({ necromancer, world });
+    const piece = container.querySelector('[data-board-piece="ally"]')!;
+    const bronze = container.querySelector('[data-occupiable-key="gate:bronze"]')!;
+    expect(piece.getAttribute("data-direct-move-op")).toBe("update_necromancer_ally");
+    dragOnto(piece, bronze);
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.updateNecromancerAlly"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.updateNecromancerAlly"].mock.calls[0]?.[0].fields.location.value).toEqual({
+      kind: "gate",
+      gateId: "bronze",
+    });
+    root.unmount();
+    container.remove();
+  });
+
+  it("moves a Ghoul-Caller with one location-only update_necromancer_ghoul_caller invocation", async () => {
+    mockMutations["m3Commands.updateNecromancerGhoulCaller"] = vi.fn(async () => {});
+    const necromancer = buildInitializedDefaultNecromancerState({
+      ghoulCallers: [{
+        denizenId: "den_ghoul" as never,
+        location: { kind: "path", pathSpaceId: "edge_sage" },
+        pettyDeadCount: 2,
+        primaryElement: "fire",
+        aesthetic: "ash",
+        strangeQuirk: "whispers",
+        ageYears: 40,
+      }],
+    });
+    const world: WorldReference = {
+      denizens: [{ denizenId: "den_ghoul", name: "Ash Caller", representation: "individual", description: null }],
+      isles: [],
+      places: [],
+    };
+    const { container, root } = renderSurface({ necromancer, world });
+    const piece = container.querySelector('[data-board-piece="ghoul_caller"]')!;
+    const dest = container.querySelector('[data-occupiable-key="path:edge_hierophant"]')!;
+    expect(piece.getAttribute("data-direct-move-op")).toBe("update_necromancer_ghoul_caller");
+    dragOnto(piece, dest);
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.updateNecromancerGhoulCaller"]).toHaveBeenCalledTimes(1);
+    const fields = mockMutations["m3Commands.updateNecromancerGhoulCaller"].mock.calls[0]?.[0].fields;
+    expect(fields.location).toEqual({
+      expected: { kind: "path", pathSpaceId: "edge_sage" },
+      value: { kind: "path", pathSpaceId: "edge_hierophant" },
+    });
+    expect(fields.pettyDeadCount).toBeUndefined();
+    expect(fields.aesthetic).toBeUndefined();
+    root.unmount();
+    container.remove();
+  });
+
+  it("moves one Soul bead with move_necromancer_souls amount 1 and captured counts", async () => {
+    mockMutations["m3Commands.moveNecromancerSouls"] = vi.fn(async () => {});
+    mockMutations["m3Commands.setNecromancerSoulCount"] = vi.fn(async () => {});
+    const necromancer = buildInitializedDefaultNecromancerState({
+      souls: [
+        { location: { kind: "gate", gateId: "amber" }, count: 3 },
+        { location: { kind: "gate", gateId: "bronze" }, count: 1 },
+      ],
+    });
+    const { container, root } = renderSurface({ necromancer });
+    const bead = container.querySelector('[data-board-piece="soul"]')!;
+    const bronze = container.querySelector('[data-occupiable-key="gate:bronze"]')!;
+    expect(bead.getAttribute("data-direct-move-op")).toBe("move_necromancer_souls");
+    dragOnto(bead, bronze);
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.moveNecromancerSouls"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.moveNecromancerSouls"].mock.calls[0]?.[0]).toMatchObject({
+      from: { kind: "gate", gateId: "amber" },
+      to: { kind: "gate", gateId: "bronze" },
+      amount: 1,
+      expectedFromCount: 3,
+      expectedToCount: 1,
+    });
+    expect(mockMutations["m3Commands.setNecromancerSoulCount"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("attaches pending, rejection, and stale feedback to the piece without rebasing intent", async () => {
+    mockMutations["m3Commands.updateNecromancerFoe"] = vi.fn(async () => {
+      throw new Error("STALE_COMMAND_PRECONDITION location: expected current does not match");
+    });
+    const necromancer = buildInitializedDefaultNecromancerState({
+      foes: [{
+        subject: { kind: "denizen", denizenId: "den_foe" as never },
+        location: { kind: "gate", gateId: "amber" },
+      }],
+    });
+    const world: WorldReference = {
+      denizens: [{ denizenId: "den_foe", name: "Howling Foe", representation: "individual", description: null }],
+      isles: [],
+      places: [],
+    };
+    const { container, root } = renderSurface({ necromancer, world });
+    const piece = container.querySelector('[data-board-piece="foe"]')!;
+    const bronze = container.querySelector('[data-occupiable-key="gate:bronze"]')!;
+    await act(async () => {
+      dragOnto(piece, bronze);
+    });
+    expect(container.querySelector("[data-board-local-feedback]")?.textContent).toMatch(/STALE_COMMAND_PRECONDITION|stale/i);
+    expect(container.querySelector('[data-piece-feedback="stale"]')).not.toBeNull();
+    expect(mockMutations["m3Commands.updateNecromancerFoe"]).toHaveBeenCalledTimes(1);
+    expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps Soul bead rendering bounded while remaining interactive", () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      souls: [{ location: { kind: "gate", gateId: "amber" }, count: 40 }],
+    });
+    const { container, root } = renderSurface({ necromancer });
+    expect(container.querySelectorAll('[data-board-piece="soul"]')).toHaveLength(MAX_VISIBLE_SOUL_BEADS);
+    expect(container.querySelector('[data-soul-beads="40"]')?.textContent).toContain("40");
     root.unmount();
     container.remove();
   });

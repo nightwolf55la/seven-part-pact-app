@@ -64,6 +64,15 @@ import {
   MAX_VISIBLE_SOUL_BEADS,
   withSetupArrangement,
   type NecromancerSetupDraft,
+  namedOccupantTokens,
+  compactBoardNameLines,
+  ghoulCallerDispositionPresentation,
+  depthReachCue,
+  depthReachRegions,
+  necromancerPressureCue,
+  ordinaryDirectMoveDestinations,
+  NECROMANCER_DIRECT_MOVE_OPERATIONS,
+  boardPieceAriaLabel,
 } from "../src/necromancer-view-model";
 
 const denizens: readonly DenizenRef[] = [
@@ -813,5 +822,120 @@ describe("operability presentation helpers", () => {
       },
     ]);
     expect(found.map((entry) => entry.name)).toEqual(["Ashen Watcher"]);
+  });
+});
+
+describe("N1 board-native presentation helpers", () => {
+  it("keeps compact board names readable instead of four-character identities", () => {
+    expect(compactBoardNameLines("Ash")).toEqual(["Ash"]);
+    expect(compactBoardNameLines("Howling Foe")).toEqual(["Howling Foe"]);
+    expect(compactBoardNameLines("Ashen Funeral Caller")).toEqual(["Ashen", "Funeral Cal…"]);
+    expect(compactBoardNameLines("Supercalifragilistic")).toEqual(["Supercalifr…"]);
+  });
+
+  it("reads Ghoul-Caller Reliable/Disruptive from the shared Powerful status", () => {
+    expect(ghoulCallerDispositionPresentation({ kind: "standard", value: "reliable" })).toEqual({
+      kind: "reliable",
+      label: "Reliable",
+    });
+    expect(ghoulCallerDispositionPresentation({ kind: "standard", value: "disruptive" })).toEqual({
+      kind: "disruptive",
+      label: "Disruptive",
+    });
+    expect(ghoulCallerDispositionPresentation(null)).toEqual({
+      kind: "unset",
+      label: "Status unset",
+    });
+  });
+
+  it("labels occupant tokens with role, full name, and Ghoul-Caller disposition", () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      foes: [{ subject: { kind: "denizen", denizenId: "den_foe" as DenizenId }, location: { kind: "gate", gateId: "amber" } }],
+      allies: [{ denizenId: "den_ally" as DenizenId, location: { kind: "gate", gateId: "amber" } }],
+      ghoulCallers: [{
+        denizenId: "den_ghoul" as DenizenId,
+        location: { kind: "path", pathSpaceId: "edge_sage" },
+        pettyDeadCount: 0,
+        primaryElement: "fire",
+        aesthetic: "ash",
+        strangeQuirk: "whispers",
+        ageYears: 40,
+      }],
+    });
+    const worldDenizens: readonly DenizenRef[] = [
+      { denizenId: "den_foe", name: "Howling Foe", representation: "individual", description: null },
+      { denizenId: "den_ally", name: "Loyal Ally", representation: "individual", description: null },
+      {
+        denizenId: "den_ghoul",
+        name: "Ash Caller",
+        representation: "individual",
+        description: null,
+        powerfulProfile: {
+          taxonomies: [{ kind: "builtin", taxonomyId: "ghoul_caller" }],
+          status: { kind: "standard", value: "reliable" },
+          goal: null,
+          methods: [],
+          truths: [],
+        },
+      },
+    ];
+    const amber = namedOccupantTokens(piecesAtSpace(necromancer, { kind: "gate", gateId: "amber" }), worldDenizens, []);
+    expect(amber.map((token) => boardPieceAriaLabel(token))).toEqual([
+      "Foe Howling Foe",
+      "Ally Loyal Ally",
+    ]);
+    expect(amber[0]?.move).toMatchObject({ kind: "foe", op: "update_necromancer_foe" });
+    expect(amber[1]?.move).toMatchObject({ kind: "ally", op: "update_necromancer_ally" });
+    const edge = namedOccupantTokens(piecesAtSpace(necromancer, { kind: "path", pathSpaceId: "edge_sage" }), worldDenizens, []);
+    expect(boardPieceAriaLabel(edge[0]!)).toBe("Ghoul-Caller Ash Caller, Reliable");
+    expect(edge[0]?.dispositionKind).toBe("reliable");
+    expect(edge[0]?.move).toMatchObject({ kind: "ghoul_caller", op: "update_necromancer_ghoul_caller" });
+  });
+
+  it("derives cumulative Depth reach without clamping stored Depth", () => {
+    expect(depthReachCue(null)).toBe("Reachable at current Depth: none recorded");
+    expect(depthReachCue(0)).toBe("Reachable at current Depth: not currently on the Gates");
+    expect(depthReachRegions(1)).toEqual(["Edge of Life", "Near Gates"]);
+    expect(depthReachRegions(2)).toEqual(["Edge of Life", "Near Gates", "Far Lands", "Far Gates"]);
+    expect(depthReachRegions(3)).toEqual(["Edge of Life", "Near Gates", "Far Lands", "Far Gates", "Abyss", "Furthest Gates"]);
+    expect(depthReachRegions(9)).toEqual(depthReachRegions(3));
+    expect(depthReachCue(4)).toContain("Furthest Gates");
+  });
+
+  it("summarizes derived board pressure from current state", () => {
+    const necromancer = buildInitializedDefaultNecromancerState({
+      gateStatuses: { ivory: "hostile", terminus: "destroyed" },
+      souls: [{ location: { kind: "gate", gateId: "amber" }, count: 6 }],
+      foes: [
+        { subject: { kind: "denizen", denizenId: "den_edge" as DenizenId }, location: { kind: "path", pathSpaceId: "edge_sage" } },
+        { subject: { kind: "denizen", denizenId: "den_escape" as DenizenId }, location: { kind: "escaped", seatId: "sage", abominationKind: "occult" } },
+      ],
+    });
+    expect(necromancerPressureCue(necromancer)).toBe(
+      "Pressure: 1 Hostile · 1 Destroyed · 1 spaces with 5+ Souls · 1 Foes at Edge of Life · 1 escaped Foes",
+    );
+  });
+
+  it("confines ordinary Ghoul-Caller destinations to Edge of Life and enables the four atomic move operations", () => {
+    const necromancer = buildInitializedDefaultNecromancerState();
+    const fromPath = { kind: "path" as const, pathSpaceId: "edge_sage" as const };
+    const ghoulDest = ordinaryDirectMoveDestinations("ghoul_caller", necromancer, fromPath);
+    expect(ghoulDest.every((space) => space.kind === "path")).toBe(true);
+    expect(ghoulDest.some((space) => space.kind === "path" && space.pathSpaceId === "edge_hierophant")).toBe(true);
+    expect(ghoulDest.some((space) => space.kind === "gate")).toBe(false);
+    const foeDest = ordinaryDirectMoveDestinations("foe", necromancer, { kind: "gate", gateId: "amber" });
+    expect(foeDest.some((space) => space.kind === "gate" && space.gateId === "bronze")).toBe(true);
+    expect(NECROMANCER_DIRECT_MOVE_OPERATIONS.foe).toMatchObject({
+      command: "update_necromancer_foe",
+      atomic: true,
+      lifecycle: "command_event_revision",
+    });
+    expect(NECROMANCER_DIRECT_MOVE_OPERATIONS.ally.command).toBe("update_necromancer_ally");
+    expect(NECROMANCER_DIRECT_MOVE_OPERATIONS.ghoul_caller.command).toBe("update_necromancer_ghoul_caller");
+    expect(NECROMANCER_DIRECT_MOVE_OPERATIONS.soul).toMatchObject({
+      command: "move_necromancer_souls",
+      amount: 1,
+      atomic: true,
+    });
   });
 });
