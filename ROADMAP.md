@@ -246,7 +246,7 @@ Delivered:
 
 No CampaignState schema change or migration occurred. CampaignState V5 remains PRE-ACTIVATION.
 
-Deliberately deferred automation includes complete Sermon, Holiday celebration, Rebuff, automatic 5+ Souls -> Foe, compound Ghoul-Caller creation, Clear Hostility + Lore, and broad monthly procedure automation. **Steer and Benefaction & Depart were later delivered in M5.4-2H.** Hestar conversion remains an unresolved source contradiction rather than application canon.
+Deliberately deferred automation includes complete Sermon, Holiday celebration, Rebuff, automatic 5+ Souls -> Foe, compound Ghoul-Caller creation, Clear Hostility + Lore, and broad monthly procedure automation. **Steer and Benefaction & Depart were later delivered in M5.4-2H.** **SOURCE** still contradicts on Hestar Provide conversion (detailed rule: same-amount; summary: half-amount); human **APPLICATION CANON** resolves Provide as **1:1** using the detailed rule (not the implemented same-resource Hestar fallback-sharing rule).
 
 See `docs/m5-4a-hn-temples-gates-operability.md`.
 
@@ -304,7 +304,7 @@ Former branch `m5-4/table-readiness-ux-hierophant`; feature HEAD before merge `2
 
 ### Remaining active-table and UX-refinement work
 
-Domain UX continuation is **Domain-specific**, not a giant UI/UX catch-all. Batch 2 is retired. M5.4-2F Faustian table-readiness is retired for its tranche with acceptance preserved. M5.4-2H Hierophant Table-Readiness is retired (PR #31). Multiple Domain-local UX-refinement Workstreams may run in parallel on separate branches when work stays predominantly Domain-local UI/presentation/interaction (see `AGENT_WORKFLOW.md`). Their goal is sustained-use quality, not minimum table-readiness. All four should begin implementation from the same post-closure `main` baseline after this documentation checkpoint merges.
+Domain UX continuation is **Domain-specific**, not a giant UI/UX catch-all. Batch 2 is retired. M5.4-2F Faustian table-readiness is retired for its tranche with acceptance preserved. M5.4-2H Hierophant Table-Readiness is retired (PR #31). Multiple Domain-local UX-refinement Workstreams may run in parallel on separate branches when work stays predominantly Domain-local UI/presentation/interaction (see `AGENT_WORKFLOW.md`). Their goal is sustained-use quality, not minimum table-readiness. All four should begin implementation from the same post-closure `main` baseline after this documentation checkpoint merges. Cross-Domain **APPLICATION DESIGN**: direct board manipulation records representable state; named rules actions remain explicit optional helpers (`PROJECT_CONTEXT.md`).
 
 - **Hierophant — NEW UX Refinement Workstream.** Continue from the merged M5.4-2H Temple-board / table-readiness baseline; do not rebuild.
 - **Mariner — UX Refinement Workstream.** Continue from verified Batch-2 source-board/direct-manipulation baseline; do not restart old Mariner UI. UX-025 Stability/Wind is known partial work, not the entire scope.
