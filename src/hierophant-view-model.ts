@@ -812,7 +812,7 @@ export const HOLIDAY_DEFER_GUIDANCE =
   "Holiday celebration is not automated. The marker records that a Holiday is marked. Granting Benefactions, including Reliable Prophet production modifiers, remains a table-resolved recording.";
 
 export const HESTAR_PROVIDE_DEFER_GUIDANCE =
-  "Same-resource Hestar shortage is an alternate payment, not a transfer: decrement the pool the table actually spent. Provide conversion is ordinary-Temple resource to the opposite Hestar resource at 1:1. The atomic primary-board conversion control is being added separately.";
+  "Same-resource Hestar shortage is an alternate payment: decrement the pool the table actually spent. The arrow controls record a direct 1:1 conversion of an ordinary-Temple resource into the opposite Hestar resource. Printed Provide is a separate source procedure using Pact-Fragment Time and printed eligibility; these arrows do not spend Time or perform Provide.";
 
 export interface HierophantDoctrineChoice {
   readonly doctrineId: string;

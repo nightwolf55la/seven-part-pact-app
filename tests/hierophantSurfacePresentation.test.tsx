@@ -43,6 +43,7 @@ vi.mock("../convex/_generated/api.js", () => ({
       createHierophantSupplicant: "m3Commands.createHierophantSupplicant",
       resolveHierophantVisions: "m3Commands.resolveHierophantVisions",
       transferHierophantHestarResource: "m3Commands.transferHierophantHestarResource",
+      convertHierophantHestarResource: "m3Commands.convertHierophantHestarResource",
       steerHierophantSupplicant: "m3Commands.steerHierophantSupplicant",
       departHierophantSupplicantWithBenefaction: "m3Commands.departHierophantSupplicantWithBenefaction",
       addSupplicant: "m3Commands.addSupplicant",
@@ -2476,6 +2477,219 @@ describe("Hierophant primary board Body A controls", () => {
       templeId: "krolis",
       marked: false,
     });
+    root.unmount();
+    container.remove();
+  });
+});
+
+describe("Hierophant primary board Body B Hestar conversion", () => {
+  it("exposes ordinary-to-Hestar conversion arrows and keeps Hestar outbound-free", () => {
+    const { container, root } = renderPieces();
+    const krolisAbundance = container.querySelector(
+      '[data-temple-resource="krolis"][data-resource-counter="abundance"]',
+    ) as HTMLElement;
+    const krolisConviction = container.querySelector(
+      '[data-temple-resource="krolis"][data-resource-counter="conviction"]',
+    ) as HTMLElement;
+    const hestar = container.querySelector('[data-temple-id="hestar"]') as HTMLElement;
+    expect(krolisAbundance.querySelector('[data-hestar-convert="abundance"]')?.textContent).toBe("→ Hestar Conviction");
+    expect(krolisConviction.querySelector('[data-hestar-convert="conviction"]')?.textContent).toBe("→ Hestar Abundance");
+    expect(krolisAbundance.querySelector("[data-hestar-convert]")?.getAttribute("aria-label")).toBe(
+      "Convert 1 Abundance at Temple Krolis to 1 Conviction at Hestar",
+    );
+    expect(krolisConviction.querySelector("[data-hestar-convert]")?.getAttribute("aria-label")).toBe(
+      "Convert 1 Conviction at Temple Krolis to 1 Abundance at Hestar",
+    );
+    expect(hestar.querySelector("[data-hestar-convert]")).toBeNull();
+    expect(buttonWithText(container, "To Hestar")).toBeUndefined();
+    expect(buttonWithText(container, "From Hestar")).toBeUndefined();
+    expect(buttonWithText(container, "Send to...")).toBeUndefined();
+    expect(buttonWithText(container, "Take from...")).toBeUndefined();
+    expect(buttonWithText(container, "Provide")).toBeUndefined();
+    expect(krolisAbundance.className).toContain("min-w-[3.75rem]");
+    expect(krolisAbundance.querySelector("[data-hestar-convert]")?.className).toMatch(/absolute/);
+    expect(krolisAbundance.className).not.toMatch(/min-h-\[1\.1rem\]/);
+    root.unmount();
+    container.remove();
+  });
+
+  it("converts ordinary Conviction through convertHierophantHestarResource only", async () => {
+    mockMutations["m3Commands.convertHierophantHestarResource"] = vi.fn(async () => ({ kind: "accepted", revision: 5 }));
+    mockMutations["m3Commands.transferHierophantHestarResource"] = vi.fn(async () => {});
+    mockMutations["m3Commands.adjustTempleResources"] = vi.fn(async () => {});
+    mockMutations["m3Commands.scheduleTime"] = vi.fn(async () => {});
+    mockMutations["m3Commands.spendManualTime"] = vi.fn(async () => {});
+    const { container, root } = renderPieces();
+    const convert = container.querySelector(
+      '[data-temple-resource="krolis"][data-resource-counter="conviction"] [data-hestar-convert="conviction"]',
+    ) as HTMLButtonElement;
+    flushSync(() => { convert.click(); });
+    await settleQueuedMutation();
+    expect(mockMutations["m3Commands.convertHierophantHestarResource"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.convertHierophantHestarResource"].mock.calls[0][0]).toMatchObject({
+      expectedCampaignId: CAMPAIGN_ID,
+      expectedRevision: 4,
+      ordinaryTempleId: "krolis",
+      sourceResource: "conviction",
+      expectedOrdinarySourceCount: 4,
+      expectedHestarDestinationCount: 4,
+    });
+    expect(mockMutations["m3Commands.transferHierophantHestarResource"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.adjustTempleResources"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.scheduleTime"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.spendManualTime"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("converts ordinary Abundance to Hestar Conviction with paired stale counts", async () => {
+    mockMutations["m3Commands.convertHierophantHestarResource"] = vi.fn(async () => ({ kind: "accepted", revision: 5 }));
+    mockMutations["m3Commands.transferHierophantHestarResource"] = vi.fn(async () => {});
+    const { container, root } = renderPieces();
+    const convert = container.querySelector(
+      '[data-temple-resource="krolis"][data-resource-counter="abundance"] [data-hestar-convert="abundance"]',
+    ) as HTMLButtonElement;
+    flushSync(() => { convert.click(); });
+    await settleQueuedMutation();
+    expect(mockMutations["m3Commands.convertHierophantHestarResource"].mock.calls[0][0]).toMatchObject({
+      ordinaryTempleId: "krolis",
+      sourceResource: "abundance",
+      expectedOrdinarySourceCount: 5,
+      expectedHestarDestinationCount: 5,
+    });
+    expect(mockMutations["m3Commands.transferHierophantHestarResource"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("reveals the conversion action on keyboard focus without greying the Temple", () => {
+    const { container, root } = renderPieces();
+    const counter = container.querySelector(
+      '[data-temple-resource="krolis"][data-resource-counter="abundance"]',
+    ) as HTMLElement;
+    const convert = counter.querySelector("[data-hestar-convert]") as HTMLButtonElement;
+    expect(counter.getAttribute("data-resource-controls")).toBe("hidden");
+    flushSync(() => { convert.focus(); });
+    expect(counter.getAttribute("data-resource-controls")).toBe("revealed");
+    expect(container.querySelector('[data-temple-id="krolis"]')?.getAttribute("aria-busy")).toBeNull();
+    expect(container.querySelector('[aria-label="Increase Temple Krolis Abundance"]')).not.toBeNull();
+    flushSync(() => { convert.blur(); });
+    expect(counter.getAttribute("data-resource-controls")).toBe("hidden");
+    root.unmount();
+    container.remove();
+  });
+
+  it("does not dispatch conversion from a zero source", async () => {
+    mockMutations["m3Commands.convertHierophantHestarResource"] = vi.fn(async () => {});
+    const zero = {
+      ...pieceState,
+      temples: pieceState.temples.map((temple) =>
+        temple.templeId === "krolis" ? { ...temple, abundance: 0 } : temple,
+      ),
+    };
+    const { container, root } = renderChoiceSurface(zero as typeof EMPTY_HIEROPHANT_STATE, pieceWorld);
+    const convert = container.querySelector(
+      '[data-temple-resource="krolis"][data-resource-counter="abundance"] [data-hestar-convert="abundance"]',
+    ) as HTMLButtonElement;
+    expect(convert.disabled).toBe(true);
+    expect(convert.getAttribute("aria-label")).toBe("Cannot convert: Temple Krolis Abundance is 0");
+    flushSync(() => { convert.click(); });
+    await settleQueuedMutation();
+    expect(mockMutations["m3Commands.convertHierophantHestarResource"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("still converts from a Blasphemous ordinary Temple when source remains", async () => {
+    mockMutations["m3Commands.convertHierophantHestarResource"] = vi.fn(async () => ({ kind: "accepted", revision: 5 }));
+    const blasphemous = {
+      ...pieceState,
+      temples: pieceState.temples.map((temple) =>
+        temple.templeId === "krolis"
+          ? { ...temple, doctrine: { kind: "blasphemy" as const, blasphemyId: "law_of_the_wolf" } }
+          : temple,
+      ),
+    };
+    const { container, root } = renderChoiceSurface(blasphemous as typeof EMPTY_HIEROPHANT_STATE, pieceWorld);
+    const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
+    const convert = krolis.querySelector('[data-hestar-convert="conviction"]') as HTMLButtonElement;
+    expect(convert.disabled).toBe(false);
+    expect(krolis.textContent).not.toMatch(/illegal|cannot convert while blasphem/i);
+    flushSync(() => { convert.click(); });
+    await settleQueuedMutation();
+    expect(mockMutations["m3Commands.convertHierophantHestarResource"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.convertHierophantHestarResource"].mock.calls[0][0].ordinaryTempleId).toBe("krolis");
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps repeated conversion clicks usable while serializing canonical commands", async () => {
+    const gates: Array<{ resolve: (value: { kind: "accepted"; revision: number }) => void }> = [];
+    mockMutations["m3Commands.convertHierophantHestarResource"] = vi.fn(() => new Promise((resolve) => {
+      gates.push({ resolve });
+    }));
+    mockMutations["m3Commands.transferHierophantHestarResource"] = vi.fn(async () => {});
+    mockMutations["m3Commands.adjustTempleResources"] = vi.fn(async () => {});
+    const { container, root } = renderPieces();
+    const conviction = container.querySelector(
+      '[data-temple-resource="krolis"][data-resource-counter="conviction"]',
+    ) as HTMLElement;
+    const hestarAbundance = container.querySelector(
+      '[data-temple-resource="hestar"][data-resource-counter="abundance"]',
+    ) as HTMLElement;
+    const convert = conviction.querySelector("[data-hestar-convert]") as HTMLButtonElement;
+    const increase = container.querySelector('[aria-label="Increase Temple Krolis Conviction"]') as HTMLButtonElement;
+    flushSync(() => { convert.click(); convert.click(); convert.click(); });
+    expect(conviction.querySelector("[data-resource-value]")?.textContent).toBe("1");
+    expect(hestarAbundance.querySelector("[data-resource-value]")?.textContent).toBe("7");
+    expect(conviction.getAttribute("data-resource-pending")).toBe("true");
+    expect(convert.disabled).toBe(false);
+    expect(increase.disabled).toBe(false);
+    expect(container.querySelector('[data-temple-id="krolis"]')?.getAttribute("aria-busy")).toBeNull();
+    expect(mockMutations["m3Commands.convertHierophantHestarResource"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.convertHierophantHestarResource"].mock.calls[0][0]).toMatchObject({
+      expectedRevision: 4,
+      expectedOrdinarySourceCount: 4,
+      expectedHestarDestinationCount: 4,
+    });
+    await settleQueuedMutation(() => gates[0]!.resolve({ kind: "accepted", revision: 5 }));
+    expect(mockMutations["m3Commands.convertHierophantHestarResource"]).toHaveBeenCalledTimes(2);
+    expect(mockMutations["m3Commands.convertHierophantHestarResource"].mock.calls[1][0]).toMatchObject({
+      expectedRevision: 5,
+      expectedOrdinarySourceCount: 3,
+      expectedHestarDestinationCount: 5,
+    });
+    expect(mockMutations["m3Commands.convertHierophantHestarResource"].mock.calls[1][0].commandId).not.toBe(
+      mockMutations["m3Commands.convertHierophantHestarResource"].mock.calls[0][0].commandId,
+    );
+    await settleQueuedMutation(() => gates[1]!.resolve({ kind: "accepted", revision: 6 }));
+    await settleQueuedMutation(() => gates[2]!.resolve({ kind: "accepted", revision: 7 }));
+    expect(mockMutations["m3Commands.convertHierophantHestarResource"]).toHaveBeenCalledTimes(3);
+    expect(mockMutations["m3Commands.transferHierophantHestarResource"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.adjustTempleResources"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps direct resource +/- working beside conversion", async () => {
+    mockMutations["m3Commands.adjustTempleResources"] = vi.fn(async () => {});
+    mockMutations["m3Commands.convertHierophantHestarResource"] = vi.fn(async () => {});
+    const { container, root } = renderPieces();
+    const increase = container.querySelector('[aria-label="Increase Temple Krolis Abundance"]') as HTMLButtonElement;
+    flushSync(() => { increase.click(); });
+    await settleQueuedMutation();
+    expect(mockMutations["m3Commands.adjustTempleResources"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.convertHierophantHestarResource"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("replaces stale Body A Hestar conversion guidance", () => {
+    const { container, root } = renderPieces();
+    flushSync(() => { templeSelectButton(container, "Temple Hestar").click(); });
+    expect(container.textContent).toContain("The arrow controls record a direct 1:1 conversion");
+    expect(container.textContent).toContain("these arrows do not spend Time or perform Provide");
+    expect(container.textContent).not.toContain("being added separately");
     root.unmount();
     container.remove();
   });

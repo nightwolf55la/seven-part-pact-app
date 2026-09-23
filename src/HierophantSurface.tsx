@@ -118,6 +118,11 @@ import {
   type HierophantWoeIntentController,
 } from "./hierophant-woe-intent";
 import {
+  createHierophantHestarConversionController,
+  hestarDestinationResource,
+  type HierophantHestarConversionController,
+} from "./hierophant-hestar-conversion";
+import {
   hierophantSupplicantHostEqual,
   hierophantSupplicantHostFromDrop,
 } from "./hierophant-supplicant-move";
@@ -278,6 +283,7 @@ export default function HierophantSurface({
   const createHierophantSupplicant = useMutation(api.m3Commands.createHierophantSupplicant);
   const resolveHierophantVisions = useMutation(api.m3Commands.resolveHierophantVisions);
   const steerHierophantSupplicant = useMutation(api.m3Commands.steerHierophantSupplicant);
+  const convertHierophantHestarResource = useMutation(api.m3Commands.convertHierophantHestarResource);
   const departHierophantSupplicantWithBenefaction = useMutation(api.m3Commands.departHierophantSupplicantWithBenefaction);
   const addSupplicant = useMutation(api.m3Commands.addSupplicant);
   const updateSupplicant = useMutation(api.m3Commands.updateSupplicant);
@@ -306,6 +312,8 @@ export default function HierophantSurface({
   campaignRevisionRef.current = campaignRevision;
   const adjustTempleResourcesRef = useRef(adjustTempleResources);
   adjustTempleResourcesRef.current = adjustTempleResources;
+  const convertHierophantHestarResourceRef = useRef(convertHierophantHestarResource);
+  convertHierophantHestarResourceRef.current = convertHierophantHestarResource;
   const updateSupplicantRef = useRef(updateSupplicant);
   updateSupplicantRef.current = updateSupplicant;
   const setErrorRef = useRef(setError);
@@ -335,6 +343,31 @@ export default function HierophantSurface({
     });
   }
   const resourceIntents = resourceIntentsRef.current;
+  const conversionIntentsRef = useRef<HierophantHestarConversionController | null>(null);
+  if (conversionIntentsRef.current === null) {
+    conversionIntentsRef.current = createHierophantHestarConversionController({
+      nextCommandId: newCommandId,
+      currentRevision: () => campaignRevisionRef.current,
+      dispatch: async (intent) => {
+        const receipt = await convertHierophantHestarResourceRef.current({
+          commandId: intent.commandId,
+          expectedCampaignId: campaignIdRef.current,
+          expectedRevision: intent.expectedRevision,
+          ordinaryTempleId: intent.ordinaryTempleId,
+          sourceResource: intent.sourceResource,
+          expectedOrdinarySourceCount: intent.expectedOrdinarySourceCount,
+          expectedHestarDestinationCount: intent.expectedHestarDestinationCount,
+        }) as { kind?: string; revision?: number } | void;
+        if (receipt && typeof receipt.revision === "number") {
+          return { revision: receipt.revision };
+        }
+      },
+      onChange: () => {
+        flushSync(() => setResourceIntentGen((n) => n + 1));
+      },
+    });
+  }
+  const conversionIntents = conversionIntentsRef.current;
   const woeIntentsRef = useRef<HierophantWoeIntentController | null>(null);
   if (woeIntentsRef.current === null) {
     woeIntentsRef.current = createHierophantWoeIntentController({
@@ -362,6 +395,8 @@ export default function HierophantSurface({
   for (const temple of hierophant.temples) {
     resourceIntents.observeAuthoritative(temple.templeId, "abundance", temple.abundance);
     resourceIntents.observeAuthoritative(temple.templeId, "conviction", temple.conviction);
+    conversionIntents.observeAuthoritative(temple.templeId, "abundance", temple.abundance);
+    conversionIntents.observeAuthoritative(temple.templeId, "conviction", temple.conviction);
   }
   for (const person of hierophant.supplicants) {
     woeIntents.observeAuthoritative(person.denizenId, person.woe);
@@ -1491,8 +1526,29 @@ export default function HierophantSurface({
                 const authoritative = resource === "abundance" ? temple.abundance : temple.conviction;
                 resourceIntentsRef.current?.enqueue(templeId, resource, delta, authoritative);
               },
+              onConvertHestarResource: (templeId, sourceResource) => {
+                const temple = hierophant.temples.find((entry) => entry.templeId === templeId);
+                const hestar = hierophant.temples.find((entry) => entry.kind === "hestar" || entry.templeId === "hestar");
+                if (temple === undefined || temple.kind !== "ordinary" || hestar === undefined) return;
+                const destResource = hestarDestinationResource(sourceResource);
+                conversionIntentsRef.current?.enqueue({
+                  ordinaryTempleId: templeId,
+                  sourceResource,
+                  ordinaryAuthoritative: sourceResource === "abundance" ? temple.abundance : temple.conviction,
+                  hestarAuthoritative: destResource === "abundance" ? hestar.abundance : hestar.conviction,
+                });
+              },
               resourceView: (templeId, resource, authoritative) => {
-                return resourceIntents.view(templeId, resource, authoritative);
+                const convertView = conversionIntents.view(templeId, resource, authoritative);
+                const adjustView = resourceIntents.view(templeId, resource, authoritative);
+                if (convertView.pending || convertView.error !== null) {
+                  return {
+                    displayed: convertView.displayed,
+                    pending: convertView.pending || adjustView.pending,
+                    error: convertView.error ?? adjustView.error,
+                  };
+                }
+                return adjustView;
               },
               benefactionPendingDenizenIds,
               onBenefactionDepart: commitBenefactionDepart,

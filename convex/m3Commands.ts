@@ -93,6 +93,7 @@ import {
   createHierophantSupplicantFingerprint,
   resolveHierophantVisionsFingerprint,
   transferHierophantHestarResourceFingerprint,
+  convertHierophantHestarResourceFingerprint,
   steerHierophantSupplicantFingerprint,
   departHierophantSupplicantWithBenefactionFingerprint,
   updateSupplicantFingerprint,
@@ -154,6 +155,8 @@ import {
   assertHierophantVisionsRevision,
   applyTransferHierophantHestarResource,
   assertHierophantHestarTransferRevision,
+  applyConvertHierophantHestarResource,
+  assertHierophantHestarConversionRevision,
   applySteerHierophantSupplicant,
   assertHierophantSteerRevision,
   applyDepartHierophantSupplicantWithBenefaction,
@@ -2379,6 +2382,64 @@ export const transferHierophantHestarResource = mutation({
       ctx,
       args.commandId,
       "transfer_hierophant_hestar_resource",
+      fingerprint,
+      campaign,
+      result,
+    );
+    return { kind: "accepted" as const, revision: receipt.newRevision };
+  },
+});
+
+export const convertHierophantHestarResource = mutation({
+  args: {
+    commandId: v.string(),
+    expectedCampaignId: v.string(),
+    expectedRevision: v.number(),
+    ordinaryTempleId: v.string(),
+    sourceResource: hierophantHestarResourceArg,
+    expectedOrdinarySourceCount: v.number(),
+    expectedHestarDestinationCount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await assertCampaignNotDeleting(ctx);
+    parseLiveCommandId(args.commandId);
+    validateM5ExpectedCampaignId(args.expectedCampaignId);
+    if (!Number.isSafeInteger(args.expectedRevision) || args.expectedRevision < 0) {
+      throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid expectedRevision: ${args.expectedRevision}`);
+    }
+    const fingerprint = convertHierophantHestarResourceFingerprint(
+      args.expectedCampaignId,
+      args.expectedRevision,
+      args.ordinaryTempleId,
+      args.sourceResource,
+      args.expectedOrdinarySourceCount,
+      args.expectedHestarDestinationCount,
+    );
+    const campaign = await loadCanonicalV2ForMutation(ctx);
+    assertM5ExpectedCampaignIdMatches(args.expectedCampaignId, campaign.campaignId);
+
+    const replay = await checkIdempotency(
+      ctx,
+      campaign.campaignId,
+      args.commandId,
+      "convert_hierophant_hestar_resource",
+      fingerprint,
+    );
+    if (replay) return { kind: "accepted" as const, revision: replay.newRevision };
+
+    assertHierophantHestarConversionRevision(campaign.currentRevision, args.expectedRevision);
+
+    const result = applyConvertHierophantHestarResource(campaign.currentState, {
+      ordinaryTempleId: args.ordinaryTempleId as HierophantTempleId,
+      sourceResource: args.sourceResource,
+      expectedOrdinarySourceCount: args.expectedOrdinarySourceCount,
+      expectedHestarDestinationCount: args.expectedHestarDestinationCount,
+    });
+
+    const receipt = await commitM3Command(
+      ctx,
+      args.commandId,
+      "convert_hierophant_hestar_resource",
       fingerprint,
       campaign,
       result,

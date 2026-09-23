@@ -55,6 +55,11 @@ import { formatVisionsPreviewChoiceSummary } from "./hierophant-visions-preview"
 import HierophantClassBadge from "./hierophant-class-badge";
 import type { HierophantResourceKind, HierophantResourcePoolView } from "./hierophant-resource-intent";
 import {
+  hestarDestinationResource,
+  hierophantHestarConversionAriaLabel,
+  hierophantHestarConversionVisibleLabel,
+} from "./hierophant-hestar-conversion";
+import {
   HIEROPHANT_SUPPLY_CLASS_IDS,
   beginHierophantSupplyDrag,
   endHierophantSupplyDrag,
@@ -131,6 +136,10 @@ export interface HierophantPieceControls {
     templeId: string,
     resource: HierophantResourceKind,
     delta: 1 | -1,
+  ) => void;
+  readonly onConvertHestarResource: (
+    templeId: string,
+    sourceResource: HierophantResourceKind,
   ) => void;
   readonly resourceView: (
     templeId: string,
@@ -424,6 +433,7 @@ function ResourceCounter({
   templeName,
   view,
   onAdjust,
+  conversion,
 }: {
   readonly label: "Abundance" | "Conviction";
   readonly before: number;
@@ -433,6 +443,10 @@ function ResourceCounter({
   readonly templeName: string;
   readonly view: HierophantResourcePoolView;
   readonly onAdjust: (resource: HierophantResourceKind, delta: 1 | -1) => void;
+  readonly conversion: {
+    readonly enabled: boolean;
+    readonly onConvert: () => void;
+  } | null;
 }) {
   const resource: HierophantResourceKind = label === "Abundance" ? "abundance" : "conviction";
   const shown = view.displayed;
@@ -444,6 +458,15 @@ function ResourceCounter({
   const controlClass = `h-5 w-5 rounded border border-stone-600/40 text-xs font-bold transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
     revealed ? "opacity-100" : "opacity-0"
   }`;
+  const convertAvailable = shown > 0;
+  const convertDisabled = conversion !== null && !conversion.enabled;
+  const convertAria = conversion === null
+    ? null
+    : hierophantHestarConversionAriaLabel({
+      templeName,
+      sourceResource: resource,
+      available: convertAvailable && !convertDisabled ? shown : 0,
+    });
   return (
     <div
       data-resource-counter={resource}
@@ -504,6 +527,25 @@ function ResourceCounter({
           +
         </button>
       </div>
+      {conversion !== null && convertAria !== null && (
+        <button
+          type="button"
+          data-hestar-convert={resource}
+          data-hestar-convert-target={hestarDestinationResource(resource)}
+          className={`absolute left-1/2 top-full z-20 mt-0.5 -translate-x-1/2 whitespace-nowrap rounded border border-stone-600/50 bg-white px-1 py-0.5 text-[10px] font-semibold leading-none text-stone-800 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-300/40 dark:bg-slate-900 dark:text-stone-100 ${
+            revealed ? "opacity-100" : "pointer-events-none opacity-0"
+          }`}
+          aria-label={convertAria}
+          disabled={!convertAvailable || convertDisabled}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (!convertAvailable || convertDisabled) return;
+            conversion.onConvert();
+          }}
+        >
+          {hierophantHestarConversionVisibleLabel(resource)}
+        </button>
+      )}
       {view.pending && <span className="sr-only">Saving {label}</span>}
       {view.error !== null && (
         <span data-resource-error="" className="mt-0.5 text-[10px] font-medium text-rose-800 dark:text-rose-200">
@@ -1283,6 +1325,10 @@ function TemplePiece({
             templeName={name}
             view={pieces.resourceView(temple.templeId, "abundance", temple.abundance)}
             onAdjust={(resource, delta) => pieces.onAdjustResource(temple.templeId, resource, delta)}
+            conversion={isHestar ? null : {
+              enabled: true,
+              onConvert: () => pieces.onConvertHestarResource(temple.templeId, "abundance"),
+            }}
           />
           <ResourceCounter
             label="Conviction"
@@ -1293,6 +1339,10 @@ function TemplePiece({
             templeName={name}
             view={pieces.resourceView(temple.templeId, "conviction", temple.conviction)}
             onAdjust={(resource, delta) => pieces.onAdjustResource(temple.templeId, resource, delta)}
+            conversion={isHestar ? null : {
+              enabled: true,
+              onConvert: () => pieces.onConvertHestarResource(temple.templeId, "conviction"),
+            }}
           />
         </div>
         {temple.kind === "ordinary" ? (

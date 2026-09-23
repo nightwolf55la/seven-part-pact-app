@@ -846,6 +846,23 @@ export interface HierophantHestarResourceTransferredEventV1 {
   readonly data: HierophantHestarResourceTransferredDataV1;
 }
 
+export interface HierophantHestarResourceConvertedDataV1 {
+  readonly ordinaryTempleId: HierophantTempleId;
+  readonly sourceResource: "abundance" | "conviction";
+  readonly hestarResource: "abundance" | "conviction";
+  readonly amount: 1;
+  readonly ordinaryBefore: number;
+  readonly ordinaryAfter: number;
+  readonly hestarBefore: number;
+  readonly hestarAfter: number;
+}
+
+export interface HierophantHestarResourceConvertedEventV1 {
+  readonly type: "hierophant_hestar_resource_converted";
+  readonly version: 1;
+  readonly data: HierophantHestarResourceConvertedDataV1;
+}
+
 export interface HierophantSupplicantSteeredDataV1 {
   readonly denizenId: DenizenId;
   readonly denizenName: string;
@@ -1283,6 +1300,7 @@ export type HierophantEvent =
   | HierophantSupplicantCreatedEventV1
   | HierophantVisionsResolvedEventV1
   | HierophantHestarResourceTransferredEventV1
+  | HierophantHestarResourceConvertedEventV1
   | HierophantSupplicantSteeredEventV1
   | HierophantSupplicantBenefactionDepartedEventV1
   | SupplicantAddedEventV1

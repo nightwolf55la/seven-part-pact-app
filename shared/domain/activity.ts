@@ -215,6 +215,14 @@ function describeConfigEvent(event: CampaignEvent): string {
       }
       return `Transferred ${resource}`;
     }
+    case "hierophant_hestar_resource_converted": {
+      const source = event.data.sourceResource === "abundance" ? "Abundance" : "Conviction";
+      const destination = event.data.hestarResource === "abundance" ? "Abundance" : "Conviction";
+      const ordinary = isValidHierophantStartingTempleId(event.data.ordinaryTempleId)
+        ? hierophantStartingTempleDisplayName(event.data.ordinaryTempleId).replace(/^Temple /, "")
+        : event.data.ordinaryTempleId;
+      return `Converted ${event.data.amount} ${source} at ${ordinary} to ${event.data.amount} ${destination} at Hestar.`;
+    }
     case "hierophant_supplicant_steered":
       return `Steered Supplicant "${event.data.denizenName}"`;
     case "hierophant_supplicant_benefaction_departed":
@@ -632,6 +640,7 @@ export function mapEventToActivityEntry(
     case "hierophant_supplicant_created":
     case "hierophant_visions_resolved":
     case "hierophant_hestar_resource_transferred":
+    case "hierophant_hestar_resource_converted":
     case "hierophant_supplicant_steered":
     case "hierophant_supplicant_benefaction_departed":
     case "supplicant_added":
