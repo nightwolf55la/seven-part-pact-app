@@ -1161,4 +1161,47 @@ describe("N1 board-native pieces, gate frames, inspector hierarchy, and direct m
     root.unmount();
     container.remove();
   });
+
+  it("aborts a drag on pointercancel without committing a move", async () => {
+    mockMutations["m3Commands.updateNecromancerFoe"] = vi.fn(async () => {});
+    const necromancer = buildInitializedDefaultNecromancerState({
+      foes: [{
+        subject: { kind: "denizen", denizenId: "den_foe" as never },
+        location: { kind: "gate", gateId: "amber" },
+      }],
+    });
+    const world: WorldReference = {
+      denizens: [{ denizenId: "den_foe", name: "Howling Foe", representation: "individual", description: null }],
+      isles: [],
+      places: [],
+    };
+    const { container, root } = renderSurface({ necromancer, world });
+    const bronze = container.querySelector('[data-occupiable-key="gate:bronze"]') as HTMLElement;
+    document.elementFromPoint = () => bronze;
+    await act(async () => {
+      container.querySelector('[data-board-piece="foe"]')!
+        .dispatchEvent(pointerEvent("pointerdown", { clientX: 10, clientY: 10 }));
+    });
+    await act(async () => {
+      container.querySelector('[data-board-piece="foe"]')!
+        .dispatchEvent(pointerEvent("pointermove", { clientX: 40, clientY: 40 }));
+    });
+    expect(
+      container.querySelector("[data-dragging='true']") !== null
+      || container.querySelector("[data-drop-hint]") !== null
+      || container.querySelector('[data-board-piece="foe"]')?.getAttribute("opacity") === "0.55",
+    ).toBe(true);
+    await act(async () => {
+      container.querySelector('[data-board-piece="foe"]')!
+        .dispatchEvent(pointerEvent("pointercancel", { clientX: 80, clientY: 80 }));
+    });
+    expect(mockMutations["m3Commands.updateNecromancerFoe"]).not.toHaveBeenCalled();
+    expect(container.querySelector("[data-drop-hint]")).toBeNull();
+    expect(container.querySelector("[data-dragging]")).toBeNull();
+    expect(container.querySelector("[data-piece-pending]")).toBeNull();
+    expect(container.querySelector("[data-board-overlay-inspector]")).not.toBeNull();
+    expect(container.querySelector('[aria-label="Selected space"]')?.textContent).toContain("Amber");
+    root.unmount();
+    container.remove();
+  });
 });

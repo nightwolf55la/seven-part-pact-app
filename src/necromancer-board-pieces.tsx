@@ -123,6 +123,19 @@ export function useNecromancerBoardDrag({
     );
   }
 
+  function abort(event: ReactPointerEvent<Element>): void {
+    const currentSession = sessionRef.current;
+    if (currentSession === null || currentSession.pointerId !== event.pointerId) return;
+    const target = event.currentTarget;
+    if (typeof target.hasPointerCapture === "function" && target.hasPointerCapture(event.pointerId)) {
+      target.releasePointerCapture(event.pointerId);
+    }
+    const from = currentSession.from;
+    sessionRef.current = null;
+    setSession(() => sessionRef.current);
+    selectFrom(from);
+  }
+
   function finish(event: ReactPointerEvent<Element>): void {
     const currentSession = sessionRef.current;
     if (currentSession === null || currentSession.pointerId !== event.pointerId) return;
@@ -134,7 +147,7 @@ export function useNecromancerBoardDrag({
     const from = currentSession.from;
     const pieceKey = currentSession.pieceKey;
     sessionRef.current = null;
-    setSession(null);
+    setSession(() => sessionRef.current);
     if (!dragged) {
       selectFrom(from);
       return;
@@ -255,7 +268,7 @@ export function useNecromancerBoardDrag({
             dragging: false,
           };
           sessionRef.current = next;
-          setSession(next);
+          setSession(() => sessionRef.current);
         },
         onPointerMove(event) {
           const currentSession = sessionRef.current;
@@ -268,7 +281,7 @@ export function useNecromancerBoardDrag({
           if (!currentSession.dragging && (dx * dx + dy * dy) >= DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX) {
             const next = { ...currentSession, dragging: true };
             sessionRef.current = next;
-            setSession(next);
+            setSession(() => sessionRef.current);
           }
         },
         onPointerUp(event) {
@@ -277,7 +290,7 @@ export function useNecromancerBoardDrag({
         },
         onPointerCancel(event) {
           event.stopPropagation();
-          finish(event);
+          abort(event);
         },
       };
     },
@@ -331,6 +344,7 @@ export function BoardNativePiece({
       data-disposition={token.dispositionKind ?? undefined}
       data-piece-pending={local?.kind === "pending" ? "true" : undefined}
       data-piece-feedback={local?.kind}
+      data-dragging={dragging ? "true" : undefined}
       role="button"
       tabIndex={0}
       aria-label={boardPieceAriaLabel(token)}

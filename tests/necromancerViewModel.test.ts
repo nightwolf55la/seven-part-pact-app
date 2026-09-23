@@ -70,6 +70,8 @@ import {
   depthReachCue,
   depthReachRegions,
   necromancerPressureCue,
+  necromancerPressureCounts,
+  isEdgeOfLifeSpace,
   ordinaryDirectMoveDestinations,
   NECROMANCER_DIRECT_MOVE_OPERATIONS,
   boardPieceAriaLabel,
@@ -914,6 +916,28 @@ describe("N1 board-native presentation helpers", () => {
     expect(necromancerPressureCue(necromancer)).toBe(
       "Pressure: 1 Hostile · 1 Destroyed · 1 spaces with 5+ Souls · 1 Foes at Edge of Life · 1 escaped Foes",
     );
+  });
+
+  it("counts Foes at Edge of Life only on Edge path spaces, never on Near Gates", () => {
+    const campaignEdge = "nps_00000000-0000-0000-0000-000000000077" as NecromancerCampaignPathSpaceId;
+    const necromancer = buildInitializedDefaultNecromancerState({
+      campaignPathSpaces: [{ origin: "campaign", pathSpaceId: campaignEdge, region: "edge_of_life" }],
+      foes: [
+        { subject: { kind: "denizen", denizenId: "den_edge" as DenizenId }, location: { kind: "path", pathSpaceId: "edge_sage" } },
+        { subject: { kind: "denizen", denizenId: "den_campaign_edge" as DenizenId }, location: { kind: "path", pathSpaceId: campaignEdge } },
+        { subject: { kind: "denizen", denizenId: "den_amber" as DenizenId }, location: { kind: "gate", gateId: "amber" } },
+        { subject: { kind: "denizen", denizenId: "den_ivory" as DenizenId }, location: { kind: "gate", gateId: "ivory" } },
+        { subject: { kind: "denizen", denizenId: "den_bronze" as DenizenId }, location: { kind: "gate", gateId: "bronze" } },
+      ],
+    });
+    expect(isEdgeOfLifeSpace({ kind: "path", pathSpaceId: "edge_sage" }, necromancer)).toBe(true);
+    expect(isEdgeOfLifeSpace({ kind: "path", pathSpaceId: campaignEdge }, necromancer)).toBe(true);
+    expect(isEdgeOfLifeSpace({ kind: "gate", gateId: "amber" }, necromancer)).toBe(false);
+    expect(isEdgeOfLifeSpace({ kind: "gate", gateId: "bronze" }, necromancer)).toBe(false);
+    expect(isEdgeOfLifeSpace({ kind: "gate", gateId: "ivory" }, necromancer)).toBe(false);
+    expect(necromancerPressureCounts(necromancer).foesAtEdgeOfLife).toBe(2);
+    expect(necromancerPressureCue(necromancer)).toBe("Pressure: 2 Foes at Edge of Life");
+    expect(necromancerPressureCue(necromancer)).not.toMatch(/3 Foes at Edge of Life/);
   });
 
   it("confines ordinary Ghoul-Caller destinations to Edge of Life and enables the four atomic move operations", () => {

@@ -1834,10 +1834,7 @@ export function isEdgeOfLifeSpace(
   ref: NecromancerOccupiableSpaceRef,
   necromancer: Pick<NecromancerState, "gates" | "pathSpaces">,
 ): boolean {
-  if (ref.kind === "gate") {
-    const gate = necromancer.gates.find((candidate) => candidate.gateId === ref.gateId);
-    return gate !== undefined && gateBandOf(gate) === "near";
-  }
+  if (ref.kind !== "path") return false;
   const path = necromancer.pathSpaces.find((candidate) => candidate.pathSpaceId === ref.pathSpaceId);
   if (path === undefined) return false;
   if (path.origin === "builtin") return isBuiltinEdgeOfLifePathSpaceId(path.pathSpaceId);
