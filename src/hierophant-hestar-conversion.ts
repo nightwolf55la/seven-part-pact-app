@@ -176,7 +176,6 @@ export function createHierophantHestarConversionController(args: {
             if (!state.settled.has(key)) state.settled.set(key, value);
           }
           state.displayed = new Map();
-          state.lastSettledRevision = null;
         }
         notify();
       } catch (error) {
@@ -272,6 +271,7 @@ export function createHierophantHestarConversionController(args: {
             if (state.settled.size === 0) {
               state.chainValues = new Map();
               state.lastConfirmed = new Map();
+              state.lastSettledRevision = null;
             }
             return;
           }
@@ -280,6 +280,9 @@ export function createHierophantHestarConversionController(args: {
           state.chainValues.delete(key);
           state.lastConfirmed.delete(key);
           state.lastObserved.set(key, authoritative);
+          if (state.settled.size === 0) {
+            state.lastSettledRevision = null;
+          }
           state.error = null;
           state.errorKeys.delete(key);
           notify();

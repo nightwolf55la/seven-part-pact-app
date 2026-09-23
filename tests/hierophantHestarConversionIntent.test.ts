@@ -145,6 +145,90 @@ describe("Hierophant Hestar conversion queue", () => {
     expect(controller.view("krolis", "abundance", 0).pending).toBe(false);
   });
 
+  it("keeps the accepted receipt revision until realtime observation catches up", async () => {
+    const gates = [deferred<{ revision: number }>(), deferred<{ revision: number }>(), deferred<{ revision: number }>()];
+    const dispatched: Array<{
+      expectedRevision: number;
+      expectedOrdinarySourceCount: number;
+      expectedHestarDestinationCount: number;
+    }> = [];
+    let n = 0;
+    let currentRevision = 10;
+    const controller = createHierophantHestarConversionController({
+      nextCommandId: () => `cmd_${++n}`,
+      currentRevision: () => currentRevision,
+      dispatch: async (intent) => {
+        dispatched.push({
+          expectedRevision: intent.expectedRevision,
+          expectedOrdinarySourceCount: intent.expectedOrdinarySourceCount,
+          expectedHestarDestinationCount: intent.expectedHestarDestinationCount,
+        });
+        return gates[dispatched.length - 1]!.promise;
+      },
+    });
+
+    controller.enqueue({
+      ordinaryTempleId: "krolis",
+      sourceResource: "conviction",
+      ordinaryAuthoritative: 4,
+      hestarAuthoritative: 5,
+    });
+    expect(dispatched).toHaveLength(1);
+    expect(dispatched[0]).toEqual({
+      expectedRevision: 10,
+      expectedOrdinarySourceCount: 4,
+      expectedHestarDestinationCount: 5,
+    });
+
+    gates[0]!.resolve({ revision: 11 });
+    await gates[0]!.promise;
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(controller.view("krolis", "conviction", 4)).toEqual({ displayed: 3, pending: false, error: null });
+    expect(controller.view("hestar", "abundance", 5)).toEqual({ displayed: 6, pending: false, error: null });
+
+    controller.enqueue({
+      ordinaryTempleId: "krolis",
+      sourceResource: "conviction",
+      ordinaryAuthoritative: 4,
+      hestarAuthoritative: 5,
+    });
+    expect(dispatched).toHaveLength(2);
+    expect(dispatched[1]).toEqual({
+      expectedRevision: 11,
+      expectedOrdinarySourceCount: 3,
+      expectedHestarDestinationCount: 6,
+    });
+
+    gates[1]!.resolve({ revision: 12 });
+    await gates[1]!.promise;
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(controller.view("krolis", "conviction", 4)).toEqual({ displayed: 2, pending: false, error: null });
+    expect(controller.view("hestar", "abundance", 5)).toEqual({ displayed: 7, pending: false, error: null });
+
+    controller.observeAuthoritative("krolis", "conviction", 2);
+    controller.observeAuthoritative("hestar", "abundance", 7);
+    currentRevision = 13;
+
+    controller.enqueue({
+      ordinaryTempleId: "krolis",
+      sourceResource: "conviction",
+      ordinaryAuthoritative: 2,
+      hestarAuthoritative: 7,
+    });
+    expect(dispatched).toHaveLength(3);
+    expect(dispatched[2]).toEqual({
+      expectedRevision: 13,
+      expectedOrdinarySourceCount: 2,
+      expectedHestarDestinationCount: 7,
+    });
+  });
+
   it("rolls back both counters and surfaces the error on rejection", async () => {
     const gate = deferred<void>();
     const controller = createHierophantHestarConversionController({
