@@ -578,14 +578,14 @@ describe("Hierophant zero-click monthly board", () => {
     expect(hestar.textContent).toContain("Supports all");
     expect(krolis.textContent).toContain("Acolyte Ann");
     expect(krolis.textContent).toContain("Peasant");
-    expect(krolis.querySelector('[aria-label="Woe 3"]')).not.toBeNull();
+    expect(krolis.querySelector('[aria-label="Current Woe 3"]')).not.toBeNull();
     expect(krolis.querySelector('[aria-label="Next Visions: Woe 3 → 2"]')).not.toBeNull();
     expect(krolis.textContent).toContain("Supported");
-    expect(krolis.textContent).toContain("-1 Abundance");
+    expect(krolis.textContent).toContain("Cost: 1 Abundance");
     expect(krolis.textContent).toContain("Next Visions: 3 → 2");
-    expect(krolis.querySelector('[aria-label="Woe 7"]')).not.toBeNull();
+    expect(krolis.querySelector('[aria-label="Current Woe 7"]')).not.toBeNull();
     expect(krolis.querySelector('[aria-label="Next Visions: Woe 7 → 6"]')).not.toBeNull();
-    expect(krolis.textContent).toContain("Woe 7");
+    expect(krolis.querySelector('[data-supplicant-piece] [data-woe-overflow]')?.textContent).toBe("7");
     expect(krolis.textContent).toContain("Unsupported");
     expect(krolis.textContent).toContain("Next Visions: 4 → 5");
     expect(krolis.textContent).toContain("Cult departure due");
@@ -659,8 +659,8 @@ describe("Hierophant zero-click monthly board", () => {
     expect(krolis.querySelector('[aria-label="Supports Artisan, Peasant"]')).not.toBeNull();
     expect(krolis.textContent).toContain("Supported");
     expect(krolis.textContent).toContain("Unsupported");
-    expect(krolis.textContent).toContain("-1 Abundance");
-    expect(krolis.querySelector('[aria-label="Woe 3"]')).not.toBeNull();
+    expect(krolis.textContent).toContain("Cost: 1 Abundance");
+    expect(krolis.querySelector('[aria-label="Current Woe 3"]')).not.toBeNull();
     expect(krolis.querySelector('[aria-label="Next Visions: Woe 3 → 2"]')).not.toBeNull();
     expect(krolis.querySelector('[aria-label="Abundance 5, Next Visions -1 → 4"]')).not.toBeNull();
     expect(krolis.textContent).not.toContain("Hestar choice needed");
@@ -1407,6 +1407,14 @@ describe("Hierophant physical piece controls", () => {
     return piece.querySelector(`[data-woe-target="${value}"]`) as HTMLButtonElement;
   }
 
+  function woeDecrement(piece: HTMLElement): HTMLButtonElement {
+    return piece.querySelector('[data-woe-pips] [data-woe-step="decrement"]') as HTMLButtonElement;
+  }
+
+  function woeIncrement(piece: HTMLElement): HTMLButtonElement {
+    return piece.querySelector('[data-woe-pips] [data-woe-step="increment"]') as HTMLButtonElement;
+  }
+
   it("shows compact unnamed and named person-piece headers without duplicated Class text", () => {
     const { container, root } = renderPieces();
     const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
@@ -1444,14 +1452,17 @@ describe("Hierophant physical piece controls", () => {
     const unnamed = container.querySelector('[data-supplicant-piece="den_blank"]') as HTMLElement;
     const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
     const high = container.querySelector('[data-supplicant-piece="den_high"]') as HTMLElement;
-    expect(named.querySelector('[aria-label="Woe 1"]')).not.toBeNull();
+    expect(named.querySelector('[aria-label="Current Woe 1"]')).not.toBeNull();
     expect(named.querySelector('[aria-label="Next Visions: Woe 1 → 0"]')).not.toBeNull();
     expect(named.textContent).not.toMatch(/Woe 1 → 0/);
     expect(ready.querySelector('[data-woe-threshold="benefaction"]')?.textContent).toBe("Ready for Benefaction");
     expect(unnamed.querySelector('[data-woe-threshold="cult"]')?.textContent).toBe("Cult departure due");
-    expect(high.querySelector('[aria-label="Woe 7"]')).not.toBeNull();
-    expect(high.textContent).toContain("Woe 7");
-    expect(high.querySelectorAll('[data-woe-filled="true"]')).toHaveLength(5);
+    expect(high.querySelector('[aria-label="Current Woe 7"]')).not.toBeNull();
+    expect(high.querySelector("[data-woe-overflow]")?.textContent).toBe("7");
+    expect(ready.querySelector('[data-woe-target="0"]')).toBeNull();
+    expect(ready.querySelectorAll('[data-woe-filled="true"]')).toHaveLength(0);
+    expect(high.querySelector('[data-woe-overflow]')?.textContent).toBe("7");
+    expect(high.querySelectorAll('[data-woe-filled="true"]')).toHaveLength(4);
     const readyBenefaction = ready.querySelector('[data-piece-benefaction] button') as HTMLButtonElement;
     expect(readyBenefaction.getAttribute("aria-label")).toBe("Benefaction & Depart Mercy");
     expect(readyBenefaction.textContent).toBe("Benefaction & Depart");
@@ -1482,9 +1493,9 @@ describe("Hierophant physical piece controls", () => {
     const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
     const high = container.querySelector('[data-supplicant-piece="den_high"]') as HTMLElement;
     const unnamed = container.querySelector('[data-supplicant-piece="den_blank"]') as HTMLElement;
-    expect(woeTarget(named, 0).getAttribute("aria-label")).toBe("Set Acolyte Ann Woe to 0");
+    expect(named.querySelector('[data-woe-target="0"]')).toBeNull();
     expect(woeTarget(named, 3).getAttribute("aria-label")).toBe("Set Acolyte Ann Woe to 3");
-    flushSync(() => { woeTarget(named, 0).click(); });
+    flushSync(() => { woeDecrement(named).click(); });
     await Promise.resolve();
     expect(mockMutations["m3Commands.updateSupplicant"].mock.calls[0][0].fields).toEqual({ woe: { expected: 1, value: 0 } });
     flushSync(() => { woeTarget(named, 1).click(); });
@@ -1633,7 +1644,7 @@ describe("Hierophant physical piece controls", () => {
     const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
     const depart = ready.querySelector('[data-piece-benefaction] button') as HTMLButtonElement;
     expect(depart.getAttribute("aria-label")).toBe("Benefaction & Depart Mercy");
-    const namedWoe = container.querySelector('[data-supplicant-piece="den_ann"] [data-woe-target="0"]') as HTMLButtonElement;
+    const namedWoe = woeDecrement(container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement);
     flushSync(() => { depart.focus(); });
     flushSync(() => {
       depart.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
@@ -1656,6 +1667,58 @@ describe("Hierophant physical piece controls", () => {
     expect(departAfter.getAttribute("aria-label")).toBe("Benefaction & Depart Mercy");
     expect(departAfter.getAttribute("aria-busy")).toBe("false");
     expect(container.querySelector('[data-supplicant-piece="den_ready"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("shows stable Class cost and Benefaction value on the piece", () => {
+    const { container, root } = renderPieces();
+    const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
+    const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
+    const unnamed = container.querySelector('[data-supplicant-piece="den_blank"]') as HTMLElement;
+    expect(named.querySelector("[data-supplicant-cost]")?.textContent).toBe("Cost: 1 Abundance");
+    expect(named.querySelector("[data-supplicant-benefaction-gives]")?.textContent).toBe("Gives: +1 Conviction");
+    expect(ready.querySelector("[data-supplicant-cost]")?.textContent).toBe("Cost: 1 Abundance or Conviction");
+    expect(ready.querySelector("[data-supplicant-benefaction-gives]")?.textContent).toBe("Gives: +1 Abundance");
+    expect(unnamed.querySelector("[data-supplicant-cost]")?.textContent).toBe("Cost: 1 Abundance");
+    expect(named.querySelector("[data-woe-forecast]")).not.toBeNull();
+    expect(named.querySelector("[data-supplicant-secondary]")).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("adjusts Woe with +/- controls without threshold side effects", async () => {
+    mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {});
+    mockMutations["m3Commands.removeSupplicant"] = vi.fn(async () => {});
+    mockMutations["m3Commands.establishCult"] = vi.fn(async () => {});
+    mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"] = vi.fn(async () => {});
+    const { container, root } = renderPieces();
+    const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
+    expect(woeDecrement(ready).disabled).toBe(true);
+    const unnamed = container.querySelector('[data-supplicant-piece="den_blank"]') as HTMLElement;
+    flushSync(() => { woeIncrement(unnamed).click(); });
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.updateSupplicant"].mock.calls[0][0].fields).toEqual({
+      woe: { expected: 5, value: 6 },
+    });
+    expect(mockMutations["m3Commands.establishCult"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"]).not.toHaveBeenCalled();
+    const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
+    let dragStarted = false;
+    named.addEventListener("dragstart", () => {
+      dragStarted = true;
+    });
+    flushSync(() => {
+      woeIncrement(named).dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      woeIncrement(named).click();
+    });
+    await Promise.resolve();
+    expect(dragStarted).toBe(false);
+    flushSync(() => { woeIncrement(named).focus(); });
+    flushSync(() => {
+      woeIncrement(named).dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    expect(mockMutations["m3Commands.updateSupplicant"].mock.calls.length).toBeGreaterThan(1);
     root.unmount();
     container.remove();
   });
@@ -1933,7 +1996,7 @@ describe("Resolve Visions action", () => {
     const { container, root, rerender } = renderReady();
     flushSync(() => { buttonWithText(container, "Resolve Visions")!.click(); });
     await settleQueuedMutation();
-    expect(container.querySelector('[data-supplicant-piece="den_ann"] [aria-label="Woe 1"]')).not.toBeNull();
+    expect(container.querySelector('[data-supplicant-piece="den_ann"] [aria-label="Current Woe 1"]')).not.toBeNull();
     expect(container.querySelector('[data-woe-threshold="benefaction"]')).toBeNull();
     rerender(readyState({
       temples: fiveTemples.map((temple) => (
@@ -1948,7 +2011,7 @@ describe("Resolve Visions action", () => {
         },
       ],
     }) as typeof EMPTY_HIEROPHANT_STATE);
-    expect(container.querySelector('[data-supplicant-piece="den_ann"] [aria-label="Woe 0"]')).not.toBeNull();
+    expect(container.querySelector('[data-supplicant-piece="den_ann"] [aria-label="Current Woe 0"]')).not.toBeNull();
     expect(container.querySelector('[data-woe-threshold="benefaction"]')?.textContent).toBe("Ready for Benefaction");
     const annBenefaction = container.querySelector(
       '[data-supplicant-piece="den_ann"] [data-piece-benefaction] button',
@@ -1969,7 +2032,7 @@ describe("Resolve Visions action", () => {
     });
     expect(mockMutations["m3Commands.resolveHierophantVisions"]).toHaveBeenCalledTimes(1);
     expect(container.textContent).toMatch(/out of date/i);
-    expect(container.querySelector('[data-supplicant-piece="den_ann"] [aria-label="Woe 1"]')).not.toBeNull();
+    expect(container.querySelector('[data-supplicant-piece="den_ann"] [aria-label="Current Woe 1"]')).not.toBeNull();
     root.unmount();
     container.remove();
   });
@@ -1987,7 +2050,7 @@ describe("Resolve Visions action", () => {
     expect(mockMutations["m3Commands.resolveHierophantVisions"]).toHaveBeenCalledTimes(1);
     expect(container.textContent).toContain("Visions cannot be resolved automatically. Use the board cues.");
     expect(container.textContent).not.toContain("Resolved Hierophant Visions");
-    expect(container.querySelector('[data-supplicant-piece="den_ann"] [aria-label="Woe 1"]')).not.toBeNull();
+    expect(container.querySelector('[data-supplicant-piece="den_ann"] [aria-label="Current Woe 1"]')).not.toBeNull();
     root.unmount();
     container.remove();
   });
@@ -2003,7 +2066,7 @@ describe("Resolve Visions action", () => {
         },
       ],
     }) as typeof EMPTY_HIEROPHANT_STATE);
-    expect(container.querySelector('[data-supplicant-piece="den_ann"] [aria-label="Woe 5"]')).not.toBeNull();
+    expect(container.querySelector('[data-supplicant-piece="den_ann"] [aria-label="Current Woe 5"]')).not.toBeNull();
     expect(container.querySelector('[data-woe-threshold="cult"]')?.textContent).toBe("Cult departure due");
     expect(container.querySelector('[aria-label="Depart for Cult"]')).toBeNull();
     expect(container.querySelector('[aria-label="Benefaction & Depart"]')).toBeNull();

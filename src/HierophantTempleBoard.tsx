@@ -37,6 +37,8 @@ import {
   shortTempleBoardLabel,
   woeThresholdCueLabel,
   baseBenefactionReference,
+  supplicantBenefactionGiveLabel,
+  supplicantClassCostLabel,
 } from "./hierophant-view-model";
 import { formatVisionsPreviewChoiceSummary } from "./hierophant-visions-preview";
 import HierophantClassBadge from "./hierophant-class-badge";
@@ -643,6 +645,10 @@ function ResourceCounter({
   );
 }
 
+function stopNestedControlPointer(event: { stopPropagation: () => void }): void {
+  event.stopPropagation();
+}
+
 function WoePips({
   woe,
   denizenId,
@@ -655,34 +661,70 @@ function WoePips({
   readonly onSet: (nextWoe: number) => void;
 }) {
   const visualRange = 5;
-  const filled = Math.min(woe, visualRange);
+  const overflow = woe > visualRange;
+  const filledCount = overflow ? visualRange - 1 : Math.min(woe, visualRange);
+  const [revealed, setRevealed] = useState(false);
+  const stepClass = `h-5 w-5 rounded border border-stone-600/50 text-[11px] font-bold leading-none transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-not-allowed disabled:opacity-40 ${
+    revealed ? "opacity-100" : "opacity-0 group-focus-within:opacity-100"
+  }`;
   const pipClass = (filledPip: boolean) =>
     `inline-flex h-3 w-3 items-center justify-center rounded-full border border-stone-700 dark:border-stone-200 ${
       filledPip ? "bg-stone-800 dark:bg-stone-100" : "bg-transparent"
     }`;
   return (
-    <div className="inline-flex items-center gap-1" data-woe-pips={denizenId} aria-label={`Woe ${woe}`}>
+    <div
+      data-woe-pips={denizenId}
+      className="group inline-flex items-center gap-0.5"
+      aria-label={`Current Woe ${woe}`}
+      onMouseEnter={() => setRevealed(true)}
+      onMouseLeave={() => setRevealed(false)}
+      onFocusCapture={() => setRevealed(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setRevealed(false);
+        }
+      }}
+    >
       <button
         type="button"
-        data-woe-target="0"
-        aria-label={`Set ${subjectLabel} Woe to 0`}
-        aria-pressed={woe === 0}
-        className={`inline-flex h-4 min-w-[1.1rem] items-center justify-center rounded-sm border px-0.5 text-[10px] font-semibold tabular-nums cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
-          woe === 0
-            ? "border-stone-800 bg-stone-800 text-stone-50 dark:border-stone-100 dark:bg-stone-100 dark:text-stone-900"
-            : "border-stone-400/80 bg-white text-stone-700 dark:border-stone-500 dark:bg-slate-900 dark:text-stone-200"
-        }`}
+        data-woe-step="decrement"
+        aria-label={`Decrease ${subjectLabel} Woe by 1`}
+        disabled={woe <= 0}
+        className={stepClass}
+        onMouseDown={stopNestedControlPointer}
+        onPointerDown={stopNestedControlPointer}
         onClick={(event) => {
           event.stopPropagation();
-          onSet(0);
+          if (woe <= 0) return;
+          onSet(woe - 1);
         }}
       >
-        0
+        −
       </button>
-      <span className="inline-flex items-center gap-0.5">
+      <span className="inline-flex items-center gap-0.5" data-woe-pip-row="">
         {Array.from({ length: visualRange }, (_, index) => {
           const target = index + 1;
-          const filledPip = index < filled;
+          if (overflow && index === visualRange - 1) {
+            return (
+              <button
+                key="overflow"
+                type="button"
+                data-woe-overflow=""
+                data-woe-target={visualRange}
+                aria-label={`Set ${subjectLabel} Woe to ${visualRange} (current ${woe})`}
+                className="inline-flex h-3 min-w-[1.1rem] items-center justify-center rounded-sm border border-stone-700 bg-stone-800 px-0.5 text-[9px] font-bold tabular-nums text-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 dark:border-stone-200 dark:bg-stone-100 dark:text-stone-900"
+                onMouseDown={stopNestedControlPointer}
+                onPointerDown={stopNestedControlPointer}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onSet(visualRange);
+                }}
+              >
+                {woe}
+              </button>
+            );
+          }
+          const filledPip = index < filledCount;
           return (
             <button
               key={target}
@@ -690,8 +732,10 @@ function WoePips({
               data-woe-target={target}
               data-woe-filled={filledPip ? "true" : "false"}
               aria-label={`Set ${subjectLabel} Woe to ${target}`}
-              aria-pressed={woe === target}
+              aria-pressed={!overflow && woe === target}
               className={`${pipClass(filledPip)} cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700`}
+              onMouseDown={stopNestedControlPointer}
+              onPointerDown={stopNestedControlPointer}
               onClick={(event) => {
                 event.stopPropagation();
                 onSet(target);
@@ -700,7 +744,20 @@ function WoePips({
           );
         })}
       </span>
-      <span className="text-xs tabular-nums font-medium">Woe {woe}</span>
+      <button
+        type="button"
+        data-woe-step="increment"
+        aria-label={`Increase ${subjectLabel} Woe by 1`}
+        className={stepClass}
+        onMouseDown={stopNestedControlPointer}
+        onPointerDown={stopNestedControlPointer}
+        onClick={(event) => {
+          event.stopPropagation();
+          onSet(woe + 1);
+        }}
+      >
+        +
+      </button>
     </div>
   );
 }
@@ -773,8 +830,9 @@ function SupplicantPiece({
   const klass = classLabel(person.classId, campaignClasses);
   const givenName = supplicantGivenName(storedName, klass);
   const support = preview === undefined ? null : preview.support === "supported" ? "Supported" : preview.support === "unsupported" ? "Unsupported" : null;
-  const demand = preview === undefined ? null : formatVisionsDemand(preview.demand);
   const projectedTo = preview?.woeProjection.kind === "determined" ? preview.woeProjection.to : null;
+  const classCostLabel = supplicantClassCostLabel(person.classId);
+  const benefactionGiveLabel = supplicantBenefactionGiveLabel(person.classId);
   const threshold = woeThresholdCueLabel(person.woe);
   const danger = person.woe >= 5 || preview?.blockerKind !== null;
   const accessible = [
@@ -783,7 +841,8 @@ function SupplicantPiece({
     klass,
     `Woe ${person.woe}`,
     support,
-    demand,
+    classCostLabel,
+    benefactionGiveLabel,
     threshold,
     projectedTo === null ? null : `Next Visions Woe ${person.woe} → ${projectedTo}`,
     orderIndex === null ? null : `Visions order ${orderIndex}`,
@@ -893,6 +952,19 @@ function SupplicantPiece({
             />
           </div>
         </div>
+        {(classCostLabel !== null || benefactionGiveLabel !== null) && (
+          <div
+            data-supplicant-stable=""
+            className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0 text-[11px] font-medium text-stone-800 dark:text-stone-100"
+          >
+            {classCostLabel !== null && (
+              <span data-supplicant-cost="" title={classCostLabel}>{classCostLabel}</span>
+            )}
+            {benefactionGiveLabel !== null && (
+              <span data-supplicant-benefaction-gives="" title={benefactionGiveLabel}>{benefactionGiveLabel}</span>
+            )}
+          </div>
+        )}
         {timeScheduled && (
           <p className="mt-0.5">
             <span
@@ -944,25 +1016,18 @@ function SupplicantPiece({
             </button>
           </div>
         )}
-        {(projectedTo !== null && projectedTo !== person.woe) || demand !== null || preview?.thresholdCue.kind === "ready_for_benefaction" || (preview?.thresholdCue.kind === "cult_departure_due" && person.woe < 5) ? (
-          <div data-supplicant-secondary="" className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0 text-slate-600 dark:text-slate-400">
+        {(projectedTo !== null && projectedTo !== person.woe) || preview?.thresholdCue.kind === "ready_for_benefaction" || (preview?.thresholdCue.kind === "cult_departure_due" && person.woe < 5) ? (
+          <div data-supplicant-secondary="" className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0 text-[10px] italic text-slate-500 dark:text-slate-400">
             {projectedTo !== null && projectedTo !== person.woe && (
-              <p className="text-[10px] text-slate-600 dark:text-slate-300" data-woe-forecast={person.denizenId} aria-label={`Next Visions: Woe ${person.woe} → ${projectedTo}`}>
+              <p data-woe-forecast={person.denizenId} aria-label={`Next Visions: Woe ${person.woe} → ${projectedTo}`}>
                 Next Visions: {person.woe} → {projectedTo}
               </p>
             )}
             {preview?.thresholdCue.kind === "ready_for_benefaction" && person.woe !== 0 && (
-              <p className="text-[10px] text-slate-600 dark:text-slate-300">
-                Next Visions: Ready for Benefaction
-              </p>
+              <p>Next Visions: Ready for Benefaction</p>
             )}
             {preview?.thresholdCue.kind === "cult_departure_due" && person.woe < 5 && (
-              <p className="text-[10px] text-slate-600 dark:text-slate-300">
-                Next Visions: Cult departure due
-              </p>
-            )}
-            {demand !== null && (
-              <p className="text-[10px] text-slate-700 dark:text-slate-300">{demand}</p>
+              <p>Next Visions: Cult departure due</p>
             )}
           </div>
         ) : null}

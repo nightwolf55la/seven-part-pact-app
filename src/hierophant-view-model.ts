@@ -15,6 +15,7 @@ import {
   isValidHierophantStartingTempleId,
   isValidPactSeatId,
   pactSeatDisplayName,
+  hierophantBuiltinClassBenefaction,
   hierophantDoctrinePairSupportedClassIds,
   type DenizenId,
   type HierophantCampaignClass,
@@ -32,6 +33,7 @@ import {
   type HierophantVisionsDemand,
   type HierophantVisionsResource,
   type HierophantVisionsSupplicantPreview,
+  type HierophantBuiltinClassId,
   type HierophantVisionsTemplePreview,
   type PowerfulDenizenProfile,
   type SorcererExternalPresence,
@@ -523,6 +525,31 @@ export function benefactionReferenceLabel(reference: HierophantBenefactionRefere
   }
   const resource = reference.kind === "abundance" ? "Abundance" : "Conviction";
   return `Benefaction reference: +${reference.amount} ${resource}`;
+}
+
+/** Mirrors FIXED_CLASS_COST in shared/domain/hierophant-visions.ts */
+const BUILTIN_FIXED_CLASS_COST: Record<
+  Exclude<HierophantBuiltinClassId, "artisan">,
+  { readonly resource: HierophantVisionsResource; readonly amount: number }
+> = {
+  pariah: { resource: "abundance", amount: 2 },
+  peasant: { resource: "abundance", amount: 1 },
+  merchant: { resource: "conviction", amount: 1 },
+  gentry: { resource: "conviction", amount: 2 },
+};
+
+export function supplicantClassCostLabel(classId: string): string | null {
+  if (classId === "artisan") return "Cost: 1 Abundance or Conviction";
+  if (!(classId in BUILTIN_FIXED_CLASS_COST)) return null;
+  const cost = BUILTIN_FIXED_CLASS_COST[classId as keyof typeof BUILTIN_FIXED_CLASS_COST];
+  return `Cost: ${cost.amount} ${formatVisionsResourceName(cost.resource)}`;
+}
+
+export function supplicantBenefactionGiveLabel(classId: string): string | null {
+  const benefaction = hierophantBuiltinClassBenefaction(classId);
+  if (benefaction === null) return null;
+  const resource = benefaction.kind === "abundance" ? "Abundance" : "Conviction";
+  return `Gives: +${benefaction.amount} ${resource}`;
 }
 
 export function templeSupportedClassIds(
