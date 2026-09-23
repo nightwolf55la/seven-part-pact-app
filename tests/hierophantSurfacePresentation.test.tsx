@@ -1733,6 +1733,38 @@ describe("Hierophant physical piece controls", () => {
     container.remove();
   });
 
+  it("clears stale Woe intent when authoritative state diverges from the expected baseline", async () => {
+    let release: (() => void) | undefined;
+    mockMutations["m3Commands.updateSupplicant"] = vi.fn(() => new Promise<void>((resolve) => {
+      release = resolve;
+    }));
+    const { container, root, rerender } = renderPieces();
+    const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
+    flushSync(() => { woeTarget(named, 4).click(); });
+    expect(named.querySelector('[data-woe-pips]')?.getAttribute("data-woe-pending")).toBe("true");
+    await act(async () => {
+      rerender({
+        ...pieceState,
+        supplicants: pieceState.supplicants.map((person) =>
+          person.denizenId === "den_ann" ? { ...person, woe: 5 } : person,
+        ),
+      } as typeof EMPTY_HIEROPHANT_STATE);
+      await Promise.resolve();
+    });
+    const diverged = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
+    expect(diverged.querySelector('[data-woe-pips]')?.getAttribute("data-woe-pending")).toBe("false");
+    expect(diverged.querySelector('[aria-label="Current Woe 5"]')).not.toBeNull();
+    expect(diverged.querySelector('[data-woe-threshold="cult"]')?.textContent).toBe("Cult departure due");
+    expect(diverged.querySelector('[data-piece-benefaction]')).toBeNull();
+    expect(woeTarget(diverged, 3).disabled).toBe(false);
+    await act(async () => {
+      release?.();
+      await Promise.resolve();
+    });
+    root.unmount();
+    container.remove();
+  });
+
   it("restores authoritative Woe after a rejected write and hides step controls at rest", async () => {
     mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {
       throw new Error("stale woe");

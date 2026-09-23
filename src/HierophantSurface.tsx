@@ -361,7 +361,11 @@ export default function HierophantSurface({
       const next = { ...prev };
       for (const [denizenId, intent] of entries) {
         const person = hierophant.supplicants.find((entry) => entry.denizenId === denizenId);
-        if (person === undefined || person.woe === intent.requested) {
+        if (
+          person === undefined
+          || person.woe === intent.requested
+          || person.woe !== intent.expected
+        ) {
           delete next[denizenId];
           changed = true;
         }
