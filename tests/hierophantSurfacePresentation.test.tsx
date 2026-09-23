@@ -1475,7 +1475,8 @@ describe("Hierophant physical piece controls", () => {
         ?.getAttribute("data-resource-controls"),
     ).toBe("hidden");
     expect(container.querySelector('[data-supplicant-piece="den_ann"]')?.getAttribute("draggable")).toBe("true");
-    expect(container.querySelector('[data-supplicant-piece="den_ready"]')?.getAttribute("draggable")).toBe("false");
+    expect(container.querySelector('[data-supplicant-piece="den_ready"]')?.getAttribute("draggable")).toBe("true");
+    expect(container.querySelector('[data-supplicant-piece="den_ann"]')?.getAttribute("data-host-draggable")).toBe("true");
     const advanced = Array.from(container.querySelectorAll("summary")).find((el) =>
       el.textContent?.includes("Advanced / Correct Board"),
     );
@@ -1510,7 +1511,10 @@ describe("Hierophant physical piece controls", () => {
     withWoe("den_ann", 0);
     flushSync(() => { woeTarget(container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement, 1).click(); });
     await Promise.resolve();
-    expect(mockMutations["m3Commands.updateSupplicant"]).toHaveBeenCalledTimes(1);
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.updateSupplicant"].mock.calls.some((call) => (
+      call[0].fields.woe.expected === 0 && call[0].fields.woe.value === 1
+    ))).toBe(true);
     withWoe("den_ann", 1);
     flushSync(() => { woeTarget(container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement, 3).click(); });
     await Promise.resolve();
@@ -1537,12 +1541,14 @@ describe("Hierophant physical piece controls", () => {
     container.remove();
   });
 
-  it("asks the table to schedule Time on the Supplicant instead of consuming another week", () => {
+  it("records host-only placement on ordinary drag without Time or Steer", async () => {
     mockMutations["m3Commands.steerHierophantSupplicant"] = vi.fn(async () => {});
+    mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {});
     const { container, root } = renderPieces();
     const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
     const zone = supplyDrop(container, "notor", "courtyard")!;
     expect(named.getAttribute("data-steer-time")).toBe("none");
+    expect(named.getAttribute("data-host-draggable")).toBe("true");
     flushSync(() => { named.dispatchEvent(new Event("dragstart", { bubbles: true })); });
     flushSync(() => {
       zone.dispatchEvent(new Event("dragenter", { bubbles: true }));
@@ -1550,17 +1556,64 @@ describe("Hierophant physical piece controls", () => {
       zone.dispatchEvent(new Event("drop", { bubbles: true }));
     });
     flushSync(() => { named.dispatchEvent(new Event("dragend", { bubbles: true })); });
-    expect(container.querySelector("[data-steer-notice]")?.textContent).toContain(
-      "Schedule Time on this Supplicant",
-    );
+    await Promise.resolve();
+    expect(container.querySelector("[data-host-notice]")).toBeNull();
     expect(mockMutations["m3Commands.steerHierophantSupplicant"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.updateSupplicant"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.updateSupplicant"].mock.calls[0][0]).toMatchObject({
+      denizenId: "den_ann",
+      fields: {
+        host: {
+          expected: { kind: "temple", templeId: "krolis", area: "courtyard" },
+          value: { kind: "temple", templeId: "notor", area: "courtyard" },
+        },
+      },
+    });
     root.unmount();
     container.remove();
   });
 
-  it("Steers by spending the matching scheduled week and does not auto-Benefaction", async () => {
+  it("records Courtyard to Agiary, ordinary Temple to Hestar, and Woe 0 host moves without Steer", async () => {
     mockMutations["m3Commands.steerHierophantSupplicant"] = vi.fn(async () => {});
+    mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {});
     mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"] = vi.fn(async () => {});
+    const { container, root } = renderPieces();
+    const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
+    const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
+    const agiary = supplyDrop(container, "krolis", "agiary")!;
+    flushSync(() => { named.dispatchEvent(new Event("dragstart", { bubbles: true })); });
+    flushSync(() => { agiary.dispatchEvent(new Event("drop", { bubbles: true })); });
+    flushSync(() => { named.dispatchEvent(new Event("dragend", { bubbles: true })); });
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.updateSupplicant"].mock.calls[0][0].fields.host.value).toEqual({
+      kind: "temple",
+      templeId: "krolis",
+      area: "agiary",
+    });
+    const hestar = supplyDrop(container, "hestar", "hestar")!;
+    flushSync(() => { ready.dispatchEvent(new Event("dragstart", { bubbles: true })); });
+    flushSync(() => { hestar.dispatchEvent(new Event("drop", { bubbles: true })); });
+    flushSync(() => { ready.dispatchEvent(new Event("dragend", { bubbles: true })); });
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.updateSupplicant"].mock.calls[1][0]).toMatchObject({
+      denizenId: "den_ready",
+      fields: {
+        host: {
+          expected: { kind: "temple", templeId: "notor", area: "courtyard" },
+          value: { kind: "temple", templeId: "hestar", area: null },
+        },
+      },
+    });
+    expect(mockMutations["m3Commands.steerHierophantSupplicant"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"]).not.toHaveBeenCalled();
+    const hostFields = mockMutations["m3Commands.updateSupplicant"].mock.calls.map((call) => call[0].fields);
+    expect(hostFields.every((fields) => fields.woe === undefined)).toBe(true);
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps explicit Steer as the named helper that spends Time", async () => {
+    mockMutations["m3Commands.steerHierophantSupplicant"] = vi.fn(async () => {});
     mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {});
     const { container, root } = renderChoiceSurface(pieceState as typeof EMPTY_HIEROPHANT_STATE, pieceWorld, {
       steerTime: [{
@@ -1573,21 +1626,21 @@ describe("Hierophant physical piece controls", () => {
     });
     const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
     expect(named.getAttribute("data-steer-time")).toBe("pending");
-    const zone = supplyDrop(container, "hestar", "hestar")!;
-    flushSync(() => { named.dispatchEvent(new Event("dragstart", { bubbles: true })); });
-    flushSync(() => {
-      zone.dispatchEvent(new Event("drop", { bubbles: true }));
-    });
-    flushSync(() => { named.dispatchEvent(new Event("dragend", { bubbles: true })); });
+    expect(named.querySelector("[data-steer-time-badge]")?.textContent).toBe("Time");
+    expect(named.querySelector('[aria-label="Time scheduled on Acolyte Ann"]')).not.toBeNull();
+    flushSync(() => { templeSelectButton(container, "Temple Krolis").click(); });
+    flushSync(() => { (named.querySelector("button") as HTMLButtonElement).click(); });
+    const corrections = container.querySelector("[data-inspector-corrections]") as HTMLDetailsElement;
+    flushSync(() => { corrections.open = true; });
+    const steer = Array.from(corrections.querySelectorAll("button")).find((button) => button.textContent === "Steer");
+    expect(steer).toBeDefined();
+    flushSync(() => { steer!.click(); });
     await Promise.resolve();
     expect(mockMutations["m3Commands.steerHierophantSupplicant"]).toHaveBeenCalledTimes(1);
-    const args = mockMutations["m3Commands.steerHierophantSupplicant"].mock.calls[0][0];
-    expect(args.allocationId).toBe("alc_00000000-0000-0000-0000-000000000001");
-    expect(args.denizenId).toBe("den_ann");
-    expect(args.destinationTempleId).toBe("hestar");
-    expect(args.destinationArea).toBeNull();
-    expect(mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"]).not.toHaveBeenCalled();
-    expect(mockMutations["m3Commands.updateSupplicant"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.steerHierophantSupplicant"].mock.calls[0][0]).toMatchObject({
+      allocationId: "alc_00000000-0000-0000-0000-000000000001",
+      denizenId: "den_ann",
+    });
     root.unmount();
     container.remove();
   });
@@ -1693,6 +1746,13 @@ describe("Hierophant physical piece controls", () => {
     expect(named.querySelector("[data-supplicant-cost-value]")?.textContent).toBe("1 Abundance");
     expect(named.querySelector("[data-supplicant-benefaction]")?.textContent).toContain("Benefaction");
     expect(named.querySelector("[data-supplicant-benefaction-value]")?.textContent).toBe("+1 Conviction");
+    const mechanics = named.querySelector("[data-supplicant-stable]") as HTMLElement;
+    expect(mechanics.querySelector("[data-supplicant-cost]")).not.toBeNull();
+    expect(mechanics.querySelector("[data-supplicant-woe-row]")).not.toBeNull();
+    expect(mechanics.querySelector("[data-woe-label]")?.textContent).toBe("Woe");
+    expect(mechanics.querySelector("[data-supplicant-benefaction]")).not.toBeNull();
+    expect(mechanics.textContent?.indexOf("Cost") ?? -1).toBeLessThan(mechanics.textContent?.indexOf("Woe") ?? -1);
+    expect(mechanics.textContent?.indexOf("Woe") ?? -1).toBeLessThan(mechanics.textContent?.indexOf("Benefaction") ?? -1);
     expect(ready.querySelector("[data-supplicant-cost-value]")?.textContent).toBe("1 Abundance or Conviction");
     expect(ready.querySelector("[data-supplicant-benefaction-value]")?.textContent).toBe("+1 Abundance");
     expect(unnamed.querySelector("[data-supplicant-cost-value]")?.textContent).toBe("1 Abundance");
@@ -1712,7 +1772,8 @@ describe("Hierophant physical piece controls", () => {
     expect(named.querySelectorAll('[data-woe-filled="true"]')).toHaveLength(4);
     expect(named.querySelector('[data-piece-benefaction]')).toBeNull();
     expect(named.querySelector('[data-woe-threshold]')).toBeNull();
-    expect(woeTarget(named, 3).disabled).toBe(true);
+    expect(woeTarget(named, 3).disabled).toBe(false);
+    expect(named.className).not.toMatch(/opacity-50|pointer-events-none/);
     await act(async () => {
       release?.();
       await Promise.resolve();
@@ -1761,6 +1822,54 @@ describe("Hierophant physical piece controls", () => {
       release?.();
       await Promise.resolve();
     });
+    root.unmount();
+    container.remove();
+  });
+
+  it("lets repeated + advance pending Woe and keeps threshold cues authoritative", async () => {
+    const gates: Array<{ resolve: () => void; reject: (error: Error) => void }> = [];
+    mockMutations["m3Commands.updateSupplicant"] = vi.fn(() => new Promise<void>((resolve, reject) => {
+      gates.push({ resolve, reject });
+    }));
+    mockMutations["m3Commands.establishCult"] = vi.fn(async () => {});
+    mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"] = vi.fn(async () => {});
+    const { container, root, rerender } = renderPieces();
+    const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
+    flushSync(() => {
+      woeIncrement(named).click();
+      woeIncrement(named).click();
+      woeIncrement(named).click();
+    });
+    expect(named.querySelector('[aria-label="Woe 1, pending request 4"]')).not.toBeNull();
+    expect(named.querySelector('[data-woe-pips]')?.getAttribute("data-woe-pending")).toBe("true");
+    expect(named.querySelector('[data-woe-threshold]')).toBeNull();
+    expect(named.querySelector("[data-piece-benefaction]")).toBeNull();
+    expect(woeIncrement(named).disabled).toBe(false);
+    expect(mockMutations["m3Commands.updateSupplicant"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.updateSupplicant"].mock.calls[0][0].fields).toEqual({
+      woe: { expected: 1, value: 2 },
+    });
+    flushSync(() => { woeTarget(named, 5).click(); });
+    expect(named.querySelector('[aria-label="Woe 1, pending request 5"]')).not.toBeNull();
+    await settleQueuedMutation(() => gates[0]!.resolve());
+    expect(mockMutations["m3Commands.updateSupplicant"].mock.calls[1][0].fields).toEqual({
+      woe: { expected: 2, value: 5 },
+    });
+    await settleQueuedMutation(() => gates[1]!.resolve());
+    rerender({
+      ...pieceState,
+      supplicants: pieceState.supplicants.map((person) =>
+        person.denizenId === "den_ann" ? { ...person, woe: 5 } : person,
+      ),
+    } as typeof EMPTY_HIEROPHANT_STATE);
+    const settled = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
+    expect(settled.querySelector('[data-woe-pips]')?.getAttribute("data-woe-pending")).toBe("false");
+    expect(settled.querySelector('[data-woe-threshold="cult"]')?.textContent).toBe("Cult departure due");
+    expect(mockMutations["m3Commands.establishCult"]).not.toHaveBeenCalled();
+    const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
+    flushSync(() => { woeTarget(ready, 1).click(); });
+    expect(ready.querySelector("[data-piece-benefaction]")).not.toBeNull();
+    expect(ready.querySelector('[data-woe-threshold="benefaction"]')).not.toBeNull();
     root.unmount();
     container.remove();
   });
@@ -2177,188 +2286,196 @@ describe("Resolve Visions action", () => {
   });
 });
 
-describe("Hierophant Hestar resource sharing UI", () => {
-  function transferArgs() {
-    return mockMutations["m3Commands.transferHierophantHestarResource"]?.mock.calls.map((call) => call[0]) ?? [];
+describe("Hierophant primary board Body A controls", () => {
+  function prophetWorld(): WorldReference {
+    return {
+      ...pieceWorld,
+      denizens: pieceWorld.denizens.map((denizen) =>
+        denizen.denizenId === "den_prophet"
+          ? {
+              ...denizen,
+              powerfulProfile: {
+                taxonomies: [{ kind: "builtin", taxonomyId: "prophet" }],
+                status: { kind: "standard", value: "reliable" },
+                goal: null,
+                methods: [],
+                truths: [],
+              },
+            }
+          : denizen,
+      ),
+    };
   }
 
-  it("keeps To/From Hestar quiet at rest and reveals them on focus", () => {
-    const { container, root } = renderPieces();
-    const counter = container.querySelector('[data-temple-resource="krolis"][data-resource-counter="abundance"]') as HTMLElement;
-    const toHestar = buttonWithText(counter, "To Hestar");
-    const fromHestar = buttonWithText(counter, "From Hestar");
-    expect(toHestar).toBeDefined();
-    expect(fromHestar).toBeDefined();
-    expect(counter.getAttribute("data-resource-controls")).toBe("hidden");
-    expect(toHestar?.getAttribute("data-hestar-share")).toBe("hidden");
-    flushSync(() => { toHestar!.focus(); });
-    expect(counter.getAttribute("data-resource-controls")).toBe("revealed");
-    expect(toHestar?.getAttribute("data-hestar-share")).toBe("revealed");
-    expect(fromHestar?.getAttribute("data-hestar-share")).toBe("revealed");
-    const decrease = container.querySelector('[aria-label="Decrease Temple Krolis Abundance"]') as HTMLButtonElement;
-    expect(decrease.className).not.toMatch(/opacity-0/);
-    root.unmount();
-    container.remove();
-  });
-
-  it("sends one To Hestar mutation and reverses endpoints for From Hestar", async () => {
-    mockMutations["m3Commands.transferHierophantHestarResource"] = vi.fn(async () => ({ kind: "accepted", revision: 5 }));
+  it("removes Hestar transfer chrome and keeps compact queued resource counters", async () => {
     mockMutations["m3Commands.adjustTempleResources"] = vi.fn(async () => {});
+    mockMutations["m3Commands.transferHierophantHestarResource"] = vi.fn(async () => {});
     const { container, root } = renderPieces();
-    const krolis = container.querySelector('[data-temple-resource="krolis"][data-resource-counter="abundance"]') as HTMLElement;
-    const toHestar = buttonWithText(krolis, "To Hestar")!;
-    flushSync(() => { toHestar.click(); });
+    expect(buttonWithText(container, "To Hestar")).toBeUndefined();
+    expect(buttonWithText(container, "From Hestar")).toBeUndefined();
+    expect(buttonWithText(container, "Send to...")).toBeUndefined();
+    expect(buttonWithText(container, "Take from...")).toBeUndefined();
+    expect(container.querySelector("[data-hestar-share]")).toBeNull();
+    expect(container.querySelector("[data-hestar-share-chooser]")).toBeNull();
+    expect(container.textContent).not.toContain("Cannot share with Hestar while Blasphemous");
+    const counter = container.querySelector('[data-temple-resource="krolis"][data-resource-counter="abundance"]') as HTMLElement;
+    expect(counter.className).toContain("min-w-[3.75rem]");
+    expect(counter.className).not.toMatch(/min-h-\[1\.1rem\]/);
+    const increase = container.querySelector('[aria-label="Increase Temple Krolis Abundance"]') as HTMLButtonElement;
+    flushSync(() => { increase.click(); increase.click(); });
+    expect(counter.querySelector("[data-resource-value]")?.textContent).toBe("7");
+    expect(mockMutations["m3Commands.transferHierophantHestarResource"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.adjustTempleResources"]).toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("records Doctrine and paired Blasphemy through updateTemple only", async () => {
+    mockMutations["m3Commands.updateTemple"] = vi.fn(async () => {});
+    mockMutations["m3Commands.setPowerfulDenizenStatus"] = vi.fn(async () => {});
+    mockMutations["m3Commands.establishCult"] = vi.fn(async () => {});
+    mockMutations["m3Commands.adjustTempleResources"] = vi.fn(async () => {});
+    const { container, root } = renderChoiceSurface(pieceState as typeof EMPTY_HIEROPHANT_STATE, prophetWorld());
+    const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
+    expect(krolis.querySelector("[data-doctrine-current]")?.textContent).toContain("worth");
+    expect(krolis.querySelector('[aria-label="Supports Artisan, Peasant"]')).not.toBeNull();
+    expect(krolis.querySelector("[data-doctrine-pair]")?.textContent).toMatch(/Paired Blasphemy/);
+    flushSync(() => { (krolis.querySelector("[data-doctrine-pair-action]") as HTMLButtonElement).click(); });
     await settleQueuedMutation();
-    expect(mockMutations["m3Commands.transferHierophantHestarResource"]).toHaveBeenCalledTimes(1);
-    expect(transferArgs()[0]).toMatchObject({
-      expectedCampaignId: CAMPAIGN_ID,
-      expectedRevision: 4,
-      resource: "abundance",
-      sourceTempleId: "krolis",
-      destinationTempleId: "hestar",
+    expect(mockMutations["m3Commands.updateTemple"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.updateTemple"].mock.calls[0][0].fields.doctrine.value).toEqual({
+      kind: "blasphemy",
+      blasphemyId: "old_land_demands_blood",
     });
-    expect(transferArgs()[0]).not.toHaveProperty("sourceAfter");
-    expect(transferArgs()[0]).not.toHaveProperty("destinationAfter");
-    expect(transferArgs()[0]).not.toHaveProperty("amount");
-    const conviction = container.querySelector('[data-temple-resource="krolis"][data-resource-counter="conviction"]') as HTMLElement;
-    flushSync(() => { buttonWithText(conviction, "From Hestar")!.click(); });
-    await settleQueuedMutation();
-    expect(mockMutations["m3Commands.transferHierophantHestarResource"]).toHaveBeenCalledTimes(2);
-    expect(transferArgs()[1]).toMatchObject({
-      resource: "conviction",
-      sourceTempleId: "hestar",
-      destinationTempleId: "krolis",
-    });
+    expect(mockMutations["m3Commands.updateTemple"].mock.calls[0][0].fields.status).toBeUndefined();
+    expect(mockMutations["m3Commands.setPowerfulDenizenStatus"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.establishCult"]).not.toHaveBeenCalled();
     expect(mockMutations["m3Commands.adjustTempleResources"]).not.toHaveBeenCalled();
+    const choice = krolis.querySelector('[data-doctrine-choice="charity_measure_of_moral_worth"]') as HTMLButtonElement;
+    expect(choice).not.toBeNull();
+    expect(choice.disabled).toBe(false);
+    flushSync(() => { choice.click(); });
+    await settleQueuedMutation();
+    expect(mockMutations["m3Commands.updateTemple"].mock.calls[1][0]).toMatchObject({
+      templeId: "krolis",
+      fields: {
+        doctrine: {
+          expected: { kind: "doctrine", doctrineId: "worth_proved_through_labor" },
+          value: { kind: "doctrine", doctrineId: "charity_measure_of_moral_worth" },
+        },
+      },
+    });
     root.unmount();
     container.remove();
   });
 
-  it("projects the pair immediately, blocks a second click, and surfaces a stale error", async () => {
-    const gates: Array<{ resolve: () => void; reject: (error: Error) => void }> = [];
-    mockMutations["m3Commands.transferHierophantHestarResource"] = vi.fn(() => new Promise((resolve, reject) => {
-      gates.push({ resolve: () => resolve({ kind: "accepted", revision: 5 }), reject });
-    }));
-    const { container, root } = renderPieces();
-    const krolis = container.querySelector('[data-temple-resource="krolis"][data-resource-counter="abundance"]') as HTMLElement;
-    const hestar = container.querySelector('[data-temple-resource="hestar"][data-resource-counter="abundance"]') as HTMLElement;
-    const toHestar = buttonWithText(krolis, "To Hestar")!;
-    flushSync(() => { toHestar.click(); toHestar.click(); });
-    expect(krolis.querySelector("[data-resource-value]")?.textContent).toBe("4");
-    expect(hestar.querySelector("[data-resource-value]")?.textContent).toBe("5");
-    expect(krolis.getAttribute("data-resource-pending")).toBe("true");
-    expect(hestar.getAttribute("data-resource-pending")).toBe("true");
-    expect(mockMutations["m3Commands.transferHierophantHestarResource"]).toHaveBeenCalledTimes(1);
-    expect(toHestar.disabled).toBe(true);
-    await settleQueuedMutation(() => gates[0]!.reject(new Error("stale Hestar transfer")));
-    expect(krolis.querySelector("[data-resource-value]")?.textContent).toBe("5");
-    expect(hestar.querySelector("[data-resource-value]")?.textContent).toBe("4");
-    expect(krolis.getAttribute("data-resource-pending")).toBe("false");
-    expect(krolis.querySelector("[data-resource-error]")?.textContent).toMatch(/stale/i);
-    expect(toHestar.disabled).toBe(false);
-    root.unmount();
-    container.remove();
-  });
-
-  it("explains a Blasphemous ordinary Temple instead of offering a working transfer", () => {
-    const blasphemous = {
+  it("does not guess a pair for custom unpaired Doctrine", () => {
+    const custom = {
       ...pieceState,
       temples: pieceState.temples.map((temple) =>
         temple.templeId === "krolis"
-          ? { ...temple, doctrine: { kind: "blasphemy" as const, blasphemyId: "law_of_the_wolf" as const } }
+          ? { ...temple, doctrine: { kind: "doctrine" as const, doctrineId: "hdc_custom" as never } }
           : temple,
       ),
+      campaignDoctrines: [{
+        doctrineId: "hdc_custom" as never,
+        orthodoxText: "A custom table Doctrine",
+        blasphemy: null,
+        supportedClassIds: ["peasant"],
+      }],
     };
-    const { container, root } = renderChoiceSurface(blasphemous as typeof EMPTY_HIEROPHANT_STATE, pieceWorld);
-    const krolis = container.querySelector('[data-temple-resource="krolis"][data-resource-counter="abundance"]') as HTMLElement;
-    const toHestar = buttonWithText(krolis, "To Hestar");
-    const fromHestar = buttonWithText(krolis, "From Hestar");
-    expect(toHestar === undefined || toHestar.disabled).toBe(true);
-    expect(fromHestar === undefined || fromHestar.disabled).toBe(true);
-    flushSync(() => {
-      const focusable = (toHestar ?? krolis.querySelector("button")) as HTMLButtonElement;
-      focusable.focus();
-    });
-    expect(krolis.textContent).toContain("Cannot share with Hestar while Blasphemous");
+    const { container, root } = renderChoiceSurface(custom as typeof EMPTY_HIEROPHANT_STATE, pieceWorld);
+    const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
+    expect(krolis.querySelector("[data-doctrine-current]")?.textContent).toContain("A custom table Doctrine");
+    expect(krolis.querySelector("[data-doctrine-pair]")).toBeNull();
+    expect(krolis.querySelector("[data-doctrine-pair-action]")).toBeNull();
     root.unmount();
     container.remove();
   });
 
-  it("opens a Hestar Send/Take chooser of ordinary Temples and sends the selected intent", async () => {
-    mockMutations["m3Commands.transferHierophantHestarResource"] = vi.fn(async () => ({ kind: "accepted", revision: 5 }));
+  it("records Active and Collapsed as Temple status only", async () => {
+    mockMutations["m3Commands.updateTemple"] = vi.fn(async () => {});
+    mockMutations["m3Commands.establishCult"] = vi.fn(async () => {});
+    mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {});
     const { container, root } = renderPieces();
-    const hestar = container.querySelector('[data-temple-resource="hestar"][data-resource-counter="abundance"]') as HTMLElement;
-    const send = buttonWithText(hestar, "Send to...");
-    const take = buttonWithText(hestar, "Take from...");
-    expect(send).toBeDefined();
-    expect(take).toBeDefined();
-    expect(hestar.getAttribute("data-resource-controls")).toBe("hidden");
-    flushSync(() => { send!.click(); });
-    const chooser = container.querySelector('[data-hestar-share-chooser="send"]') as HTMLElement;
-    expect(chooser).not.toBeNull();
-    expect(chooser.textContent).toContain("Temple Krolis");
-    expect(chooser.textContent).toContain("Temple Notor");
-    expect(chooser.textContent).toContain("Temple Ushin");
-    expect(chooser.textContent).toContain("Temple Zephon");
-    flushSync(() => {
-      Array.from(chooser.querySelectorAll("button")).find((button) => button.textContent?.includes("Notor"))!.click();
+    const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
+    const status = krolis.querySelector("[data-temple-status]") as HTMLButtonElement;
+    expect(status.getAttribute("data-temple-status")).toBe("active");
+    expect(status.textContent).toBe("Active");
+    expect(krolis.querySelector("[data-doctrine-current]")?.textContent).not.toMatch(/^Blasphemous/);
+    flushSync(() => { status.click(); });
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.updateTemple"].mock.calls[0][0]).toMatchObject({
+      templeId: "krolis",
+      fields: { status: { expected: "active", value: "collapsed" } },
     });
-    await settleQueuedMutation();
-    expect(transferArgs()[0]).toMatchObject({
-      resource: "abundance",
-      sourceTempleId: "hestar",
-      destinationTempleId: "notor",
-    });
-    flushSync(() => { take!.click(); });
-    const takeChooser = container.querySelector('[data-hestar-share-chooser="take"]') as HTMLElement;
-    expect(takeChooser).not.toBeNull();
-    flushSync(() => {
-      Array.from(takeChooser.querySelectorAll("button")).find((button) => button.textContent?.includes("Krolis"))!.click();
-    });
-    await settleQueuedMutation();
-    expect(transferArgs()[1]).toMatchObject({
-      resource: "abundance",
-      sourceTempleId: "krolis",
-      destinationTempleId: "hestar",
-    });
-    expect(container.textContent).not.toMatch(/\bProvide\b/);
-    expect(container.textContent).not.toMatch(/Abundance → Conviction|Conviction → Abundance|1:1|2:1|half as much/i);
-    root.unmount();
-    container.remove();
-  });
-
-  it("disables a Blasphemous chooser candidate and a zero-resource direction", () => {
-    const blasphemous = {
+    expect(mockMutations["m3Commands.updateTemple"].mock.calls[0][0].fields.doctrine).toBeUndefined();
+    expect(mockMutations["m3Commands.establishCult"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.updateSupplicant"]).not.toHaveBeenCalled();
+    const ushin = {
       ...pieceState,
       temples: pieceState.temples.map((temple) =>
-        temple.templeId === "notor"
+        temple.templeId === "ushin"
           ? { ...temple, doctrine: { kind: "blasphemy" as const, blasphemyId: "law_of_the_wolf" as const } }
           : temple,
       ),
     };
-    const { container, root, rerender } = renderChoiceSurface(blasphemous as typeof EMPTY_HIEROPHANT_STATE, pieceWorld);
-    const hestar = container.querySelector('[data-temple-resource="hestar"][data-resource-counter="abundance"]') as HTMLElement;
-    flushSync(() => { buttonWithText(hestar, "Send to...")!.click(); });
-    const sendChooser = container.querySelector('[data-hestar-share-chooser="send"]') as HTMLElement;
-    const notorSend = Array.from(sendChooser.querySelectorAll("button")).find((button) => button.textContent?.includes("Notor"))!;
-    expect(notorSend.disabled).toBe(true);
-    expect(sendChooser.textContent).toMatch(/Blasphemous/);
-    const empty = {
-      ...blasphemous,
-      temples: blasphemous.temples.map((temple) => {
-        if (temple.templeId === "hestar" || temple.templeId === "ushin") return { ...temple, abundance: 0 };
-        return temple;
-      }),
+    const second = renderChoiceSurface(ushin as typeof EMPTY_HIEROPHANT_STATE, pieceWorld);
+    const ushinBoard = second.container.querySelector('[data-temple-id="ushin"]') as HTMLElement;
+    expect(ushinBoard.querySelector("[data-temple-status]")?.getAttribute("data-temple-status")).toBe("active");
+    expect(ushinBoard.querySelector("[data-doctrine-current]")?.textContent).toMatch(/Blasphemous/);
+    second.root.unmount();
+    second.container.remove();
+    root.unmount();
+    container.remove();
+  });
+
+  it("records Reliable and Disruptive from the Prophet piece", async () => {
+    mockMutations["m3Commands.setPowerfulDenizenStatus"] = vi.fn(async () => {});
+    mockMutations["m3Commands.updateTemple"] = vi.fn(async () => {});
+    mockMutations["m3Commands.establishCult"] = vi.fn(async () => {});
+    mockMutations["m3Commands.updateProphet"] = vi.fn(async () => {});
+    const { container, root } = renderChoiceSurface(pieceState as typeof EMPTY_HIEROPHANT_STATE, prophetWorld());
+    const prophet = container.querySelector('[data-prophet-piece="den_prophet"]') as HTMLElement;
+    const chip = prophet.querySelector("[data-prophet-status]") as HTMLButtonElement;
+    expect(chip.getAttribute("data-prophet-status")).toBe("reliable");
+    flushSync(() => { chip.click(); });
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.setPowerfulDenizenStatus"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.setPowerfulDenizenStatus"].mock.calls[0][0]).toMatchObject({
+      denizenId: "den_prophet",
+      change: {
+        expected: { kind: "standard", value: "reliable" },
+        value: { kind: "standard", value: "disruptive" },
+      },
+    });
+    expect(mockMutations["m3Commands.updateTemple"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.establishCult"]).not.toHaveBeenCalled();
+    expect(mockMutations["m3Commands.updateProphet"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps the persisted Holiday marker distinct and editable without calendar mutation", async () => {
+    mockMutations["m3Commands.setTempleHoliday"] = vi.fn(async () => {});
+    const marked = {
+      ...pieceState,
+      holidayTempleIds: ["krolis"],
     };
-    rerender(empty as typeof EMPTY_HIEROPHANT_STATE, pieceWorld);
-    const emptyHestar = container.querySelector('[data-temple-resource="hestar"][data-resource-counter="abundance"]') as HTMLElement;
-    expect(buttonWithText(emptyHestar, "Send to...")!.disabled).toBe(true);
-    const ushin = container.querySelector('[data-temple-resource="ushin"][data-resource-counter="abundance"]') as HTMLElement;
-    expect(buttonWithText(ushin, "To Hestar")!.disabled).toBe(true);
-    expect(buttonWithText(ushin, "From Hestar")!.disabled).toBe(true);
-    const krolis = container.querySelector('[data-temple-resource="krolis"][data-resource-counter="abundance"]') as HTMLElement;
-    expect(buttonWithText(krolis, "To Hestar")!.disabled).toBe(false);
-    expect(buttonWithText(krolis, "From Hestar")!.disabled).toBe(true);
+    const { container, root } = renderChoiceSurface(marked as typeof EMPTY_HIEROPHANT_STATE, pieceWorld);
+    const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
+    expect(krolis.querySelector('[aria-label="Holiday marked"]')).not.toBeNull();
+    expect(krolis.querySelector('[data-holiday-marker="persisted"]')?.textContent).toBe("Holiday");
+    expect(krolis.textContent).not.toMatch(/calendar says/i);
+    const toggle = krolis.querySelector("[data-holiday-toggle]") as HTMLButtonElement;
+    expect(toggle.getAttribute("aria-label")).toBe("Clear Holiday marker");
+    flushSync(() => { toggle.click(); });
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.setTempleHoliday"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.setTempleHoliday"].mock.calls[0][0]).toMatchObject({
+      templeId: "krolis",
+      marked: false,
+    });
     root.unmount();
     container.remove();
   });
