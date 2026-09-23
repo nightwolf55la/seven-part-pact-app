@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { flushSync } from "react-dom";
 import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api.js";
@@ -244,6 +244,9 @@ export default function HierophantSurface({
   const [benefactionPendingDenizenIds, setBenefactionPendingDenizenIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
+  const [woeIntentsByDenizenId, setWoeIntentsByDenizenId] = useState<
+    Record<string, { readonly expected: number; readonly requested: number }>
+  >({});
   const [receiveDraft, setReceiveDraft] = useState<{
     commandId: string;
     denizenId: string;
@@ -349,6 +352,23 @@ export default function HierophantSurface({
   const pendingSteerDenizenIds = new Set(
     steerTime.filter((row) => row.resolution === "pending").map((row) => row.denizenId),
   );
+
+  useEffect(() => {
+    setWoeIntentsByDenizenId((prev) => {
+      const entries = Object.entries(prev);
+      if (entries.length === 0) return prev;
+      let changed = false;
+      const next = { ...prev };
+      for (const [denizenId, intent] of entries) {
+        const person = hierophant.supplicants.find((entry) => entry.denizenId === denizenId);
+        if (person === undefined || person.woe === intent.requested) {
+          delete next[denizenId];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [hierophant.supplicants]);
 
   function selectSupplicantForInspector(denizenId: string): void {
     const person = hierophant.supplicants.find((entry) => entry.denizenId === denizenId);
@@ -1308,14 +1328,38 @@ export default function HierophantSurface({
               },
               onSetWoe: (denizenId, currentWoe, nextWoe) => {
                 if (nextWoe === currentWoe || nextWoe < 0) return;
-                void runQuiet(async () => {
-                  await updateSupplicant({
-                    commandId: newCommandId(),
-                    expectedCampaignId: campaignId,
-                    denizenId,
-                    fields: { woe: { expected: currentWoe, value: nextWoe } },
-                  });
-                });
+                if (woeIntentsByDenizenId[denizenId] !== undefined) return;
+                setWoeIntentsByDenizenId((prev) => ({
+                  ...prev,
+                  [denizenId]: { expected: currentWoe, requested: nextWoe },
+                }));
+                setError(null);
+                void (async () => {
+                  try {
+                    await updateSupplicant({
+                      commandId: newCommandId(),
+                      expectedCampaignId: campaignId,
+                      denizenId,
+                      fields: { woe: { expected: currentWoe, value: nextWoe } },
+                    });
+                  } catch (e: unknown) {
+                    const message = e instanceof Error ? e.message : "Mutation failed.";
+                    setError(message);
+                    setWoeIntentsByDenizenId((prev) => {
+                      const next = { ...prev };
+                      delete next[denizenId];
+                      return next;
+                    });
+                  }
+                })();
+              },
+              woeView: (denizenId, authoritativeWoe) => {
+                const intent = woeIntentsByDenizenId[denizenId];
+                return {
+                  displayed: intent?.requested ?? authoritativeWoe,
+                  pending: intent !== undefined,
+                  authoritative: authoritativeWoe,
+                };
               },
               onAdjustResource: (templeId, resource, delta) => {
                 if (hestarTransfer.busy) return;

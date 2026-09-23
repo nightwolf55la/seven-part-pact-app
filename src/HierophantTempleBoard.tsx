@@ -37,8 +37,8 @@ import {
   shortTempleBoardLabel,
   woeThresholdCueLabel,
   baseBenefactionReference,
-  supplicantBenefactionGiveLabel,
-  supplicantClassCostLabel,
+  supplicantBenefactionValue,
+  supplicantClassCostValue,
 } from "./hierophant-view-model";
 import { formatVisionsPreviewChoiceSummary } from "./hierophant-visions-preview";
 import HierophantClassBadge from "./hierophant-class-badge";
@@ -134,6 +134,14 @@ export interface HierophantPieceControls {
   ) => void;
   readonly benefactionPendingDenizenIds: ReadonlySet<string>;
   readonly onBenefactionDepart: (denizenId: string) => void;
+  readonly woeView: (
+    denizenId: string,
+    authoritativeWoe: number,
+  ) => {
+    readonly displayed: number;
+    readonly pending: boolean;
+    readonly authoritative: number;
+  };
 }
 
 function SupplyClassPiece({
@@ -650,32 +658,46 @@ function stopNestedControlPointer(event: { stopPropagation: () => void }): void 
 }
 
 function WoePips({
-  woe,
+  displayWoe,
+  authoritativeWoe,
+  pending,
   denizenId,
   subjectLabel,
   onSet,
+  controlsDisabled,
 }: {
-  readonly woe: number;
+  readonly displayWoe: number;
+  readonly authoritativeWoe: number;
+  readonly pending: boolean;
   readonly denizenId: string;
   readonly subjectLabel: string;
   readonly onSet: (nextWoe: number) => void;
+  readonly controlsDisabled: boolean;
 }) {
   const visualRange = 5;
-  const overflow = woe > visualRange;
-  const filledCount = overflow ? visualRange - 1 : Math.min(woe, visualRange);
+  const overflow = displayWoe > visualRange;
+  const filledCount = overflow ? visualRange - 1 : Math.min(displayWoe, visualRange);
   const [revealed, setRevealed] = useState(false);
-  const stepClass = `h-5 w-5 rounded border border-stone-600/50 text-[11px] font-bold leading-none transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-not-allowed disabled:opacity-40 ${
-    revealed ? "opacity-100" : "opacity-0 group-focus-within:opacity-100"
-  }`;
+  const stepsVisible = revealed;
+  const stepShellClass = `inline-flex items-center gap-0.5 transition-[opacity,visibility] ${
+    stepsVisible ? "visible opacity-100" : "invisible opacity-0"
+  } group-focus-within:visible group-focus-within:opacity-100`;
+  const stepButtonClass =
+    "h-5 w-5 rounded border border-stone-600/50 text-[11px] font-bold leading-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-not-allowed disabled:opacity-40";
   const pipClass = (filledPip: boolean) =>
     `inline-flex h-3 w-3 items-center justify-center rounded-full border border-stone-700 dark:border-stone-200 ${
       filledPip ? "bg-stone-800 dark:bg-stone-100" : "bg-transparent"
-    }`;
+    } ${pending ? "ring-1 ring-amber-700/50 dark:ring-amber-300/40" : ""}`;
+  const ariaLabel = pending
+    ? `Woe ${authoritativeWoe}, pending request ${displayWoe}`
+    : `Current Woe ${authoritativeWoe}`;
   return (
     <div
       data-woe-pips={denizenId}
-      className="group inline-flex items-center gap-0.5"
-      aria-label={`Current Woe ${woe}`}
+      data-woe-pending={pending ? "true" : "false"}
+      className="group inline-flex min-w-0 flex-1 items-center gap-0.5"
+      aria-label={ariaLabel}
+      aria-busy={pending}
       onMouseEnter={() => setRevealed(true)}
       onMouseLeave={() => setRevealed(false)}
       onFocusCapture={() => setRevealed(true)}
@@ -685,22 +707,24 @@ function WoePips({
         }
       }}
     >
-      <button
-        type="button"
-        data-woe-step="decrement"
-        aria-label={`Decrease ${subjectLabel} Woe by 1`}
-        disabled={woe <= 0}
-        className={stepClass}
-        onMouseDown={stopNestedControlPointer}
-        onPointerDown={stopNestedControlPointer}
-        onClick={(event) => {
-          event.stopPropagation();
-          if (woe <= 0) return;
-          onSet(woe - 1);
-        }}
-      >
-        −
-      </button>
+      <div className={stepShellClass} data-woe-steps="">
+        <button
+          type="button"
+          data-woe-step="decrement"
+          aria-label={`Decrease ${subjectLabel} Woe by 1`}
+          disabled={controlsDisabled || displayWoe <= 0}
+          className={stepButtonClass}
+          onMouseDown={stopNestedControlPointer}
+          onPointerDown={stopNestedControlPointer}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (controlsDisabled || displayWoe <= 0) return;
+            onSet(displayWoe - 1);
+          }}
+        >
+          −
+        </button>
+      </div>
       <span className="inline-flex items-center gap-0.5" data-woe-pip-row="">
         {Array.from({ length: visualRange }, (_, index) => {
           const target = index + 1;
@@ -711,17 +735,19 @@ function WoePips({
                 type="button"
                 data-woe-overflow=""
                 data-woe-target={visualRange}
-                aria-label={`Set ${subjectLabel} Woe to ${visualRange} (current ${woe})`}
-                className="inline-flex h-3 min-w-[1.1rem] items-center justify-center rounded-sm border border-stone-700 bg-stone-800 px-0.5 text-[9px] font-bold tabular-nums text-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 dark:border-stone-200 dark:bg-stone-100 dark:text-stone-900"
-                onMouseDown={stopNestedControlPointer}
-                onPointerDown={stopNestedControlPointer}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onSet(visualRange);
-                }}
-              >
-                {woe}
-              </button>
+              aria-label={`Set ${subjectLabel} Woe to ${visualRange} (current ${displayWoe})`}
+              disabled={controlsDisabled}
+              className="inline-flex h-3 min-w-[1.1rem] items-center justify-center rounded-sm border border-stone-700 bg-stone-800 px-0.5 text-[9px] font-bold tabular-nums text-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-200 dark:bg-stone-100 dark:text-stone-900"
+              onMouseDown={stopNestedControlPointer}
+              onPointerDown={stopNestedControlPointer}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (controlsDisabled) return;
+                onSet(visualRange);
+              }}
+            >
+              {displayWoe}
+            </button>
             );
           }
           const filledPip = index < filledCount;
@@ -732,32 +758,38 @@ function WoePips({
               data-woe-target={target}
               data-woe-filled={filledPip ? "true" : "false"}
               aria-label={`Set ${subjectLabel} Woe to ${target}`}
-              aria-pressed={!overflow && woe === target}
-              className={`${pipClass(filledPip)} cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700`}
+              aria-pressed={!overflow && displayWoe === target}
+              disabled={controlsDisabled}
+              className={`${pipClass(filledPip)} cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-not-allowed disabled:opacity-50`}
               onMouseDown={stopNestedControlPointer}
               onPointerDown={stopNestedControlPointer}
               onClick={(event) => {
                 event.stopPropagation();
+                if (controlsDisabled) return;
                 onSet(target);
               }}
             />
           );
         })}
       </span>
-      <button
-        type="button"
-        data-woe-step="increment"
-        aria-label={`Increase ${subjectLabel} Woe by 1`}
-        className={stepClass}
-        onMouseDown={stopNestedControlPointer}
-        onPointerDown={stopNestedControlPointer}
-        onClick={(event) => {
-          event.stopPropagation();
-          onSet(woe + 1);
-        }}
-      >
-        +
-      </button>
+      <div className={stepShellClass}>
+        <button
+          type="button"
+          data-woe-step="increment"
+          aria-label={`Increase ${subjectLabel} Woe by 1`}
+          disabled={controlsDisabled}
+          className={stepButtonClass}
+          onMouseDown={stopNestedControlPointer}
+          onPointerDown={stopNestedControlPointer}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (controlsDisabled) return;
+            onSet(displayWoe + 1);
+          }}
+        >
+          +
+        </button>
+      </div>
     </div>
   );
 }
@@ -805,6 +837,7 @@ function SupplicantPiece({
   steer,
   benefactionPending,
   onBenefactionDepart,
+  woeView,
 }: {
   readonly person: HierophantSupplicant;
   readonly preview: HierophantVisionsSupplicantPreview | undefined;
@@ -825,33 +858,37 @@ function SupplicantPiece({
   readonly steer: HierophantSteerBoardInteraction | null;
   readonly benefactionPending: boolean;
   readonly onBenefactionDepart: () => void;
+  readonly woeView: {
+    readonly displayed: number;
+    readonly pending: boolean;
+    readonly authoritative: number;
+  };
 }) {
   const storedName = denizenLabel(denizens, person.denizenId);
   const klass = classLabel(person.classId, campaignClasses);
   const givenName = supplicantGivenName(storedName, klass);
+  const pieceName = givenName;
   const support = preview === undefined ? null : preview.support === "supported" ? "Supported" : preview.support === "unsupported" ? "Unsupported" : null;
-  const projectedTo = preview?.woeProjection.kind === "determined" ? preview.woeProjection.to : null;
-  const classCostLabel = supplicantClassCostLabel(person.classId);
-  const benefactionGiveLabel = supplicantBenefactionGiveLabel(person.classId);
+  const classCostValue = supplicantClassCostValue(person.classId);
+  const benefactionValue = supplicantBenefactionValue(person.classId);
   const threshold = woeThresholdCueLabel(person.woe);
   const danger = person.woe >= 5 || preview?.blockerKind !== null;
   const accessible = [
     "Supplicant",
-    givenName,
+    pieceName,
     klass,
     `Woe ${person.woe}`,
     support,
-    classCostLabel,
-    benefactionGiveLabel,
+    classCostValue === null ? null : `Cost ${classCostValue}`,
+    benefactionValue === null ? null : `Benefaction ${benefactionValue}`,
     threshold,
-    projectedTo === null ? null : `Next Visions Woe ${person.woe} → ${projectedTo}`,
     orderIndex === null ? null : `Visions order ${orderIndex}`,
   ].filter((part): part is string => part !== null && part !== "").join(", ");
   const primaryAction = () => {
     onSelect();
     if (orderSelectable && orderIndex === null) onOrderSelect();
   };
-  const subjectLabel = givenName ?? klass;
+  const subjectLabel = pieceName ?? klass;
   const timeScheduled = steer?.pendingDenizenIds.has(person.denizenId) === true;
   const steerable = person.woe >= 1;
   const benefactionEligible = person.woe === 0
@@ -908,16 +945,11 @@ function SupplicantPiece({
           }}
           onKeyDown={(event) => activate(event, primaryAction)}
         >
-          <div data-supplicant-primary="" className="flex items-start justify-between gap-2 pr-6">
-            <div className="min-w-0">
-              <p data-supplicant-name="" className="truncate text-sm font-semibold leading-tight text-amber-950 dark:text-amber-50">
-                {givenName ?? klass}
-              </p>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-amber-900/80 dark:text-amber-200/80">
-                Supplicant
-              </p>
-            </div>
-          </div>
+          <PersonPieceHeader
+            type="Supplicant"
+            name={pieceName}
+            typeClassName="text-amber-900 dark:text-amber-200"
+          />
           {orderIndex !== null && (
             <span
               className="absolute right-1 top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-800 px-1 text-[11px] font-bold text-amber-50 dark:bg-amber-200 dark:text-amber-950"
@@ -927,41 +959,60 @@ function SupplicantPiece({
             </span>
           )}
         </button>
-        <div data-supplicant-identity="" className="mt-0.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
-          <div className="flex min-w-0 flex-wrap items-center gap-1">
-            <HierophantClassBadge classId={person.classId} label={klass} />
-            {support !== null && (
-              <span
-                data-support-badge={preview?.support}
-                className={`text-[11px] leading-tight ${
-                  support === "Supported"
-                    ? "font-semibold text-emerald-900 dark:text-emerald-100"
-                    : "font-medium text-stone-600 dark:text-stone-300"
-                }`}
-              >
-                {support}
-              </span>
-            )}
-          </div>
-          <div data-supplicant-current-woe="" className="shrink-0">
+        <div data-supplicant-identity="" className="mt-0.5 flex min-w-0 flex-wrap items-center gap-1">
+          <HierophantClassBadge classId={person.classId} label={klass} />
+          {support !== null && (
+            <span
+              data-support-badge={preview?.support}
+              className={`text-[11px] leading-tight ${
+                support === "Supported"
+                  ? "font-semibold text-emerald-900 dark:text-emerald-100"
+                  : "font-medium text-stone-600 dark:text-stone-300"
+              }`}
+            >
+              {support}
+            </span>
+          )}
+        </div>
+        <div data-supplicant-woe-row="" className="mt-0.5 flex items-center gap-1.5">
+          <span
+            data-woe-label=""
+            className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300"
+          >
+            Woe
+          </span>
+          <div data-supplicant-current-woe="" className="min-w-0 flex-1">
             <WoePips
-              woe={person.woe}
+              displayWoe={woeView.displayed}
+              authoritativeWoe={woeView.authoritative}
+              pending={woeView.pending}
               denizenId={person.denizenId}
               subjectLabel={subjectLabel}
+              controlsDisabled={woeView.pending}
               onSet={onSetWoe}
             />
           </div>
         </div>
-        {(classCostLabel !== null || benefactionGiveLabel !== null) && (
+        {(classCostValue !== null || benefactionValue !== null) && (
           <div
             data-supplicant-stable=""
-            className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0 text-[11px] font-medium text-stone-800 dark:text-stone-100"
+            className="mt-0.5 grid grid-cols-1 gap-y-1 text-[10px] sm:grid-cols-2 sm:gap-x-3"
           >
-            {classCostLabel !== null && (
-              <span data-supplicant-cost="" title={classCostLabel}>{classCostLabel}</span>
+            {classCostValue !== null && (
+              <div data-supplicant-cost="" className="min-w-0">
+                <p className="font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Cost</p>
+                <p data-supplicant-cost-value="" className="text-[11px] font-medium text-stone-900 dark:text-stone-100">
+                  {classCostValue}
+                </p>
+              </div>
             )}
-            {benefactionGiveLabel !== null && (
-              <span data-supplicant-benefaction-gives="" title={benefactionGiveLabel}>{benefactionGiveLabel}</span>
+            {benefactionValue !== null && (
+              <div data-supplicant-benefaction="" className="min-w-0 sm:text-right">
+                <p className="font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Benefaction</p>
+                <p data-supplicant-benefaction-value="" className="text-[11px] font-medium text-stone-900 dark:text-stone-100">
+                  {benefactionValue}
+                </p>
+              </div>
             )}
           </div>
         )}
@@ -1016,21 +1067,6 @@ function SupplicantPiece({
             </button>
           </div>
         )}
-        {(projectedTo !== null && projectedTo !== person.woe) || preview?.thresholdCue.kind === "ready_for_benefaction" || (preview?.thresholdCue.kind === "cult_departure_due" && person.woe < 5) ? (
-          <div data-supplicant-secondary="" className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0 text-[10px] italic text-slate-500 dark:text-slate-400">
-            {projectedTo !== null && projectedTo !== person.woe && (
-              <p data-woe-forecast={person.denizenId} aria-label={`Next Visions: Woe ${person.woe} → ${projectedTo}`}>
-                Next Visions: {person.woe} → {projectedTo}
-              </p>
-            )}
-            {preview?.thresholdCue.kind === "ready_for_benefaction" && person.woe !== 0 && (
-              <p>Next Visions: Ready for Benefaction</p>
-            )}
-            {preview?.thresholdCue.kind === "cult_departure_due" && person.woe < 5 && (
-              <p>Next Visions: Cult departure due</p>
-            )}
-          </div>
-        ) : null}
         {artisanChoice !== undefined && (
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <span className="text-xs font-medium">Pay with:</span>
@@ -1356,6 +1392,7 @@ function TemplePiece({
                   steer={steer}
                   benefactionPending={pieces.benefactionPendingDenizenIds.has(person.denizenId)}
                   onBenefactionDepart={() => pieces.onBenefactionDepart(person.denizenId)}
+                  woeView={pieces.woeView(person.denizenId, person.woe)}
                 />
               ))}
             </ul>

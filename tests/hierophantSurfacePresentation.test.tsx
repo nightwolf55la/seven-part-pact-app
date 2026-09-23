@@ -579,15 +579,14 @@ describe("Hierophant zero-click monthly board", () => {
     expect(krolis.textContent).toContain("Acolyte Ann");
     expect(krolis.textContent).toContain("Peasant");
     expect(krolis.querySelector('[aria-label="Current Woe 3"]')).not.toBeNull();
-    expect(krolis.querySelector('[aria-label="Next Visions: Woe 3 → 2"]')).not.toBeNull();
     expect(krolis.textContent).toContain("Supported");
-    expect(krolis.textContent).toContain("Cost: 1 Abundance");
-    expect(krolis.textContent).toContain("Next Visions: 3 → 2");
+    expect(krolis.querySelector('[data-supplicant-piece="den_ann"] [data-supplicant-cost-value]')?.textContent).toBe("1 Abundance");
     expect(krolis.querySelector('[aria-label="Current Woe 7"]')).not.toBeNull();
-    expect(krolis.querySelector('[aria-label="Next Visions: Woe 7 → 6"]')).not.toBeNull();
     expect(krolis.querySelector('[data-supplicant-piece] [data-woe-overflow]')?.textContent).toBe("7");
     expect(krolis.textContent).toContain("Unsupported");
-    expect(krolis.textContent).toContain("Next Visions: 4 → 5");
+    expect(Array.from(krolis.querySelectorAll("[data-supplicant-piece]")).every(
+      (piece) => !piece.textContent?.includes("Next Visions"),
+    )).toBe(true);
     expect(krolis.textContent).toContain("Cult departure due");
     expect(krolis.textContent).not.toContain("Cult resolution required");
     expect(krolis.textContent).not.toContain("Unnamed");
@@ -659,10 +658,10 @@ describe("Hierophant zero-click monthly board", () => {
     expect(krolis.querySelector('[aria-label="Supports Artisan, Peasant"]')).not.toBeNull();
     expect(krolis.textContent).toContain("Supported");
     expect(krolis.textContent).toContain("Unsupported");
-    expect(krolis.textContent).toContain("Cost: 1 Abundance");
+    expect(krolis.querySelector('[data-supplicant-cost-value]')?.textContent).toBe("1 Abundance");
     expect(krolis.querySelector('[aria-label="Current Woe 3"]')).not.toBeNull();
-    expect(krolis.querySelector('[aria-label="Next Visions: Woe 3 → 2"]')).not.toBeNull();
     expect(krolis.querySelector('[aria-label="Abundance 5, Next Visions -1 → 4"]')).not.toBeNull();
+    expect(krolis.querySelector("[data-woe-forecast]")).toBeNull();
     expect(krolis.textContent).not.toContain("Hestar choice needed");
     root.unmount();
     container.remove();
@@ -711,7 +710,9 @@ describe("Hierophant zero-click monthly board", () => {
     const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
     expect(krolis.textContent).not.toContain("Prophet affects this production · resolve at the table");
     expect(krolis.textContent).not.toContain("Reliable Prophet production resolution required");
-    expect(krolis.textContent).toContain("Next Visions: Ready for Benefaction");
+    expect(Array.from(krolis.querySelectorAll("[data-supplicant-piece]")).every(
+      (piece) => !piece.textContent?.includes("Next Visions"),
+    )).toBe(true);
     root.unmount();
     container.remove();
   });
@@ -1419,9 +1420,8 @@ describe("Hierophant physical piece controls", () => {
     const { container, root } = renderPieces();
     const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
     const unnamed = container.querySelector('[data-supplicant-piece="den_blank"]') as HTMLElement;
-    expect(named.querySelector("[data-supplicant-name]")?.textContent).toBe("Acolyte Ann");
-    expect(named.textContent).toContain("Supplicant");
-    expect(unnamed.querySelector("[data-supplicant-name]")?.textContent).toBe("Peasant");
+    expect(named.querySelector("[data-piece-name]")?.textContent).toBe("Acolyte Ann");
+    expect(named.querySelector("[data-piece-type]")?.textContent).toBe("Supplicant");
     expect(unnamed.querySelector("[data-piece-name]")).toBeNull();
     expect(unnamed.textContent).not.toContain("Unnamed");
     const unnamedBadge = unnamed.querySelector('[data-class-badge="peasant"]') as HTMLElement;
@@ -1432,7 +1432,7 @@ describe("Hierophant physical piece controls", () => {
     const identity = named.querySelector("[data-supplicant-identity]") as HTMLElement;
     expect(identity.querySelector('[data-class-badge="peasant"]')).not.toBeNull();
     expect(identity.querySelector('[data-support-badge="supported"]')?.textContent).toBe("Supported");
-    expect(identity.querySelector("[data-woe-pips]")).not.toBeNull();
+    expect(named.querySelector("[data-supplicant-woe-row] [data-woe-pips]")).not.toBeNull();
     expect(unnamed.querySelector('[data-support-badge="supported"]')?.textContent).toBe("Supported");
     const prophet = container.querySelector('[data-prophet-piece="den_prophet"]') as HTMLElement;
     expect(prophet.querySelector("[data-piece-type]")?.textContent).toBe("Prophet");
@@ -1446,15 +1446,16 @@ describe("Hierophant physical piece controls", () => {
     container.remove();
   });
 
-  it("shows current Woe separately from Next Visions and current threshold cues", () => {
+  it("shows authoritative threshold cues without resting Next Visions on the card", () => {
     const { container, root } = renderPieces();
     const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
     const unnamed = container.querySelector('[data-supplicant-piece="den_blank"]') as HTMLElement;
     const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
     const high = container.querySelector('[data-supplicant-piece="den_high"]') as HTMLElement;
+    expect(named.querySelector("[data-woe-label]")?.textContent).toBe("Woe");
     expect(named.querySelector('[aria-label="Current Woe 1"]')).not.toBeNull();
-    expect(named.querySelector('[aria-label="Next Visions: Woe 1 → 0"]')).not.toBeNull();
-    expect(named.textContent).not.toMatch(/Woe 1 → 0/);
+    expect(named.querySelector("[data-woe-forecast]")).toBeNull();
+    expect(named.textContent).not.toContain("Next Visions");
     expect(ready.querySelector('[data-woe-threshold="benefaction"]')?.textContent).toBe("Ready for Benefaction");
     expect(unnamed.querySelector('[data-woe-threshold="cult"]')?.textContent).toBe("Cult departure due");
     expect(high.querySelector('[aria-label="Current Woe 7"]')).not.toBeNull();
@@ -1488,7 +1489,15 @@ describe("Hierophant physical piece controls", () => {
     mockMutations["m3Commands.removeSupplicant"] = vi.fn(async () => {});
     mockMutations["m3Commands.establishCult"] = vi.fn(async () => {});
     mockMutations["m3Commands.adjustTempleResources"] = vi.fn(async () => {});
-    const { container, root } = renderPieces();
+    const { container, root, rerender } = renderPieces();
+    function withWoe(denizenId: string, woe: number) {
+      rerender({
+        ...pieceState,
+        supplicants: pieceState.supplicants.map((person) =>
+          person.denizenId === denizenId ? { ...person, woe } : person,
+        ),
+      } as typeof EMPTY_HIEROPHANT_STATE);
+    }
     const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
     const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
     const high = container.querySelector('[data-supplicant-piece="den_high"]') as HTMLElement;
@@ -1498,17 +1507,21 @@ describe("Hierophant physical piece controls", () => {
     flushSync(() => { woeDecrement(named).click(); });
     await Promise.resolve();
     expect(mockMutations["m3Commands.updateSupplicant"].mock.calls[0][0].fields).toEqual({ woe: { expected: 1, value: 0 } });
-    flushSync(() => { woeTarget(named, 1).click(); });
+    withWoe("den_ann", 0);
+    flushSync(() => { woeTarget(container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement, 1).click(); });
     await Promise.resolve();
     expect(mockMutations["m3Commands.updateSupplicant"]).toHaveBeenCalledTimes(1);
-    flushSync(() => { woeTarget(named, 3).click(); });
+    withWoe("den_ann", 1);
+    flushSync(() => { woeTarget(container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement, 3).click(); });
     await Promise.resolve();
     const afterThree = mockMutations["m3Commands.updateSupplicant"].mock.calls.slice(-1)[0][0];
     expect(afterThree.fields).toEqual({ woe: { expected: 1, value: 3 } });
+    withWoe("den_ann", 3);
     flushSync(() => { woeTarget(ready, 5).click(); });
     await Promise.resolve();
     const afterFive = mockMutations["m3Commands.updateSupplicant"].mock.calls.slice(-1)[0][0];
     expect(afterFive.fields).toEqual({ woe: { expected: 0, value: 5 } });
+    withWoe("den_ready", 5);
     flushSync(() => { woeTarget(high, 5).click(); });
     await Promise.resolve();
     const afterHigh = mockMutations["m3Commands.updateSupplicant"].mock.calls.slice(-1)[0][0];
@@ -1606,7 +1619,7 @@ describe("Hierophant physical piece controls", () => {
   it("does not offer piece Benefaction from Next Visions projection alone", () => {
     const { container, root } = renderPieces();
     const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
-    expect(named.querySelector('[aria-label="Next Visions: Woe 1 → 0"]')).not.toBeNull();
+    expect(named.textContent).not.toContain("Next Visions");
     expect(named.querySelector('[data-piece-benefaction]')).toBeNull();
     root.unmount();
     container.remove();
@@ -1671,18 +1684,68 @@ describe("Hierophant physical piece controls", () => {
     container.remove();
   });
 
-  it("shows stable Class cost and Benefaction value on the piece", () => {
+  it("shows stable Class cost and Benefaction as separate labeled facts on the piece", () => {
     const { container, root } = renderPieces();
     const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
     const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
     const unnamed = container.querySelector('[data-supplicant-piece="den_blank"]') as HTMLElement;
-    expect(named.querySelector("[data-supplicant-cost]")?.textContent).toBe("Cost: 1 Abundance");
-    expect(named.querySelector("[data-supplicant-benefaction-gives]")?.textContent).toBe("Gives: +1 Conviction");
-    expect(ready.querySelector("[data-supplicant-cost]")?.textContent).toBe("Cost: 1 Abundance or Conviction");
-    expect(ready.querySelector("[data-supplicant-benefaction-gives]")?.textContent).toBe("Gives: +1 Abundance");
-    expect(unnamed.querySelector("[data-supplicant-cost]")?.textContent).toBe("Cost: 1 Abundance");
-    expect(named.querySelector("[data-woe-forecast]")).not.toBeNull();
-    expect(named.querySelector("[data-supplicant-secondary]")).not.toBeNull();
+    expect(named.querySelector("[data-supplicant-cost]")?.textContent).toContain("Cost");
+    expect(named.querySelector("[data-supplicant-cost-value]")?.textContent).toBe("1 Abundance");
+    expect(named.querySelector("[data-supplicant-benefaction]")?.textContent).toContain("Benefaction");
+    expect(named.querySelector("[data-supplicant-benefaction-value]")?.textContent).toBe("+1 Conviction");
+    expect(ready.querySelector("[data-supplicant-cost-value]")?.textContent).toBe("1 Abundance or Conviction");
+    expect(ready.querySelector("[data-supplicant-benefaction-value]")?.textContent).toBe("+1 Abundance");
+    expect(unnamed.querySelector("[data-supplicant-cost-value]")?.textContent).toBe("1 Abundance");
+    expect(named.textContent).not.toContain("Next Visions");
+  });
+
+  it("shows pending Woe intent immediately without authoritative threshold drift", async () => {
+    let release: (() => void) | undefined;
+    mockMutations["m3Commands.updateSupplicant"] = vi.fn(() => new Promise<void>((resolve) => {
+      release = resolve;
+    }));
+    const { container, root, rerender } = renderPieces();
+    const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
+    flushSync(() => { woeTarget(named, 4).click(); });
+    expect(named.querySelector('[data-woe-pips]')?.getAttribute("data-woe-pending")).toBe("true");
+    expect(named.querySelector('[aria-label="Woe 1, pending request 4"]')).not.toBeNull();
+    expect(named.querySelectorAll('[data-woe-filled="true"]')).toHaveLength(4);
+    expect(named.querySelector('[data-piece-benefaction]')).toBeNull();
+    expect(named.querySelector('[data-woe-threshold]')).toBeNull();
+    expect(woeTarget(named, 3).disabled).toBe(true);
+    await act(async () => {
+      release?.();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      rerender({
+        ...pieceState,
+        supplicants: pieceState.supplicants.map((person) =>
+          person.denizenId === "den_ann" ? { ...person, woe: 4 } : person,
+        ),
+      } as typeof EMPTY_HIEROPHANT_STATE);
+      await Promise.resolve();
+    });
+    const settled = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
+    expect(settled.querySelector('[data-woe-pips]')?.getAttribute("data-woe-pending")).toBe("false");
+    expect(settled.querySelector('[aria-label="Current Woe 4"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("restores authoritative Woe after a rejected write and hides step controls at rest", async () => {
+    mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {
+      throw new Error("stale woe");
+    });
+    const { container, root } = renderPieces();
+    const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
+    expect(ready.querySelector('[data-woe-steps]')?.className).toMatch(/invisible/);
+    flushSync(() => { woeIncrement(ready).click(); });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(ready.querySelector('[aria-label="Current Woe 0"]')).not.toBeNull();
+    expect(container.textContent).toMatch(/stale woe/i);
     root.unmount();
     container.remove();
   });
@@ -1692,12 +1755,19 @@ describe("Hierophant physical piece controls", () => {
     mockMutations["m3Commands.removeSupplicant"] = vi.fn(async () => {});
     mockMutations["m3Commands.establishCult"] = vi.fn(async () => {});
     mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"] = vi.fn(async () => {});
-    const { container, root } = renderPieces();
+    const { container, root, rerender } = renderPieces();
     const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
+    flushSync(() => { ready.querySelector("[data-woe-pips]")?.dispatchEvent(new Event("mouseenter", { bubbles: true })); });
     expect(woeDecrement(ready).disabled).toBe(true);
     const unnamed = container.querySelector('[data-supplicant-piece="den_blank"]') as HTMLElement;
     flushSync(() => { woeIncrement(unnamed).click(); });
     await Promise.resolve();
+    rerender({
+      ...pieceState,
+      supplicants: pieceState.supplicants.map((person) =>
+        person.denizenId === "den_blank" ? { ...person, woe: 6 } : person,
+      ),
+    } as typeof EMPTY_HIEROPHANT_STATE);
     expect(mockMutations["m3Commands.updateSupplicant"].mock.calls[0][0].fields).toEqual({
       woe: { expected: 5, value: 6 },
     });

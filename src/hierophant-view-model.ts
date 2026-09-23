@@ -539,17 +539,27 @@ const BUILTIN_FIXED_CLASS_COST: Record<
 };
 
 export function supplicantClassCostLabel(classId: string): string | null {
-  if (classId === "artisan") return "Cost: 1 Abundance or Conviction";
+  const value = supplicantClassCostValue(classId);
+  return value === null ? null : `Cost: ${value}`;
+}
+
+export function supplicantClassCostValue(classId: string): string | null {
+  if (classId === "artisan") return "1 Abundance or Conviction";
   if (!(classId in BUILTIN_FIXED_CLASS_COST)) return null;
   const cost = BUILTIN_FIXED_CLASS_COST[classId as keyof typeof BUILTIN_FIXED_CLASS_COST];
-  return `Cost: ${cost.amount} ${formatVisionsResourceName(cost.resource)}`;
+  return `${cost.amount} ${formatVisionsResourceName(cost.resource)}`;
 }
 
 export function supplicantBenefactionGiveLabel(classId: string): string | null {
+  const value = supplicantBenefactionValue(classId);
+  return value === null ? null : `Gives: ${value}`;
+}
+
+export function supplicantBenefactionValue(classId: string): string | null {
   const benefaction = hierophantBuiltinClassBenefaction(classId);
   if (benefaction === null) return null;
   const resource = benefaction.kind === "abundance" ? "Abundance" : "Conviction";
-  return `Gives: +${benefaction.amount} ${resource}`;
+  return `+${benefaction.amount} ${resource}`;
 }
 
 export function templeSupportedClassIds(
