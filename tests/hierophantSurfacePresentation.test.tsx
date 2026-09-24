@@ -580,11 +580,18 @@ describe("Hierophant zero-click monthly board", () => {
     expect(krolis.textContent).toContain("Acolyte Ann");
     expect(krolis.textContent).toContain("Peasant");
     expect(krolis.querySelector('[aria-label="Current Woe 3"]')).not.toBeNull();
-    expect(krolis.textContent).toContain("Supported");
+    expect(krolis.querySelector('[data-supplicant-piece="den_ann"] [data-support-badge="supported"]')).not.toBeNull();
+    expect(krolis.querySelector('[data-supplicant-piece="den_ann"] [data-support-glyph="supported"]')?.textContent).toBe("✓");
+    expect(krolis.querySelector('[data-supplicant-piece="den_ann"]')?.textContent).not.toMatch(/\bSupported\b/);
     expect(krolis.querySelector('[data-supplicant-piece="den_ann"] [data-supplicant-cost-value]')?.textContent).toBe("1 Abundance");
     expect(krolis.querySelector('[aria-label="Current Woe 7"]')).not.toBeNull();
     expect(krolis.querySelector('[data-supplicant-piece] [data-woe-overflow]')?.textContent).toBe("7");
-    expect(krolis.textContent).toContain("Unsupported");
+    const unsupportedPiece = Array.from(krolis.querySelectorAll("[data-supplicant-piece]")).find((piece) =>
+      piece.querySelector('[data-support-badge="unsupported"]') !== null,
+    );
+    expect(unsupportedPiece).toBeDefined();
+    expect(unsupportedPiece?.querySelector('[data-support-glyph="unsupported"]')?.textContent).toBe("!");
+    expect(unsupportedPiece?.textContent).not.toMatch(/\bUnsupported\b/);
     expect(Array.from(krolis.querySelectorAll("[data-supplicant-piece]")).every(
       (piece) => !piece.textContent?.includes("Next Visions"),
     )).toBe(true);
@@ -660,8 +667,13 @@ describe("Hierophant zero-click monthly board", () => {
     const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
     expect(krolis.textContent).toContain("Blasphemous");
     expect(krolis.querySelector('[aria-label="Supports Artisan, Peasant"]')).not.toBeNull();
-    expect(krolis.textContent).toContain("Supported");
-    expect(krolis.textContent).toContain("Unsupported");
+    expect(krolis.querySelector('[data-support-badge="supported"]')).not.toBeNull();
+    expect(krolis.querySelector('[data-support-badge="unsupported"]')).not.toBeNull();
+    expect(krolis.querySelector('[data-support-glyph="supported"]')?.textContent).toBe("✓");
+    expect(krolis.querySelector('[data-support-glyph="unsupported"]')?.textContent).toBe("!");
+    expect(Array.from(krolis.querySelectorAll("[data-supplicant-piece]")).every(
+      (piece) => !/\bSupported\b/.test(piece.textContent ?? "") && !/\bUnsupported\b/.test(piece.textContent ?? ""),
+    )).toBe(true);
     expect(krolis.querySelector('[data-supplicant-cost-value]')?.textContent).toBe("1 Abundance");
     expect(krolis.querySelector('[aria-label="Current Woe 3"]')).not.toBeNull();
     expect(krolis.querySelector('[aria-label="Abundance 5, Next Visions -1 → 4"]')).not.toBeNull();
@@ -1466,15 +1478,35 @@ describe("Hierophant physical piece controls", () => {
     expect(unnamed.querySelector("[data-piece-name]")).toBeNull();
     expect(unnamed.textContent).not.toContain("Unnamed");
     const unnamedBadge = unnamed.querySelector('[data-class-badge="peasant"]') as HTMLElement;
-    expect(unnamedBadge?.textContent).toBe("Peasant");
+    expect(unnamedBadge?.textContent).toContain("Peasant");
     expect(unnamed.textContent?.replace(unnamedBadge.textContent ?? "", "")).not.toMatch(/\bPeasant\b/);
     const namedBadge = named.querySelector('[data-class-badge="peasant"]') as HTMLElement;
     expect(named.textContent?.replace(namedBadge.textContent ?? "", "")).not.toMatch(/\bPeasant\b/);
-    const identity = named.querySelector("[data-supplicant-identity]") as HTMLElement;
-    expect(identity.querySelector('[data-class-badge="peasant"]')).not.toBeNull();
-    expect(identity.querySelector('[data-support-badge="supported"]')?.textContent).toBe("Supported");
+    const header = named.querySelector("[data-piece-header]") as HTMLElement;
+    expect(named.querySelector("[data-supplicant-identity]")).toBeNull();
+    expect(header.querySelector("[data-piece-type-region]")?.contains(namedBadge)).toBe(true);
+    expect(namedBadge.getAttribute("data-support-badge")).toBe("supported");
+    expect(namedBadge.querySelector('[data-support-glyph="supported"]')?.textContent).toBe("✓");
+    expect(
+      named.querySelector("[data-supplicant-class] [aria-label]")?.getAttribute("aria-label"),
+    ).toBe("Peasant — supported by this Temple's Doctrine");
+    expect(named.textContent).not.toMatch(/\bSupported\b/);
     expect(named.querySelector("[data-supplicant-woe-row] [data-woe-pips]")).not.toBeNull();
-    expect(unnamed.querySelector('[data-support-badge="supported"]')?.textContent).toBe("Supported");
+    expect(unnamed.querySelector('[data-support-badge="supported"]')?.querySelector('[data-support-glyph="supported"]')?.textContent).toBe("✓");
+    expect(unnamed.textContent).not.toMatch(/\bSupported\b/);
+    const high = container.querySelector('[data-supplicant-piece="den_high"]') as HTMLElement;
+    expect(header.contains(named.querySelector("[data-piece-type]") as HTMLElement)).toBe(true);
+    expect(high.querySelector("[data-piece-header] [data-support-badge=\"unsupported\"]")).not.toBeNull();
+    expect(high.querySelector('[data-support-glyph="unsupported"]')?.textContent).toBe("!");
+    expect(
+      high.querySelector("[data-supplicant-class] [aria-label]")?.getAttribute("aria-label"),
+    ).toBe("Gentry — not supported by this Temple's Doctrine");
+    expect(high.textContent).not.toMatch(/\bUnsupported\b/);
+    expect(high.getAttribute("draggable")).toBe("true");
+    expect(high.querySelector("[data-woe-pips]")).not.toBeNull();
+    expect(high.querySelector("[data-supplicant-cost]")).not.toBeNull();
+    expect(high.querySelector("[data-supplicant-benefaction]")).not.toBeNull();
+    expect((high.querySelector("[data-woe-step='decrement']") as HTMLButtonElement).disabled).toBe(false);
     const prophet = container.querySelector('[data-prophet-piece="den_prophet"]') as HTMLElement;
     expect(prophet.querySelector("[data-piece-type]")?.textContent).toBe("Prophet");
     expect(prophet.querySelector("[data-piece-name]")?.textContent).toBe("Prophet Ilya");
@@ -2483,6 +2515,8 @@ describe("Hierophant primary board Body A controls", () => {
     expect(status.textContent).toContain("▾");
     expect(holiday.getAttribute("aria-pressed")).toBe("false");
     expect(holiday.getAttribute("aria-haspopup")).toBeNull();
+    expect(holiday.getAttribute("data-temple-header-chip-shell")).toBe("");
+    expect(status.getAttribute("data-temple-header-chip-shell")).toBe("");
     expect(krolis.querySelector("[data-temple-status-menu]")).toBeNull();
     expect(krolis.textContent).not.toMatch(/Collapse ordinarily/);
     expect(krolis.querySelector("[data-doctrine-current]")?.textContent).not.toMatch(/^Blasphemous/);
@@ -2571,6 +2605,8 @@ describe("Hierophant primary board Body A controls", () => {
     expect(chip.getAttribute("aria-pressed")).toBe("true");
     expect(chip.getAttribute("aria-haspopup")).toBeNull();
     expect(status.getAttribute("aria-haspopup")).toBe("menu");
+    expect(chip.getAttribute("data-temple-header-chip-shell")).toBe("");
+    expect(status.getAttribute("data-temple-header-chip-shell")).toBe("");
     expect(chip.getAttribute("data-holiday-marked")).toBe("true");
     expect(chip.getAttribute("aria-label")).toBe("Clear Holiday marker from Temple Krolis");
     expect(chip.className).toMatch(/bg-amber-200|bg-amber-700/);
@@ -2627,6 +2663,15 @@ describe("Hierophant primary board Body A controls", () => {
     const chevron = doctrine.querySelector("[data-doctrine-change]") as HTMLButtonElement;
     expect(valueRow.contains(chevron)).toBe(true);
     expect(valueRow.contains(doctrine.querySelector("[data-doctrine-current]") as HTMLElement)).toBe(true);
+    expect(valueRow.className).toMatch(/items-start/);
+    const doctrineText = doctrine.querySelector("[data-doctrine-value-text]") as HTMLElement;
+    const selector = doctrine.querySelector("[data-doctrine-value-selector]") as HTMLElement;
+    expect(doctrineText).not.toBeNull();
+    expect(selector).toBe(chevron);
+    expect(doctrineText.contains(chevron)).toBe(false);
+    expect(doctrineText.className).toMatch(/min-w-0/);
+    expect(selector.className).toMatch(/shrink-0/);
+    expect(selector.className).toMatch(/self-start/);
     expect(valueRow.getAttribute("data-doctrine-menu-anchor")).toBe("");
     expect(doctrine.querySelector("[data-doctrine-menu]")).toBeNull();
     expect(doctrine.querySelector("[data-doctrine-prophet-warning]")).toBeNull();
@@ -2700,13 +2745,19 @@ describe("Hierophant primary board Body B Hestar conversion", () => {
     expect(krolisAbundance.querySelector("[data-resource-label]")?.textContent).toBe("Abundance");
     expect(krolisConviction.querySelector("[data-resource-label]")?.textContent).toBe("Conviction");
     expect(krolisAbundance.querySelector("[data-resource-value-line]")?.contains(
+      krolisAbundance.querySelector("[data-resource-value]") as HTMLElement,
+    )).toBe(true);
+    expect(krolisAbundance.querySelector("[data-resource-value-line]")?.contains(
+      krolisAbundance.querySelector("[data-hestar-convert]") as Node,
+    )).toBe(false);
+    expect(krolisAbundance.querySelector("[data-resource-convert-line]")?.contains(
       krolisAbundance.querySelector("[data-hestar-convert]") as HTMLElement,
     )).toBe(true);
     expect(krolisAbundance.querySelector("[data-resource-label]")?.contains(
       krolisAbundance.querySelector("[data-hestar-convert]") as Node,
     )).toBe(false);
     expect(krolisAbundance.className).toContain("min-w-[3.75rem]");
-    expect(krolisAbundance.querySelector("[data-hestar-convert]")?.getAttribute("data-hestar-convert-placement")).toBe("value");
+    expect(krolisAbundance.querySelector("[data-hestar-convert]")?.getAttribute("data-hestar-convert-placement")).toBe("below");
     expect(krolisAbundance.querySelector("[data-hestar-convert]")?.className).not.toMatch(/absolute/);
     expect(krolisAbundance.querySelector("[data-hestar-convert]")?.className).not.toMatch(/top-full/);
     expect(krolisAbundance.className).not.toMatch(/min-h-\[1\.1rem\]/);

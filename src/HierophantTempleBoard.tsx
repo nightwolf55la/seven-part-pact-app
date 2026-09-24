@@ -559,13 +559,18 @@ function ResourceCounter({
         >
           +
         </button>
-        {conversion !== null && convertAria !== null && (
+      </div>
+      {conversion !== null && convertAria !== null && (
+        <div
+          data-resource-convert-line=""
+          className="flex h-3 w-full items-center justify-center"
+        >
           <button
             type="button"
             data-hestar-convert={resource}
             data-hestar-convert-target={hestarDestinationResource(resource)}
-            data-hestar-convert-placement="value"
-            className={`whitespace-nowrap rounded px-0.5 py-px text-[9px] font-bold leading-none tracking-tight text-stone-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-700 dark:text-stone-100 ${
+            data-hestar-convert-placement="below"
+            className={`whitespace-nowrap rounded px-0.5 text-[9px] font-bold leading-none tracking-tight text-stone-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-700 dark:text-stone-100 ${
               revealed
                 ? "opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
                 : "pointer-events-none opacity-0"
@@ -583,8 +588,8 @@ function ResourceCounter({
           >
             {hierophantHestarConversionVisibleLabel(resource)}
           </button>
-        )}
-      </div>
+        </div>
+      )}
       {view.pending && <span className="sr-only">Saving {label}</span>}
       {view.error !== null && (
         <span data-resource-error="" className="mt-0.5 text-[10px] font-medium text-rose-800 dark:text-rose-200">
@@ -602,6 +607,24 @@ function ResourceCounter({
 
 function stopNestedControlPointer(event: { stopPropagation: () => void }): void {
   event.stopPropagation();
+}
+
+const TEMPLE_HEADER_CHIP_SHELL =
+  "box-border inline-flex h-6 shrink-0 items-center justify-center gap-0.5 rounded-md border px-2 text-[10px] font-bold uppercase leading-none tracking-wide focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700";
+
+const SUPPLICANT_SUPPORT_GLYPH = {
+  supported: "✓",
+  unsupported: "!",
+} as const;
+
+function supplicantSupportGlyph(support: "supported" | "unsupported"): string {
+  return SUPPLICANT_SUPPORT_GLYPH[support];
+}
+
+function supplicantSupportDescription(className: string, support: "supported" | "unsupported"): string {
+  return support === "supported"
+    ? `${className} — supported by this Temple's Doctrine`
+    : `${className} — not supported by this Temple's Doctrine`;
 }
 
 function useDismissibleOpen(
@@ -768,22 +791,84 @@ function PersonPieceHeader({
   type,
   name,
   typeClassName,
+  typeExtra,
 }: {
   readonly type: string;
   readonly name: string | null;
   readonly typeClassName: string;
+  readonly typeExtra?: ReactNode;
 }) {
   return (
-    <div data-piece-header="" className="flex items-baseline justify-between gap-2">
-      <span data-piece-type="" className={`text-[10px] font-bold uppercase tracking-wide ${typeClassName}`}>
-        {type}
-      </span>
+    <div data-piece-header="" className="flex items-center justify-between gap-2">
+      <div data-piece-type-region="" className="flex min-w-0 items-center gap-1">
+        <span data-piece-type="" className={`text-[10px] font-bold uppercase tracking-wide ${typeClassName}`}>
+          {type}
+        </span>
+        {typeExtra}
+      </div>
       {name !== null && (
         <span data-piece-name="" className="min-w-0 truncate text-[11px] leading-tight text-slate-600 dark:text-slate-300">
           {name}
         </span>
       )}
     </div>
+  );
+}
+
+function SupplicantClassSupportBadge({
+  classId,
+  label,
+  support,
+}: {
+  readonly classId: string;
+  readonly label: string;
+  readonly support: "supported" | "unsupported" | null;
+}) {
+  const [tipOpen, setTipOpen] = useState(false);
+  const glyph = support === null ? undefined : supplicantSupportGlyph(support);
+  const description = support === null ? label : supplicantSupportDescription(label, support);
+  const showTip = tipOpen && support !== null;
+  return (
+    <span
+      className="relative"
+      data-supplicant-class=""
+      onMouseEnter={() => setTipOpen(true)}
+      onMouseLeave={() => setTipOpen(false)}
+      onFocusCapture={() => setTipOpen(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setTipOpen(false);
+        }
+      }}
+    >
+      <span
+        tabIndex={support === null ? undefined : 0}
+        aria-label={description}
+        title={description}
+        className="inline-flex rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-700"
+        onMouseDown={stopNestedControlPointer}
+        onPointerDown={stopNestedControlPointer}
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
+        <HierophantClassBadge
+          classId={classId}
+          label={label}
+          mark={glyph}
+          attention={support === "unsupported"}
+          support={support}
+        />
+      </span>
+      {showTip && (
+        <span
+          role="tooltip"
+          data-support-tooltip=""
+          className="absolute left-0 z-40 mt-1 w-max max-w-[14rem] rounded-md border border-stone-500/40 bg-white px-1.5 py-1 text-left text-[11px] font-normal normal-case tracking-normal text-stone-800 shadow-lg dark:border-stone-300/30 dark:bg-slate-900 dark:text-stone-100"
+        >
+          {description}
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -845,7 +930,12 @@ function SupplicantPiece({
   const klass = classLabel(person.classId, campaignClasses);
   const givenName = supplicantGivenName(storedName, klass);
   const pieceName = givenName;
-  const support = preview === undefined ? null : preview.support === "supported" ? "Supported" : preview.support === "unsupported" ? "Unsupported" : null;
+  const support: "supported" | "unsupported" | null =
+    preview === undefined
+      ? null
+      : preview.support === "supported" || preview.support === "unsupported"
+        ? preview.support
+        : null;
   const classCostValue = supplicantClassCostValue(person.classId);
   const benefactionValue = supplicantBenefactionValue(person.classId);
   const threshold = woeThresholdCueLabel(person.woe);
@@ -853,9 +943,8 @@ function SupplicantPiece({
   const accessible = [
     "Supplicant",
     pieceName,
-    klass,
+    support === null ? klass : supplicantSupportDescription(klass, support),
     `Woe ${person.woe}`,
-    support,
     classCostValue === null ? null : `Cost ${classCostValue}`,
     benefactionValue === null ? null : `Benefaction ${benefactionValue}`,
     threshold,
@@ -921,6 +1010,24 @@ function SupplicantPiece({
             type="Supplicant"
             name={pieceName}
             typeClassName="text-amber-900 dark:text-amber-200"
+            typeExtra={
+              <>
+                <SupplicantClassSupportBadge
+                  classId={person.classId}
+                  label={klass}
+                  support={support}
+                />
+                {timeScheduled && (
+                  <span
+                    data-steer-time-badge=""
+                    className="shrink-0 rounded border border-amber-700/50 bg-amber-100/90 px-1 py-px text-[10px] font-semibold uppercase tracking-wide text-amber-950 dark:border-amber-400/60 dark:bg-amber-900/50 dark:text-amber-50"
+                    aria-label={`Time scheduled on ${subjectLabel}`}
+                  >
+                    Time
+                  </span>
+                )}
+              </>
+            }
           />
           {orderIndex !== null && (
             <span
@@ -931,32 +1038,6 @@ function SupplicantPiece({
             </span>
           )}
         </button>
-        <div data-supplicant-identity="" className="mt-0.5 flex min-w-0 items-center justify-between gap-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-1">
-            <HierophantClassBadge classId={person.classId} label={klass} />
-            {support !== null && (
-              <span
-                data-support-badge={preview?.support}
-                className={`text-[11px] leading-tight ${
-                  support === "Supported"
-                    ? "font-semibold text-emerald-900 dark:text-emerald-100"
-                    : "font-medium text-stone-600 dark:text-stone-300"
-                }`}
-              >
-                {support}
-              </span>
-            )}
-          </div>
-          {timeScheduled && (
-            <span
-              data-steer-time-badge=""
-              className="shrink-0 rounded border border-amber-700/50 bg-amber-100/90 px-1 py-px text-[10px] font-semibold uppercase tracking-wide text-amber-950 dark:border-amber-400/60 dark:bg-amber-900/50 dark:text-amber-50"
-              aria-label={`Time scheduled on ${subjectLabel}`}
-            >
-              Time
-            </span>
-          )}
-        </div>
         <div
           data-supplicant-stable=""
           className="mt-0.5 grid grid-cols-1 gap-x-3 gap-y-1 min-[18rem]:grid-cols-3"
@@ -1104,10 +1185,11 @@ function TempleStatusControl({
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         aria-label={`Temple status ${status.label}`}
-        className={`inline-flex h-6 shrink-0 items-center gap-0.5 rounded-md px-2 text-[10px] font-bold uppercase tracking-wide focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
+        data-temple-header-chip-shell=""
+        className={`${TEMPLE_HEADER_CHIP_SHELL} ${
           status.kind === "collapsed"
-            ? "bg-stone-800 text-stone-100"
-            : "bg-emerald-800 text-emerald-50"
+            ? "border-stone-800 bg-stone-800 text-stone-100"
+            : "border-emerald-800 bg-emerald-800 text-emerald-50"
         } ${pending ? "ring-1 ring-amber-700/40 dark:ring-amber-300/30" : ""}`}
         onMouseDown={stopNestedControlPointer}
         onPointerDown={stopNestedControlPointer}
@@ -1117,7 +1199,7 @@ function TempleStatusControl({
         }}
       >
         {status.label}
-        <span aria-hidden="true">▾</span>
+        <span aria-hidden="true" className="inline-flex h-3 w-3 items-center justify-center">▾</span>
       </button>
       {menuOpen && (
         <div
@@ -1331,33 +1413,35 @@ function OrdinaryDoctrineObject({
       <div
         data-doctrine-value-row=""
         data-doctrine-menu-anchor=""
-        className="relative mt-0.5"
+        className="relative mt-0.5 flex items-start gap-1"
       >
         <p
           data-doctrine-current=""
-          className={`text-sm ${temple.doctrine.kind === "unset" ? "italic text-slate-600 dark:text-slate-300" : ""}`}
+          data-doctrine-value-text=""
+          className={`min-w-0 flex-1 text-sm ${temple.doctrine.kind === "unset" ? "italic text-slate-600 dark:text-slate-300" : ""}`}
         >
           {templeDoctrineSummary(temple, hierophant.campaignDoctrines)}
-          <button
-            type="button"
-            data-doctrine-change=""
-            className={`ml-1 inline-flex align-text-top rounded border border-amber-800/40 px-1 py-px text-[10px] font-semibold leading-none text-amber-950 transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 dark:text-amber-50 ${
-              chevronVisible ? "opacity-100" : "opacity-0"
-            }`}
-            aria-expanded={menuOpen}
-            aria-haspopup="listbox"
-            aria-label="Change Doctrine"
-            aria-busy={pending}
-            onMouseDown={stopNestedControlPointer}
-            onPointerDown={stopNestedControlPointer}
-            onClick={(event) => {
-              event.stopPropagation();
-              setMenuOpen((open) => !open);
-            }}
-          >
-            ▾
-          </button>
         </p>
+        <button
+          type="button"
+          data-doctrine-change=""
+          data-doctrine-value-selector=""
+          className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center self-start rounded border border-amber-800/40 text-[10px] font-semibold leading-none text-amber-950 transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 dark:text-amber-50 ${
+            chevronVisible ? "opacity-100" : "opacity-0"
+          }`}
+          aria-expanded={menuOpen}
+          aria-haspopup="listbox"
+          aria-label="Change Doctrine"
+          aria-busy={pending}
+          onMouseDown={stopNestedControlPointer}
+          onPointerDown={stopNestedControlPointer}
+          onClick={(event) => {
+            event.stopPropagation();
+            setMenuOpen((open) => !open);
+          }}
+        >
+          ▾
+        </button>
         {menuOpen && (
           <div
             role="listbox"
@@ -1433,6 +1517,7 @@ function HolidayChip({
       data-holiday-chip=""
       data-holiday-marked={marked ? "true" : "false"}
       data-holiday-pending={pending ? "true" : "false"}
+      data-temple-header-chip-shell=""
       aria-pressed={marked}
       aria-busy={pending}
       aria-label={
@@ -1440,10 +1525,10 @@ function HolidayChip({
           ? `Clear Holiday marker from ${templeName}`
           : `Mark ${templeName} as celebrating a Holiday`
       }
-      className={`inline-flex h-6 shrink-0 items-center rounded-full px-2 text-[10px] font-bold uppercase tracking-wide focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
+      className={`${TEMPLE_HEADER_CHIP_SHELL} ${
         marked
-          ? "border border-amber-600 bg-amber-200 text-amber-950 dark:border-amber-300 dark:bg-amber-700 dark:text-amber-50"
-          : "border border-dashed border-amber-700/50 bg-transparent text-amber-900/80 dark:border-amber-400/50 dark:text-amber-100/80"
+          ? "border-amber-600 bg-amber-200 text-amber-950 dark:border-amber-300 dark:bg-amber-700 dark:text-amber-50"
+          : "border-dashed border-amber-700/50 bg-transparent text-amber-900/80 dark:border-amber-400/50 dark:text-amber-100/80"
       } ${pending ? "ring-1 ring-amber-700/40 dark:ring-amber-300/30" : ""}`}
       onMouseDown={stopNestedControlPointer}
       onPointerDown={stopNestedControlPointer}
