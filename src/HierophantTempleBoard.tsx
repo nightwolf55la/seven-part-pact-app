@@ -1945,7 +1945,7 @@ function TemplePiece({
                   name={researcherName}
                   typeClassName={operational ? "text-slate-500" : "text-slate-400"}
                 />
-                <div className="mt-0.5 flex items-baseline justify-between gap-2">
+                <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                   <span
                     data-researcher-phase=""
                     className={`text-[10px] font-semibold uppercase tracking-wide ${
