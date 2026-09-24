@@ -1485,6 +1485,10 @@ describe("Hierophant physical piece controls", () => {
     expect(named.textContent?.replace(namedBadge.textContent ?? "", "")).not.toMatch(/\bPeasant\b/);
     const header = named.querySelector("[data-piece-header]") as HTMLElement;
     expect(header.getAttribute("data-piece-header-align")).toBe("centerline");
+    expect(header.querySelector("[data-piece-type-region]")?.className).toMatch(/\bh-4\b/);
+    expect(named.querySelector("[data-piece-type]")?.className).toMatch(/\bh-4\b/);
+    expect(named.querySelector("[data-piece-name]")?.className).toMatch(/\bh-4\b/);
+    expect(named.querySelector("[data-supplicant-class]")?.className).toMatch(/\bh-4\b/);
     expect(named.querySelector("[data-supplicant-identity]")).toBeNull();
     expect(header.querySelector("[data-piece-type-region]")?.contains(namedBadge)).toBe(true);
     expect(namedBadge.getAttribute("data-support-badge")).toBe("supported");
@@ -2569,6 +2573,12 @@ describe("Hierophant primary board Body A controls", () => {
     expect(holiday.getAttribute("aria-haspopup")).toBeNull();
     expect(holiday.getAttribute("data-temple-header-chip-shell")).toBe("");
     expect(status.getAttribute("data-temple-header-chip-shell")).toBe("");
+    expect(holiday.getAttribute("data-holiday-optical")).toBe("compensated");
+    expect(holiday.className).toMatch(/h-\[25px\]/);
+    expect(holiday.className).toMatch(/border-2/);
+    expect(holiday.className).not.toMatch(/border-dashed/);
+    expect(status.className).toMatch(/\bh-6\b/);
+    expect(status.className).not.toMatch(/h-\[25px\]/);
     expect(holiday.querySelector("[data-temple-header-chip-slot]")).not.toBeNull();
     expect(status.querySelector("[data-temple-header-chip-slot]")?.textContent).toContain("▾");
     expect(krolis.querySelector("[data-temple-status-menu]")).toBeNull();
@@ -2683,7 +2693,9 @@ describe("Hierophant primary board Body A controls", () => {
     expect(settled.getAttribute("data-holiday-marked")).toBe("false");
     expect(settled.getAttribute("data-holiday-pending")).toBe("false");
     expect(settled.getAttribute("aria-label")).toBe("Mark Temple Krolis as celebrating a Holiday");
-    expect(settled.className).toMatch(/border-dashed/);
+    expect(settled.getAttribute("data-holiday-optical")).toBe("compensated");
+    expect(settled.className).not.toMatch(/border-dashed/);
+    expect(settled.className).toMatch(/border-2/);
     root.unmount();
     container.remove();
   });

@@ -592,8 +592,12 @@ function stopNestedControlPointer(event: { stopPropagation: () => void }): void 
   event.stopPropagation();
 }
 
+const TEMPLE_HEADER_CHIP_SHELL_BASE =
+  "box-border inline-flex shrink-0 items-center justify-center gap-0.5 overflow-hidden rounded-md px-2 text-[10px] font-bold uppercase leading-none tracking-wide focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700";
 const TEMPLE_HEADER_CHIP_SHELL =
-  "box-border inline-flex h-6 min-h-6 shrink-0 items-center justify-center gap-0.5 overflow-hidden rounded-md border px-2 text-[10px] font-bold uppercase leading-none tracking-wide focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700";
+  `${TEMPLE_HEADER_CHIP_SHELL_BASE} h-6 min-h-6 border`;
+const TEMPLE_HEADER_HOLIDAY_SHELL =
+  `${TEMPLE_HEADER_CHIP_SHELL_BASE} h-[25px] min-h-[25px] border-2`;
 const TEMPLE_HEADER_CHIP_SLOT =
   "inline-flex h-3 w-3 shrink-0 items-center justify-center leading-none";
 
@@ -791,10 +795,15 @@ function PersonPieceHeader({
       data-piece-header-align={compactCenter ? "centerline" : undefined}
       className="flex items-center justify-between gap-2"
     >
-      <div data-piece-type-region="" className="flex min-w-0 items-center gap-1">
+      <div
+        data-piece-type-region=""
+        className={`flex min-w-0 items-center gap-1 ${compactCenter ? "h-4" : ""}`}
+      >
         <span
           data-piece-type=""
-          className={`text-[10px] font-bold uppercase tracking-wide ${compactCenter ? "leading-none" : ""} ${typeClassName}`}
+          className={`text-[10px] font-bold uppercase tracking-wide ${
+            compactCenter ? "inline-flex h-4 items-center leading-none" : ""
+          } ${typeClassName}`}
         >
           {type}
         </span>
@@ -804,7 +813,7 @@ function PersonPieceHeader({
         <span
           data-piece-name=""
           className={`min-w-0 truncate text-[11px] text-slate-600 dark:text-slate-300 ${
-            compactCenter ? "leading-none" : "leading-tight"
+            compactCenter ? "inline-flex h-4 items-center leading-none" : "leading-tight"
           }`}
         >
           {name}
@@ -829,7 +838,7 @@ function SupplicantClassSupportBadge({
   const showTip = tipOpen && flyoutLabel !== null;
   return (
     <span
-      className="relative inline-flex items-center"
+      className="relative inline-flex h-4 items-center"
       data-supplicant-class=""
       data-support-flyout={flyoutLabel ?? undefined}
       onMouseEnter={() => setTipOpen(true)}
@@ -1509,6 +1518,7 @@ function HolidayChip({
       data-holiday-chip=""
       data-holiday-marked={marked ? "true" : "false"}
       data-holiday-pending={pending ? "true" : "false"}
+      data-holiday-optical="compensated"
       data-temple-header-chip-shell=""
       aria-pressed={marked}
       aria-busy={pending}
@@ -1517,10 +1527,10 @@ function HolidayChip({
           ? `Clear Holiday marker from ${templeName}`
           : `Mark ${templeName} as celebrating a Holiday`
       }
-      className={`${TEMPLE_HEADER_CHIP_SHELL} ${
+      className={`${TEMPLE_HEADER_HOLIDAY_SHELL} ${
         marked
-          ? "border-amber-600 bg-amber-200 text-amber-950 dark:border-amber-300 dark:bg-amber-700 dark:text-amber-50"
-          : "border-dashed border-amber-700/50 bg-transparent text-amber-900/80 dark:border-amber-400/50 dark:text-amber-100/80"
+          ? "border-amber-800 bg-amber-200 text-amber-950 dark:border-amber-200 dark:bg-amber-700 dark:text-amber-50"
+          : "border-amber-800/70 bg-amber-50 text-amber-950 dark:border-amber-200/70 dark:bg-amber-950/40 dark:text-amber-50"
       } ${pending ? "ring-1 ring-amber-700/40 dark:ring-amber-300/30" : ""}`}
       onMouseDown={stopNestedControlPointer}
       onPointerDown={stopNestedControlPointer}
