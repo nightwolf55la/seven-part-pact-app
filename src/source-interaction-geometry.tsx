@@ -9,6 +9,7 @@ import necromancerInteractionGeometryRaw from "./assets/source-boards/necromance
 import { mapEndpointPoint } from "./mariner-map-geometry";
 import { raiderHeadingTowardRouteEndpoint } from "./mariner-marker-orientation";
 import { marinerOverlayPointToBoard } from "./source-board-assets";
+import { MarinerBoardPendingRing, marinerBoardPendingPresentation } from "./mariner-board-pending-presentation";
 
 /** Generated PowerPoint-native interaction sprites. Referenced by application IDs; never parsed for identity. */
 export const MARINER_INTERACTION_GEOMETRY_RAW = marinerInteractionGeometryRaw;
@@ -48,7 +49,17 @@ export function SourceGeometrySprite({ raw, label }: { raw: string; label: strin
 }
 
 /** Clone generated symbol children so SVG filters can composite the exact source group. */
-export function SourceSymbolClone({ href, fill, stroke }: { href: string; fill: string; stroke: string }) {
+export function SourceSymbolClone({
+  href,
+  fill,
+  stroke,
+  strokeWidth,
+}: {
+  href: string;
+  fill: string;
+  stroke: string;
+  strokeWidth?: number;
+}) {
   const hostRef = useRef<SVGGElement>(null);
   useLayoutEffect(() => {
     const host = hostRef.current;
@@ -63,7 +74,7 @@ export function SourceSymbolClone({ href, fill, stroke }: { href: string; fill: 
       host.appendChild(child.cloneNode(true));
     }
   }, [href]);
-  return <g ref={hostRef} fill={fill} stroke={stroke} />;
+  return <g ref={hostRef} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />;
 }
 
 export interface SourceRouteMarkerPose {
@@ -312,6 +323,7 @@ export function SourceRouteOccupancyMarker({
   toward,
   color,
   threatened,
+  actionPending,
   onSelect,
   onPointerDown,
   onContextMenu,
@@ -323,6 +335,7 @@ export function SourceRouteOccupancyMarker({
   toward?: string;
   color: string;
   threatened?: boolean;
+  actionPending?: boolean;
   onSelect: () => void;
   onPointerDown?: (event: ReactPointerEvent) => void;
   onContextMenu?: (event: ReactMouseEvent<SVGGElement>) => void;
@@ -363,6 +376,7 @@ export function SourceRouteOccupancyMarker({
     host.setAttribute("transform", `translate(${pose.x} ${pose.y}) rotate(${headingDeg})`);
     host.setAttribute("data-marker-from", "exact-source-path");
   }, [href, kind, toward]);
+  const pendingPresentation = marinerBoardPendingPresentation(actionPending === true);
   return (
     <g
       ref={hostRef}
@@ -371,7 +385,10 @@ export function SourceRouteOccupancyMarker({
       data-route-occupancy-marker={kind}
       data-raider-toward={toward}
       data-route-threatened={threatened ? "true" : undefined}
+      data-board-action-pending={pendingPresentation["data-board-action-pending"]}
       data-draggable-route-piece="true"
+      className={pendingPresentation.className}
+      aria-busy={pendingPresentation["aria-busy"]}
       aria-label={label}
       style={{ cursor: onPointerDown === undefined ? undefined : "grab" }}
       onPointerDown={onPointerDown}
@@ -381,6 +398,7 @@ export function SourceRouteOccupancyMarker({
         onSelect();
       }}
     >
+      {actionPending === true && <MarinerBoardPendingRing radius={11} />}
       {kind === "ship" ? (
         <g data-ship-pictogram="hull-mast-sail">
           <path
