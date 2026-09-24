@@ -844,7 +844,6 @@ function SupplicantClassSupportBadge({
       <span
         tabIndex={support === null ? undefined : 0}
         aria-label={description}
-        title={description}
         className="inline-flex rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-700"
         onMouseDown={stopNestedControlPointer}
         onPointerDown={stopNestedControlPointer}
