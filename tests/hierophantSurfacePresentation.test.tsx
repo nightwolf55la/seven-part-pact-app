@@ -591,7 +591,10 @@ describe("Hierophant zero-click monthly board", () => {
     expect(krolis.textContent).toContain("Cult departure due");
     expect(krolis.textContent).not.toContain("Cult resolution required");
     expect(krolis.textContent).not.toContain("Unnamed");
-    expect(krolis.querySelector('[aria-label="Holiday marked"]')).not.toBeNull();
+    expect(krolis.querySelector('[data-holiday-chip]')?.getAttribute("data-holiday-marked")).toBe("true");
+    expect(krolis.querySelector('[data-holiday-chip]')?.getAttribute("aria-label")).toBe(
+      "Clear Holiday marker from Temple Krolis",
+    );
     expect(krolis.textContent).toContain("Prophet Ilya");
     expect(krolis.textContent).not.toContain("Reliable Prophet production resolution required");
     expect(krolis.textContent).toContain("Lina the Seer");
@@ -1231,52 +1234,65 @@ describe("Hierophant Supplicant supply placement", () => {
     zone.dispatchEvent(new Event("drop", { bubbles: true, cancelable: true }));
     piece.dispatchEvent(new Event("dragend", { bubbles: true }));
     flushSync(() => {});
-    const form = receiveForm(container);
-    expect(form).not.toBeNull();
-    expect((form!.querySelector("select") as HTMLSelectElement).value).toBe("peasant");
-    expect((form!.querySelectorAll("select")[1] as HTMLSelectElement).value).toBe("courtyard");
+    expect(receiveForm(container)).toBeNull();
+    expect(mockMutations["m3Commands.createHierophantSupplicant"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[0][0]).toMatchObject({
+      classId: "peasant",
+      templeId: "krolis",
+      area: "courtyard",
+      woe: 0,
+      name: "Peasant",
+    });
     root.unmount();
     container.remove();
   });
 
-  it("opens Receive from a supply drop without mutating, and keeps the existing confirm path", async () => {
+  it("creates a default Supplicant from a supply drop without opening Receive", async () => {
     mockMutations["m3Commands.createHierophantSupplicant"] = vi.fn(async () => {});
     mockMutations["m3Commands.addSupplicant"] = vi.fn(async () => {});
+    mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {});
     const { container, root } = renderChoiceSurface(supplyState as typeof EMPTY_HIEROPHANT_STATE);
-    const before = mutationCallCount();
     dragSupplyTo(supplyPiece(container, "peasant")!, supplyDrop(container, "krolis", "courtyard")!);
-    expect(mutationCallCount()).toBe(before);
-    const form = receiveForm(container);
-    expect(form).not.toBeNull();
-    expect((form!.querySelector("select") as HTMLSelectElement).value).toBe("peasant");
-    expect((form!.querySelectorAll("select")[1] as HTMLSelectElement).value).toBe("courtyard");
-    const cancel = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.getAttribute("aria-label") === "Cancel Receive Supplicant",
-    );
-    flushSync(() => { cancel!.click(); });
     expect(receiveForm(container)).toBeNull();
-    expect(mutationCallCount()).toBe(before);
-
-    dragSupplyTo(supplyPiece(container, "artisan")!, supplyDrop(container, "krolis", "agiary")!);
-    expect((receiveForm(container)!.querySelector("select") as HTMLSelectElement).value).toBe("artisan");
-    expect((receiveForm(container)!.querySelectorAll("select")[1] as HTMLSelectElement).value).toBe("agiary");
-    flushSync(() => { cancelReceiveIfOpen(container); });
-
-    dragSupplyTo(supplyPiece(container, "merchant")!, supplyDrop(container, "hestar", "hestar")!);
-    const hestarForm = receiveForm(container)!;
-    expect((hestarForm.querySelector("select") as HTMLSelectElement).value).toBe("merchant");
-    expect(hestarForm.querySelectorAll("select")).toHaveLength(1);
-    expect(container.querySelector('[aria-label="Selected Temple"]')?.textContent).toContain("Hestar");
-    flushSync(() => { setControlledInput(receiveNameInput(container) as HTMLInputElement, "Placed Merchant"); });
-    flushSync(() => { hestarForm.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
     await Promise.resolve();
     expect(mockMutations["m3Commands.createHierophantSupplicant"]).toHaveBeenCalledTimes(1);
+    const courtyard = mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[0][0];
+    expect(courtyard).toMatchObject({
+      expectedCampaignId: CAMPAIGN_ID,
+      classId: "peasant",
+      woe: 0,
+      templeId: "krolis",
+      area: "courtyard",
+      expectedTempleStatus: "active",
+      name: "Peasant",
+    });
+    expect(courtyard.commandId).toMatch(/^cmd_/);
+    expect(courtyard.denizenId).toMatch(/^den_/);
+
+    dragSupplyTo(supplyPiece(container, "artisan")!, supplyDrop(container, "krolis", "agiary")!);
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[1][0]).toMatchObject({
+      classId: "artisan",
+      templeId: "krolis",
+      area: "agiary",
+      woe: 0,
+      name: "Artisan",
+    });
+    expect(mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[1][0].commandId).not.toBe(courtyard.commandId);
+    expect(mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[1][0].denizenId).not.toBe(courtyard.denizenId);
+
+    dragSupplyTo(supplyPiece(container, "merchant")!, supplyDrop(container, "hestar", "hestar")!);
+    await Promise.resolve();
+    expect(mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[2][0]).toMatchObject({
+      classId: "merchant",
+      templeId: "hestar",
+      area: null,
+      woe: 0,
+      name: "Merchant",
+    });
     expect(mockMutations["m3Commands.addSupplicant"]).not.toHaveBeenCalled();
-    const args = mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[0][0];
-    expect(args.classId).toBe("merchant");
-    expect(args.templeId).toBe("hestar");
-    expect(args.area).toBeNull();
-    expect(args.name).toBe("Placed Merchant");
+    expect(mockMutations["m3Commands.updateSupplicant"]).not.toHaveBeenCalled();
+    expect(receiveForm(container)).toBeNull();
     root.unmount();
     container.remove();
   });
@@ -1295,11 +1311,14 @@ describe("Hierophant Supplicant supply placement", () => {
     expect(mutationCallCount()).toBe(before);
 
     dragSupplyTo(supplyPiece(container, "peasant")!, supplyDrop(container, "zephon", "courtyard")!);
-    expect(receiveForm(container)).not.toBeNull();
-    expect((receiveForm(container)!.querySelector("select") as HTMLSelectElement).value).toBe("peasant");
-    expect(container.querySelector('[aria-label="Selected Temple"]')?.textContent).toContain("Temple Zephon");
+    expect(receiveForm(container)).toBeNull();
     expect(container.querySelector('[data-temple-id="zephon"]')?.textContent).toContain("Blasphemous");
-    expect(mutationCallCount()).toBe(before);
+    expect(mockMutations["m3Commands.createHierophantSupplicant"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[0][0]).toMatchObject({
+      classId: "peasant",
+      templeId: "zephon",
+      area: "courtyard",
+    });
     root.unmount();
     container.remove();
   });
@@ -1323,6 +1342,27 @@ describe("Hierophant Supplicant supply placement", () => {
     expect(second.commandId).toBe(first.commandId);
     expect(second.denizenId).toBe(first.denizenId);
     expect(mockMutations["m3Commands.addSupplicant"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("scopes supply-create pending locally and clears it on rejection", async () => {
+    const gate = { reject: undefined as ((error: Error) => void) | undefined };
+    mockMutations["m3Commands.createHierophantSupplicant"] = vi.fn(() => new Promise((_resolve, reject) => {
+      gate.reject = reject;
+    }));
+    mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {});
+    const { container, root } = renderChoiceSurface(supplyState as typeof EMPTY_HIEROPHANT_STATE);
+    dragSupplyTo(supplyPiece(container, "peasant")!, supplyDrop(container, "krolis", "courtyard")!);
+    expect(receiveForm(container)).toBeNull();
+    const pending = container.querySelector("[data-supply-create-pending]");
+    expect(pending?.textContent).toMatch(/Adding Peasant/);
+    expect(container.querySelector('[data-temple-id="krolis"]')?.getAttribute("aria-busy")).toBeNull();
+    expect(container.querySelector('[aria-label="Increase Temple Krolis Abundance"]')).not.toBeNull();
+    await settleQueuedMutation(() => gate.reject?.(new Error("stale temple status")));
+    expect(container.querySelector("[data-supply-create-pending]")).toBeNull();
+    expect(container.textContent).toMatch(/stale temple status/);
+    expect(mockMutations["m3Commands.updateSupplicant"]).not.toHaveBeenCalled();
     root.unmount();
     container.remove();
   });
@@ -1453,7 +1493,8 @@ describe("Hierophant physical piece controls", () => {
     const unnamed = container.querySelector('[data-supplicant-piece="den_blank"]') as HTMLElement;
     const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
     const high = container.querySelector('[data-supplicant-piece="den_high"]') as HTMLElement;
-    expect(named.querySelector("[data-woe-label]")?.textContent).toBe("Woe");
+    expect(named.querySelector("[data-woe-centered]")).not.toBeNull();
+    expect(named.querySelector("[data-woe-label]")?.className).toMatch(/text-center/);
     expect(named.querySelector('[aria-label="Current Woe 1"]')).not.toBeNull();
     expect(named.querySelector("[data-woe-forecast]")).toBeNull();
     expect(named.textContent).not.toContain("Next Visions");
@@ -1750,6 +1791,7 @@ describe("Hierophant physical piece controls", () => {
     const mechanics = named.querySelector("[data-supplicant-stable]") as HTMLElement;
     expect(mechanics.querySelector("[data-supplicant-cost]")).not.toBeNull();
     expect(mechanics.querySelector("[data-supplicant-woe-row]")).not.toBeNull();
+    expect(mechanics.querySelector("[data-woe-centered]")).not.toBeNull();
     expect(mechanics.querySelector("[data-woe-label]")?.textContent).toBe("Woe");
     expect(mechanics.querySelector("[data-supplicant-benefaction]")).not.toBeNull();
     expect(mechanics.textContent?.indexOf("Cost") ?? -1).toBeLessThan(mechanics.textContent?.indexOf("Woe") ?? -1);
@@ -2053,9 +2095,7 @@ describe("Hierophant physical piece controls", () => {
     flushSync(() => { counter.dispatchEvent(new Event("mouseenter", { bubbles: true })); });
     expect(mockMutations["m3Commands.adjustTempleResources"]).not.toHaveBeenCalled();
     dragSupplyTo(supplyPiece(container, "pariah")!, supplyDrop(container, "krolis", "courtyard")!);
-    const form = receiveForm(container)!;
-    expect((form.querySelector("select") as HTMLSelectElement).value).toBe("pariah");
-    flushSync(() => { form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })); });
+    expect(receiveForm(container)).toBeNull();
     await Promise.resolve();
     expect(mockMutations["m3Commands.createHierophantSupplicant"]).toHaveBeenCalledTimes(1);
     expect(mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[0][0].name).toBe("Pariah");
@@ -2340,8 +2380,17 @@ describe("Hierophant primary board Body A controls", () => {
     const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
     expect(krolis.querySelector("[data-doctrine-current]")?.textContent).toContain("worth");
     expect(krolis.querySelector('[aria-label="Supports Artisan, Peasant"]')).not.toBeNull();
-    expect(krolis.querySelector("[data-doctrine-pair]")?.textContent).toMatch(/Paired Blasphemy/);
-    flushSync(() => { (krolis.querySelector("[data-doctrine-pair-action]") as HTMLButtonElement).click(); });
+    expect(krolis.querySelector("[data-doctrine-menu]")).toBeNull();
+    expect(krolis.querySelector("[data-doctrine-pair]")).toBeNull();
+    expect(krolis.textContent).not.toContain("Record paired Blasphemy");
+    expect(krolis.textContent).not.toContain("normally done by a Sermon");
+    expect(krolis.querySelector("[data-doctrine-side]")?.getAttribute("data-doctrine-side")).toBe("orthodox");
+    expect(krolis.querySelector("[data-doctrine-pair-preview]")).toBeNull();
+    const flip = krolis.querySelector("[data-doctrine-pair-action]") as HTMLButtonElement;
+    expect(flip.getAttribute("aria-label")).toBe("Mark this Doctrine Blasphemous");
+    flushSync(() => { flip.focus(); });
+    expect(krolis.querySelector("[data-doctrine-pair-preview]")?.textContent).toMatch(/old land demands the blood/i);
+    flushSync(() => { flip.click(); });
     await settleQueuedMutation();
     expect(mockMutations["m3Commands.updateTemple"]).toHaveBeenCalledTimes(1);
     expect(mockMutations["m3Commands.updateTemple"].mock.calls[0][0].fields.doctrine.value).toEqual({
@@ -2353,10 +2402,15 @@ describe("Hierophant primary board Body A controls", () => {
     expect(mockMutations["m3Commands.establishCult"]).not.toHaveBeenCalled();
     expect(mockMutations["m3Commands.adjustTempleResources"]).not.toHaveBeenCalled();
     const choice = krolis.querySelector('[data-doctrine-choice="charity_measure_of_moral_worth"]') as HTMLButtonElement;
-    expect(choice).not.toBeNull();
-    expect(choice.disabled).toBe(false);
-    flushSync(() => { choice.click(); });
+    expect(choice).toBeNull();
+    flushSync(() => { (krolis.querySelector("[data-doctrine-change]") as HTMLButtonElement).click(); });
+    const opened = krolis.querySelector('[data-doctrine-choice="charity_measure_of_moral_worth"]') as HTMLButtonElement;
+    expect(opened).not.toBeNull();
+    expect(krolis.querySelector("[data-doctrine-menu]")?.getAttribute("data-board-overlay")).toBe("");
+    expect(opened.disabled).toBe(false);
+    flushSync(() => { opened.click(); });
     await settleQueuedMutation();
+    expect(krolis.querySelector("[data-doctrine-menu]")).toBeNull();
     expect(mockMutations["m3Commands.updateTemple"].mock.calls[1][0]).toMatchObject({
       templeId: "krolis",
       fields: {
@@ -2390,6 +2444,7 @@ describe("Hierophant primary board Body A controls", () => {
     expect(krolis.querySelector("[data-doctrine-current]")?.textContent).toContain("A custom table Doctrine");
     expect(krolis.querySelector("[data-doctrine-pair]")).toBeNull();
     expect(krolis.querySelector("[data-doctrine-pair-action]")).toBeNull();
+    expect(krolis.querySelector("[data-doctrine-side]")).toBeNull();
     root.unmount();
     container.remove();
   });
@@ -2402,9 +2457,17 @@ describe("Hierophant primary board Body A controls", () => {
     const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
     const status = krolis.querySelector("[data-temple-status]") as HTMLButtonElement;
     expect(status.getAttribute("data-temple-status")).toBe("active");
-    expect(status.textContent).toBe("Active");
+    expect(status.textContent).toContain("Active");
+    expect(status.textContent).toContain("▾");
+    expect(krolis.querySelector("[data-temple-status-menu]")).toBeNull();
+    expect(krolis.textContent).not.toMatch(/Collapse ordinarily/);
     expect(krolis.querySelector("[data-doctrine-current]")?.textContent).not.toMatch(/^Blasphemous/);
     flushSync(() => { status.click(); });
+    expect(mockMutations["m3Commands.updateTemple"]).not.toHaveBeenCalled();
+    const menu = krolis.querySelector("[data-temple-status-menu]") as HTMLElement;
+    expect(menu.getAttribute("data-board-overlay")).toBe("");
+    expect(menu.querySelector('[data-temple-status-choice="active"]')?.getAttribute("aria-checked")).toBe("true");
+    flushSync(() => { (menu.querySelector('[data-temple-status-choice="collapsed"]') as HTMLButtonElement).click(); });
     await Promise.resolve();
     expect(mockMutations["m3Commands.updateTemple"].mock.calls[0][0]).toMatchObject({
       templeId: "krolis",
@@ -2424,7 +2487,8 @@ describe("Hierophant primary board Body A controls", () => {
     const second = renderChoiceSurface(ushin as typeof EMPTY_HIEROPHANT_STATE, pieceWorld);
     const ushinBoard = second.container.querySelector('[data-temple-id="ushin"]') as HTMLElement;
     expect(ushinBoard.querySelector("[data-temple-status]")?.getAttribute("data-temple-status")).toBe("active");
-    expect(ushinBoard.querySelector("[data-doctrine-current]")?.textContent).toMatch(/Blasphemous/);
+    expect(ushinBoard.querySelector("[data-doctrine-side]")?.getAttribute("data-doctrine-side")).toBe("blasphemous");
+    expect(ushinBoard.textContent).not.toMatch(/Hestar Collapse is especially severe/);
     second.root.unmount();
     second.container.remove();
     root.unmount();
@@ -2459,24 +2523,109 @@ describe("Hierophant primary board Body A controls", () => {
 
   it("keeps the persisted Holiday marker distinct and editable without calendar mutation", async () => {
     mockMutations["m3Commands.setTempleHoliday"] = vi.fn(async () => {});
+    mockMutations["m3Commands.updateTemple"] = vi.fn(async () => {});
     const marked = {
       ...pieceState,
       holidayTempleIds: ["krolis"],
     };
-    const { container, root } = renderChoiceSurface(marked as typeof EMPTY_HIEROPHANT_STATE, pieceWorld);
+    const { container, root, rerender } = renderChoiceSurface(marked as typeof EMPTY_HIEROPHANT_STATE, pieceWorld);
     const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
-    expect(krolis.querySelector('[aria-label="Holiday marked"]')).not.toBeNull();
-    expect(krolis.querySelector('[data-holiday-marker="persisted"]')?.textContent).toBe("Holiday");
+    const chip = krolis.querySelector("[data-holiday-chip]") as HTMLButtonElement;
+    expect(krolis.querySelectorAll("[data-holiday-chip]")).toHaveLength(1);
+    expect(krolis.querySelector("[data-holiday-toggle]")).toBeNull();
+    expect(krolis.querySelector('[data-holiday-marker="persisted"]')).toBeNull();
+    expect(buttonWithText(krolis, "Clear marker")).toBeUndefined();
+    expect(chip.getAttribute("data-holiday-marked")).toBe("true");
+    expect(chip.getAttribute("aria-label")).toBe("Clear Holiday marker from Temple Krolis");
+    expect(chip.className).toMatch(/bg-amber-200|bg-amber-700/);
     expect(krolis.textContent).not.toMatch(/calendar says/i);
-    const toggle = krolis.querySelector("[data-holiday-toggle]") as HTMLButtonElement;
-    expect(toggle.getAttribute("aria-label")).toBe("Clear Holiday marker");
-    flushSync(() => { toggle.click(); });
+    flushSync(() => { chip.click(); });
+    expect(chip.getAttribute("data-holiday-marked")).toBe("false");
+    expect(chip.getAttribute("data-holiday-pending")).toBe("true");
+    expect(krolis.getAttribute("aria-busy")).toBeNull();
     await Promise.resolve();
     expect(mockMutations["m3Commands.setTempleHoliday"]).toHaveBeenCalledTimes(1);
     expect(mockMutations["m3Commands.setTempleHoliday"].mock.calls[0][0]).toMatchObject({
       templeId: "krolis",
       marked: false,
     });
+    expect(mockMutations["m3Commands.updateTemple"]).not.toHaveBeenCalled();
+    rerender({ ...marked, holidayTempleIds: [] } as typeof EMPTY_HIEROPHANT_STATE);
+    const settled = container.querySelector("[data-holiday-chip]") as HTMLButtonElement;
+    expect(settled.getAttribute("data-holiday-marked")).toBe("false");
+    expect(settled.getAttribute("data-holiday-pending")).toBe("false");
+    expect(settled.getAttribute("aria-label")).toBe("Mark Temple Krolis as celebrating a Holiday");
+    expect(settled.className).toMatch(/border-dashed/);
+    root.unmount();
+    container.remove();
+  });
+
+  it("reverts Holiday intent on rejection without locking the Temple", async () => {
+    const gate = { reject: undefined as ((error: Error) => void) | undefined };
+    mockMutations["m3Commands.setTempleHoliday"] = vi.fn(() => new Promise((_resolve, reject) => {
+      gate.reject = reject;
+    }));
+    const { container, root } = renderPieces();
+    const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
+    const chip = krolis.querySelector("[data-holiday-chip]") as HTMLButtonElement;
+    expect(chip.getAttribute("data-holiday-marked")).toBe("false");
+    flushSync(() => { chip.click(); });
+    expect(chip.getAttribute("data-holiday-marked")).toBe("true");
+    expect(chip.getAttribute("data-holiday-pending")).toBe("true");
+    expect(krolis.getAttribute("aria-busy")).toBeNull();
+    await settleQueuedMutation(() => gate.reject?.(new Error("stale holiday")));
+    const reverted = container.querySelector("[data-holiday-chip]") as HTMLButtonElement;
+    expect(reverted.getAttribute("data-holiday-marked")).toBe("false");
+    expect(reverted.getAttribute("data-holiday-pending")).toBe("false");
+    expect(container.textContent).toMatch(/stale holiday/);
+    root.unmount();
+    container.remove();
+  });
+
+  it("reveals Doctrine chevron on hover and opens a floating menu only on click", () => {
+    mockMutations["m3Commands.updateTemple"] = vi.fn(async () => {});
+    const { container, root } = renderChoiceSurface(pieceState as typeof EMPTY_HIEROPHANT_STATE, prophetWorld());
+    const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
+    const doctrine = krolis.querySelector("[data-doctrine-object]") as HTMLElement;
+    const chevron = doctrine.querySelector("[data-doctrine-change]") as HTMLButtonElement;
+    expect(doctrine.querySelector("[data-doctrine-menu]")).toBeNull();
+    expect(doctrine.querySelector("[data-doctrine-prophet-warning]")).toBeNull();
+    expect(krolis.textContent).not.toContain("normally done by a Sermon");
+    expect(chevron.getAttribute("aria-expanded")).toBe("false");
+    flushSync(() => { chevron.focus(); });
+    expect(chevron.className).toMatch(/opacity-100/);
+    expect(doctrine.querySelector("[data-doctrine-menu]")).toBeNull();
+    flushSync(() => { chevron.click(); });
+    expect(chevron.getAttribute("aria-expanded")).toBe("true");
+    const menu = doctrine.querySelector("[data-doctrine-menu]") as HTMLElement;
+    expect(menu.getAttribute("data-board-overlay")).toBe("");
+    expect(menu.className).toMatch(/absolute/);
+    expect(menu.querySelector("[data-doctrine-prophet-warning]")?.textContent).toMatch(/Reliable Prophet here/);
+    flushSync(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(doctrine.querySelector("[data-doctrine-menu]")).toBeNull();
+    expect(mockMutations["m3Commands.updateTemple"]).not.toHaveBeenCalled();
+    root.unmount();
+    container.remove();
+  });
+
+  it("closes Active/Collapsed choices with Escape without expanding the Temple", () => {
+    mockMutations["m3Commands.updateTemple"] = vi.fn(async () => {});
+    const { container, root } = renderPieces();
+    const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
+    const hestar = container.querySelector('[data-temple-id="hestar"]') as HTMLElement;
+    expect(hestar.textContent).not.toMatch(/Hestar Collapse is especially severe/);
+    const status = krolis.querySelector("[data-temple-status]") as HTMLButtonElement;
+    flushSync(() => { status.click(); });
+    expect(krolis.querySelector("[data-temple-status-menu]")?.className).toMatch(/absolute/);
+    flushSync(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(krolis.querySelector("[data-temple-status-menu]")).toBeNull();
+    flushSync(() => { status.click(); });
+    flushSync(() => { (krolis.querySelector('[data-temple-status-choice="active"]') as HTMLButtonElement).click(); });
+    expect(mockMutations["m3Commands.updateTemple"]).not.toHaveBeenCalled();
     root.unmount();
     container.remove();
   });
@@ -2492,8 +2641,8 @@ describe("Hierophant primary board Body B Hestar conversion", () => {
       '[data-temple-resource="krolis"][data-resource-counter="conviction"]',
     ) as HTMLElement;
     const hestar = container.querySelector('[data-temple-id="hestar"]') as HTMLElement;
-    expect(krolisAbundance.querySelector('[data-hestar-convert="abundance"]')?.textContent).toBe("→ Hestar Conviction");
-    expect(krolisConviction.querySelector('[data-hestar-convert="conviction"]')?.textContent).toBe("→ Hestar Abundance");
+    expect(krolisAbundance.querySelector('[data-hestar-convert="abundance"]')?.textContent).toBe("→ H:C");
+    expect(krolisConviction.querySelector('[data-hestar-convert="conviction"]')?.textContent).toBe("→ H:A");
     expect(krolisAbundance.querySelector("[data-hestar-convert]")?.getAttribute("aria-label")).toBe(
       "Convert 1 Abundance at Temple Krolis to 1 Conviction at Hestar",
     );
@@ -2507,7 +2656,9 @@ describe("Hierophant primary board Body B Hestar conversion", () => {
     expect(buttonWithText(container, "Take from...")).toBeUndefined();
     expect(buttonWithText(container, "Provide")).toBeUndefined();
     expect(krolisAbundance.className).toContain("min-w-[3.75rem]");
+    expect(krolisAbundance.querySelector("[data-hestar-convert]")?.getAttribute("data-hestar-convert-placement")).toBe("inside");
     expect(krolisAbundance.querySelector("[data-hestar-convert]")?.className).toMatch(/absolute/);
+    expect(krolisAbundance.querySelector("[data-hestar-convert]")?.className).not.toMatch(/top-full/);
     expect(krolisAbundance.className).not.toMatch(/min-h-\[1\.1rem\]/);
     root.unmount();
     container.remove();

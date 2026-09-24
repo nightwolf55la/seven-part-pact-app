@@ -106,6 +106,8 @@ import {
 } from "./hierophant-visions-preview";
 import {
   resolveHierophantSupplyDestination,
+  isHierophantSupplyClassId,
+  type HierophantPendingSupplyCreate,
   type HierophantSupplyZone,
 } from "./hierophant-supply";
 import {
@@ -122,6 +124,10 @@ import {
   hestarDestinationResource,
   type HierophantHestarConversionController,
 } from "./hierophant-hestar-conversion";
+import {
+  createHierophantHolidayIntentController,
+  type HierophantHolidayIntentController,
+} from "./hierophant-holiday-intent";
 import {
   hierophantSupplicantHostEqual,
   hierophantSupplicantHostFromDrop,
@@ -254,7 +260,7 @@ export default function HierophantSurface({
   const [doctrinePendingTempleIds, setDoctrinePendingTempleIds] = useState<ReadonlySet<string>>(() => new Set());
   const [statusPendingTempleIds, setStatusPendingTempleIds] = useState<ReadonlySet<string>>(() => new Set());
   const [prophetPendingDenizenIds, setProphetPendingDenizenIds] = useState<ReadonlySet<string>>(() => new Set());
-  const [holidayPendingTempleIds, setHolidayPendingTempleIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [pendingSupplyCreates, setPendingSupplyCreates] = useState<readonly HierophantPendingSupplyCreate[]>([]);
   const [steerDestTempleId, setSteerDestTempleId] = useState("");
   const [steerDestArea, setSteerDestArea] = useState<"" | "courtyard" | "agiary">("");
   const [steerAllocationId, setSteerAllocationId] = useState("");
@@ -368,6 +374,28 @@ export default function HierophantSurface({
     });
   }
   const conversionIntents = conversionIntentsRef.current;
+  const holidayIntentsRef = useRef<HierophantHolidayIntentController | null>(null);
+  const setTempleHolidayRef = useRef(setTempleHoliday);
+  setTempleHolidayRef.current = setTempleHoliday;
+  if (holidayIntentsRef.current === null) {
+    holidayIntentsRef.current = createHierophantHolidayIntentController({
+      dispatch: async (templeId, marked) => {
+        await setTempleHolidayRef.current({
+          commandId: newCommandId(),
+          expectedCampaignId: campaignIdRef.current,
+          templeId: templeId as HierophantTempleId,
+          marked,
+        });
+      },
+      onError: (message) => {
+        flushSync(() => setError(message));
+      },
+      onChange: () => {
+        flushSync(() => setResourceIntentGen((n) => n + 1));
+      },
+    });
+  }
+  const holidayIntents = holidayIntentsRef.current;
   const woeIntentsRef = useRef<HierophantWoeIntentController | null>(null);
   if (woeIntentsRef.current === null) {
     woeIntentsRef.current = createHierophantWoeIntentController({
@@ -397,6 +425,7 @@ export default function HierophantSurface({
     resourceIntents.observeAuthoritative(temple.templeId, "conviction", temple.conviction);
     conversionIntents.observeAuthoritative(temple.templeId, "abundance", temple.abundance);
     conversionIntents.observeAuthoritative(temple.templeId, "conviction", temple.conviction);
+    holidayIntents.observe(temple.templeId, hierophant.holidayTempleIds.includes(temple.templeId));
   }
   for (const person of hierophant.supplicants) {
     woeIntents.observeAuthoritative(person.denizenId, person.woe);
@@ -423,6 +452,16 @@ export default function HierophantSurface({
         }
       }
       return changed ? next : prev;
+    });
+  }, [hierophant.supplicants]);
+
+  useEffect(() => {
+    setPendingSupplyCreates((current) => {
+      if (current.length === 0) return current;
+      const next = current.filter((item) =>
+        !hierophant.supplicants.some((person) => person.denizenId === item.denizenId),
+      );
+      return next.length === current.length ? current : next;
     });
   }, [hierophant.supplicants]);
 
@@ -622,26 +661,9 @@ export default function HierophantSurface({
   }
 
   function toggleHolidayMarker(templeId: string, marked: boolean): void {
-    if (holidayPendingTempleIds.has(templeId)) return;
     const currentlyMarked = hierophant.holidayTempleIds.some((id) => id === templeId);
-    if (currentlyMarked === marked) return;
-    setHolidayPendingTempleIds((current) => new Set(current).add(templeId));
     setError(null);
-    void setTempleHoliday({
-      commandId: newCommandId(),
-      expectedCampaignId: campaignIdRef.current,
-      templeId: templeId as HierophantTempleId,
-      marked,
-    }).then(
-      () => {
-        clearPendingId(setHolidayPendingTempleIds, templeId);
-      },
-      (e: unknown) => {
-        const message = e instanceof Error ? e.message : "Mutation failed.";
-        flushSync(() => setError(message));
-        clearPendingId(setHolidayPendingTempleIds, templeId);
-      },
-    );
+    holidayIntentsRef.current?.request(templeId, marked, currentlyMarked);
   }
 
   const initialized = isHierophantInitialized(hierophant);
@@ -1430,6 +1452,7 @@ export default function HierophantSurface({
               activeClassId: supplyClassId,
               hoverKey: supplyHoverKey,
               blockNotice: supplyBlock,
+              pendingCreates: pendingSupplyCreates,
               peekActiveClassId: () => supplyClassRef.current,
               onBegin: (classId: HierophantBuiltinClassId) => {
                 supplyClassRef.current = classId;
@@ -1441,22 +1464,51 @@ export default function HierophantSurface({
                 setSupplyHoverKey(key);
               },
               onDeliver: (temple, zone: HierophantSupplyZone, classIdFromDrag) => {
-                const classId = classIdFromDrag ?? supplyClassRef.current;
-                if (classId === null || classId === undefined) return;
+                const rawClass = classIdFromDrag ?? supplyClassRef.current;
+                if (rawClass === null || rawClass === undefined || !isHierophantSupplyClassId(rawClass)) return;
                 const dest = resolveHierophantSupplyDestination(temple, zone);
+                supplyClassRef.current = null;
+                setSupplyClassId(null);
+                setSupplyHoverKey(null);
                 if (dest === null) return;
                 if (dest.kind === "blocked") {
                   setSupplyBlock({ templeId: dest.templeId, reason: dest.reason });
                   return;
                 }
                 setSupplyBlock(null);
-                openReceive(temple, {
-                  classId,
-                  area: dest.area === null ? "" : dest.area,
-                });
-                supplyClassRef.current = null;
-                setSupplyClassId(null);
-                setSupplyHoverKey(null);
+                const klass = classLabel(rawClass, hierophant.campaignClasses);
+                const pendingCreate: HierophantPendingSupplyCreate = {
+                  commandId: newCommandId(),
+                  denizenId: newDenizenId(),
+                  classId: rawClass,
+                  classLabel: klass,
+                  templeId: temple.templeId,
+                  area: dest.area,
+                };
+                setPendingSupplyCreates((current) => [...current, pendingCreate]);
+                setError(null);
+                void createHierophantSupplicant(buildCreateHierophantSupplicantPayload({
+                  commandId: pendingCreate.commandId,
+                  expectedCampaignId: campaignIdRef.current,
+                  denizenId: pendingCreate.denizenId,
+                  name: persistableSupplicantName("", klass),
+                  classId: pendingCreate.classId,
+                  woe: 0,
+                  templeId: pendingCreate.templeId,
+                  area: pendingCreate.area,
+                  expectedTempleStatus: temple.status,
+                })).then(
+                  () => undefined,
+                  (e: unknown) => {
+                    const message = e instanceof Error ? e.message : "Mutation failed.";
+                    flushSync(() => {
+                      setPendingSupplyCreates((current) =>
+                        current.filter((item) => item.denizenId !== pendingCreate.denizenId),
+                      );
+                      setError(message);
+                    });
+                  },
+                );
               },
               onCancel: () => {
                 supplyClassRef.current = null;
@@ -1567,7 +1619,7 @@ export default function HierophantSurface({
               doctrinePendingTempleIds,
               statusPendingTempleIds,
               prophetPendingDenizenIds,
-              holidayPendingTempleIds,
+              holidayView: (templeId, authoritativeMarked) => holidayIntents.view(templeId, authoritativeMarked),
             }}
           />
           {(() => {

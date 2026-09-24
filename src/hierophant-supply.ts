@@ -12,6 +12,15 @@ export type HierophantSupplyClassId = (typeof HIEROPHANT_SUPPLY_CLASS_IDS)[numbe
 
 export type HierophantSupplyZone = "courtyard" | "agiary" | "hestar" | "blocked";
 
+export interface HierophantPendingSupplyCreate {
+  readonly commandId: string;
+  readonly denizenId: string;
+  readonly classId: string;
+  readonly classLabel: string;
+  readonly templeId: string;
+  readonly area: "courtyard" | "agiary" | null;
+}
+
 export const HIEROPHANT_SUPPLY_BLOCKED_REASON =
   "Receive Supplicant is not available at a collapsed Temple";
 

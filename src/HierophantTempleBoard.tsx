@@ -1,4 +1,4 @@
-import { useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import {
   powerfulStatusLabel,
   type DenizenId,
@@ -45,11 +45,6 @@ import {
   doctrineText,
   hierophantDoctrineChoices,
   pairedOrdinaryDoctrineState,
-  ordinaryDoctrineStatesEqual,
-  DOCTRINE_CHANGE_SOURCE_GUIDANCE,
-  DOCTRINE_RELIABLE_PROPHET_SOURCE_GUIDANCE,
-  COLLAPSE_SOURCE_GUIDANCE,
-  HESTAR_COLLAPSE_SOURCE_GUIDANCE,
 } from "./hierophant-view-model";
 import { formatVisionsPreviewChoiceSummary } from "./hierophant-visions-preview";
 import HierophantClassBadge from "./hierophant-class-badge";
@@ -68,6 +63,7 @@ import {
   readHierophantSupplyDragClass,
   resolveHierophantSupplyDestination,
   writeHierophantSupplyDragData,
+  type HierophantPendingSupplyCreate,
   type HierophantSupplyClassId,
   type HierophantSupplyZone,
 } from "./hierophant-supply";
@@ -101,6 +97,7 @@ export interface HierophantSupplyBoardInteraction {
   readonly activeClassId: string | null;
   readonly hoverKey: string | null;
   readonly blockNotice: { readonly templeId: string; readonly reason: string } | null;
+  readonly pendingCreates: readonly HierophantPendingSupplyCreate[];
   readonly peekActiveClassId: () => string | null;
   readonly onBegin: (classId: HierophantBuiltinClassId) => void;
   readonly onHover: (key: string | null) => void;
@@ -172,7 +169,13 @@ export interface HierophantPieceControls {
   readonly doctrinePendingTempleIds: ReadonlySet<string>;
   readonly statusPendingTempleIds: ReadonlySet<string>;
   readonly prophetPendingDenizenIds: ReadonlySet<string>;
-  readonly holidayPendingTempleIds: ReadonlySet<string>;
+  readonly holidayView: (
+    templeId: string,
+    authoritativeMarked: boolean,
+  ) => {
+    readonly marked: boolean;
+    readonly pending: boolean;
+  };
 }
 
 function SupplyClassPiece({
@@ -409,6 +412,31 @@ function doctrineStateLabel(temple: HierophantTemple, campaignDoctrines: Hieroph
   return templeDoctrineSummary(temple, campaignDoctrines);
 }
 
+function pendingCreatesForZone(
+  pending: readonly HierophantPendingSupplyCreate[] | undefined,
+  templeId: string,
+  groupKey: string,
+): readonly HierophantPendingSupplyCreate[] {
+  if (pending === undefined) return [];
+  return pending.filter((item) => {
+    if (item.templeId !== templeId) return false;
+    if (groupKey === "courtyard") return item.area === "courtyard";
+    if (groupKey === "agiary") return item.area === "agiary";
+    if (groupKey === "hestar") return item.area === null;
+    return false;
+  });
+}
+
+function PendingSupplyGhost({ item }: { readonly item: HierophantPendingSupplyCreate }) {
+  return (
+    <li data-supply-create-pending={item.denizenId} aria-busy="true">
+      <div className="rounded-md border border-dashed border-amber-700/40 bg-amber-50/70 px-2 py-1 text-[11px] font-medium text-amber-950 dark:border-amber-400/40 dark:bg-amber-950/40 dark:text-amber-50">
+        {`Adding ${item.classLabel}…`}
+      </div>
+    </li>
+  );
+}
+
 function areaGroups(supplicants: readonly HierophantSupplicant[], isHestar: boolean) {
   if (isHestar) {
     return [{ key: "hestar", label: "Hosted at Hestar", people: [...supplicants] }];
@@ -491,7 +519,32 @@ function ResourceCounter({
         }
       }}
     >
-      <span className="text-[10px] font-semibold uppercase tracking-wide">{label}</span>
+      <div className="flex w-full items-start justify-between gap-0.5">
+        <span className="text-[10px] font-semibold uppercase tracking-wide leading-none">{label}</span>
+        {conversion !== null && convertAria !== null && (
+          <button
+            type="button"
+            data-hestar-convert={resource}
+            data-hestar-convert-target={hestarDestinationResource(resource)}
+            data-hestar-convert-placement="inside"
+            className={`absolute right-0.5 top-0.5 z-10 whitespace-nowrap rounded px-0.5 py-px text-[9px] font-bold leading-none tracking-tight text-stone-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-stone-100 ${
+              revealed ? "opacity-100" : "pointer-events-none opacity-0"
+            }`}
+            aria-label={convertAria}
+            title={convertAria}
+            disabled={!convertAvailable || convertDisabled}
+            onMouseDown={stopNestedControlPointer}
+            onPointerDown={stopNestedControlPointer}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (!convertAvailable || convertDisabled) return;
+              conversion.onConvert();
+            }}
+          >
+            {hierophantHestarConversionVisibleLabel(resource)}
+          </button>
+        )}
+      </div>
       <div className="flex items-center gap-0.5">
         <button
           type="button"
@@ -527,25 +580,6 @@ function ResourceCounter({
           +
         </button>
       </div>
-      {conversion !== null && convertAria !== null && (
-        <button
-          type="button"
-          data-hestar-convert={resource}
-          data-hestar-convert-target={hestarDestinationResource(resource)}
-          className={`absolute left-1/2 top-full z-20 mt-0.5 -translate-x-1/2 whitespace-nowrap rounded border border-stone-600/50 bg-white px-1 py-0.5 text-[10px] font-semibold leading-none text-stone-800 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-300/40 dark:bg-slate-900 dark:text-stone-100 ${
-            revealed ? "opacity-100" : "pointer-events-none opacity-0"
-          }`}
-          aria-label={convertAria}
-          disabled={!convertAvailable || convertDisabled}
-          onClick={(event) => {
-            event.stopPropagation();
-            if (!convertAvailable || convertDisabled) return;
-            conversion.onConvert();
-          }}
-        >
-          {hierophantHestarConversionVisibleLabel(resource)}
-        </button>
-      )}
       {view.pending && <span className="sr-only">Saving {label}</span>}
       {view.error !== null && (
         <span data-resource-error="" className="mt-0.5 text-[10px] font-medium text-rose-800 dark:text-rose-200">
@@ -563,6 +597,35 @@ function ResourceCounter({
 
 function stopNestedControlPointer(event: { stopPropagation: () => void }): void {
   event.stopPropagation();
+}
+
+function useDismissibleOpen(
+  open: boolean,
+  onClose: () => void,
+  rootRef: { readonly current: HTMLElement | null },
+): void {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    if (!open) return;
+    function onKey(event: globalThis.KeyboardEvent): void {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        onCloseRef.current();
+      }
+    }
+    function onPointer(event: MouseEvent): void {
+      if (rootRef.current !== null && !rootRef.current.contains(event.target as Node)) {
+        onCloseRef.current();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onPointer);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onPointer);
+    };
+  }, [open, rootRef]);
 }
 
 function WoePips({
@@ -603,7 +666,7 @@ function WoePips({
     <div
       data-woe-pips={denizenId}
       data-woe-pending={pending ? "true" : "false"}
-      className="group inline-flex min-w-0 flex-1 items-center gap-0.5"
+      className="group inline-flex min-w-0 items-center justify-center gap-0.5"
       aria-label={ariaLabel}
       aria-busy={pending}
       onMouseEnter={() => setRevealed(true)}
@@ -901,14 +964,14 @@ function SupplicantPiece({
               </p>
             </div>
           )}
-          <div data-supplicant-woe-row="" className="min-w-0">
+          <div data-supplicant-woe-row="" data-woe-centered="" className="flex min-w-0 flex-col items-center text-center">
             <p
               data-woe-label=""
-              className="font-semibold uppercase tracking-wide text-[10px] text-slate-500 dark:text-slate-400"
+              className="w-full text-center font-semibold uppercase tracking-wide text-[10px] text-slate-500 dark:text-slate-400"
             >
               Woe
             </p>
-            <div data-supplicant-current-woe="" className="min-w-0">
+            <div data-supplicant-current-woe="" className="flex w-full justify-center">
               <WoePips
                 displayWoe={woeView.displayed}
                 authoritativeWoe={woeView.authoritative}
@@ -1023,32 +1086,130 @@ function TempleStatusControl({
   readonly onRecord: (next: HierophantTempleStatus) => void;
 }) {
   const status = templePhysicalStatus(temple);
-  const next: HierophantTempleStatus = status.kind === "collapsed" ? "active" : "collapsed";
-  const nextLabel = next === "collapsed" ? "Collapsed" : "Active";
+  const [menuOpen, setMenuOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useDismissibleOpen(menuOpen, () => setMenuOpen(false), rootRef);
   return (
-    <div className="flex flex-col items-end gap-0.5">
+    <div ref={rootRef} className="relative" data-temple-status-control="">
       <button
         type="button"
         data-temple-status={status.kind}
         data-temple-status-pending={pending ? "true" : "false"}
         aria-busy={pending}
-        aria-label={`Temple status ${status.label}. Record ${nextLabel}`}
-        className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        aria-label={`Temple status ${status.label}`}
+        className={`inline-flex shrink-0 items-center gap-0.5 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
           status.kind === "collapsed"
             ? "bg-stone-800 text-stone-100"
             : "bg-emerald-800 text-emerald-50"
         } ${pending ? "ring-1 ring-amber-700/40 dark:ring-amber-300/30" : ""}`}
+        onMouseDown={stopNestedControlPointer}
+        onPointerDown={stopNestedControlPointer}
         onClick={(event) => {
           event.stopPropagation();
-          if (pending) return;
-          onRecord(next);
+          setMenuOpen((open) => !open);
         }}
       >
         {status.label}
+        <span aria-hidden="true">▾</span>
       </button>
-      <p className="max-w-[11rem] text-right text-[9px] font-medium leading-tight text-slate-600 dark:text-slate-300">
-        {temple.kind === "hestar" ? HESTAR_COLLAPSE_SOURCE_GUIDANCE : COLLAPSE_SOURCE_GUIDANCE}
-      </p>
+      {menuOpen && (
+        <div
+          role="menu"
+          data-temple-status-menu=""
+          data-board-overlay=""
+          className="absolute right-0 z-40 mt-1 min-w-[7.5rem] rounded-md border border-stone-500/40 bg-white p-1 shadow-lg dark:border-stone-300/30 dark:bg-slate-900"
+        >
+          {(["active", "collapsed"] as const).map((choice) => {
+            const selected = status.kind === choice;
+            const label = choice === "collapsed" ? "Collapsed" : "Active";
+            return (
+              <button
+                key={choice}
+                type="button"
+                role="menuitemradio"
+                aria-checked={selected}
+                data-temple-status-choice={choice}
+                className="flex w-full items-center gap-1 rounded px-1.5 py-1 text-left text-[11px] font-semibold hover:bg-amber-100 dark:hover:bg-amber-950/60"
+                onMouseDown={stopNestedControlPointer}
+                onPointerDown={stopNestedControlPointer}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setMenuOpen(false);
+                  if (pending || selected) return;
+                  onRecord(choice);
+                }}
+              >
+                <span className="inline-block w-3 text-[10px]" aria-hidden="true">{selected ? "✓" : ""}</span>
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DoctrineSideControl({
+  currentKind,
+  pairPreviewLabel,
+  pairPreviewText,
+  pending,
+  onFlip,
+}: {
+  readonly currentKind: "doctrine" | "blasphemy";
+  readonly pairPreviewLabel: string;
+  readonly pairPreviewText: string;
+  readonly pending: boolean;
+  readonly onFlip: () => void;
+}) {
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const orthodox = currentKind === "doctrine";
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setPreviewOpen(true)}
+      onMouseLeave={() => setPreviewOpen(false)}
+      onFocusCapture={() => setPreviewOpen(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setPreviewOpen(false);
+        }
+      }}
+    >
+      <button
+        type="button"
+        data-doctrine-side={orthodox ? "orthodox" : "blasphemous"}
+        data-doctrine-pair-action=""
+        aria-busy={pending}
+        aria-label={orthodox ? "Mark this Doctrine Blasphemous" : "Restore paired Orthodox Doctrine"}
+        className={`inline-flex items-center gap-0.5 rounded border px-1 py-px text-[9px] font-bold uppercase tracking-wide focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
+          orthodox
+            ? "border-emerald-700/50 text-emerald-950 dark:text-emerald-50"
+            : "border-rose-700/50 text-rose-950 dark:text-rose-50"
+        }`}
+        onMouseDown={stopNestedControlPointer}
+        onPointerDown={stopNestedControlPointer}
+        onClick={(event) => {
+          event.stopPropagation();
+          onFlip();
+        }}
+      >
+        {orthodox ? "Orthodox" : "Blasphemous"}
+        <span aria-hidden="true">↔</span>
+      </button>
+      {previewOpen && (
+        <div
+          data-doctrine-pair-preview=""
+          role="tooltip"
+          className="absolute right-0 z-40 mt-1 w-56 rounded-md border border-stone-500/40 bg-white p-1.5 text-left text-[11px] leading-snug shadow-lg dark:border-stone-300/30 dark:bg-slate-900"
+        >
+          <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">{pairPreviewLabel}</p>
+          <p>{pairPreviewText}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -1066,7 +1227,10 @@ function OrdinaryDoctrineObject({
   readonly pending: boolean;
   readonly onRecord: (next: OrdinaryTempleDoctrineState) => void;
 }) {
-  const [revealed, setRevealed] = useState(false);
+  const [controlsRevealed, setControlsRevealed] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useDismissibleOpen(menuOpen, () => setMenuOpen(false), rootRef);
   const pair = pairedOrdinaryDoctrineState(temple.doctrine, hierophant.campaignDoctrines);
   const choices = hierophantDoctrineChoices(hierophant.campaignDoctrines);
   const reliableProphet = hostedProphets(hierophant.prophets, { kind: "temple", templeId: temple.templeId })
@@ -1077,112 +1241,162 @@ function OrdinaryDoctrineObject({
   const pairPreview = pair === null
     ? null
     : pair.kind === "blasphemy"
-      ? `Paired Blasphemy: ${blasphemyText(pair.blasphemyId, hierophant.campaignDoctrines)}`
+      ? { label: "Blasphemy", text: blasphemyText(pair.blasphemyId, hierophant.campaignDoctrines) }
       : pair.kind === "doctrine"
-        ? `Paired Doctrine: ${doctrineText(pair.doctrineId, hierophant.campaignDoctrines)}`
+        ? { label: "Doctrine", text: doctrineText(pair.doctrineId, hierophant.campaignDoctrines) }
         : null;
-  const pairActionLabel = pair === null
-    ? null
-    : pair.kind === "blasphemy"
-      ? "Record paired Blasphemy"
-      : pair.kind === "doctrine"
-        ? "Record paired Doctrine"
-        : null;
+  const chevronVisible = controlsRevealed || menuOpen;
+  const supportedClassIds = templeSupportedClassIds(temple, hierophant.campaignDoctrines);
   return (
     <div
+      ref={rootRef}
       data-doctrine-object=""
       data-doctrine-pending={pending ? "true" : "false"}
-      className="rounded-md border border-amber-900/20 bg-amber-50/80 px-2 py-1 dark:border-amber-200/20 dark:bg-amber-950/30"
-      onMouseEnter={() => setRevealed(true)}
-      onMouseLeave={() => setRevealed(false)}
-      onFocusCapture={() => setRevealed(true)}
+      className="relative rounded-md border border-amber-900/20 bg-amber-50/80 px-2 py-1 dark:border-amber-200/20 dark:bg-amber-950/30"
+      onMouseEnter={() => setControlsRevealed(true)}
+      onMouseLeave={() => setControlsRevealed(false)}
+      onFocusCapture={() => setControlsRevealed(true)}
       onBlurCapture={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          setRevealed(false);
+          setControlsRevealed(false);
         }
       }}
     >
       <div className="flex items-start justify-between gap-2">
         <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Doctrine</p>
-        <button
-          type="button"
-          data-doctrine-change=""
-          className={`rounded border border-amber-800/40 px-1 py-px text-[10px] font-semibold text-amber-950 transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 dark:text-amber-50 ${
-            revealed ? "opacity-100" : "opacity-0"
-          }`}
-          aria-expanded={revealed}
-          aria-haspopup="listbox"
-          aria-busy={pending}
-          onClick={(event) => {
-            event.stopPropagation();
-            setRevealed(true);
-          }}
-        >
-          Change...
-        </button>
+        <div className="flex items-center gap-1">
+          {pair !== null && pairPreview !== null && (temple.doctrine.kind === "doctrine" || temple.doctrine.kind === "blasphemy") && (
+            <DoctrineSideControl
+              currentKind={temple.doctrine.kind}
+              pairPreviewLabel={pairPreview.label}
+              pairPreviewText={pairPreview.text}
+              pending={pending}
+              onFlip={() => onRecord(pair)}
+            />
+          )}
+          <button
+            type="button"
+            data-doctrine-change=""
+            className={`rounded border border-amber-800/40 px-1 py-px text-[10px] font-semibold leading-none text-amber-950 transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 dark:text-amber-50 ${
+              chevronVisible ? "opacity-100" : "opacity-0"
+            }`}
+            aria-expanded={menuOpen}
+            aria-haspopup="listbox"
+            aria-label="Change Doctrine"
+            aria-busy={pending}
+            onMouseDown={stopNestedControlPointer}
+            onPointerDown={stopNestedControlPointer}
+            onClick={(event) => {
+              event.stopPropagation();
+              setMenuOpen((open) => !open);
+            }}
+          >
+            ▾
+          </button>
+        </div>
       </div>
       <p
         data-doctrine-current=""
         className={`text-sm ${temple.doctrine.kind === "unset" ? "italic text-slate-600 dark:text-slate-300" : ""}`}
       >
-        {doctrineStateLabel(temple, hierophant.campaignDoctrines)}
+        {templeDoctrineSummary(temple, hierophant.campaignDoctrines)}
       </p>
-      <ul
-        role="listbox"
-        data-doctrine-menu=""
-        className={
-          revealed
-            ? "mt-1 max-h-40 overflow-auto rounded border border-amber-800/30 bg-white p-1 text-left shadow-md dark:border-amber-500/30 dark:bg-slate-900"
-            : "hidden"
-        }
-      >
-        {choices.map((choice) => {
-          const selected = temple.doctrine.kind === "doctrine" && temple.doctrine.doctrineId === choice.doctrineId;
-          return (
-            <li key={choice.doctrineId}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={selected}
-                data-doctrine-choice={choice.doctrineId}
-                className="w-full rounded px-1.5 py-1 text-left text-[11px] font-medium hover:bg-amber-100 dark:hover:bg-amber-950/60 disabled:opacity-60"
-                disabled={selected}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (selected) return;
-                  onRecord({ kind: "doctrine", doctrineId: choice.doctrineId as never });
-                }}
-              >
-                {choice.text}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-      {pairPreview !== null && (
-        <p data-doctrine-pair="" className="mt-1 text-[11px] leading-snug text-slate-600 dark:text-slate-300">
-          {pairPreview}
-        </p>
-      )}
-      {pair !== null && pairActionLabel !== null && !ordinaryDoctrineStatesEqual(temple.doctrine, pair) && (
-        <button
-          type="button"
-          data-doctrine-pair-action=""
-          className="mt-1 rounded border border-rose-700/40 px-1.5 py-0.5 text-[10px] font-semibold text-rose-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-700 dark:text-rose-50"
-          aria-busy={pending}
-          onClick={(event) => {
-            event.stopPropagation();
-            onRecord(pair);
-          }}
+      {supportedClassIds.length > 0 ? (
+        <div className="mt-1" aria-label={`Supports ${supportedClassIds.map((classId) => classLabel(classId, hierophant.campaignClasses)).join(", ")}`}>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Supports</p>
+          <div className="mt-0.5 flex flex-wrap gap-1">
+            {supportedClassIds.map((classId) => (
+              <HierophantClassBadge
+                key={classId}
+                classId={classId}
+                label={classLabel(classId, hierophant.campaignClasses)}
+              />
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {menuOpen && (
+        <div
+          role="listbox"
+          data-doctrine-menu=""
+          data-board-overlay=""
+          className="absolute left-0 right-0 z-40 mt-1 max-h-40 overflow-auto rounded border border-amber-800/30 bg-white p-1 text-left shadow-lg dark:border-amber-500/30 dark:bg-slate-900"
         >
-          {pairActionLabel}
-        </button>
+          {reliableProphet && (
+            <p data-doctrine-prophet-warning="" className="mb-1 px-1.5 py-1 text-[11px] leading-snug text-slate-600 dark:text-slate-300">
+              Reliable Prophet here — changing Doctrine is associated with Prophet disruption, Cult creation, and the former Doctrine becoming Blasphemous.
+            </p>
+          )}
+          {choices.map((choice) => {
+            const selected = temple.doctrine.kind === "doctrine" && temple.doctrine.doctrineId === choice.doctrineId;
+            return (
+              <div key={choice.doctrineId} role="none">
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  data-doctrine-choice={choice.doctrineId}
+                  className="w-full rounded px-1.5 py-1 text-left text-[11px] font-medium hover:bg-amber-100 dark:hover:bg-amber-950/60 disabled:opacity-60"
+                  disabled={selected}
+                  onMouseDown={stopNestedControlPointer}
+                  onPointerDown={stopNestedControlPointer}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (selected) return;
+                    onRecord({ kind: "doctrine", doctrineId: choice.doctrineId as never });
+                    setMenuOpen(false);
+                  }}
+                >
+                  {choice.text}
+                </button>
+              </div>
+            );
+          })}
+        </div>
       )}
-      <p className="mt-1 text-[9px] font-medium leading-tight text-slate-600 dark:text-slate-300">
-        {DOCTRINE_CHANGE_SOURCE_GUIDANCE}
-        {reliableProphet ? ` ${DOCTRINE_RELIABLE_PROPHET_SOURCE_GUIDANCE}` : ""}
-      </p>
     </div>
+  );
+}
+
+function HolidayChip({
+  templeName,
+  marked,
+  pending,
+  onToggle,
+}: {
+  readonly templeName: string;
+  readonly marked: boolean;
+  readonly pending: boolean;
+  readonly onToggle: (next: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-holiday-chip=""
+      data-holiday-marked={marked ? "true" : "false"}
+      data-holiday-pending={pending ? "true" : "false"}
+      aria-pressed={marked}
+      aria-busy={pending}
+      aria-label={
+        marked
+          ? `Clear Holiday marker from ${templeName}`
+          : `Mark ${templeName} as celebrating a Holiday`
+      }
+      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
+        marked
+          ? "border-2 border-amber-600 bg-amber-200 text-amber-950 dark:border-amber-300 dark:bg-amber-700 dark:text-amber-50"
+          : "border border-dashed border-amber-700/50 bg-transparent text-amber-900/80 dark:border-amber-400/50 dark:text-amber-100/80"
+      } ${pending ? "ring-1 ring-amber-700/40 dark:ring-amber-300/30" : ""}`}
+      onMouseDown={stopNestedControlPointer}
+      onPointerDown={stopNestedControlPointer}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (pending) return;
+        onToggle(!marked);
+      }}
+    >
+      {marked ? "Holiday" : "+ Holiday"}
+    </button>
   );
 }
 
@@ -1223,12 +1437,11 @@ function TemplePiece({
   });
   const prophets = hostedProphets(hierophant.prophets, { kind: "temple", templeId: temple.templeId });
   const researchers = templeResearchers(presence, temple.templeId);
-  const holiday = hierophant.holidayTempleIds.includes(temple.templeId);
+  const holidayView = pieces.holidayView(temple.templeId, hierophant.holidayTempleIds.includes(temple.templeId));
   const groups = areaGroups(hosted, isHestar);
   const status = templePhysicalStatus(temple);
   const blasphemousDoctrine = temple.kind === "ordinary" && temple.doctrine.kind === "blasphemy";
   const name = templeDisplayName(temple, places);
-  const holidayPending = pieces.holidayPendingTempleIds.has(temple.templeId);
   const templePreview: HierophantVisionsTemplePreview | undefined = plan.temples.find((entry) => entry.templeId === temple.templeId);
   const fallbackChoice = choices.openChoices.find(
     (choice) => choice.kind === "hestar_fallback" && choice.templeId === temple.templeId,
@@ -1251,7 +1464,6 @@ function TemplePiece({
         donorResource: donorChoices[0]?.resource,
         donorLabels: [...new Set(donorLabels)],
       });
-  const supportedClassIds = templeSupportedClassIds(temple, hierophant.campaignDoctrines);
   const previews = new Map(plan.supplicants.map((entry) => [entry.denizenId, entry]));
   const orderChoice = choices.openChoices.find((choice) => choice.kind === "supplicant_order");
   const orderParticipants = orderChoice?.kind === "supplicant_order" ? orderChoice.participantIds : [];
@@ -1284,36 +1496,19 @@ function TemplePiece({
               {isHestar ? " · Hestar" : ""}
             </h3>
           </button>
-          <TempleStatusControl
-            temple={temple}
-            pending={pieces.statusPendingTempleIds.has(temple.templeId)}
-            onRecord={(next) => pieces.onRecordTempleStatus(temple.templeId, next)}
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {holiday && (
-            <span
-              data-holiday-marker="persisted"
-              className="rounded-full border-2 border-amber-600 bg-amber-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-amber-950 dark:border-amber-300 dark:bg-amber-700 dark:text-amber-50"
-              aria-label="Holiday marked"
-            >
-              Holiday
-            </span>
-          )}
-          <button
-            type="button"
-            data-holiday-toggle=""
-            className="rounded border border-amber-800/40 px-1.5 py-0.5 text-[10px] font-semibold text-amber-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:opacity-60 dark:text-amber-50"
-            aria-pressed={holiday}
-            aria-label={holiday ? "Clear Holiday marker" : "Mark Holiday"}
-            disabled={holidayPending}
-            onClick={(event) => {
-              event.stopPropagation();
-              pieces.onToggleHoliday(temple.templeId, !holiday);
-            }}
-          >
-            {holiday ? "Clear marker" : "Mark Holiday"}
-          </button>
+          <div className="flex shrink-0 items-start gap-1.5">
+            <HolidayChip
+              templeName={name}
+              marked={holidayView.marked}
+              pending={holidayView.pending}
+              onToggle={(next) => pieces.onToggleHoliday(temple.templeId, next)}
+            />
+            <TempleStatusControl
+              temple={temple}
+              pending={pieces.statusPendingTempleIds.has(temple.templeId)}
+              onRecord={(next) => pieces.onRecordTempleStatus(temple.templeId, next)}
+            />
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <ResourceCounter
@@ -1354,20 +1549,6 @@ function TemplePiece({
               pending={pieces.doctrinePendingTempleIds.has(temple.templeId)}
               onRecord={(next) => pieces.onRecordDoctrine(temple.templeId, next)}
             />
-            {supportedClassIds.length > 0 ? (
-              <div className="mt-0" aria-label={`Supports ${supportedClassIds.map((classId) => classLabel(classId, hierophant.campaignClasses)).join(", ")}`}>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Supports</p>
-                <div className="mt-0.5 flex flex-wrap gap-1">
-                  {supportedClassIds.map((classId) => (
-                    <HierophantClassBadge
-                      key={classId}
-                      classId={classId}
-                      label={classLabel(classId, hierophant.campaignClasses)}
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : null}
           </>
         ) : (
           <div className="rounded-md border border-amber-900/20 bg-amber-50/80 px-2 py-1 dark:border-amber-200/20 dark:bg-amber-950/30">
@@ -1433,16 +1614,20 @@ function TemplePiece({
           group.key === "courtyard" || group.key === "agiary" || group.key === "hestar"
             ? group.key
             : null;
+        const pendingCreates = pendingCreatesForZone(supply?.pendingCreates, temple.templeId, group.key);
         const section = (
         <section aria-label={group.label} className="text-sm">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{group.label}</h4>
-          {group.people.length === 0 ? (
+          {group.people.length === 0 && pendingCreates.length === 0 ? (
             <div
               className="mt-1 min-h-[2.25rem] rounded-md border border-dashed border-amber-900/20 bg-amber-50/40 dark:border-amber-200/15 dark:bg-amber-950/20"
               aria-hidden="true"
             />
           ) : (
             <ul className="flex flex-col gap-1.5 mt-1">
+              {pendingCreates.map((item) => (
+                <PendingSupplyGhost key={item.denizenId} item={item} />
+              ))}
               {group.people.map((person) => (
                 <SupplicantPiece
                   key={person.denizenId}
