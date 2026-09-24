@@ -1483,30 +1483,18 @@ function MarinerMap({
                 <SourceSymbolClone href={href} fill="#0f172a" stroke="none" />
               </g>
               {marketDropTarget !== null && (
-                <g data-market-drop-fill pointerEvents="none">
-                  <mask
-                    id={`mariner-market-drop-mask-${isle.boardIsleId}`}
-                    maskUnits="userSpaceOnUse"
-                    x={0}
-                    y={0}
-                    width={MARINER_SOURCE_BOARD.width}
-                    height={MARINER_SOURCE_BOARD.height}
-                  >
-                    <rect width={MARINER_SOURCE_BOARD.width} height={MARINER_SOURCE_BOARD.height} fill="black" />
-                    <SourceSymbolClone href={href} fill="white" stroke="none" />
-                  </mask>
-                  <rect
-                    width={MARINER_SOURCE_BOARD.width}
-                    height={MARINER_SOURCE_BOARD.height}
-                    fill={marketDropTarget === "hover" ? "#f59e0b" : "#fcd34d"}
-                    mask={`url(#mariner-market-drop-mask-${isle.boardIsleId})`}
-                    opacity={marketDropTarget === "hover" ? 0.52 : 0.3}
-                  />
+                <g
+                  data-market-drop-edge
+                  data-market-drop-edge-strength={marketDropTarget}
+                  pointerEvents="none"
+                  filter={marketDropTarget === "hover" ? "url(#mariner-isle-shore-glow)" : undefined}
+                  color={marketDropTarget === "hover" ? "#f59e0b" : "#fbbf24"}
+                >
                   <SourceSymbolClone
                     href={href}
                     fill="none"
                     stroke={marketDropTarget === "hover" ? "#b45309" : "#d97706"}
-                    strokeWidth={marketDropTarget === "hover" ? 3 : 2}
+                    strokeWidth={marketDropTarget === "hover" ? 4.5 : 2.5}
                   />
                 </g>
               )}

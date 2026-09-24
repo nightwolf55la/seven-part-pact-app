@@ -4862,8 +4862,12 @@ function marketDropTarget(container: HTMLElement, boardIsleId: string): string |
   return isleHit(container, boardIsleId).getAttribute("data-market-drop-target");
 }
 
-function marketDropFillPresent(container: HTMLElement, boardIsleId: string): boolean {
-  return isleHit(container, boardIsleId).querySelector("[data-market-drop-fill]") !== null;
+function marketDropEdge(container: HTMLElement, boardIsleId: string): Element | null {
+  return isleHit(container, boardIsleId).querySelector("[data-market-drop-edge]");
+}
+
+function marketDropInteriorFill(container: HTMLElement, boardIsleId: string): Element | null {
+  return isleHit(container, boardIsleId).querySelector("[data-market-drop-interior-fill]");
 }
 
 describe("M5.4 Mariner Market drop highlighting (Body A correction)", () => {
@@ -4872,9 +4876,11 @@ describe("M5.4 Mariner Market drop highlighting (Body A correction)", () => {
     await beginPieceDrag(marketPiece(container, "ishana"), isleHit(container, "orrery"), 801);
     expect(isleDropFamily(container, "orrery")).toBe("market");
     expect(marketDropTarget(container, "orrery")).toMatch(/^(eligible|hover)$/);
-    expect(marketDropFillPresent(container, "orrery")).toBe(true);
+    expect(marketDropEdge(container, "orrery")).not.toBeNull();
+    expect(marketDropEdge(container, "orrery")?.getAttribute("data-market-drop-edge-strength")).toMatch(/^(eligible|hover)$/);
+    expect(marketDropInteriorFill(container, "orrery")).toBeNull();
     expect(marketDropTarget(container, "scuttleport")).toBeNull();
-    expect(marketDropFillPresent(container, "scuttleport")).toBe(false);
+    expect(marketDropEdge(container, "scuttleport")).toBeNull();
     expect(marketDropTarget(container, "ishana")).toBeNull();
     root.unmount();
     container.remove();
@@ -4901,7 +4907,9 @@ describe("M5.4 Mariner Market drop highlighting (Body A correction)", () => {
       window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 210, clientY: 210, pointerId: 802 }));
     });
     expect(marketDropTarget(container, "orrery")).toBe("hover");
+    expect(marketDropEdge(container, "orrery")?.getAttribute("data-market-drop-edge-strength")).toBe("hover");
     expect(marketDropTarget(container, "sage_atoll")).toBe("eligible");
+    expect(marketDropEdge(container, "sage_atoll")?.getAttribute("data-market-drop-edge-strength")).toBe("eligible");
     Object.defineProperty(document, "elementFromPoint", {
       configurable: true,
       value: () => seaHit(container, "sunken_fleet"),
@@ -4910,6 +4918,7 @@ describe("M5.4 Mariner Market drop highlighting (Body A correction)", () => {
       window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 120, clientY: 120, pointerId: 802 }));
     });
     expect(marketDropTarget(container, "orrery")).toBe("eligible");
+    expect(marketDropEdge(container, "orrery")?.getAttribute("data-market-drop-edge-strength")).toBe("eligible");
     expect(marketDropTarget(container, "sage_atoll")).toBe("eligible");
     root.unmount();
     container.remove();
@@ -4921,7 +4930,7 @@ describe("M5.4 Mariner Market drop highlighting (Body A correction)", () => {
     expect(marketDropTarget(container, "orrery")).not.toBeNull();
     releasePointer(803);
     expect(marketDropTarget(container, "orrery")).toBeNull();
-    expect(marketDropFillPresent(container, "orrery")).toBe(false);
+    expect(marketDropEdge(container, "orrery")).toBeNull();
     root.unmount();
     container.remove();
   });
