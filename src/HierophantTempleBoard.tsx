@@ -37,6 +37,7 @@ import {
   templeResearchers,
   templeSupportedClassIds,
   shortTempleBoardLabel,
+  woeThresholdCue,
   woeThresholdCueLabel,
   baseBenefactionReference,
   supplicantBenefactionValue,
@@ -455,8 +456,6 @@ function prophetStatusText(denizens: readonly NamedDenizen[], denizenId: string)
 
 function ResourceCounter({
   label,
-  after,
-  delta,
   templeId,
   templeName,
   view,
@@ -464,9 +463,6 @@ function ResourceCounter({
   conversion,
 }: {
   readonly label: "Abundance" | "Conviction";
-  readonly before: number;
-  readonly after: number | null;
-  readonly delta: number | null;
   readonly templeId: string;
   readonly templeName: string;
   readonly view: HierophantResourcePoolView;
@@ -478,9 +474,6 @@ function ResourceCounter({
 }) {
   const resource: HierophantResourceKind = label === "Abundance" ? "abundance" : "conviction";
   const shown = view.displayed;
-  const forecast = after !== null && delta !== null && delta !== 0
-    ? `${delta > 0 ? "+" : ""}${delta} → ${after}`
-    : null;
   const restLabel = `${label} ${shown}`;
   const [revealed, setRevealed] = useState(false);
   const controlClass = `h-5 w-5 rounded border border-stone-600/40 text-xs font-bold transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
@@ -502,14 +495,14 @@ function ResourceCounter({
       data-resource-controls={revealed ? "revealed" : "hidden"}
       data-resource-pending={view.pending ? "true" : "false"}
       aria-busy={view.pending}
-      className={`relative flex min-w-[3.75rem] flex-col items-center rounded-md border px-1.5 py-0.5 shadow-sm ${
+      className={`relative flex min-w-[3.75rem] flex-col items-center overflow-visible rounded-md border px-1.5 pb-2.5 pt-0.5 shadow-sm ${
         view.pending ? "ring-1 ring-amber-700/40 dark:ring-amber-300/30" : ""
       } ${
         label === "Abundance"
           ? "border-amber-700 bg-amber-100 text-amber-950 dark:border-amber-500 dark:bg-amber-950/70 dark:text-amber-50"
           : "border-indigo-700 bg-indigo-100 text-indigo-950 dark:border-indigo-400 dark:bg-indigo-950/70 dark:text-indigo-50"
       }`}
-      aria-label={forecast === null ? restLabel : `${restLabel}, Next Visions ${forecast}`}
+      aria-label={restLabel}
       onMouseEnter={() => setRevealed(true)}
       onMouseLeave={() => setRevealed(false)}
       onFocusCapture={() => setRevealed(true)}
@@ -561,44 +554,34 @@ function ResourceCounter({
         </button>
       </div>
       {conversion !== null && convertAria !== null && (
-        <div
-          data-resource-convert-line=""
-          className="flex h-3 w-full items-center justify-center"
+        <button
+          type="button"
+          data-hestar-convert={resource}
+          data-hestar-convert-target={hestarDestinationResource(resource)}
+          data-hestar-convert-placement="bottom-overlay"
+          className={`absolute bottom-0.5 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded px-0.5 text-[9px] font-bold leading-none tracking-tight text-stone-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-700 dark:text-stone-100 ${
+            revealed
+              ? "opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+              : "pointer-events-none opacity-0"
+          }`}
+          aria-label={convertAria}
+          title={convertAria}
+          disabled={!convertAvailable || convertDisabled}
+          onMouseDown={stopNestedControlPointer}
+          onPointerDown={stopNestedControlPointer}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (!convertAvailable || convertDisabled) return;
+            conversion.onConvert();
+          }}
         >
-          <button
-            type="button"
-            data-hestar-convert={resource}
-            data-hestar-convert-target={hestarDestinationResource(resource)}
-            data-hestar-convert-placement="below"
-            className={`whitespace-nowrap rounded px-0.5 text-[9px] font-bold leading-none tracking-tight text-stone-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-700 dark:text-stone-100 ${
-              revealed
-                ? "opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
-                : "pointer-events-none opacity-0"
-            }`}
-            aria-label={convertAria}
-            title={convertAria}
-            disabled={!convertAvailable || convertDisabled}
-            onMouseDown={stopNestedControlPointer}
-            onPointerDown={stopNestedControlPointer}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (!convertAvailable || convertDisabled) return;
-              conversion.onConvert();
-            }}
-          >
-            {hierophantHestarConversionVisibleLabel(resource)}
-          </button>
-        </div>
+          {hierophantHestarConversionVisibleLabel(resource)}
+        </button>
       )}
       {view.pending && <span className="sr-only">Saving {label}</span>}
       {view.error !== null && (
         <span data-resource-error="" className="mt-0.5 text-[10px] font-medium text-rose-800 dark:text-rose-200">
           {view.error}
-        </span>
-      )}
-      {forecast !== null && (
-        <span className="mt-0.5 text-[10px] font-medium text-slate-600 dark:text-slate-300" data-resource-forecast="">
-          Next Visions {forecast}
         </span>
       )}
     </div>
@@ -610,7 +593,9 @@ function stopNestedControlPointer(event: { stopPropagation: () => void }): void 
 }
 
 const TEMPLE_HEADER_CHIP_SHELL =
-  "box-border inline-flex h-6 shrink-0 items-center justify-center gap-0.5 rounded-md border px-2 text-[10px] font-bold uppercase leading-none tracking-wide focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700";
+  "box-border inline-flex h-6 min-h-6 shrink-0 items-center justify-center gap-0.5 overflow-hidden rounded-md border px-2 text-[10px] font-bold uppercase leading-none tracking-wide focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700";
+const TEMPLE_HEADER_CHIP_SLOT =
+  "inline-flex h-3 w-3 shrink-0 items-center justify-center leading-none";
 
 const SUPPLICANT_SUPPORT_GLYPH = {
   supported: "✓",
@@ -792,22 +777,36 @@ function PersonPieceHeader({
   name,
   typeClassName,
   typeExtra,
+  compactCenter = false,
 }: {
   readonly type: string;
   readonly name: string | null;
   readonly typeClassName: string;
   readonly typeExtra?: ReactNode;
+  readonly compactCenter?: boolean;
 }) {
   return (
-    <div data-piece-header="" className="flex items-center justify-between gap-2">
+    <div
+      data-piece-header=""
+      data-piece-header-align={compactCenter ? "centerline" : undefined}
+      className="flex items-center justify-between gap-2"
+    >
       <div data-piece-type-region="" className="flex min-w-0 items-center gap-1">
-        <span data-piece-type="" className={`text-[10px] font-bold uppercase tracking-wide ${typeClassName}`}>
+        <span
+          data-piece-type=""
+          className={`text-[10px] font-bold uppercase tracking-wide ${compactCenter ? "leading-none" : ""} ${typeClassName}`}
+        >
           {type}
         </span>
         {typeExtra}
       </div>
       {name !== null && (
-        <span data-piece-name="" className="min-w-0 truncate text-[11px] leading-tight text-slate-600 dark:text-slate-300">
+        <span
+          data-piece-name=""
+          className={`min-w-0 truncate text-[11px] text-slate-600 dark:text-slate-300 ${
+            compactCenter ? "leading-none" : "leading-tight"
+          }`}
+        >
           {name}
         </span>
       )}
@@ -826,12 +825,13 @@ function SupplicantClassSupportBadge({
 }) {
   const [tipOpen, setTipOpen] = useState(false);
   const glyph = support === null ? undefined : supplicantSupportGlyph(support);
-  const description = support === null ? label : supplicantSupportDescription(label, support);
-  const showTip = tipOpen && support !== null;
+  const flyoutLabel = support === null ? null : support === "supported" ? "Supported" : "Unsupported";
+  const showTip = tipOpen && flyoutLabel !== null;
   return (
     <span
-      className="relative"
+      className="relative inline-flex items-center"
       data-supplicant-class=""
+      data-support-flyout={flyoutLabel ?? undefined}
       onMouseEnter={() => setTipOpen(true)}
       onMouseLeave={() => setTipOpen(false)}
     >
@@ -848,7 +848,7 @@ function SupplicantClassSupportBadge({
           data-support-tooltip=""
           className="absolute left-0 z-40 mt-1 w-max max-w-[14rem] rounded-md border border-stone-500/40 bg-white px-1.5 py-1 text-left text-[11px] font-normal normal-case tracking-normal text-stone-800 shadow-lg dark:border-stone-300/30 dark:bg-slate-900 dark:text-stone-100"
         >
-          {description}
+          {flyoutLabel}
         </span>
       )}
     </span>
@@ -921,13 +921,16 @@ function SupplicantPiece({
         : null;
   const classCostValue = supplicantClassCostValue(person.classId);
   const benefactionValue = supplicantBenefactionValue(person.classId);
-  const threshold = woeThresholdCueLabel(person.woe);
-  const danger = person.woe >= 5 || preview?.blockerKind !== null;
+  const displayedWoe = woeView.displayed;
+  const thresholdCue = woeThresholdCue(displayedWoe);
+  const threshold = woeThresholdCueLabel(displayedWoe);
+  const visionsBlocker = preview !== undefined && preview.blockerKind !== null;
+  const danger = displayedWoe >= 5 || visionsBlocker;
   const accessible = [
     "Supplicant",
     pieceName,
     support === null ? klass : supplicantSupportDescription(klass, support),
-    `Woe ${person.woe}`,
+    `Woe ${displayedWoe}`,
     classCostValue === null ? null : `Cost ${classCostValue}`,
     benefactionValue === null ? null : `Benefaction ${benefactionValue}`,
     threshold,
@@ -938,9 +941,13 @@ function SupplicantPiece({
     if (orderSelectable && orderIndex === null) onOrderSelect();
   };
   const subjectLabel = pieceName ?? klass;
-  const benefactionEligible = person.woe === 0
-    && person.host.kind === "temple"
+  const knownBenefaction = person.host.kind === "temple"
     && baseBenefactionReference(person.classId).kind !== "not_determined";
+  const benefactionVisible = displayedWoe === 0 && knownBenefaction;
+  const benefactionActionable = benefactionVisible
+    && woeView.authoritative === 0
+    && !woeView.pending
+    && !benefactionPending;
   const primaryLabel = orderSelectable && orderIndex === null
     ? `Add ${klass}${givenName === null ? "" : ` ${givenName}`} to Visions order`
     : accessible;
@@ -952,6 +959,7 @@ function SupplicantPiece({
         data-host-draggable="true"
         data-host-pending={hostPending ? "true" : "false"}
         data-steer-time={timeScheduled ? "pending" : "none"}
+        data-woe-danger={danger ? "true" : "false"}
         draggable
         className={`relative rounded-md border px-2 py-1 shadow-sm cursor-grab active:cursor-grabbing ${
           danger
@@ -993,6 +1001,7 @@ function SupplicantPiece({
             type="Supplicant"
             name={pieceName}
             typeClassName="text-amber-900 dark:text-amber-200"
+            compactCenter
             typeExtra={
               <>
                 <SupplicantClassSupportBadge
@@ -1003,7 +1012,7 @@ function SupplicantPiece({
                 {timeScheduled && (
                   <span
                     data-steer-time-badge=""
-                    className="shrink-0 rounded border border-amber-700/50 bg-amber-100/90 px-1 py-px text-[10px] font-semibold uppercase tracking-wide text-amber-950 dark:border-amber-400/60 dark:bg-amber-900/50 dark:text-amber-50"
+                    className="inline-flex shrink-0 items-center rounded border border-amber-700/50 bg-amber-100/90 px-1 py-px text-[10px] font-semibold uppercase leading-none tracking-wide text-amber-950 dark:border-amber-400/60 dark:bg-amber-900/50 dark:text-amber-50"
                     aria-label={`Time scheduled on ${subjectLabel}`}
                   >
                     Time
@@ -1069,19 +1078,19 @@ function SupplicantPiece({
         {threshold !== null && (
           <p
             className="mt-0.5 text-[11px] font-semibold text-rose-900 dark:text-rose-100"
-            data-woe-threshold={person.woe === 0 ? "benefaction" : "cult"}
+            data-woe-threshold={thresholdCue ?? undefined}
           >
             {threshold}
           </p>
         )}
-        {benefactionEligible && (
-          <div className="mt-1" data-piece-benefaction="">
+        {benefactionVisible && (
+          <div className="mt-1" data-piece-benefaction="" data-benefaction-ready={benefactionActionable ? "true" : "false"}>
             <button
               type="button"
               className="w-full rounded-md border border-emerald-800/50 bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-950 hover:bg-emerald-200/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-400/40 dark:bg-emerald-950/50 dark:text-emerald-50 dark:hover:bg-emerald-900/60"
               aria-label={`Benefaction & Depart ${subjectLabel}`}
-              aria-busy={benefactionPending}
-              disabled={benefactionPending}
+              aria-busy={woeView.pending || benefactionPending}
+              disabled={!benefactionActionable}
               onMouseDown={(event) => {
                 event.stopPropagation();
               }}
@@ -1090,7 +1099,7 @@ function SupplicantPiece({
               }}
               onClick={(event) => {
                 event.stopPropagation();
-                if (benefactionPending) return;
+                if (!benefactionActionable) return;
                 onBenefactionDepart();
               }}
               onKeyDown={(event) => {
@@ -1098,12 +1107,12 @@ function SupplicantPiece({
                   event.stopPropagation();
                 }
                 activate(event, () => {
-                  if (benefactionPending) return;
+                  if (!benefactionActionable) return;
                   onBenefactionDepart();
                 });
               }}
             >
-              {benefactionPending ? "Benefaction & Depart…" : "Benefaction & Depart"}
+              {woeView.pending || benefactionPending ? "Benefaction & Depart…" : "Benefaction & Depart"}
             </button>
           </div>
         )}
@@ -1182,7 +1191,7 @@ function TempleStatusControl({
         }}
       >
         {status.label}
-        <span aria-hidden="true" className="inline-flex h-3 w-3 items-center justify-center">▾</span>
+        <span aria-hidden="true" data-temple-header-chip-slot="" className={TEMPLE_HEADER_CHIP_SLOT}>▾</span>
       </button>
       {menuOpen && (
         <div
@@ -1367,22 +1376,9 @@ function OrdinaryDoctrineObject({
   const chevronVisible = controlsRevealed || menuOpen;
   const supportedClassIds = templeSupportedClassIds(temple, hierophant.campaignDoctrines);
   return (
-    <div
-      ref={rootRef}
-      data-doctrine-object=""
-      data-doctrine-pending={pending ? "true" : "false"}
-      className="relative rounded-md border border-amber-900/20 bg-amber-50/80 px-2 py-1 dark:border-amber-200/20 dark:bg-amber-950/30"
-      onMouseEnter={() => setControlsRevealed(true)}
-      onMouseLeave={() => setControlsRevealed(false)}
-      onFocusCapture={() => setControlsRevealed(true)}
-      onBlurCapture={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          setControlsRevealed(false);
-        }
-      }}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Doctrine</p>
+    <section ref={rootRef} data-doctrine-section="" data-doctrine-pending={pending ? "true" : "false"} className="text-sm">
+      <div data-doctrine-section-header="" className="flex items-center justify-between gap-2">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Doctrine</h4>
         {pair !== null && pairPreview !== null && (temple.doctrine.kind === "doctrine" || temple.doctrine.kind === "blasphemy") && (
           <DoctrineSideControl
             currentKind={temple.doctrine.kind}
@@ -1394,9 +1390,21 @@ function OrdinaryDoctrineObject({
         )}
       </div>
       <div
+        data-doctrine-object=""
+        className="relative mt-1 rounded-md border border-amber-900/20 bg-amber-50/80 px-2 py-1 dark:border-amber-200/20 dark:bg-amber-950/30"
+        onMouseEnter={() => setControlsRevealed(true)}
+        onMouseLeave={() => setControlsRevealed(false)}
+        onFocusCapture={() => setControlsRevealed(true)}
+        onBlurCapture={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setControlsRevealed(false);
+          }
+        }}
+      >
+      <div
         data-doctrine-value-row=""
         data-doctrine-menu-anchor=""
-        className="relative mt-0.5 flex items-start gap-1"
+        className="relative flex items-start gap-1"
       >
         <p
           data-doctrine-current=""
@@ -1479,7 +1487,8 @@ function OrdinaryDoctrineObject({
           </div>
         </div>
       ) : null}
-    </div>
+      </div>
+    </section>
   );
 }
 
@@ -1522,6 +1531,7 @@ function HolidayChip({
       }}
     >
       {marked ? "Holiday" : "+ Holiday"}
+      <span aria-hidden="true" data-temple-header-chip-slot="" className={TEMPLE_HEADER_CHIP_SLOT} />
     </button>
   );
 }
@@ -1639,9 +1649,6 @@ function TemplePiece({
         <div className="flex flex-wrap gap-2">
           <ResourceCounter
             label="Abundance"
-            before={temple.abundance}
-            after={templePreview?.abundance.after ?? null}
-            delta={templePreview?.abundance.delta ?? null}
             templeId={temple.templeId}
             templeName={name}
             view={pieces.resourceView(temple.templeId, "abundance", temple.abundance)}
@@ -1653,9 +1660,6 @@ function TemplePiece({
           />
           <ResourceCounter
             label="Conviction"
-            before={temple.conviction}
-            after={templePreview?.conviction.after ?? null}
-            delta={templePreview?.conviction.delta ?? null}
             templeId={temple.templeId}
             templeName={name}
             view={pieces.resourceView(temple.templeId, "conviction", temple.conviction)}
@@ -1677,13 +1681,20 @@ function TemplePiece({
             />
           </>
         ) : (
-          <div className="rounded-md border border-amber-900/20 bg-amber-50/80 px-2 py-1 dark:border-amber-200/20 dark:bg-amber-950/30">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Doctrine</p>
-            <p className="text-sm">{doctrineStateLabel(temple, hierophant.campaignDoctrines)}</p>
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500" aria-label="Supports all Classes">
-              Supports all
-            </p>
-          </div>
+          <section data-doctrine-section="" className="text-sm">
+            <div data-doctrine-section-header="">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Doctrine</h4>
+            </div>
+            <div
+              data-doctrine-object=""
+              className="mt-1 rounded-md border border-amber-900/20 bg-amber-50/80 px-2 py-1 dark:border-amber-200/20 dark:bg-amber-950/30"
+            >
+              <p data-doctrine-current="" className="text-sm">{doctrineStateLabel(temple, hierophant.campaignDoctrines)}</p>
+              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500" aria-label="Supports all Classes">
+                Supports all
+              </p>
+            </div>
+          </section>
         )}
         {warnings.length > 0 && (
           <ul className="flex flex-col gap-1" aria-label="Visions warnings">

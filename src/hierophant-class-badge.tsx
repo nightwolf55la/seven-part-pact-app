@@ -29,7 +29,7 @@ export default function HierophantClassBadge({
     <span
       data-class-badge={classId}
       data-support-badge={support ?? undefined}
-      className={`inline-flex items-center gap-0.5 rounded-sm border px-1 py-px text-[10px] font-semibold uppercase tracking-wide ${tone} ${
+      className={`inline-flex items-center gap-0.5 rounded-sm border px-1 py-px text-[10px] font-semibold uppercase leading-none tracking-wide ${tone} ${
         attention ? "border-dashed border-amber-700 dark:border-amber-400" : ""
       }`}
     >
