@@ -57,6 +57,7 @@ export function steerDropArea(
   zone: HierophantSupplyZone,
 ): HierophantTempleArea | null {
   if (temple.kind === "hestar") return null;
+  if (zone === "people") return null;
   if (zone === "courtyard" || zone === "agiary") return zone;
   return null;
 }

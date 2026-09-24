@@ -62,6 +62,7 @@ describe("steerDropArea", () => {
   it("maps ordinary courtyard and agiary drops, and Hestar to null area", () => {
     expect(steerDropArea(courtyard, "courtyard")).toBe("courtyard");
     expect(steerDropArea(courtyard, "agiary")).toBe("agiary");
+    expect(steerDropArea(courtyard, "people")).toBeNull();
     expect(steerDropArea(courtyard, "blocked")).toBeNull();
     expect(steerDropArea(hestar, "hestar")).toBeNull();
   });

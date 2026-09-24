@@ -15,6 +15,7 @@ import {
   isValidHierophantStartingTempleId,
   isValidPactSeatId,
   pactSeatDisplayName,
+  hierophantBuiltinClassBenefaction,
   hierophantDoctrinePairSupportedClassIds,
   type DenizenId,
   type HierophantCampaignClass,
@@ -28,10 +29,12 @@ import {
   type HierophantTemple,
   type HierophantTempleArea,
   type HierophantTempleStatus,
+  type OrdinaryTempleDoctrineState,
   type HierophantVisionsContext,
   type HierophantVisionsDemand,
   type HierophantVisionsResource,
   type HierophantVisionsSupplicantPreview,
+  type HierophantBuiltinClassId,
   type HierophantVisionsTemplePreview,
   type PowerfulDenizenProfile,
   type SorcererExternalPresence,
@@ -525,6 +528,41 @@ export function benefactionReferenceLabel(reference: HierophantBenefactionRefere
   return `Benefaction reference: +${reference.amount} ${resource}`;
 }
 
+/** Mirrors FIXED_CLASS_COST in shared/domain/hierophant-visions.ts */
+const BUILTIN_FIXED_CLASS_COST: Record<
+  Exclude<HierophantBuiltinClassId, "artisan">,
+  { readonly resource: HierophantVisionsResource; readonly amount: number }
+> = {
+  pariah: { resource: "abundance", amount: 2 },
+  peasant: { resource: "abundance", amount: 1 },
+  merchant: { resource: "conviction", amount: 1 },
+  gentry: { resource: "conviction", amount: 2 },
+};
+
+export function supplicantClassCostLabel(classId: string): string | null {
+  const value = supplicantClassCostValue(classId);
+  return value === null ? null : `Cost: ${value}`;
+}
+
+export function supplicantClassCostValue(classId: string): string | null {
+  if (classId === "artisan") return "1 Abundance or Conviction";
+  if (!(classId in BUILTIN_FIXED_CLASS_COST)) return null;
+  const cost = BUILTIN_FIXED_CLASS_COST[classId as keyof typeof BUILTIN_FIXED_CLASS_COST];
+  return `${cost.amount} ${formatVisionsResourceName(cost.resource)}`;
+}
+
+export function supplicantBenefactionGiveLabel(classId: string): string | null {
+  const value = supplicantBenefactionValue(classId);
+  return value === null ? null : `Gives: ${value}`;
+}
+
+export function supplicantBenefactionValue(classId: string): string | null {
+  const benefaction = hierophantBuiltinClassBenefaction(classId);
+  if (benefaction === null) return null;
+  const resource = benefaction.kind === "abundance" ? "Abundance" : "Conviction";
+  return `+${benefaction.amount} ${resource}`;
+}
+
 export function templeSupportedClassIds(
   temple: HierophantTemple,
   campaignDoctrines: readonly HierophantCampaignDoctrine[],
@@ -654,7 +692,7 @@ export function formatVisionsTempleWarnings(
   }
   if (preview.orderChoiceRequired) warnings.push("Choose Visions order");
   if (preview.reliableProphetProduction) {
-    warnings.push("Prophet affects this production · resolve at the table");
+    warnings.push("Reliable Prophet affects production");
   }
   return warnings;
 }
@@ -758,8 +796,76 @@ export function buildDepartHierophantSupplicantWithBenefactionPayload(args: {
 export const SERMON_DEFER_GUIDANCE =
   "Sermon is not automated. Insufficient Abundance causes Collapse; insufficient Conviction makes Doctrine Blasphemous, and a Prophet at the Temple may leave, become Disruptive, and found a Cult. Record the table's resolved Doctrine, status, people, and resources with the correction tools.";
 
+export const DOCTRINE_CHANGE_SOURCE_GUIDANCE =
+  "Source: changing Doctrine is normally done by a Sermon.";
+
+export const DOCTRINE_RELIABLE_PROPHET_SOURCE_GUIDANCE =
+  "Source ordinarily associates a Doctrine change at a Temple hosting a Reliable Prophet with that Prophet becoming Disruptive, Cult creation, and the former Doctrine becoming Blasphemous. This control records Doctrine only.";
+
+export const COLLAPSE_SOURCE_GUIDANCE =
+  "Source: Collapse ordinarily creates a Cult and moves people. This control records Temple status only.";
+
+export const HESTAR_COLLAPSE_SOURCE_GUIDANCE =
+  "Source: Hestar Collapse is especially severe and can empty Hestar and related ordinary-Temple state. This control still records status only.";
+
 export const HOLIDAY_DEFER_GUIDANCE =
   "Holiday celebration is not automated. The marker records that a Holiday is marked. Granting Benefactions, including Reliable Prophet production modifiers, remains a table-resolved recording.";
 
 export const HESTAR_PROVIDE_DEFER_GUIDANCE =
-  "Hestar conversion/provision is unresolved in source (same amount vs half as much) and is not automated.";
+  "Same-resource Hestar shortage is an alternate payment: decrement the pool the table actually spent. The arrow controls record a direct 1:1 conversion of an ordinary-Temple resource into the opposite Hestar resource. Printed Provide is a separate source procedure using Pact-Fragment Time and printed eligibility; these arrows do not spend Time or perform Provide.";
+
+export interface HierophantDoctrineChoice {
+  readonly doctrineId: string;
+  readonly text: string;
+}
+
+export function hierophantDoctrineChoices(
+  campaignDoctrines: readonly HierophantCampaignDoctrine[],
+): readonly HierophantDoctrineChoice[] {
+  const builtin = HIEROPHANT_BUILTIN_DOCTRINE_DEFINITIONS.map((entry) => ({
+    doctrineId: entry.id,
+    text: entry.text,
+  }));
+  const campaign = campaignDoctrines.map((entry) => ({
+    doctrineId: entry.doctrineId,
+    text: entry.orthodoxText === null || entry.orthodoxText.trim() === ""
+      ? "Orthodox text unset"
+      : entry.orthodoxText,
+  }));
+  return [...builtin, ...campaign];
+}
+
+export function pairedOrdinaryDoctrineState(
+  doctrine: OrdinaryTempleDoctrineState,
+  campaignDoctrines: readonly HierophantCampaignDoctrine[],
+): OrdinaryTempleDoctrineState | null {
+  if (doctrine.kind === "unset") return null;
+  if (doctrine.kind === "doctrine") {
+    if (isValidHierophantBuiltinDoctrineId(doctrine.doctrineId)) {
+      const def = hierophantBuiltinDoctrineDefinition(doctrine.doctrineId);
+      return { kind: "blasphemy", blasphemyId: def.pairedBlasphemy.id };
+    }
+    const campaign = campaignDoctrines.find((entry) => entry.doctrineId === doctrine.doctrineId);
+    if (campaign?.blasphemy === null || campaign?.blasphemy === undefined) return null;
+    return { kind: "blasphemy", blasphemyId: campaign.blasphemy.blasphemyId };
+  }
+  for (const def of HIEROPHANT_BUILTIN_DOCTRINE_DEFINITIONS) {
+    if (def.pairedBlasphemy.id === doctrine.blasphemyId) {
+      return { kind: "doctrine", doctrineId: def.id };
+    }
+  }
+  const campaign = campaignDoctrines.find((entry) => entry.blasphemy?.blasphemyId === doctrine.blasphemyId);
+  if (campaign === undefined) return null;
+  return { kind: "doctrine", doctrineId: campaign.doctrineId };
+}
+
+export function ordinaryDoctrineStatesEqual(
+  a: OrdinaryTempleDoctrineState,
+  b: OrdinaryTempleDoctrineState,
+): boolean {
+  if (a.kind !== b.kind) return false;
+  if (a.kind === "unset" || b.kind === "unset") return a.kind === b.kind;
+  if (a.kind === "doctrine" && b.kind === "doctrine") return a.doctrineId === b.doctrineId;
+  if (a.kind === "blasphemy" && b.kind === "blasphemy") return a.blasphemyId === b.blasphemyId;
+  return false;
+}

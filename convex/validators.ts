@@ -2309,6 +2309,21 @@ const hierophantHestarResourceTransferredEventV1Validator = v.object({
   }),
 });
 
+const hierophantHestarResourceConvertedEventV1Validator = v.object({
+  type: v.literal("hierophant_hestar_resource_converted"),
+  version: v.literal(1),
+  data: v.object({
+    ordinaryTempleId: v.string(),
+    sourceResource: hierophantVisionsResourceValidator,
+    hestarResource: hierophantVisionsResourceValidator,
+    amount: v.literal(1),
+    ordinaryBefore: v.number(),
+    ordinaryAfter: v.number(),
+    hestarBefore: v.number(),
+    hestarAfter: v.number(),
+  }),
+});
+
 const hierophantSupplicantSteeredEventV1Validator = v.object({
   type: v.literal("hierophant_supplicant_steered"),
   version: v.literal(1),
@@ -3574,6 +3589,7 @@ export const campaignEventValidator = v.union(
   hierophantSupplicantCreatedEventV1Validator,
   hierophantVisionsResolvedEventV1Validator,
   hierophantHestarResourceTransferredEventV1Validator,
+  hierophantHestarResourceConvertedEventV1Validator,
   hierophantSupplicantSteeredEventV1Validator,
   hierophantSupplicantBenefactionDepartedEventV1Validator,
   supplicantAddedEventV1Validator,

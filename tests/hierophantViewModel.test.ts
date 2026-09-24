@@ -320,7 +320,7 @@ describe("Hierophant command payload helpers", () => {
       reliableProphetProduction: true,
       orderChoiceRequired: false,
       unresolved: true,
-    })).toEqual(["Prophet affects this production · resolve at the table"]);
+    })).toEqual(["Reliable Prophet affects production"]);
     expect(formatVisionsTempleWarnings({
       templeId: "hestar",
       abundance: { before: 0, delta: null, after: null },

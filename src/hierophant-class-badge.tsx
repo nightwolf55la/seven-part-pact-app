@@ -14,17 +14,35 @@ const FALLBACK_TONE =
 export default function HierophantClassBadge({
   classId,
   label,
+  mark,
+  attention = false,
+  support,
 }: {
   readonly classId: string;
   readonly label: string;
+  readonly mark?: string;
+  readonly attention?: boolean;
+  readonly support?: "supported" | "unsupported" | null;
 }) {
   const tone = isValidHierophantBuiltinClassId(classId) ? CLASS_BADGE_TONE[classId] : FALLBACK_TONE;
   return (
     <span
       data-class-badge={classId}
-      className={`inline-flex items-center rounded-sm border px-1 py-px text-[10px] font-semibold uppercase tracking-wide ${tone}`}
+      data-support-badge={support ?? undefined}
+      className={`inline-flex items-center gap-0.5 rounded-sm border px-1 py-px text-[10px] font-semibold uppercase leading-none tracking-wide ${tone} ${
+        attention ? "border-dashed border-amber-700 dark:border-amber-400" : ""
+      }`}
     >
       {label}
+      {mark !== undefined && mark !== "" && (
+        <span
+          data-support-glyph={support ?? ""}
+          aria-hidden="true"
+          className={attention ? "font-bold leading-none" : "font-medium leading-none opacity-75"}
+        >
+          {mark}
+        </span>
+      )}
     </span>
   );
 }

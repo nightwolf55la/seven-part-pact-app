@@ -2,6 +2,7 @@ import type { CampaignStateV5 } from "./campaign-state";
 import type { AllocationId, DenizenId } from "./ids";
 import { isValidAllocationId, isValidDenizenId } from "./ids";
 import { DomainError } from "./errors";
+import { stalePreconditionMessage } from "./stale-precondition-format";
 import type { HierophantEvent } from "./events";
 import type { HierophantTempleId } from "./hierophant-catalogs";
 import { hierophantBuiltinClassBenefaction, isValidHierophantTempleId } from "./hierophant-catalogs";
@@ -390,6 +391,138 @@ export function assertHierophantHestarTransferRevision(
     throw new DomainError(
       "STALE_CAMPAIGN_REVISION",
       `Hestar transfer is out of date. Expected revision ${expectedRevision}, current is ${currentRevision}`,
+    );
+  }
+}
+
+export type HierophantHestarConversionSourceResource = "abundance" | "conviction";
+
+export interface ConvertHierophantHestarResourceInput {
+  readonly ordinaryTempleId: HierophantTempleId;
+  readonly sourceResource: HierophantHestarConversionSourceResource;
+  readonly expectedOrdinarySourceCount: number;
+  readonly expectedHestarDestinationCount: number;
+}
+
+const HESTAR_CONVERSION_AMOUNT = 1 as const;
+
+export function hierophantHestarConversionDestinationResource(
+  sourceResource: HierophantHestarConversionSourceResource,
+): HierophantHestarConversionSourceResource {
+  return sourceResource === "abundance" ? "conviction" : "abundance";
+}
+
+function resourceLabel(resource: HierophantHestarConversionSourceResource): string {
+  return resource === "abundance" ? "Abundance" : "Conviction";
+}
+
+export function applyConvertHierophantHestarResource(
+  state: CampaignStateV5,
+  rawInput: ConvertHierophantHestarResourceInput,
+): HierophantOperabilityTransitionResult {
+  if (state.hierophant.temples.length === 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Hierophant Temples have not been initialized");
+  }
+  if (rawInput.sourceResource !== "abundance" && rawInput.sourceResource !== "conviction") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid resource: ${String(rawInput.sourceResource)}`);
+  }
+  if (!isValidHierophantTempleId(rawInput.ordinaryTempleId)) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Temple not found: ${String(rawInput.ordinaryTempleId)}`);
+  }
+  if (!Number.isSafeInteger(rawInput.expectedOrdinarySourceCount) || rawInput.expectedOrdinarySourceCount < 0) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Invalid expectedOrdinarySourceCount: ${rawInput.expectedOrdinarySourceCount}`,
+    );
+  }
+  if (!Number.isSafeInteger(rawInput.expectedHestarDestinationCount) || rawInput.expectedHestarDestinationCount < 0) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `Invalid expectedHestarDestinationCount: ${rawInput.expectedHestarDestinationCount}`,
+    );
+  }
+  const ordinary = state.hierophant.temples.find((temple) => temple.templeId === rawInput.ordinaryTempleId);
+  if (ordinary === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Temple not found: ${rawInput.ordinaryTempleId}`);
+  }
+  if (isHestarTemple(ordinary) || ordinary.kind !== "ordinary") {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Conversion source must be one ordinary Hierophant Temple");
+  }
+  const hestar = state.hierophant.temples.find((temple) => isHestarTemple(temple));
+  if (hestar === undefined) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Hestar has not been initialized");
+  }
+  const hestarResource = hierophantHestarConversionDestinationResource(rawInput.sourceResource);
+  const ordinaryBefore = resourceCount(ordinary, rawInput.sourceResource);
+  const hestarBefore = resourceCount(hestar, hestarResource);
+  if (ordinaryBefore !== rawInput.expectedOrdinarySourceCount) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      stalePreconditionMessage("ordinary source count", rawInput.expectedOrdinarySourceCount, ordinaryBefore),
+    );
+  }
+  if (hestarBefore !== rawInput.expectedHestarDestinationCount) {
+    throw new DomainError(
+      "STALE_COMMAND_PRECONDITION",
+      stalePreconditionMessage("Hestar destination count", rawInput.expectedHestarDestinationCount, hestarBefore),
+    );
+  }
+  if (ordinaryBefore < HESTAR_CONVERSION_AMOUNT) {
+    throw new DomainError(
+      "INVALID_CAMPAIGN_STATE",
+      `${resourceLabel(rawInput.sourceResource)} source has 0 available`,
+    );
+  }
+  const ordinaryAfter = ordinaryBefore - HESTAR_CONVERSION_AMOUNT;
+  const hestarAfter = hestarBefore + HESTAR_CONVERSION_AMOUNT;
+  if (ordinaryAfter < 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", "Conversion would create a negative resource count");
+  }
+  const temples = state.hierophant.temples.map((temple) => {
+    if (temple.templeId === ordinary.templeId) {
+      return withResource(temple, rawInput.sourceResource, ordinaryAfter);
+    }
+    if (temple.templeId === hestar.templeId) {
+      return withResource(temple, hestarResource, hestarAfter);
+    }
+    return temple;
+  });
+  return {
+    nextState: {
+      ...state,
+      hierophant: {
+        ...state.hierophant,
+        temples,
+      },
+    },
+    events: [{
+      type: "hierophant_hestar_resource_converted",
+      version: 1,
+      data: {
+        ordinaryTempleId: ordinary.templeId,
+        sourceResource: rawInput.sourceResource,
+        hestarResource,
+        amount: HESTAR_CONVERSION_AMOUNT,
+        ordinaryBefore,
+        ordinaryAfter,
+        hestarBefore,
+        hestarAfter,
+      },
+    }],
+  };
+}
+
+export function assertHierophantHestarConversionRevision(
+  currentRevision: number,
+  expectedRevision: number,
+): void {
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+    throw new DomainError("INVALID_CAMPAIGN_STATE", `Invalid expectedRevision: ${expectedRevision}`);
+  }
+  if (currentRevision !== expectedRevision) {
+    throw new DomainError(
+      "STALE_CAMPAIGN_REVISION",
+      `Hestar conversion is out of date. Expected revision ${expectedRevision}, current is ${currentRevision}`,
     );
   }
 }

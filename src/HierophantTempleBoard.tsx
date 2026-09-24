@@ -1,18 +1,20 @@
-import { useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import {
-  powerfulStatusLabel,
   type DenizenId,
   type HierophantProphet,
   type HierophantState,
   type HierophantSupplicant,
+  type HierophantSupplicantHost,
   type HierophantTemple,
   type HierophantTempleId,
+  type HierophantTempleStatus,
   type HierophantVisionsChoices,
   type HierophantVisionsPlan,
   type HierophantVisionsRequiredChoice,
   type HierophantVisionsResource,
   type HierophantVisionsSupplicantPreview,
   type HierophantVisionsTemplePreview,
+  type OrdinaryTempleDoctrineState,
   type SorcererExternalPresence,
   type HierophantBuiltinClassId,
 } from "../shared/domain";
@@ -24,8 +26,6 @@ import {
   formatVisionsResourceName,
   formatVisionsTempleWarnings,
   hostedProphets,
-  hostedSupplicants,
-  researcherOperationalLabel,
   startingOrdinaryTempleIds,
   supplementaryTemples,
   personPieceName,
@@ -35,11 +35,24 @@ import {
   templeResearchers,
   templeSupportedClassIds,
   shortTempleBoardLabel,
+  woeThresholdCue,
   woeThresholdCueLabel,
+  baseBenefactionReference,
+  supplicantBenefactionValue,
+  supplicantClassCostValue,
+  blasphemyText,
+  doctrineText,
+  hierophantDoctrineChoices,
+  pairedOrdinaryDoctrineState,
 } from "./hierophant-view-model";
 import { formatVisionsPreviewChoiceSummary } from "./hierophant-visions-preview";
 import HierophantClassBadge from "./hierophant-class-badge";
 import type { HierophantResourceKind, HierophantResourcePoolView } from "./hierophant-resource-intent";
+import {
+  hestarDestinationResource,
+  hierophantHestarConversionAriaLabel,
+  hierophantHestarConversionVisibleLabel,
+} from "./hierophant-hestar-conversion";
 import {
   HIEROPHANT_SUPPLY_CLASS_IDS,
   beginHierophantSupplyDrag,
@@ -49,17 +62,18 @@ import {
   readHierophantSupplyDragClass,
   resolveHierophantSupplyDestination,
   writeHierophantSupplyDragData,
+  type HierophantPendingSupplyCreate,
   type HierophantSupplyClassId,
   type HierophantSupplyZone,
 } from "./hierophant-supply";
 import {
-  beginHierophantSteerDrag,
-  endHierophantSteerDrag,
-  hierophantSteerDragIsActive,
-  liveHierophantSteerDenizenId,
-  readHierophantSteerDragDenizenId,
-  writeHierophantSteerDragData,
-} from "./hierophant-steer";
+  beginHierophantSupplicantHostDrag,
+  endHierophantSupplicantHostDrag,
+  hierophantSupplicantHostDragIsActive,
+  liveHierophantSupplicantHostDenizenId,
+  readHierophantSupplicantHostDragDenizenId,
+  writeHierophantSupplicantHostDragData,
+} from "./hierophant-supplicant-move";
 
 export interface HierophantVisionsBoardChoices {
   readonly plan: HierophantVisionsPlan;
@@ -82,6 +96,7 @@ export interface HierophantSupplyBoardInteraction {
   readonly activeClassId: string | null;
   readonly hoverKey: string | null;
   readonly blockNotice: { readonly templeId: string; readonly reason: string } | null;
+  readonly pendingCreates: readonly HierophantPendingSupplyCreate[];
   readonly peekActiveClassId: () => string | null;
   readonly onBegin: (classId: HierophantBuiltinClassId) => void;
   readonly onHover: (key: string | null) => void;
@@ -93,11 +108,10 @@ export interface HierophantSupplyBoardInteraction {
   readonly onCancel: () => void;
 }
 
-export interface HierophantSteerBoardInteraction {
+export interface HierophantHostMoveBoardInteraction {
   readonly draggingDenizenId: string | null;
   readonly hoverKey: string | null;
   readonly notice: { readonly denizenId: string; readonly reason: string } | null;
-  readonly pendingDenizenIds: ReadonlySet<string>;
   readonly peekDraggingDenizenId: () => string | null;
   readonly onBegin: (denizenId: string) => void;
   readonly onHover: (key: string | null) => void;
@@ -112,23 +126,55 @@ export interface HierophantSteerBoardInteraction {
 export interface HierophantPieceControls {
   readonly selectedSupplicantId: string | null;
   readonly onSelectSupplicant: (denizenId: string) => void;
-  readonly onSetWoe: (denizenId: string, currentWoe: number, nextWoe: number) => void;
+  readonly onAdjustWoe: (denizenId: string, delta: 1 | -1) => void;
+  readonly onSetWoe: (denizenId: string, nextWoe: number) => void;
   readonly onAdjustResource: (
     templeId: string,
     resource: HierophantResourceKind,
     delta: 1 | -1,
+  ) => void;
+  readonly onConvertHestarResource: (
+    templeId: string,
+    sourceResource: HierophantResourceKind,
   ) => void;
   readonly resourceView: (
     templeId: string,
     resource: HierophantResourceKind,
     authoritative: number,
   ) => HierophantResourcePoolView;
-  readonly transferBusy: boolean;
-  readonly onTransferHestarResource: (
-    resource: HierophantResourceKind,
-    sourceTempleId: string,
-    destinationTempleId: string,
-  ) => void;
+  readonly benefactionPendingDenizenIds: ReadonlySet<string>;
+  readonly onBenefactionDepart: (denizenId: string) => void;
+  readonly timeScheduledDenizenIds: ReadonlySet<string>;
+  readonly woeView: (
+    denizenId: string,
+    authoritativeWoe: number,
+  ) => {
+    readonly displayed: number;
+    readonly pending: boolean;
+    readonly authoritative: number;
+    readonly error: string | null;
+  };
+  readonly hostView: (
+    denizenId: string,
+    authoritativeHost: HierophantSupplicantHost,
+  ) => {
+    readonly displayed: HierophantSupplicantHost;
+    readonly pending: boolean;
+  };
+  readonly onRecordDoctrine: (templeId: string, next: OrdinaryTempleDoctrineState) => void;
+  readonly onRecordTempleStatus: (templeId: string, next: HierophantTempleStatus) => void;
+  readonly onRecordProphetStatus: (denizenId: string, next: "reliable" | "disruptive") => void;
+  readonly onToggleHoliday: (templeId: string, marked: boolean) => void;
+  readonly doctrinePendingTempleIds: ReadonlySet<string>;
+  readonly statusPendingTempleIds: ReadonlySet<string>;
+  readonly prophetPendingDenizenIds: ReadonlySet<string>;
+  readonly holidayView: (
+    templeId: string,
+    authoritativeMarked: boolean,
+  ) => {
+    readonly marked: boolean;
+    readonly pending: boolean;
+  };
 }
 
 function SupplyClassPiece({
@@ -162,7 +208,7 @@ function SupplyClassPiece({
       }`}
       onDragStart={(event: DragEvent<HTMLDivElement>) => {
         ignoreClickRef.current = true;
-        endHierophantSteerDrag();
+        endHierophantSupplicantHostDrag();
         beginHierophantSupplyDrag(classId);
         writeHierophantSupplyDragData(event.dataTransfer, classId);
         supply.onBegin(classId);
@@ -240,38 +286,42 @@ function SupplyDropZone({
   temple,
   zone,
   supply,
-  steer,
+  hostMove,
   children,
   className = "",
 }: {
   readonly temple: HierophantTemple;
   readonly zone: HierophantSupplyZone;
   readonly supply: HierophantSupplyBoardInteraction | null;
-  readonly steer: HierophantSteerBoardInteraction | null;
+  readonly hostMove: HierophantHostMoveBoardInteraction | null;
   readonly children: ReactNode;
   readonly className?: string;
 }) {
   const dest = resolveHierophantSupplyDestination(temple, zone);
   const key = `${temple.templeId}:${zone}`;
   const renderedSupplyActive = supply !== null && supply.activeClassId !== null;
-  const renderedSteerActive = steer !== null && steer.draggingDenizenId !== null;
+  const renderedHostActive = hostMove !== null && hostMove.draggingDenizenId !== null;
   const hoveringSupply = renderedSupplyActive && supply.hoverKey === key;
-  const hoveringSteer = renderedSteerActive && steer.hoverKey === key;
-  const highlight = hoveringSupply && dest !== null ? dest.highlight : hoveringSteer ? "recommended" : null;
+  const hoveringHost = renderedHostActive && hostMove.hoverKey === key;
+  const highlight = hoveringSupply && dest !== null ? dest.highlight : hoveringHost ? "recommended" : null;
   const idleHint = renderedSupplyActive && dest !== null && dest.highlight === "recommended" && !hoveringSupply
     ? "ring-1 ring-amber-300/80 dark:ring-amber-700/80"
     : renderedSupplyActive && dest !== null && dest.highlight === "alternative" && !hoveringSupply
       ? "ring-1 ring-amber-200/70 dark:ring-amber-800/70"
-      : renderedSteerActive && !hoveringSteer
+      : renderedHostActive && !hoveringHost
         ? "ring-1 ring-amber-300/80 dark:ring-amber-700/80"
         : "";
   function supplyIsLive(dataTransfer: DataTransfer | null | undefined): boolean {
     if (supply === null) return false;
     return hierophantSupplyDragIsActive(dataTransfer, supply.peekActiveClassId, supply.activeClassId);
   }
-  function steerIsLive(dataTransfer: DataTransfer | null | undefined): boolean {
-    if (steer === null) return false;
-    return hierophantSteerDragIsActive(dataTransfer, steer.peekDraggingDenizenId, steer.draggingDenizenId);
+  function hostMoveIsLive(dataTransfer: DataTransfer | null | undefined): boolean {
+    if (hostMove === null) return false;
+    return hierophantSupplicantHostDragIsActive(
+      dataTransfer,
+      hostMove.peekDraggingDenizenId,
+      hostMove.draggingDenizenId,
+    );
   }
   function deliverSupply(dataTransfer?: DataTransfer | null): void {
     if (supply === null) return;
@@ -282,22 +332,23 @@ function SupplyDropZone({
       readHierophantSupplyDragClass(dataTransfer ?? null) ?? liveHierophantSupplyClass(),
     );
   }
-  function deliverSteer(dataTransfer?: DataTransfer | null): void {
-    if (steer === null) return;
-    if (!steerIsLive(dataTransfer ?? null)) return;
-    const denizenId = readHierophantSteerDragDenizenId(dataTransfer ?? null) ?? liveHierophantSteerDenizenId();
-    endHierophantSteerDrag();
-    steer.onDeliver(temple, zone, denizenId);
+  function deliverHost(dataTransfer?: DataTransfer | null): void {
+    if (hostMove === null) return;
+    if (!hostMoveIsLive(dataTransfer ?? null)) return;
+    const denizenId = readHierophantSupplicantHostDragDenizenId(dataTransfer ?? null)
+      ?? liveHierophantSupplicantHostDenizenId();
+    endHierophantSupplicantHostDrag();
+    hostMove.onDeliver(temple, zone, denizenId);
   }
   return (
     <div
       data-supply-drop={zone}
-      data-steer-drop={zone}
+      data-host-drop={zone}
       className={`${className} ${supplyHighlightClass(highlight)} ${idleHint} rounded-md transition-shadow`}
       onDragEnter={(event) => {
-        if (steerIsLive(event.dataTransfer)) {
+        if (hostMoveIsLive(event.dataTransfer)) {
           event.preventDefault();
-          steer?.onHover(key);
+          hostMove?.onHover(key);
           return;
         }
         if (supply === null || !supplyIsLive(event.dataTransfer)) return;
@@ -305,10 +356,10 @@ function SupplyDropZone({
         supply.onHover(key);
       }}
       onDragOver={(event) => {
-        if (steerIsLive(event.dataTransfer)) {
+        if (hostMoveIsLive(event.dataTransfer)) {
           event.preventDefault();
           if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
-          steer?.onHover(key);
+          hostMove?.onHover(key);
           return;
         }
         if (supply === null || !supplyIsLive(event.dataTransfer)) return;
@@ -318,13 +369,13 @@ function SupplyDropZone({
       }}
       onDragLeave={(event) => {
         if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-        if (steer?.hoverKey === key) steer.onHover(null);
+        if (hostMove?.hoverKey === key) hostMove.onHover(null);
         if (supply?.hoverKey === key) supply.onHover(null);
       }}
       onDrop={(event) => {
         event.preventDefault();
-        if (steerIsLive(event.dataTransfer)) {
-          deliverSteer(event.dataTransfer);
+        if (hostMoveIsLive(event.dataTransfer)) {
+          deliverHost(event.dataTransfer);
           return;
         }
         if (supplyIsLive(event.dataTransfer)) {
@@ -337,9 +388,9 @@ function SupplyDropZone({
           deliverSupply();
           return;
         }
-        if (renderedSteerActive) {
+        if (renderedHostActive) {
           event.stopPropagation();
-          deliverSteer();
+          deliverHost();
         }
       }}
     >
@@ -348,11 +399,8 @@ function SupplyDropZone({
   );
 }
 
-function boardStatus(temple: HierophantTemple): { readonly label: string; readonly kind: "active" | "blasphemous" | "collapsed" } {
+function templePhysicalStatus(temple: HierophantTemple): { readonly label: string; readonly kind: "active" | "collapsed" } {
   if (temple.status === "collapsed") return { label: "Collapsed", kind: "collapsed" };
-  if (temple.kind === "ordinary" && temple.doctrine.kind === "blasphemy") {
-    return { label: "Blasphemous", kind: "blasphemous" };
-  }
   return { label: "Active", kind: "active" };
 }
 
@@ -363,122 +411,145 @@ function doctrineStateLabel(temple: HierophantTemple, campaignDoctrines: Hieroph
   return templeDoctrineSummary(temple, campaignDoctrines);
 }
 
-function areaGroups(supplicants: readonly HierophantSupplicant[], isHestar: boolean) {
-  if (isHestar) {
-    return [{ key: "hestar", label: "Hosted at Hestar", people: [...supplicants] }];
-  }
-  return [
-    { key: "courtyard", label: "Courtyard", people: supplicants.filter((person) => person.host.kind === "temple" && person.host.area === "courtyard") },
-    { key: "agiary", label: "Agiary", people: supplicants.filter((person) => person.host.kind === "temple" && person.host.area === "agiary") },
-    { key: "unresolved", label: "Area unresolved", people: supplicants.filter((person) => person.host.kind === "temple" && person.host.area === null) },
-  ];
+function pendingCreatesForTemple(
+  pending: readonly HierophantPendingSupplyCreate[] | undefined,
+  templeId: string,
+): readonly HierophantPendingSupplyCreate[] {
+  if (pending === undefined) return [];
+  return pending.filter((item) => item.templeId === templeId);
 }
 
-function prophetStatusText(denizens: readonly NamedDenizen[], denizenId: string): string {
-  const status = denizens.find((denizen) => denizen.denizenId === denizenId)?.powerfulProfile?.status;
-  return status === undefined || status === null ? "Shared status unset" : powerfulStatusLabel(status);
+function PendingSupplyGhost({ item }: { readonly item: HierophantPendingSupplyCreate }) {
+  return (
+    <li data-supply-create-pending={item.denizenId} aria-busy="true">
+      <div className="rounded-md border border-dashed border-amber-700/40 bg-amber-50/70 px-2 py-1 text-[11px] font-medium text-amber-950 dark:border-amber-400/40 dark:bg-amber-950/40 dark:text-amber-50">
+        {`Adding ${item.classLabel}…`}
+      </div>
+    </li>
+  );
+}
+
+const PROPHET_PRODUCTION_VISIBLE = "+1 matching resource";
+
+function personTypeAccessibleIdentity(
+  typeLabel: "Prophet" | "Researcher",
+  displayName: string | null,
+): string {
+  if (displayName === null) return typeLabel;
+  const trimmed = displayName.trim();
+  if (trimmed === "") return typeLabel;
+  const lower = trimmed.toLowerCase();
+  const typeLower = typeLabel.toLowerCase();
+  if (lower === typeLower || lower.startsWith(`${typeLower} `)) return trimmed;
+  return `${typeLabel} ${trimmed}`;
+}
+
+const RESEARCHER_RESPONSIBILITY_VISIBLE = "−1 Wealth → +2 Knowledge";
+
+function prophetAccessibleDescription(
+  name: string | null,
+  reliableOrDisruptive: "reliable" | "disruptive" | null,
+): string {
+  const who = personTypeAccessibleIdentity("Prophet", name);
+  if (reliableOrDisruptive === "reliable") {
+    return `${who}. Reliable. When this Temple produces Abundance or Conviction, gain 1 additional matching resource.`;
+  }
+  if (reliableOrDisruptive === "disruptive") {
+    return `${who}. Disruptive.`;
+  }
+  return `${who}. Shared status unset.`;
+}
+
+function researcherAccessibleDescription(
+  name: string | null,
+  operationalThisMonth: boolean,
+): string {
+  const who = personTypeAccessibleIdentity("Researcher", name);
+  const duty = "Visions: remove 1 Wealth from this Temple for 2 Knowledge.";
+  if (operationalThisMonth) return `${who}. ${duty}`;
+  return `${who}. ${duty} Unavailable this month.`;
 }
 
 function ResourceCounter({
   label,
-  after,
-  delta,
   templeId,
   templeName,
   view,
   onAdjust,
-  share,
+  conversion,
 }: {
   readonly label: "Abundance" | "Conviction";
-  readonly before: number;
-  readonly after: number | null;
-  readonly delta: number | null;
   readonly templeId: string;
   readonly templeName: string;
   readonly view: HierophantResourcePoolView;
   readonly onAdjust: (resource: HierophantResourceKind, delta: 1 | -1) => void;
-  readonly share: {
-    readonly role: "ordinary" | "hestar";
-    readonly blasphemous: boolean;
-    readonly canToHestar: boolean;
-    readonly canFromHestar: boolean;
-    readonly canSend: boolean;
-    readonly canTake: boolean;
-    readonly candidates: readonly {
-      readonly templeId: string;
-      readonly name: string;
-      readonly blasphemous: boolean;
-      readonly canSendTo: boolean;
-      readonly canTakeFrom: boolean;
-    }[];
-    readonly busy: boolean;
-    readonly onToHestar: () => void;
-    readonly onFromHestar: () => void;
-    readonly onSendTo: (templeId: string) => void;
-    readonly onTakeFrom: (templeId: string) => void;
-  };
+  readonly conversion: {
+    readonly enabled: boolean;
+    readonly onConvert: () => void;
+  } | null;
 }) {
   const resource: HierophantResourceKind = label === "Abundance" ? "abundance" : "conviction";
   const shown = view.displayed;
-  const forecast = after !== null && delta !== null && delta !== 0
-    ? `${delta > 0 ? "+" : ""}${delta} → ${after}`
-    : null;
   const restLabel = `${label} ${shown}`;
   const [revealed, setRevealed] = useState(false);
-  const [chooser, setChooser] = useState<null | "send" | "take">(null);
-  const shareVisible = revealed || chooser !== null;
-  const shareAttr = shareVisible ? "revealed" : "hidden";
   const controlClass = `h-5 w-5 rounded border border-stone-600/40 text-xs font-bold transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
-    revealed || chooser !== null ? "opacity-100" : "opacity-0"
+    revealed ? "opacity-100" : "opacity-0"
   }`;
-  const shareButtonClass = `rounded border border-stone-600/40 px-1 py-0 text-[10px] font-semibold leading-tight transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-not-allowed disabled:opacity-50 ${
-    shareVisible ? "opacity-100" : "opacity-0"
-  }`;
+  const convertAvailable = shown > 0;
+  const convertDisabled = conversion !== null && !conversion.enabled;
+  const convertAria = conversion === null
+    ? null
+    : hierophantHestarConversionAriaLabel({
+      templeName,
+      sourceResource: resource,
+      available: convertAvailable && !convertDisabled ? shown : 0,
+    });
   return (
     <div
       data-resource-counter={resource}
       data-temple-resource={templeId}
-      data-resource-controls={shareVisible ? "revealed" : "hidden"}
+      data-resource-controls={revealed ? "revealed" : "hidden"}
       data-resource-pending={view.pending ? "true" : "false"}
       aria-busy={view.pending}
-      className={`relative flex min-w-[4.75rem] flex-col items-center rounded-lg border-2 px-2 py-1 shadow-sm ${
+      className={`relative flex min-w-[3.75rem] flex-col items-center overflow-visible rounded-md border px-1.5 pb-2.5 pt-0.5 shadow-sm ${
         view.pending ? "ring-1 ring-amber-700/40 dark:ring-amber-300/30" : ""
       } ${
         label === "Abundance"
           ? "border-amber-700 bg-amber-100 text-amber-950 dark:border-amber-500 dark:bg-amber-950/70 dark:text-amber-50"
           : "border-indigo-700 bg-indigo-100 text-indigo-950 dark:border-indigo-400 dark:bg-indigo-950/70 dark:text-indigo-50"
       }`}
-      aria-label={forecast === null ? restLabel : `${restLabel}, Next Visions ${forecast}`}
+      aria-label={restLabel}
       onMouseEnter={() => setRevealed(true)}
-      onMouseLeave={() => {
-        setRevealed(false);
-        if (chooser === null) return;
-      }}
+      onMouseLeave={() => setRevealed(false)}
       onFocusCapture={() => setRevealed(true)}
       onBlurCapture={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
           setRevealed(false);
-          setChooser(null);
         }
       }}
     >
-      <span className="text-[10px] font-semibold uppercase tracking-wide">{label}</span>
-      <div className="flex items-center gap-1">
+      <span
+        data-resource-label=""
+        className="w-full text-center text-[10px] font-semibold uppercase tracking-wide leading-none"
+      >
+        {label}
+      </span>
+      <div data-resource-value-line="" className="mt-0.5 flex items-center justify-center gap-0.5">
         <button
           type="button"
           className={`${controlClass} disabled:pointer-events-none`}
           aria-label={`Decrease ${templeName} ${label}`}
-          disabled={shown <= 0 || share.busy}
+          disabled={shown <= 0}
           onClick={(event) => {
             event.stopPropagation();
-            if (shown <= 0 || share.busy) return;
+            if (shown <= 0) return;
             onAdjust(resource, -1);
           }}
         >
           −
         </button>
         <span className="relative inline-flex items-center justify-center">
-          <span data-resource-value="" className="text-xl font-bold tabular-nums leading-none">{shown}</span>
+          <span data-resource-value="" className="text-lg font-bold tabular-nums leading-none">{shown}</span>
           {view.pending && (
             <span
               className="absolute -right-1.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-amber-800 dark:bg-amber-200"
@@ -490,196 +561,198 @@ function ResourceCounter({
           type="button"
           className={controlClass}
           aria-label={`Increase ${templeName} ${label}`}
-          disabled={share.busy}
           onClick={(event) => {
             event.stopPropagation();
-            if (share.busy) return;
             onAdjust(resource, 1);
           }}
         >
           +
         </button>
       </div>
-      <div className="mt-0.5 flex min-h-[1.1rem] flex-col items-center gap-0.5">
-        {share.role === "ordinary" && (
-          <>
-            {!share.blasphemous && (
-              <div className="flex flex-wrap justify-center gap-0.5">
-                <button
-                  type="button"
-                  className={shareButtonClass}
-                  data-hestar-share={shareAttr}
-                  disabled={!share.canToHestar}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (!share.canToHestar) return;
-                    share.onToHestar();
-                  }}
-                >
-                  To Hestar
-                </button>
-                <button
-                  type="button"
-                  className={shareButtonClass}
-                  data-hestar-share={shareAttr}
-                  disabled={!share.canFromHestar}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (!share.canFromHestar) return;
-                    share.onFromHestar();
-                  }}
-                >
-                  From Hestar
-                </button>
-              </div>
-            )}
-            {share.blasphemous && (
-              <span
-                className={`max-w-[9rem] text-center text-[9px] font-medium leading-tight text-rose-800 dark:text-rose-200 ${
-                  shareVisible ? "opacity-100" : "opacity-0"
-                }`}
-              >
-                Cannot share with Hestar while Blasphemous
-              </span>
-            )}
-          </>
-        )}
-        {share.role === "hestar" && (
-          <>
-            <div className="flex flex-wrap justify-center gap-0.5">
-              <button
-                type="button"
-                className={shareButtonClass}
-                data-hestar-share={shareAttr}
-                aria-haspopup="menu"
-                aria-expanded={chooser === "send"}
-                disabled={!share.canSend}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (!share.canSend && chooser !== "send") return;
-                  setChooser((current) => current === "send" ? null : "send");
-                }}
-              >
-                Send to...
-              </button>
-              <button
-                type="button"
-                className={shareButtonClass}
-                data-hestar-share={shareAttr}
-                aria-haspopup="menu"
-                aria-expanded={chooser === "take"}
-                disabled={!share.canTake}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  if (!share.canTake && chooser !== "take") return;
-                  setChooser((current) => current === "take" ? null : "take");
-                }}
-              >
-                Take from...
-              </button>
-            </div>
-            {chooser !== null && (
-              <div
-                role="menu"
-                data-hestar-share-chooser={chooser}
-                className="absolute left-1/2 top-full z-20 mt-1 w-44 -translate-x-1/2 rounded-md border border-stone-500 bg-stone-50 p-1 text-left shadow-md dark:border-stone-400 dark:bg-stone-900"
-              >
-                {share.candidates.map((candidate) => {
-                  const enabled = chooser === "send" ? candidate.canSendTo : candidate.canTakeFrom;
-                  return (
-                    <button
-                      key={candidate.templeId}
-                      type="button"
-                      role="menuitem"
-                      disabled={!enabled}
-                      className="flex w-full flex-col rounded px-1.5 py-1 text-left text-[11px] font-medium hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-amber-950/60"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        if (!enabled) return;
-                        if (chooser === "send") share.onSendTo(candidate.templeId);
-                        else share.onTakeFrom(candidate.templeId);
-                        setChooser(null);
-                      }}
-                    >
-                      <span>{candidate.name}</span>
-                      {candidate.blasphemous && (
-                        <span className="text-[9px] font-medium text-rose-800 dark:text-rose-200">
-                          Cannot share with Hestar while Blasphemous
-                        </span>
-                      )}
-                      {!candidate.blasphemous && !enabled && chooser === "send" && (
-                        <span className="text-[9px] font-medium text-slate-600 dark:text-slate-300">
-                          Hestar has none
-                        </span>
-                      )}
-                      {!candidate.blasphemous && !enabled && chooser === "take" && (
-                        <span className="text-[9px] font-medium text-slate-600 dark:text-slate-300">
-                          {candidate.name} has none
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </>
-        )}
-      </div>
+      {conversion !== null && convertAria !== null && (
+        <button
+          type="button"
+          data-hestar-convert={resource}
+          data-hestar-convert-target={hestarDestinationResource(resource)}
+          data-hestar-convert-placement="bottom-overlay"
+          className={`absolute bottom-0.5 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded px-0.5 text-[9px] font-bold leading-none tracking-tight text-stone-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-700 dark:text-stone-100 ${
+            revealed
+              ? "opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+              : "pointer-events-none opacity-0"
+          }`}
+          aria-label={convertAria}
+          title={convertAria}
+          disabled={!convertAvailable || convertDisabled}
+          onMouseDown={stopNestedControlPointer}
+          onPointerDown={stopNestedControlPointer}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (!convertAvailable || convertDisabled) return;
+            conversion.onConvert();
+          }}
+        >
+          {hierophantHestarConversionVisibleLabel(resource)}
+        </button>
+      )}
       {view.pending && <span className="sr-only">Saving {label}</span>}
       {view.error !== null && (
         <span data-resource-error="" className="mt-0.5 text-[10px] font-medium text-rose-800 dark:text-rose-200">
           {view.error}
         </span>
       )}
-      {forecast !== null && (
-        <span className="mt-0.5 text-[10px] font-medium text-slate-600 dark:text-slate-300" data-resource-forecast="">
-          Next Visions {forecast}
-        </span>
-      )}
     </div>
   );
 }
 
+function stopNestedControlPointer(event: { stopPropagation: () => void }): void {
+  event.stopPropagation();
+}
+
+const TEMPLE_HEADER_CHIP_SHELL_BASE =
+  "box-border inline-flex shrink-0 items-center justify-center gap-0.5 overflow-hidden rounded-md px-2 text-[10px] font-bold uppercase leading-none tracking-wide focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700";
+const TEMPLE_HEADER_CHIP_SHELL =
+  `${TEMPLE_HEADER_CHIP_SHELL_BASE} h-6 min-h-6 border`;
+const TEMPLE_HEADER_HOLIDAY_SHELL =
+  `${TEMPLE_HEADER_CHIP_SHELL_BASE} h-6 min-h-6 border-2 shadow-[inset_0_0_0_1px_rgba(146,64,14,0.28)]`;
+const TEMPLE_HEADER_CHIP_SLOT =
+  "inline-flex h-3 w-3 shrink-0 items-center justify-center leading-none";
+
+const SUPPLICANT_SUPPORT_GLYPH = {
+  supported: "✓",
+  unsupported: "!",
+} as const;
+
+function supplicantSupportGlyph(support: "supported" | "unsupported"): string {
+  return SUPPLICANT_SUPPORT_GLYPH[support];
+}
+
+function supplicantSupportDescription(className: string, support: "supported" | "unsupported"): string {
+  return support === "supported"
+    ? `${className} — supported by this Temple's Doctrine`
+    : `${className} — not supported by this Temple's Doctrine`;
+}
+
+function useDismissibleOpen(
+  open: boolean,
+  onClose: () => void,
+  rootRef: { readonly current: HTMLElement | null },
+): void {
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    if (!open) return;
+    function onKey(event: globalThis.KeyboardEvent): void {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        onCloseRef.current();
+      }
+    }
+    function onPointer(event: MouseEvent): void {
+      if (rootRef.current !== null && !rootRef.current.contains(event.target as Node)) {
+        onCloseRef.current();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onPointer);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onPointer);
+    };
+  }, [open, rootRef]);
+}
+
 function WoePips({
-  woe,
+  displayWoe,
+  authoritativeWoe,
+  pending,
   denizenId,
   subjectLabel,
   onSet,
+  onStep,
 }: {
-  readonly woe: number;
+  readonly displayWoe: number;
+  readonly authoritativeWoe: number;
+  readonly pending: boolean;
   readonly denizenId: string;
   readonly subjectLabel: string;
   readonly onSet: (nextWoe: number) => void;
+  readonly onStep: (delta: 1 | -1) => void;
 }) {
   const visualRange = 5;
-  const filled = Math.min(woe, visualRange);
+  const overflow = displayWoe > visualRange;
+  const filledCount = overflow ? visualRange - 1 : Math.min(displayWoe, visualRange);
+  const [revealed, setRevealed] = useState(false);
+  const stepsVisible = revealed;
+  const stepShellClass = `inline-flex items-center gap-0.5 transition-[opacity,visibility] ${
+    stepsVisible ? "visible opacity-100" : "invisible opacity-0"
+  } group-focus-within:visible group-focus-within:opacity-100`;
+  const stepButtonClass =
+    "h-5 w-5 rounded border border-stone-600/50 text-[11px] font-bold leading-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 disabled:cursor-not-allowed disabled:opacity-40";
   const pipClass = (filledPip: boolean) =>
     `inline-flex h-3 w-3 items-center justify-center rounded-full border border-stone-700 dark:border-stone-200 ${
       filledPip ? "bg-stone-800 dark:bg-stone-100" : "bg-transparent"
-    }`;
+    } ${pending ? "ring-1 ring-amber-700/50 dark:ring-amber-300/40" : ""}`;
+  const ariaLabel = pending
+    ? `Woe ${authoritativeWoe}, pending request ${displayWoe}`
+    : `Current Woe ${authoritativeWoe}`;
   return (
-    <div className="inline-flex items-center gap-1" data-woe-pips={denizenId} aria-label={`Woe ${woe}`}>
-      <button
-        type="button"
-        data-woe-target="0"
-        aria-label={`Set ${subjectLabel} Woe to 0`}
-        aria-pressed={woe === 0}
-        className={`inline-flex h-4 min-w-[1.1rem] items-center justify-center rounded-sm border px-0.5 text-[10px] font-semibold tabular-nums cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
-          woe === 0
-            ? "border-stone-800 bg-stone-800 text-stone-50 dark:border-stone-100 dark:bg-stone-100 dark:text-stone-900"
-            : "border-stone-400/80 bg-white text-stone-700 dark:border-stone-500 dark:bg-slate-900 dark:text-stone-200"
-        }`}
-        onClick={(event) => {
-          event.stopPropagation();
-          onSet(0);
-        }}
-      >
-        0
-      </button>
-      <span className="inline-flex items-center gap-0.5">
+    <div
+      data-woe-pips={denizenId}
+      data-woe-pending={pending ? "true" : "false"}
+      className="group inline-flex min-w-0 items-center justify-center gap-0.5"
+      aria-label={ariaLabel}
+      aria-busy={pending}
+      onMouseEnter={() => setRevealed(true)}
+      onMouseLeave={() => setRevealed(false)}
+      onFocusCapture={() => setRevealed(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setRevealed(false);
+        }
+      }}
+    >
+      <div className={stepShellClass} data-woe-steps="">
+        <button
+          type="button"
+          data-woe-step="decrement"
+          aria-label={`Decrease ${subjectLabel} Woe by 1`}
+          disabled={displayWoe <= 0}
+          className={stepButtonClass}
+          onMouseDown={stopNestedControlPointer}
+          onPointerDown={stopNestedControlPointer}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (displayWoe <= 0) return;
+            onStep(-1);
+          }}
+        >
+          −
+        </button>
+      </div>
+      <span className="inline-flex items-center gap-0.5" data-woe-pip-row="">
         {Array.from({ length: visualRange }, (_, index) => {
           const target = index + 1;
-          const filledPip = index < filled;
+          if (overflow && index === visualRange - 1) {
+            return (
+              <button
+                key="overflow"
+                type="button"
+                data-woe-overflow=""
+                data-woe-target={visualRange}
+              aria-label={`Set ${subjectLabel} Woe to ${visualRange} (current ${displayWoe})`}
+              className="inline-flex h-3 min-w-[1.1rem] items-center justify-center rounded-sm border border-stone-700 bg-stone-800 px-0.5 text-[9px] font-bold tabular-nums text-stone-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 dark:border-stone-200 dark:bg-stone-100 dark:text-stone-900"
+              onMouseDown={stopNestedControlPointer}
+              onPointerDown={stopNestedControlPointer}
+              onClick={(event) => {
+                event.stopPropagation();
+                onSet(visualRange);
+              }}
+            >
+              {displayWoe}
+            </button>
+            );
+          }
+          const filledPip = index < filledCount;
           return (
             <button
               key={target}
@@ -687,8 +760,10 @@ function WoePips({
               data-woe-target={target}
               data-woe-filled={filledPip ? "true" : "false"}
               aria-label={`Set ${subjectLabel} Woe to ${target}`}
-              aria-pressed={woe === target}
+              aria-pressed={!overflow && displayWoe === target}
               className={`${pipClass(filledPip)} cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700`}
+              onMouseDown={stopNestedControlPointer}
+              onPointerDown={stopNestedControlPointer}
               onClick={(event) => {
                 event.stopPropagation();
                 onSet(target);
@@ -697,7 +772,22 @@ function WoePips({
           );
         })}
       </span>
-      <span className="text-xs tabular-nums font-medium">Woe {woe}</span>
+      <div className={stepShellClass}>
+        <button
+          type="button"
+          data-woe-step="increment"
+          aria-label={`Increase ${subjectLabel} Woe by 1`}
+          className={stepButtonClass}
+          onMouseDown={stopNestedControlPointer}
+          onPointerDown={stopNestedControlPointer}
+          onClick={(event) => {
+            event.stopPropagation();
+            onStep(1);
+          }}
+        >
+          +
+        </button>
+      </div>
     </div>
   );
 }
@@ -706,22 +796,88 @@ function PersonPieceHeader({
   type,
   name,
   typeClassName,
+  typeExtra,
+  compactCenter = false,
 }: {
   readonly type: string;
   readonly name: string | null;
   readonly typeClassName: string;
+  readonly typeExtra?: ReactNode;
+  readonly compactCenter?: boolean;
 }) {
   return (
-    <div data-piece-header="" className="flex items-baseline justify-between gap-2">
-      <span data-piece-type="" className={`text-[10px] font-bold uppercase tracking-wide ${typeClassName}`}>
-        {type}
-      </span>
+    <div
+      data-piece-header=""
+      data-piece-header-align={compactCenter ? "centerline" : undefined}
+      className="flex items-center justify-between gap-2"
+    >
+      <div
+        data-piece-type-region=""
+        className={`flex min-w-0 items-center gap-1 ${compactCenter ? "h-4" : ""}`}
+      >
+        <span
+          data-piece-type=""
+          className={`text-[10px] font-bold uppercase tracking-wide ${
+            compactCenter ? "inline-flex h-4 items-center leading-none" : ""
+          } ${typeClassName}`}
+        >
+          {type}
+        </span>
+        {typeExtra}
+      </div>
       {name !== null && (
-        <span data-piece-name="" className="min-w-0 truncate text-[11px] leading-tight text-slate-600 dark:text-slate-300">
+        <span
+          data-piece-name=""
+          className={`min-w-0 truncate text-[11px] text-slate-600 dark:text-slate-300 ${
+            compactCenter ? "inline-flex h-4 items-center leading-none" : "leading-tight"
+          }`}
+        >
           {name}
         </span>
       )}
     </div>
+  );
+}
+
+function SupplicantClassSupportBadge({
+  classId,
+  label,
+  support,
+}: {
+  readonly classId: string;
+  readonly label: string;
+  readonly support: "supported" | "unsupported" | null;
+}) {
+  const [tipOpen, setTipOpen] = useState(false);
+  const glyph = support === null ? undefined : supplicantSupportGlyph(support);
+  const flyoutLabel = support === null ? null : support === "supported" ? "Supported" : "Unsupported";
+  const showTip = tipOpen && flyoutLabel !== null;
+  return (
+    <span
+      className="relative inline-flex h-4 items-center"
+      data-supplicant-class=""
+      data-support-flyout={flyoutLabel ?? undefined}
+      data-support-tooltip-placement="below"
+      onMouseEnter={() => setTipOpen(true)}
+      onMouseLeave={() => setTipOpen(false)}
+    >
+      <HierophantClassBadge
+        classId={classId}
+        label={label}
+        mark={glyph}
+        attention={support === "unsupported"}
+        support={support}
+      />
+      {showTip && (
+        <span
+          role="tooltip"
+          data-support-tooltip=""
+          className="pointer-events-none absolute left-0 top-full z-40 mt-0.5 w-max max-w-[14rem] rounded-md border border-stone-500/40 bg-white px-1.5 py-1 text-left text-[11px] font-normal normal-case tracking-normal text-stone-800 shadow-lg dark:border-stone-300/30 dark:bg-slate-900 dark:text-stone-100"
+        >
+          {flyoutLabel}
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -739,10 +895,16 @@ function SupplicantPiece({
   selected,
   onSelect,
   onSetWoe,
+  onAdjustWoe,
   onArtisanPayment,
   onHestarFallback,
   onOrderSelect,
-  steer,
+  hostMove,
+  timeScheduled,
+  hostPending,
+  benefactionPending,
+  onBenefactionDepart,
+  woeView,
 }: {
   readonly person: HierophantSupplicant;
   readonly preview: HierophantVisionsSupplicantPreview | undefined;
@@ -757,37 +919,61 @@ function SupplicantPiece({
   readonly selected: boolean;
   readonly onSelect: () => void;
   readonly onSetWoe: (nextWoe: number) => void;
+  readonly onAdjustWoe: (delta: 1 | -1) => void;
   readonly onArtisanPayment: (resource: HierophantVisionsResource) => void;
   readonly onHestarFallback: (useHestar: boolean) => void;
   readonly onOrderSelect: () => void;
-  readonly steer: HierophantSteerBoardInteraction | null;
+  readonly hostMove: HierophantHostMoveBoardInteraction | null;
+  readonly timeScheduled: boolean;
+  readonly hostPending: boolean;
+  readonly benefactionPending: boolean;
+  readonly onBenefactionDepart: () => void;
+  readonly woeView: {
+    readonly displayed: number;
+    readonly pending: boolean;
+    readonly authoritative: number;
+    readonly error: string | null;
+  };
 }) {
   const storedName = denizenLabel(denizens, person.denizenId);
   const klass = classLabel(person.classId, campaignClasses);
   const givenName = supplicantGivenName(storedName, klass);
-  const support = preview === undefined ? null : preview.support === "supported" ? "Supported" : preview.support === "unsupported" ? "Unsupported" : null;
-  const demand = preview === undefined ? null : formatVisionsDemand(preview.demand);
-  const projectedTo = preview?.woeProjection.kind === "determined" ? preview.woeProjection.to : null;
-  const threshold = woeThresholdCueLabel(person.woe);
-  const danger = person.woe >= 5 || preview?.blockerKind !== null;
+  const pieceName = givenName;
+  const support: "supported" | "unsupported" | null =
+    preview === undefined
+      ? null
+      : preview.support === "supported" || preview.support === "unsupported"
+        ? preview.support
+        : null;
+  const classCostValue = supplicantClassCostValue(person.classId);
+  const benefactionValue = supplicantBenefactionValue(person.classId);
+  const displayedWoe = woeView.displayed;
+  const thresholdCue = woeThresholdCue(displayedWoe);
+  const threshold = woeThresholdCueLabel(displayedWoe);
+  const visionsBlocker = preview !== undefined && preview.blockerKind !== null;
+  const danger = displayedWoe >= 5 || visionsBlocker;
   const accessible = [
     "Supplicant",
-    givenName,
-    klass,
-    `Woe ${person.woe}`,
-    support,
-    demand,
+    pieceName,
+    support === null ? klass : supplicantSupportDescription(klass, support),
+    `Woe ${displayedWoe}`,
+    classCostValue === null ? null : `Cost ${classCostValue}`,
+    benefactionValue === null ? null : `Benefaction ${benefactionValue}`,
     threshold,
-    projectedTo === null ? null : `Next Visions Woe ${person.woe} → ${projectedTo}`,
     orderIndex === null ? null : `Visions order ${orderIndex}`,
   ].filter((part): part is string => part !== null && part !== "").join(", ");
   const primaryAction = () => {
     onSelect();
     if (orderSelectable && orderIndex === null) onOrderSelect();
   };
-  const subjectLabel = givenName ?? klass;
-  const timeScheduled = steer?.pendingDenizenIds.has(person.denizenId) === true;
-  const steerable = person.woe >= 1;
+  const subjectLabel = pieceName ?? klass;
+  const knownBenefaction = person.host.kind === "temple"
+    && baseBenefactionReference(person.classId).kind !== "not_determined";
+  const benefactionVisible = displayedWoe === 0 && knownBenefaction;
+  const benefactionActionable = benefactionVisible
+    && woeView.authoritative === 0
+    && !woeView.pending
+    && !benefactionPending;
   const primaryLabel = orderSelectable && orderIndex === null
     ? `Add ${klass}${givenName === null ? "" : ` ${givenName}`} to Visions order`
     : accessible;
@@ -796,31 +982,29 @@ function SupplicantPiece({
     <li>
       <div
         data-supplicant-piece={person.denizenId}
-        data-steer-draggable={steerable ? "true" : "false"}
+        data-host-draggable="true"
+        data-host-pending={hostPending ? "true" : "false"}
         data-steer-time={timeScheduled ? "pending" : "none"}
-        draggable={steerable}
-        className={`relative rounded-md border px-2 py-1 shadow-sm ${
+        data-woe-danger={danger ? "true" : "false"}
+        draggable
+        className={`relative rounded-md border px-2 py-1 shadow-sm cursor-grab active:cursor-grabbing ${
           danger
             ? "border-rose-400 bg-rose-50 dark:border-rose-500 dark:bg-rose-950/40"
             : "border-amber-800/40 bg-amber-50 dark:border-amber-600/50 dark:bg-amber-950/30"
         } ${selected ? "ring-1 ring-amber-700 dark:ring-amber-300" : ""} ${
-          steerable ? "cursor-grab active:cursor-grabbing" : ""
+          hostPending ? "ring-1 ring-amber-700/40 dark:ring-amber-300/30" : ""
         }`}
         onDragStart={(event: DragEvent<HTMLDivElement>) => {
-          if (!steerable) {
-            event.preventDefault();
-            return;
-          }
           ignoreClickRef.current = true;
           endHierophantSupplyDrag();
-          beginHierophantSteerDrag(person.denizenId);
-          writeHierophantSteerDragData(event.dataTransfer, person.denizenId);
-          steer?.onBegin(person.denizenId);
+          beginHierophantSupplicantHostDrag(person.denizenId);
+          writeHierophantSupplicantHostDragData(event.dataTransfer, person.denizenId);
+          hostMove?.onBegin(person.denizenId);
         }}
         onDragEnd={() => {
           window.setTimeout(() => {
-            endHierophantSteerDrag();
-            steer?.onCancel();
+            endHierophantSupplicantHostDrag();
+            hostMove?.onCancel();
             ignoreClickRef.current = false;
           }, 0);
         }}
@@ -841,8 +1025,27 @@ function SupplicantPiece({
         >
           <PersonPieceHeader
             type="Supplicant"
-            name={givenName}
+            name={pieceName}
             typeClassName="text-amber-900 dark:text-amber-200"
+            compactCenter
+            typeExtra={
+              <>
+                <SupplicantClassSupportBadge
+                  classId={person.classId}
+                  label={klass}
+                  support={support}
+                />
+                {timeScheduled && (
+                  <span
+                    data-steer-time-badge=""
+                    className="inline-flex shrink-0 items-center rounded border border-amber-700/50 bg-amber-100/90 px-1 py-px text-[10px] font-semibold uppercase leading-none tracking-wide text-amber-950 dark:border-amber-400/60 dark:bg-amber-900/50 dark:text-amber-50"
+                    aria-label={`Time scheduled on ${subjectLabel}`}
+                  >
+                    Time
+                  </span>
+                )}
+              </>
+            }
           />
           {orderIndex !== null && (
             <span
@@ -853,64 +1056,96 @@ function SupplicantPiece({
             </span>
           )}
         </button>
-        <div data-supplicant-identity="" className="mt-0.5 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
-          <div className="flex min-w-0 flex-wrap items-center gap-1">
-            <HierophantClassBadge classId={person.classId} label={klass} />
-            {support !== null && (
-              <span
-                data-support-badge={preview?.support}
-                className={`text-[11px] leading-tight ${
-                  support === "Supported"
-                    ? "font-semibold text-emerald-900 dark:text-emerald-100"
-                    : "font-medium text-stone-600 dark:text-stone-300"
-                }`}
-              >
-                {support}
-              </span>
-            )}
-            {timeScheduled && (
-              <span data-steer-time-badge="" className="text-[11px] font-semibold text-amber-900 dark:text-amber-100">
-                Time scheduled
-              </span>
+        <div
+          data-supplicant-stable=""
+          className="mt-0.5 grid grid-cols-1 gap-x-3 gap-y-1 min-[18rem]:grid-cols-3"
+        >
+          {classCostValue !== null && (
+            <div data-supplicant-cost="" className="min-w-0">
+              <p className="font-semibold uppercase tracking-wide text-[10px] text-slate-500 dark:text-slate-400">Cost</p>
+              <p data-supplicant-cost-value="" className="text-[11px] font-medium leading-snug text-stone-900 dark:text-stone-100">
+                {classCostValue}
+              </p>
+            </div>
+          )}
+          <div data-supplicant-woe-row="" data-woe-centered="" className="flex min-w-0 flex-col items-center text-center">
+            <p
+              data-woe-label=""
+              className="w-full text-center font-semibold uppercase tracking-wide text-[10px] text-slate-500 dark:text-slate-400"
+            >
+              Woe
+            </p>
+            <div data-supplicant-current-woe="" className="flex w-full justify-center">
+              <WoePips
+                displayWoe={woeView.displayed}
+                authoritativeWoe={woeView.authoritative}
+                pending={woeView.pending}
+                denizenId={person.denizenId}
+                subjectLabel={subjectLabel}
+                onSet={onSetWoe}
+                onStep={onAdjustWoe}
+              />
+            </div>
+            {woeView.error !== null && (
+              <p data-woe-error="" className="text-[10px] font-medium text-rose-800 dark:text-rose-200">
+                {woeView.error}
+              </p>
             )}
           </div>
-          <WoePips
-            woe={person.woe}
-            denizenId={person.denizenId}
-            subjectLabel={subjectLabel}
-            onSet={onSetWoe}
-          />
+          {benefactionValue !== null && (
+            <div data-supplicant-benefaction="" className="min-w-0 min-[18rem]:text-right">
+              <p className="font-semibold uppercase tracking-wide text-[10px] text-slate-500 dark:text-slate-400">Benefaction</p>
+              <p data-supplicant-benefaction-value="" className="text-[11px] font-medium leading-snug text-stone-900 dark:text-stone-100">
+                {benefactionValue}
+              </p>
+            </div>
+          )}
         </div>
-        {(projectedTo !== null && projectedTo !== person.woe) || demand !== null || threshold !== null || preview?.thresholdCue.kind === "ready_for_benefaction" || (preview?.thresholdCue.kind === "cult_departure_due" && person.woe < 5) ? (
-          <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0">
-            {projectedTo !== null && projectedTo !== person.woe && (
-              <p className="text-[10px] text-slate-600 dark:text-slate-300" data-woe-forecast={person.denizenId} aria-label={`Next Visions: Woe ${person.woe} → ${projectedTo}`}>
-                Next Visions: {person.woe} → {projectedTo}
-              </p>
-            )}
-            {preview?.thresholdCue.kind === "ready_for_benefaction" && person.woe !== 0 && (
-              <p className="text-[10px] text-slate-600 dark:text-slate-300">
-                Next Visions: Ready for Benefaction
-              </p>
-            )}
-            {preview?.thresholdCue.kind === "cult_departure_due" && person.woe < 5 && (
-              <p className="text-[10px] text-slate-600 dark:text-slate-300">
-                Next Visions: Cult departure due
-              </p>
-            )}
-            {demand !== null && (
-              <p className="text-[11px] text-slate-700 dark:text-slate-200">{demand}</p>
-            )}
-            {threshold !== null && (
-              <p
-                className="text-[11px] font-semibold text-rose-900 dark:text-rose-100"
-                data-woe-threshold={person.woe === 0 ? "benefaction" : "cult"}
-              >
-                {threshold}
-              </p>
-            )}
+        {threshold !== null && (
+          <p
+            className="mt-0.5 text-[11px] font-semibold text-rose-900 dark:text-rose-100"
+            data-woe-threshold={thresholdCue ?? undefined}
+          >
+            {threshold}
+          </p>
+        )}
+        {benefactionVisible && (
+          <div className="mt-1" data-piece-benefaction="" data-benefaction-ready={benefactionActionable ? "true" : "false"}>
+            <button
+              type="button"
+              className={`w-full rounded-md border px-2 py-1 text-[11px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800 ${
+                benefactionActionable
+                  ? "border-emerald-800/50 bg-emerald-100 text-emerald-950 hover:bg-emerald-200/90 dark:border-emerald-400/40 dark:bg-emerald-950/50 dark:text-emerald-50 dark:hover:bg-emerald-900/60"
+                  : "cursor-not-allowed border-stone-400/70 bg-stone-100 text-stone-600 dark:border-stone-500/60 dark:bg-stone-900/60 dark:text-stone-300"
+              }`}
+              aria-label={`Benefaction & Depart ${subjectLabel}`}
+              aria-busy={woeView.pending || benefactionPending}
+              disabled={!benefactionActionable}
+              onMouseDown={(event) => {
+                event.stopPropagation();
+              }}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+              }}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (!benefactionActionable) return;
+                onBenefactionDepart();
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.stopPropagation();
+                }
+                activate(event, () => {
+                  if (!benefactionActionable) return;
+                  onBenefactionDepart();
+                });
+              }}
+            >
+              {woeView.pending || benefactionPending ? "Benefaction & Depart…" : "Benefaction & Depart"}
+            </button>
           </div>
-        ) : null}
+        )}
         {artisanChoice !== undefined && (
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <span className="text-xs font-medium">Pay with:</span>
@@ -949,6 +1184,396 @@ function SupplicantPiece({
   );
 }
 
+function TempleStatusControl({
+  temple,
+  pending,
+  onRecord,
+}: {
+  readonly temple: HierophantTemple;
+  readonly pending: boolean;
+  readonly onRecord: (next: HierophantTempleStatus) => void;
+}) {
+  const status = templePhysicalStatus(temple);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useDismissibleOpen(menuOpen, () => setMenuOpen(false), rootRef);
+  return (
+    <div ref={rootRef} className="relative inline-flex h-6 shrink-0 items-center" data-temple-status-control="">
+      <button
+        type="button"
+        data-temple-status={status.kind}
+        data-temple-status-pending={pending ? "true" : "false"}
+        aria-busy={pending}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        aria-label={`Temple status ${status.label}`}
+        data-temple-header-chip-shell=""
+        className={`${TEMPLE_HEADER_CHIP_SHELL} ${
+          status.kind === "collapsed"
+            ? "border-stone-800 bg-stone-800 text-stone-100"
+            : "border-emerald-800 bg-emerald-800 text-emerald-50"
+        } ${pending ? "ring-1 ring-amber-700/40 dark:ring-amber-300/30" : ""}`}
+        onMouseDown={stopNestedControlPointer}
+        onPointerDown={stopNestedControlPointer}
+        onClick={(event) => {
+          event.stopPropagation();
+          setMenuOpen((open) => !open);
+        }}
+      >
+        {status.label}
+        <span aria-hidden="true" data-temple-header-chip-slot="" className={TEMPLE_HEADER_CHIP_SLOT}>▾</span>
+      </button>
+      {menuOpen && (
+        <div
+          role="menu"
+          data-temple-status-menu=""
+          data-board-overlay=""
+          className="absolute right-0 z-40 mt-1 min-w-[7.5rem] rounded-md border border-stone-500/40 bg-white p-1 shadow-lg dark:border-stone-300/30 dark:bg-slate-900"
+        >
+          {(["active", "collapsed"] as const).map((choice) => {
+            const selected = status.kind === choice;
+            const label = choice === "collapsed" ? "Collapsed" : "Active";
+            return (
+              <button
+                key={choice}
+                type="button"
+                role="menuitemradio"
+                aria-checked={selected}
+                data-temple-status-choice={choice}
+                className="flex w-full items-center gap-1 rounded px-1.5 py-1 text-left text-[11px] font-semibold hover:bg-amber-100 dark:hover:bg-amber-950/60"
+                onMouseDown={stopNestedControlPointer}
+                onPointerDown={stopNestedControlPointer}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setMenuOpen(false);
+                  if (pending || selected) return;
+                  onRecord(choice);
+                }}
+              >
+                <span className="inline-block w-3 text-[10px]" aria-hidden="true">{selected ? "✓" : ""}</span>
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DoctrineSideControl({
+  currentKind,
+  pairPreviewLabel,
+  pairPreviewText,
+  pending,
+  onFlip,
+}: {
+  readonly currentKind: "doctrine" | "blasphemy";
+  readonly pairPreviewLabel: string;
+  readonly pairPreviewText: string;
+  readonly pending: boolean;
+  readonly onFlip: () => void;
+}) {
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useDismissibleOpen(menuOpen, () => setMenuOpen(false), rootRef);
+  const orthodox = currentKind === "doctrine";
+  return (
+    <div
+      ref={rootRef}
+      className="relative"
+      data-doctrine-side-control=""
+      onMouseEnter={() => setPreviewOpen(true)}
+      onMouseLeave={() => setPreviewOpen(false)}
+      onFocusCapture={() => setPreviewOpen(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setPreviewOpen(false);
+        }
+      }}
+    >
+      <button
+        type="button"
+        data-doctrine-side={orthodox ? "orthodox" : "blasphemous"}
+        data-doctrine-pair-action=""
+        aria-busy={pending}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        aria-label={orthodox ? "Doctrine side Orthodox" : "Doctrine side Blasphemous"}
+        className={`inline-flex h-6 shrink-0 items-center gap-0.5 rounded-md px-2 text-[10px] font-bold uppercase tracking-wide focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
+          orthodox
+            ? "bg-emerald-800 text-emerald-50"
+            : "bg-rose-800 text-rose-50"
+        } ${pending ? "ring-1 ring-amber-700/40 dark:ring-amber-300/30" : ""}`}
+        onMouseDown={stopNestedControlPointer}
+        onPointerDown={stopNestedControlPointer}
+        onClick={(event) => {
+          event.stopPropagation();
+          setPreviewOpen(false);
+          setMenuOpen((open) => !open);
+        }}
+      >
+        {orthodox ? "Orthodox" : "Blasphemous"}
+        <span aria-hidden="true">▾</span>
+      </button>
+      {previewOpen && !menuOpen && (
+        <div
+          data-doctrine-pair-preview=""
+          role="tooltip"
+          className="absolute right-0 z-40 mt-1 w-56 rounded-md border border-stone-500/40 bg-white p-1.5 text-left text-[11px] leading-snug shadow-lg dark:border-stone-300/30 dark:bg-slate-900"
+        >
+          <p
+            data-doctrine-pair-preview-label=""
+            className="text-[9px] font-semibold uppercase tracking-wide text-slate-500"
+          >
+            {pairPreviewLabel}
+          </p>
+          <p>{pairPreviewText}</p>
+        </div>
+      )}
+      {menuOpen && (
+        <div
+          role="menu"
+          data-doctrine-side-menu=""
+          data-board-overlay=""
+          className="absolute right-0 z-40 mt-1 min-w-[10rem] rounded-md border border-stone-500/40 bg-white p-1 shadow-lg dark:border-stone-300/30 dark:bg-slate-900"
+        >
+          {(["doctrine", "blasphemy"] as const).map((choice) => {
+            const selected = currentKind === choice;
+            const label = choice === "doctrine" ? "Orthodox" : "Blasphemous";
+            return (
+              <button
+                key={choice}
+                type="button"
+                role="menuitemradio"
+                aria-checked={selected}
+                data-doctrine-side-choice={choice === "doctrine" ? "orthodox" : "blasphemous"}
+                className="flex w-full flex-col items-start gap-0.5 rounded px-1.5 py-1 text-left text-[11px] font-semibold hover:bg-amber-100 dark:hover:bg-amber-950/60"
+                onMouseDown={stopNestedControlPointer}
+                onPointerDown={stopNestedControlPointer}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setMenuOpen(false);
+                  if (pending || selected) return;
+                  onFlip();
+                }}
+              >
+                <span className="inline-flex items-center gap-1">
+                  <span className="inline-block w-3 text-[10px]" aria-hidden="true">{selected ? "✓" : ""}</span>
+                  {label}
+                </span>
+                {!selected && (
+                  <span className="pl-4 text-[10px] font-normal leading-snug text-slate-600 dark:text-slate-300">
+                    {pairPreviewText}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OrdinaryDoctrineObject({
+  temple,
+  hierophant,
+  denizens,
+  pending,
+  onRecord,
+}: {
+  readonly temple: Extract<HierophantTemple, { kind: "ordinary" }>;
+  readonly hierophant: HierophantState;
+  readonly denizens: readonly NamedDenizen[];
+  readonly pending: boolean;
+  readonly onRecord: (next: OrdinaryTempleDoctrineState) => void;
+}) {
+  const [controlsRevealed, setControlsRevealed] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useDismissibleOpen(menuOpen, () => setMenuOpen(false), rootRef);
+  const pair = pairedOrdinaryDoctrineState(temple.doctrine, hierophant.campaignDoctrines);
+  const choices = hierophantDoctrineChoices(hierophant.campaignDoctrines);
+  const reliableProphet = hostedProphets(hierophant.prophets, { kind: "temple", templeId: temple.templeId })
+    .some((prophet) => {
+      const status = denizens.find((denizen) => denizen.denizenId === prophet.denizenId)?.powerfulProfile?.status;
+      return status?.kind === "standard" && status.value === "reliable";
+    });
+  const pairPreview = pair === null
+    ? null
+    : pair.kind === "blasphemy"
+      ? { label: "Blasphemy", text: blasphemyText(pair.blasphemyId, hierophant.campaignDoctrines) }
+      : pair.kind === "doctrine"
+        ? { label: "Orthodoxy", text: doctrineText(pair.doctrineId, hierophant.campaignDoctrines) }
+        : null;
+  const chevronVisible = controlsRevealed || menuOpen;
+  const supportedClassIds = templeSupportedClassIds(temple, hierophant.campaignDoctrines);
+  return (
+    <section ref={rootRef} data-doctrine-section="" data-doctrine-pending={pending ? "true" : "false"} className="text-sm">
+      <div data-doctrine-section-header="" className="flex items-center justify-between gap-2">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Doctrine</h4>
+        {pair !== null && pairPreview !== null && (temple.doctrine.kind === "doctrine" || temple.doctrine.kind === "blasphemy") && (
+          <DoctrineSideControl
+            currentKind={temple.doctrine.kind}
+            pairPreviewLabel={pairPreview.label}
+            pairPreviewText={pairPreview.text}
+            pending={pending}
+            onFlip={() => onRecord(pair)}
+          />
+        )}
+      </div>
+      <div
+        data-doctrine-object=""
+        className="relative mt-1 rounded-md border border-amber-900/20 bg-amber-50/80 px-2 py-1 dark:border-amber-200/20 dark:bg-amber-950/30"
+        onMouseEnter={() => setControlsRevealed(true)}
+        onMouseLeave={() => setControlsRevealed(false)}
+        onFocusCapture={() => setControlsRevealed(true)}
+        onBlurCapture={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setControlsRevealed(false);
+          }
+        }}
+      >
+      <div
+        data-doctrine-value-row=""
+        data-doctrine-menu-anchor=""
+        className="relative flex items-start gap-1"
+      >
+        <p
+          data-doctrine-current=""
+          data-doctrine-value-text=""
+          className={`min-w-0 flex-1 text-sm ${temple.doctrine.kind === "unset" ? "italic text-slate-600 dark:text-slate-300" : ""}`}
+        >
+          {templeDoctrineSummary(temple, hierophant.campaignDoctrines)}
+        </p>
+        <button
+          type="button"
+          data-doctrine-change=""
+          data-doctrine-value-selector=""
+          className={`mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center self-start rounded border border-amber-800/40 text-[10px] font-semibold leading-none text-amber-950 transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 dark:text-amber-50 ${
+            chevronVisible ? "opacity-100" : "opacity-0"
+          }`}
+          aria-expanded={menuOpen}
+          aria-haspopup="listbox"
+          aria-label="Change Doctrine"
+          aria-busy={pending}
+          onMouseDown={stopNestedControlPointer}
+          onPointerDown={stopNestedControlPointer}
+          onClick={(event) => {
+            event.stopPropagation();
+            setMenuOpen((open) => !open);
+          }}
+        >
+          ▾
+        </button>
+        {menuOpen && (
+          <div
+            role="listbox"
+            data-doctrine-menu=""
+            data-board-overlay=""
+            className="absolute left-0 right-0 top-full z-40 mt-0.5 max-h-40 overflow-auto rounded border border-amber-800/30 bg-white p-1 text-left shadow-lg dark:border-amber-500/30 dark:bg-slate-900"
+          >
+            {reliableProphet && (
+              <p data-doctrine-prophet-warning="" className="mb-1 px-1.5 py-1 text-[11px] leading-snug text-slate-600 dark:text-slate-300">
+                Reliable Prophet here — changing Doctrine is associated with Prophet disruption, Cult creation, and the former Doctrine becoming Blasphemous.
+              </p>
+            )}
+            {choices.map((choice) => {
+              const selected = temple.doctrine.kind === "doctrine" && temple.doctrine.doctrineId === choice.doctrineId;
+              return (
+                <div key={choice.doctrineId} role="none">
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    data-doctrine-choice={choice.doctrineId}
+                    className="w-full rounded px-1.5 py-1 text-left text-[11px] font-medium hover:bg-amber-100 dark:hover:bg-amber-950/60 disabled:opacity-60"
+                    disabled={selected}
+                    onMouseDown={stopNestedControlPointer}
+                    onPointerDown={stopNestedControlPointer}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (selected) return;
+                      onRecord({ kind: "doctrine", doctrineId: choice.doctrineId as never });
+                      setMenuOpen(false);
+                    }}
+                  >
+                    {choice.text}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      {supportedClassIds.length > 0 ? (
+        <div
+          data-doctrine-supports=""
+          className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5"
+          aria-label={`Supports ${supportedClassIds.map((classId) => classLabel(classId, hierophant.campaignClasses)).join(", ")}`}
+        >
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Supports</span>
+          {supportedClassIds.map((classId) => (
+            <HierophantClassBadge
+              key={classId}
+              classId={classId}
+              label={classLabel(classId, hierophant.campaignClasses)}
+            />
+          ))}
+        </div>
+      ) : null}
+      </div>
+    </section>
+  );
+}
+
+function HolidayChip({
+  templeName,
+  marked,
+  pending,
+  onToggle,
+}: {
+  readonly templeName: string;
+  readonly marked: boolean;
+  readonly pending: boolean;
+  readonly onToggle: (next: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-holiday-chip=""
+      data-holiday-marked={marked ? "true" : "false"}
+      data-holiday-pending={pending ? "true" : "false"}
+      data-holiday-optical="inset"
+      data-temple-header-chip-shell=""
+      aria-pressed={marked}
+      aria-busy={pending}
+      aria-label={
+        marked
+          ? `Clear Holiday marker from ${templeName}`
+          : `Mark ${templeName} as celebrating a Holiday`
+      }
+      className={`${TEMPLE_HEADER_HOLIDAY_SHELL} ${
+        marked
+          ? "border-amber-800 bg-amber-200 text-amber-950 dark:border-amber-200 dark:bg-amber-700 dark:text-amber-50"
+          : "border-amber-800/70 bg-amber-50 text-amber-950 dark:border-amber-200/70 dark:bg-amber-950/40 dark:text-amber-50"
+      } ${pending ? "ring-1 ring-amber-700/40 dark:ring-amber-300/30" : ""}`}
+      onMouseDown={stopNestedControlPointer}
+      onPointerDown={stopNestedControlPointer}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (pending) return;
+        onToggle(!marked);
+      }}
+    >
+      {marked ? "Holiday" : "+ Holiday"}
+      <span aria-hidden="true" data-temple-header-chip-slot="" className={TEMPLE_HEADER_CHIP_SLOT} />
+    </button>
+  );
+}
+
 function TemplePiece({
   temple,
   hierophant,
@@ -960,7 +1585,7 @@ function TemplePiece({
   onSelect,
   choices,
   supply,
-  steer,
+  hostMove,
   pieces,
 }: {
   readonly temple: HierophantTemple;
@@ -973,49 +1598,25 @@ function TemplePiece({
   readonly onSelect: () => void;
   readonly choices: HierophantVisionsBoardChoices;
   readonly supply: HierophantSupplyBoardInteraction | null;
-  readonly steer: HierophantSteerBoardInteraction | null;
+  readonly hostMove: HierophantHostMoveBoardInteraction | null;
   readonly pieces: HierophantPieceControls;
 }) {
   const isHestar = temple.kind === "hestar";
-  const hosted = hostedSupplicants(hierophant.supplicants, { kind: "temple", templeId: temple.templeId });
+  const hosted = hierophant.supplicants.filter((person) => {
+    const host = pieces.hostView(person.denizenId, person.host).displayed;
+    return host.kind === "temple" && host.templeId === temple.templeId;
+  }).map((person) => {
+    const host = pieces.hostView(person.denizenId, person.host).displayed;
+    return host.kind === "temple" ? { ...person, host } : person;
+  });
   const prophets = hostedProphets(hierophant.prophets, { kind: "temple", templeId: temple.templeId });
   const researchers = templeResearchers(presence, temple.templeId);
-  const holiday = hierophant.holidayTempleIds.includes(temple.templeId);
-  const groups = areaGroups(hosted, isHestar);
-  const status = boardStatus(temple);
+  const holidayView = pieces.holidayView(temple.templeId, hierophant.holidayTempleIds.includes(temple.templeId));
+  const pendingCreates = pendingCreatesForTemple(supply?.pendingCreates, temple.templeId);
+  const peopleEmpty = hosted.length === 0 && prophets.length === 0 && researchers.length === 0 && pendingCreates.length === 0;
+  const status = templePhysicalStatus(temple);
+  const blasphemousDoctrine = temple.kind === "ordinary" && temple.doctrine.kind === "blasphemy";
   const name = templeDisplayName(temple, places);
-  const hestarTemple = hierophant.temples.find((entry) => entry.kind === "hestar" || entry.templeId === "hestar");
-  const ordinaryTemples = hierophant.temples.filter((entry) => entry.kind === "ordinary");
-  function resourceCount(entry: HierophantTemple, resource: HierophantResourceKind): number {
-    return resource === "abundance" ? entry.abundance : entry.conviction;
-  }
-  function shareFor(resource: HierophantResourceKind) {
-    const hestarCount = hestarTemple === undefined ? 0 : resourceCount(hestarTemple, resource);
-    const ownCount = resourceCount(temple, resource);
-    const blasphemous = temple.kind === "ordinary" && temple.doctrine.kind === "blasphemy";
-    return {
-      role: (temple.kind === "hestar" ? "hestar" : "ordinary") as "ordinary" | "hestar",
-      blasphemous,
-      canToHestar: !pieces.transferBusy && !blasphemous && ownCount >= 1,
-      canFromHestar: !pieces.transferBusy && !blasphemous && hestarCount >= 1,
-      canSend: !pieces.transferBusy && hestarCount >= 1,
-      canTake: !pieces.transferBusy && ordinaryTemples.some((entry) => (
-        entry.doctrine.kind !== "blasphemy" && resourceCount(entry, resource) >= 1
-      )),
-      candidates: ordinaryTemples.map((entry) => ({
-        templeId: entry.templeId,
-        name: templeDisplayName(entry, places),
-        blasphemous: entry.doctrine.kind === "blasphemy",
-        canSendTo: !pieces.transferBusy && hestarCount >= 1 && entry.doctrine.kind !== "blasphemy",
-        canTakeFrom: !pieces.transferBusy && entry.doctrine.kind !== "blasphemy" && resourceCount(entry, resource) >= 1,
-      })),
-      busy: pieces.transferBusy,
-      onToHestar: () => pieces.onTransferHestarResource(resource, temple.templeId, "hestar"),
-      onFromHestar: () => pieces.onTransferHestarResource(resource, "hestar", temple.templeId),
-      onSendTo: (templeId: string) => pieces.onTransferHestarResource(resource, "hestar", templeId),
-      onTakeFrom: (templeId: string) => pieces.onTransferHestarResource(resource, templeId, "hestar"),
-    };
-  }
   const templePreview: HierophantVisionsTemplePreview | undefined = plan.temples.find((entry) => entry.templeId === temple.templeId);
   const fallbackChoice = choices.openChoices.find(
     (choice) => choice.kind === "hestar_fallback" && choice.templeId === temple.templeId,
@@ -1038,7 +1639,6 @@ function TemplePiece({
         donorResource: donorChoices[0]?.resource,
         donorLabels: [...new Set(donorLabels)],
       });
-  const supportedClassIds = templeSupportedClassIds(temple, hierophant.campaignDoctrines);
   const previews = new Map(plan.supplicants.map((entry) => [entry.denizenId, entry]));
   const orderChoice = choices.openChoices.find((choice) => choice.kind === "supplicant_order");
   const orderParticipants = orderChoice?.kind === "supplicant_order" ? orderChoice.participantIds : [];
@@ -1046,18 +1646,18 @@ function TemplePiece({
     <article
       data-temple-id={temple.templeId}
       aria-label={`${name} board`}
-      className={`rounded-xl border-2 p-3 flex flex-col gap-2 min-w-0 shadow-md ${
+      className={`relative rounded-xl border-2 p-3 flex flex-col gap-2 min-w-0 shadow-md ${
         isHestar
           ? "border-amber-500 dark:border-amber-400 bg-amber-50 dark:bg-amber-950/40"
           : status.kind === "collapsed"
             ? "border-stone-700 bg-stone-200 dark:border-stone-400 dark:bg-stone-900"
-            : status.kind === "blasphemous"
+            : blasphemousDoctrine
               ? "border-rose-600 dark:border-rose-400 bg-rose-50 dark:bg-rose-950/40"
               : "border-amber-300 dark:border-amber-800 bg-white dark:bg-slate-900"
       } ${selected ? "ring-2 ring-amber-600 dark:ring-amber-300" : ""}`}
     >
       <header className="flex flex-col gap-2">
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center justify-between gap-2">
           <button
             type="button"
             className="text-left cursor-pointer min-w-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
@@ -1071,74 +1671,76 @@ function TemplePiece({
               {isHestar ? " · Hestar" : ""}
             </h3>
           </button>
-          <span
-            className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-              status.kind === "collapsed"
-                ? "bg-stone-800 text-stone-100"
-                : status.kind === "blasphemous"
-                  ? "bg-rose-700 text-white"
-                  : "bg-emerald-800 text-emerald-50"
-            }`}
-          >
-            {status.label}
-          </span>
+          <div data-temple-header-rail="" className="flex shrink-0 items-center gap-1.5">
+            <HolidayChip
+              templeName={name}
+              marked={holidayView.marked}
+              pending={holidayView.pending}
+              onToggle={(next) => pieces.onToggleHoliday(temple.templeId, next)}
+            />
+            <TempleStatusControl
+              temple={temple}
+              pending={pieces.statusPendingTempleIds.has(temple.templeId)}
+              onRecord={(next) => pieces.onRecordTempleStatus(temple.templeId, next)}
+            />
+          </div>
         </div>
-        {holiday && (
-          <p
-            className="self-start rounded-full border-2 border-amber-600 bg-amber-200 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-amber-950 dark:border-amber-300 dark:bg-amber-700 dark:text-amber-50"
-            aria-label="Holiday marked"
-          >
-            Holiday
-          </p>
-        )}
         <div className="flex flex-wrap gap-2">
           <ResourceCounter
             label="Abundance"
-            before={temple.abundance}
-            after={templePreview?.abundance.after ?? null}
-            delta={templePreview?.abundance.delta ?? null}
             templeId={temple.templeId}
             templeName={name}
             view={pieces.resourceView(temple.templeId, "abundance", temple.abundance)}
             onAdjust={(resource, delta) => pieces.onAdjustResource(temple.templeId, resource, delta)}
-            share={shareFor("abundance")}
+            conversion={isHestar ? null : {
+              enabled: true,
+              onConvert: () => pieces.onConvertHestarResource(temple.templeId, "abundance"),
+            }}
           />
           <ResourceCounter
             label="Conviction"
-            before={temple.conviction}
-            after={templePreview?.conviction.after ?? null}
-            delta={templePreview?.conviction.delta ?? null}
             templeId={temple.templeId}
             templeName={name}
             view={pieces.resourceView(temple.templeId, "conviction", temple.conviction)}
             onAdjust={(resource, delta) => pieces.onAdjustResource(temple.templeId, resource, delta)}
-            share={shareFor("conviction")}
+            conversion={isHestar ? null : {
+              enabled: true,
+              onConvert: () => pieces.onConvertHestarResource(temple.templeId, "conviction"),
+            }}
           />
         </div>
-        <div className="rounded-md border border-amber-900/20 bg-amber-50/80 px-2 py-1 dark:border-amber-200/20 dark:bg-amber-950/30">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Doctrine</p>
-          <p className={`text-sm ${temple.kind === "ordinary" && temple.doctrine.kind === "unset" ? "italic text-slate-600 dark:text-slate-300" : ""}`}>
-            {doctrineStateLabel(temple, hierophant.campaignDoctrines)}
-          </p>
-          {isHestar ? (
-            <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500" aria-label="Supports all Classes">
-              Supports all
-            </p>
-          ) : supportedClassIds.length > 0 ? (
-            <div className="mt-1" aria-label={`Supports ${supportedClassIds.map((classId) => classLabel(classId, hierophant.campaignClasses)).join(", ")}`}>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Supports</p>
-              <div className="mt-0.5 flex flex-wrap gap-1">
-                {supportedClassIds.map((classId) => (
-                  <HierophantClassBadge
-                    key={classId}
-                    classId={classId}
-                    label={classLabel(classId, hierophant.campaignClasses)}
-                  />
-                ))}
+        {temple.kind === "ordinary" ? (
+          <>
+            <OrdinaryDoctrineObject
+              temple={temple}
+              hierophant={hierophant}
+              denizens={denizens}
+              pending={pieces.doctrinePendingTempleIds.has(temple.templeId)}
+              onRecord={(next) => pieces.onRecordDoctrine(temple.templeId, next)}
+            />
+          </>
+        ) : (
+          <section data-doctrine-section="" className="text-sm">
+            <div data-doctrine-section-header="">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Doctrine</h4>
+            </div>
+            <div
+              data-doctrine-object=""
+              className="mt-1 rounded-md border border-amber-900/20 bg-amber-50/80 px-2 py-1 dark:border-amber-200/20 dark:bg-amber-950/30"
+            >
+              <p data-doctrine-current="" className="text-sm">{doctrineStateLabel(temple, hierophant.campaignDoctrines)}</p>
+              <div
+                data-doctrine-supports=""
+                className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5"
+                aria-label="Supports all Classes"
+              >
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Supports</span>
+                {" "}
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-stone-800 dark:text-stone-100">All</span>
               </div>
             </div>
-          ) : null}
-        </div>
+          </section>
+        )}
         {warnings.length > 0 && (
           <ul className="flex flex-col gap-1" aria-label="Visions warnings">
             {warnings.map((warning) => (
@@ -1178,33 +1780,39 @@ function TemplePiece({
           temple={temple}
           zone="blocked"
           supply={supply}
-          steer={steer}
-          className={supply?.activeClassId !== null || steer?.draggingDenizenId !== null ? "min-h-[1.75rem]" : ""}
+          hostMove={hostMove}
+          className={`absolute inset-0 z-20 ${
+            supply?.activeClassId !== null || hostMove?.draggingDenizenId !== null
+              ? "pointer-events-auto"
+              : "pointer-events-none"
+          }`}
         >
-          <p className="text-xs font-semibold text-rose-800 dark:text-rose-200">
-            {supply?.blockNotice?.templeId === temple.templeId ? supply.blockNotice.reason : null}
-          </p>
+          <div data-collapsed-drop-overlay="" data-collapsed-drop-placement="overlay" className="pointer-events-none absolute inset-0" />
+          {supply?.blockNotice?.templeId === temple.templeId ? (
+            <p className="pointer-events-none absolute inset-x-2 bottom-2 text-xs font-semibold text-rose-800 dark:text-rose-200">
+              {supply.blockNotice.reason}
+            </p>
+          ) : null}
         </SupplyDropZone>
       )}
       {supply?.blockNotice?.templeId === temple.templeId && status.kind !== "collapsed" && (
         <p className="text-xs font-semibold text-rose-800 dark:text-rose-200">{supply.blockNotice.reason}</p>
       )}
-      {groups.filter((group) => group.people.length > 0 || group.key === "courtyard" || group.key === "agiary" || group.key === "hestar").map((group) => {
-        const zone: HierophantSupplyZone | null =
-          group.key === "courtyard" || group.key === "agiary" || group.key === "hestar"
-            ? group.key
-            : null;
-        const section = (
-        <section aria-label={group.label} className="text-sm">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{group.label}</h4>
-          {group.people.length === 0 ? (
+      <SupplyDropZone temple={temple} zone="people" supply={supply} hostMove={hostMove}>
+        <section data-temple-people="" aria-label="People" className="text-sm">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">People</h4>
+          {peopleEmpty ? (
             <div
-              className="mt-1 min-h-[2.25rem] rounded-md border border-dashed border-amber-900/20 bg-amber-50/40 dark:border-amber-200/15 dark:bg-amber-950/20"
+              data-people-empty=""
+              className="mt-1 min-h-[1.25rem] rounded-md border border-dashed border-amber-900/20 bg-amber-50/40 dark:border-amber-200/15 dark:bg-amber-950/20"
               aria-hidden="true"
             />
           ) : (
-            <ul className="flex flex-col gap-1.5 mt-1">
-              {group.people.map((person) => (
+            <ul data-people-list="" className="mt-1 flex flex-col gap-1.5">
+              {pendingCreates.map((item) => (
+                <PendingSupplyGhost key={item.denizenId} item={item} />
+              ))}
+              {hosted.map((person) => (
                 <SupplicantPiece
                   key={person.denizenId}
                   person={person}
@@ -1229,82 +1837,143 @@ function TemplePiece({
                     onSelect();
                     pieces.onSelectSupplicant(person.denizenId);
                   }}
-                  onSetWoe={(nextWoe) => pieces.onSetWoe(person.denizenId, person.woe, nextWoe)}
+                  onSetWoe={(nextWoe) => pieces.onSetWoe(person.denizenId, nextWoe)}
+                  onAdjustWoe={(delta) => pieces.onAdjustWoe(person.denizenId, delta)}
                   onArtisanPayment={(resource) => choices.onArtisanPayment(person.denizenId, resource)}
                   onHestarFallback={(useHestar) => choices.onHestarFallback(person.denizenId, useHestar)}
                   onOrderSelect={() => choices.onOrderSelect(person.denizenId)}
-                  steer={steer}
+                  hostMove={hostMove}
+                  timeScheduled={pieces.timeScheduledDenizenIds.has(person.denizenId)}
+                  hostPending={pieces.hostView(person.denizenId, person.host).pending}
+                  benefactionPending={pieces.benefactionPendingDenizenIds.has(person.denizenId)}
+                  onBenefactionDepart={() => pieces.onBenefactionDepart(person.denizenId)}
+                  woeView={pieces.woeView(person.denizenId, person.woe)}
                 />
               ))}
+              {prophets.map((prophet: HierophantProphet) => {
+                const prophetName = personPieceName(denizenLabel(denizens, prophet.denizenId));
+                const statusValue = denizens.find((denizen) => denizen.denizenId === prophet.denizenId)?.powerfulProfile?.status;
+                const reliableOrDisruptive = statusValue?.kind === "standard"
+                  && (statusValue.value === "reliable" || statusValue.value === "disruptive")
+                  ? statusValue.value
+                  : null;
+                const nextStatus = reliableOrDisruptive === "reliable" ? "disruptive" : "reliable";
+                const prophetPending = pieces.prophetPendingDenizenIds.has(prophet.denizenId);
+                return (
+                <li key={prophet.denizenId}>
+                  <div
+                    data-prophet-piece={prophet.denizenId}
+                    data-prophet-status-state={reliableOrDisruptive ?? "unset"}
+                    aria-label={prophetAccessibleDescription(prophetName, reliableOrDisruptive)}
+                    className="w-full text-left rounded-lg border-2 border-violet-600 bg-violet-50 px-2 py-1 shadow-sm dark:border-violet-400 dark:bg-violet-950/40"
+                  >
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 text-left cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700"
+                        onClick={onSelect}
+                        onKeyDown={(event) => activate(event, onSelect)}
+                      >
+                        <PersonPieceHeader
+                          type="Prophet"
+                          name={prophetName}
+                          typeClassName="text-violet-800 dark:text-violet-200"
+                        />
+                      </button>
+                      {reliableOrDisruptive !== null && (
+                        <button
+                          type="button"
+                          data-prophet-status={reliableOrDisruptive}
+                          data-prophet-status-pending={prophetPending ? "true" : "false"}
+                          aria-busy={prophetPending}
+                          aria-label={`Record ${nextStatus === "reliable" ? "Reliable" : "Disruptive"}`}
+                          className="shrink-0 rounded border border-violet-700/50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700 disabled:opacity-60 dark:text-violet-50"
+                          disabled={prophetPending}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            pieces.onRecordProphetStatus(prophet.denizenId, nextStatus);
+                          }}
+                        >
+                          {reliableOrDisruptive === "reliable" ? "Reliable" : "Disruptive"}
+                          <span aria-hidden="true"> ▾</span>
+                        </button>
+                      )}
+                    </div>
+                    {reliableOrDisruptive === "reliable" && (
+                      <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <span
+                          data-prophet-production-phase=""
+                          className="text-[10px] font-semibold uppercase tracking-wide text-violet-800/80 dark:text-violet-200/80"
+                        >
+                          PRODUCTION
+                        </span>
+                        <span
+                          data-prophet-production-effect=""
+                          className="text-[11px] leading-tight text-slate-600 dark:text-slate-300"
+                        >
+                          {PROPHET_PRODUCTION_VISIBLE}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </li>
+                );
+              })}
+              {researchers.map((researcher) => {
+                const researcherName = personPieceName(researcher.name);
+                const operational = researcher.operationalThisMonth;
+                return (
+                <li
+                  key={researcher.denizenId}
+                  data-researcher-piece={researcher.denizenId}
+                  data-researcher-operational={operational ? "true" : "false"}
+                  aria-label={researcherAccessibleDescription(researcherName, operational)}
+                  className={
+                    operational
+                      ? "rounded-lg border-2 border-dashed border-slate-500 bg-slate-50 px-2 py-1 dark:border-slate-400 dark:bg-slate-900"
+                      : "rounded-lg border-2 border-dashed border-slate-400 bg-slate-100/80 px-2 py-1 opacity-80 dark:border-slate-600 dark:bg-slate-950/60"
+                  }
+                >
+                  <PersonPieceHeader
+                    type="Researcher"
+                    name={researcherName}
+                    typeClassName={operational ? "text-slate-500" : "text-slate-400"}
+                  />
+                  <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <span
+                      data-researcher-phase=""
+                      className={`text-[10px] font-semibold uppercase tracking-wide ${
+                        operational ? "text-slate-500" : "text-slate-400"
+                      }`}
+                    >
+                      VISIONS
+                    </span>
+                    <span
+                      data-researcher-responsibility=""
+                      className={`text-[11px] leading-tight ${
+                        operational
+                          ? "text-slate-600 dark:text-slate-300"
+                          : "text-slate-500 dark:text-slate-400"
+                      }`}
+                    >
+                      {RESEARCHER_RESPONSIBILITY_VISIBLE}
+                    </span>
+                  </div>
+                  {!operational && (
+                    <div
+                      data-researcher-unavailable=""
+                      className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-800 dark:text-rose-300"
+                    >
+                      Unavailable this month
+                    </div>
+                  )}
+                </li>
+                );
+              })}
             </ul>
           )}
         </section>
-        );
-        if (zone === null) return <div key={group.key}>{section}</div>;
-        return (
-          <SupplyDropZone key={group.key} temple={temple} zone={zone} supply={supply} steer={steer}>
-            {section}
-          </SupplyDropZone>
-        );
-      })}
-      {prophets.length > 0 && (
-      <section aria-label="Prophets" className="text-sm">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Prophets</h4>
-        <ul className="flex flex-col gap-1 mt-1">
-            {prophets.map((prophet: HierophantProphet) => {
-              const prophetName = personPieceName(denizenLabel(denizens, prophet.denizenId));
-              return (
-              <li key={prophet.denizenId}>
-                <button
-                  type="button"
-                  data-prophet-piece={prophet.denizenId}
-                  className="w-full text-left rounded-lg border-2 border-violet-600 bg-violet-50 px-2 py-1 shadow-sm cursor-pointer dark:border-violet-400 dark:bg-violet-950/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700"
-                  aria-label={`${prophetName ?? "Prophet"}, Prophet`}
-                  onClick={onSelect}
-                  onKeyDown={(event) => activate(event, onSelect)}
-                >
-                  <PersonPieceHeader
-                    type="Prophet"
-                    name={prophetName}
-                    typeClassName="text-violet-800 dark:text-violet-200"
-                  />
-                  <div className="text-[11px] leading-tight text-slate-600 dark:text-slate-300">{prophetStatusText(denizens, prophet.denizenId)} · Temple host</div>
-                </button>
-              </li>
-              );
-            })}
-        </ul>
-      </section>
-      )}
-      {researchers.length > 0 && (
-      <section aria-label="Sorcerer Researcher" className="text-sm">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Researcher</h4>
-        <ul className="flex flex-col gap-1 mt-1">
-            {researchers.map((researcher) => {
-              const researcherName = personPieceName(researcher.name);
-              return (
-              <li
-                key={researcher.denizenId}
-                data-researcher-piece={researcher.denizenId}
-                className="rounded-lg border-2 border-dashed border-slate-500 bg-slate-50 px-2 py-1 dark:border-slate-400 dark:bg-slate-900"
-              >
-                <PersonPieceHeader
-                  type="Researcher"
-                  name={researcherName}
-                  typeClassName="text-slate-500"
-                />
-                <div className="text-[11px] leading-tight text-slate-600 dark:text-slate-300">
-                  {researcherOperationalLabel(researcher.operationalThisMonth)}
-                  <span className="sr-only">
-                    {researcher.operationalThisMonth ? " operational" : " not operational this month"}
-                  </span>
-                </div>
-              </li>
-              );
-            })}
-        </ul>
-      </section>
-      )}
+      </SupplyDropZone>
     </article>
   );
 }
@@ -1318,7 +1987,7 @@ export default function HierophantTempleBoard({
   onSelectTemple,
   choices,
   supply,
-  steer,
+  hostMove,
   pieces,
 }: {
   readonly hierophant: HierophantState;
@@ -1329,7 +1998,7 @@ export default function HierophantTempleBoard({
   readonly onSelectTemple: (templeId: string) => void;
   readonly choices: HierophantVisionsBoardChoices;
   readonly supply: HierophantSupplyBoardInteraction;
-  readonly steer: HierophantSteerBoardInteraction;
+  readonly hostMove: HierophantHostMoveBoardInteraction;
   readonly pieces: HierophantPieceControls;
 }) {
   const plan = choices.plan;
@@ -1360,19 +2029,19 @@ export default function HierophantTempleBoard({
         onSelect={() => onSelectTemple(temple.templeId)}
         choices={choices}
         supply={supply}
-        steer={steer}
+        hostMove={hostMove}
         pieces={pieces}
       />
     );
   }
   return (
     <div className="flex flex-col gap-3">
-      {steer.notice !== null && (
+      {hostMove.notice !== null && (
         <p
-          data-steer-notice=""
+          data-host-notice=""
           className="rounded-lg border border-amber-300 bg-amber-50/80 px-3 py-2 text-sm font-medium text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-50"
         >
-          {steer.notice.reason}
+          {hostMove.notice.reason}
         </p>
       )}
       {orderChoice?.kind === "supplicant_order" && (
@@ -1489,7 +2158,7 @@ export default function HierophantTempleBoard({
               onSelect={() => onSelectTemple(temple.templeId)}
               choices={choices}
               supply={supply}
-              steer={steer}
+              hostMove={hostMove}
               pieces={pieces}
             />
           ))}

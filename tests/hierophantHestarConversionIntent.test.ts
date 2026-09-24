@@ -1,0 +1,259 @@
+import { describe, expect, it } from "vitest";
+import {
+  createHierophantHestarConversionController,
+  hestarDestinationResource,
+  hierophantHestarConversionAriaLabel,
+  hierophantHestarConversionVisibleLabel,
+} from "../src/hierophant-hestar-conversion";
+
+function deferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+describe("Hierophant Hestar conversion labels", () => {
+  it("maps ordinary Abundance to Hestar Conviction and Conviction to Abundance", () => {
+    expect(hestarDestinationResource("abundance")).toBe("conviction");
+    expect(hestarDestinationResource("conviction")).toBe("abundance");
+    expect(hierophantHestarConversionVisibleLabel("abundance")).toBe("Hestar +C");
+    expect(hierophantHestarConversionVisibleLabel("conviction")).toBe("Hestar +A");
+    expect(hierophantHestarConversionAriaLabel({
+      templeName: "Temple Krolis",
+      sourceResource: "conviction",
+      available: 4,
+    })).toBe("Convert 1 Conviction at Temple Krolis to 1 Abundance at Hestar");
+    expect(hierophantHestarConversionAriaLabel({
+      templeName: "Temple Krolis",
+      sourceResource: "abundance",
+      available: 0,
+    })).toBe("Cannot convert: Temple Krolis Abundance is 0");
+  });
+});
+
+describe("Hierophant Hestar conversion queue", () => {
+  it("projects source -1 and Hestar destination +1 immediately and serializes repeated clicks", async () => {
+    const gates = [deferred<{ revision: number }>(), deferred<{ revision: number }>(), deferred<{ revision: number }>()];
+    const dispatched: Array<{
+      expectedRevision: number;
+      expectedOrdinarySourceCount: number;
+      expectedHestarDestinationCount: number;
+      commandId: string;
+    }> = [];
+    let n = 0;
+    let maxInFlight = 0;
+    let inFlight = 0;
+    const controller = createHierophantHestarConversionController({
+      nextCommandId: () => `cmd_${++n}`,
+      currentRevision: () => 4,
+      dispatch: async (intent) => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        dispatched.push({
+          expectedRevision: intent.expectedRevision,
+          expectedOrdinarySourceCount: intent.expectedOrdinarySourceCount,
+          expectedHestarDestinationCount: intent.expectedHestarDestinationCount,
+          commandId: intent.commandId,
+        });
+        const receipt = await gates[dispatched.length - 1]!.promise;
+        inFlight -= 1;
+        return receipt;
+      },
+    });
+    controller.enqueue({
+      ordinaryTempleId: "krolis",
+      sourceResource: "conviction",
+      ordinaryAuthoritative: 4,
+      hestarAuthoritative: 5,
+    });
+    controller.enqueue({
+      ordinaryTempleId: "krolis",
+      sourceResource: "conviction",
+      ordinaryAuthoritative: 4,
+      hestarAuthoritative: 5,
+    });
+    controller.enqueue({
+      ordinaryTempleId: "krolis",
+      sourceResource: "conviction",
+      ordinaryAuthoritative: 4,
+      hestarAuthoritative: 5,
+    });
+    expect(controller.view("krolis", "conviction", 4)).toEqual({ displayed: 1, pending: true, error: null });
+    expect(controller.view("hestar", "abundance", 5)).toEqual({ displayed: 8, pending: true, error: null });
+    expect(controller.view("krolis", "abundance", 5)).toEqual({ displayed: 5, pending: false, error: null });
+    expect(dispatched).toHaveLength(1);
+    expect(dispatched[0]).toMatchObject({
+      commandId: "cmd_1",
+      expectedRevision: 4,
+      expectedOrdinarySourceCount: 4,
+      expectedHestarDestinationCount: 5,
+    });
+    gates[0]!.resolve({ revision: 5 });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(dispatched).toHaveLength(2);
+    expect(dispatched[1]).toMatchObject({
+      commandId: "cmd_2",
+      expectedRevision: 5,
+      expectedOrdinarySourceCount: 3,
+      expectedHestarDestinationCount: 6,
+    });
+    gates[1]!.resolve({ revision: 6 });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(dispatched[2]).toMatchObject({
+      commandId: "cmd_3",
+      expectedRevision: 6,
+      expectedOrdinarySourceCount: 2,
+      expectedHestarDestinationCount: 7,
+    });
+    gates[2]!.resolve({ revision: 7 });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(maxInFlight).toBe(1);
+    expect(controller.view("krolis", "conviction", 1).pending).toBe(false);
+    expect(controller.view("krolis", "conviction", 1).displayed).toBe(1);
+    expect(controller.view("hestar", "abundance", 8).displayed).toBe(8);
+  });
+
+  it("does not queue past a zero source and does not dispatch from Hestar", () => {
+    const dispatched: string[] = [];
+    const controller = createHierophantHestarConversionController({
+      nextCommandId: () => "cmd_1",
+      currentRevision: () => 4,
+      dispatch: async (intent) => {
+        dispatched.push(intent.ordinaryTempleId);
+      },
+    });
+    controller.enqueue({
+      ordinaryTempleId: "krolis",
+      sourceResource: "abundance",
+      ordinaryAuthoritative: 0,
+      hestarAuthoritative: 4,
+    });
+    controller.enqueue({
+      ordinaryTempleId: "hestar",
+      sourceResource: "abundance",
+      ordinaryAuthoritative: 4,
+      hestarAuthoritative: 4,
+    });
+    expect(dispatched).toEqual([]);
+    expect(controller.view("krolis", "abundance", 0).pending).toBe(false);
+  });
+
+  it("keeps the accepted receipt revision until realtime observation catches up", async () => {
+    const gates = [deferred<{ revision: number }>(), deferred<{ revision: number }>(), deferred<{ revision: number }>()];
+    const dispatched: Array<{
+      expectedRevision: number;
+      expectedOrdinarySourceCount: number;
+      expectedHestarDestinationCount: number;
+    }> = [];
+    let n = 0;
+    let currentRevision = 10;
+    const controller = createHierophantHestarConversionController({
+      nextCommandId: () => `cmd_${++n}`,
+      currentRevision: () => currentRevision,
+      dispatch: async (intent) => {
+        dispatched.push({
+          expectedRevision: intent.expectedRevision,
+          expectedOrdinarySourceCount: intent.expectedOrdinarySourceCount,
+          expectedHestarDestinationCount: intent.expectedHestarDestinationCount,
+        });
+        return gates[dispatched.length - 1]!.promise;
+      },
+    });
+
+    controller.enqueue({
+      ordinaryTempleId: "krolis",
+      sourceResource: "conviction",
+      ordinaryAuthoritative: 4,
+      hestarAuthoritative: 5,
+    });
+    expect(dispatched).toHaveLength(1);
+    expect(dispatched[0]).toEqual({
+      expectedRevision: 10,
+      expectedOrdinarySourceCount: 4,
+      expectedHestarDestinationCount: 5,
+    });
+
+    gates[0]!.resolve({ revision: 11 });
+    await gates[0]!.promise;
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(controller.view("krolis", "conviction", 4)).toEqual({ displayed: 3, pending: false, error: null });
+    expect(controller.view("hestar", "abundance", 5)).toEqual({ displayed: 6, pending: false, error: null });
+
+    controller.enqueue({
+      ordinaryTempleId: "krolis",
+      sourceResource: "conviction",
+      ordinaryAuthoritative: 4,
+      hestarAuthoritative: 5,
+    });
+    expect(dispatched).toHaveLength(2);
+    expect(dispatched[1]).toEqual({
+      expectedRevision: 11,
+      expectedOrdinarySourceCount: 3,
+      expectedHestarDestinationCount: 6,
+    });
+
+    gates[1]!.resolve({ revision: 12 });
+    await gates[1]!.promise;
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(controller.view("krolis", "conviction", 4)).toEqual({ displayed: 2, pending: false, error: null });
+    expect(controller.view("hestar", "abundance", 5)).toEqual({ displayed: 7, pending: false, error: null });
+
+    controller.observeAuthoritative("krolis", "conviction", 2);
+    controller.observeAuthoritative("hestar", "abundance", 7);
+    currentRevision = 13;
+
+    controller.enqueue({
+      ordinaryTempleId: "krolis",
+      sourceResource: "conviction",
+      ordinaryAuthoritative: 2,
+      hestarAuthoritative: 7,
+    });
+    expect(dispatched).toHaveLength(3);
+    expect(dispatched[2]).toEqual({
+      expectedRevision: 13,
+      expectedOrdinarySourceCount: 2,
+      expectedHestarDestinationCount: 7,
+    });
+  });
+
+  it("rolls back both counters and surfaces the error on rejection", async () => {
+    const gate = deferred<void>();
+    const controller = createHierophantHestarConversionController({
+      nextCommandId: () => "cmd_1",
+      currentRevision: () => 4,
+      dispatch: async () => {
+        await gate.promise;
+        throw new Error("stale Hestar conversion");
+      },
+    });
+    controller.enqueue({
+      ordinaryTempleId: "krolis",
+      sourceResource: "abundance",
+      ordinaryAuthoritative: 5,
+      hestarAuthoritative: 4,
+    });
+    expect(controller.view("krolis", "abundance", 5).displayed).toBe(4);
+    expect(controller.view("hestar", "conviction", 4).displayed).toBe(5);
+    gate.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(controller.view("krolis", "abundance", 5).displayed).toBe(5);
+    expect(controller.view("hestar", "conviction", 4).displayed).toBe(4);
+    expect(controller.view("krolis", "abundance", 5).pending).toBe(false);
+    expect(controller.view("krolis", "abundance", 5).error).toMatch(/stale/i);
+    expect(controller.view("hestar", "conviction", 4).error).toMatch(/stale/i);
+  });
+});

@@ -420,6 +420,27 @@ export function transferHierophantHestarResourceFingerprint(
   })}`;
 }
 
+export function convertHierophantHestarResourceFingerprint(
+  expectedCampaignId: string,
+  expectedRevision: number,
+  ordinaryTempleId: string,
+  sourceResource: "abundance" | "conviction" | string,
+  expectedOrdinarySourceCount: number,
+  expectedHestarDestinationCount: number,
+): string {
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+    throw new Error(`convertHierophantHestarResourceFingerprint requires a non-negative safe integer expectedRevision, got ${expectedRevision}`);
+  }
+  return `convert_hierophant_hestar_resource:v1:${canonicalJsonStringify({
+    expectedCampaignId,
+    expectedRevision,
+    ordinaryTempleId,
+    sourceResource,
+    expectedOrdinarySourceCount,
+    expectedHestarDestinationCount,
+  })}`;
+}
+
 export function steerHierophantSupplicantFingerprint(
   expectedCampaignId: string,
   expectedRevision: number,
