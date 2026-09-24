@@ -1182,7 +1182,7 @@ function TempleStatusControl({
   const rootRef = useRef<HTMLDivElement>(null);
   useDismissibleOpen(menuOpen, () => setMenuOpen(false), rootRef);
   return (
-    <div ref={rootRef} className="relative" data-temple-status-control="">
+    <div ref={rootRef} className="relative inline-flex h-6 shrink-0 items-center" data-temple-status-control="">
       <button
         type="button"
         data-temple-status={status.kind}
