@@ -49,7 +49,17 @@ export function SourceGeometrySprite({ raw, label }: { raw: string; label: strin
 }
 
 /** Clone generated symbol children so SVG filters can composite the exact source group. */
-export function SourceSymbolClone({ href, fill, stroke }: { href: string; fill: string; stroke: string }) {
+export function SourceSymbolClone({
+  href,
+  fill,
+  stroke,
+  strokeWidth,
+}: {
+  href: string;
+  fill: string;
+  stroke: string;
+  strokeWidth?: number;
+}) {
   const hostRef = useRef<SVGGElement>(null);
   useLayoutEffect(() => {
     const host = hostRef.current;
@@ -64,7 +74,7 @@ export function SourceSymbolClone({ href, fill, stroke }: { href: string; fill: 
       host.appendChild(child.cloneNode(true));
     }
   }, [href]);
-  return <g ref={hostRef} fill={fill} stroke={stroke} />;
+  return <g ref={hostRef} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />;
 }
 
 export interface SourceRouteMarkerPose {

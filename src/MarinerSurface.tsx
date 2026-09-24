@@ -1430,12 +1430,16 @@ function MarinerMap({
           const hit = marinerOverlayPointToBoard(isle.hit.cx, isle.hit.cy);
           const dropHint = board.isleDropHighlight(isle.boardIsleId);
           const dropFamily = board.isleDropFamily(isle.boardIsleId);
-          const showIsleDrop = dropHint === "hover" || dropHint === "recommended" || dropHint === "available";
+          const marketDropTarget = dropFamily === "market"
+            && (dropHint === "available" || dropHint === "hover" || dropHint === "recommended")
+            ? (dropHint === "hover" ? "hover" : "eligible")
+            : null;
+          const showIsleShoreDrop = dropFamily !== "market"
+            && (dropHint === "hover" || dropHint === "recommended" || dropHint === "available");
+          const showIsleDrop = showIsleShoreDrop || marketDropTarget !== null;
           const isleDropColor = dropFamily === "nest"
             ? (dropHint === "available" ? "#fdba74" : "#c2410c")
-            : dropFamily === "market"
-              ? (dropHint === "available" ? "#fbbf24" : "#b45309")
-              : "#0f766e";
+            : "#0f766e";
           return (
             <g
               key={isle.boardIsleId}
@@ -1443,6 +1447,7 @@ function MarinerMap({
               data-isle-id={isle.boardIsleId}
               data-isle-drop={dropHint ?? undefined}
               data-isle-drop-family={dropFamily ?? undefined}
+              data-market-drop-target={marketDropTarget ?? undefined}
               role="button"
               tabIndex={0}
               aria-pressed={selected}
@@ -1470,13 +1475,41 @@ function MarinerMap({
                 data-isle-id={isle.boardIsleId}
                 data-isle-shore-glow
                 data-focus-ring
-                filter="url(#mariner-isle-shore-glow)"
-                color={showIsleDrop && !selected ? isleDropColor : MARINER_ISLE_SELECTION_GLOW[isle.boardIsleId]}
+                filter={selected || showIsleShoreDrop ? "url(#mariner-isle-shore-glow)" : undefined}
+                color={showIsleShoreDrop && !selected ? isleDropColor : MARINER_ISLE_SELECTION_GLOW[isle.boardIsleId]}
                 pointerEvents="none"
               >
                 <use href={href} data-source-geometry={symbolId} fill="none" stroke="none" />
                 <SourceSymbolClone href={href} fill="#0f172a" stroke="none" />
               </g>
+              {marketDropTarget !== null && (
+                <g data-market-drop-fill pointerEvents="none">
+                  <mask
+                    id={`mariner-market-drop-mask-${isle.boardIsleId}`}
+                    maskUnits="userSpaceOnUse"
+                    x={0}
+                    y={0}
+                    width={MARINER_SOURCE_BOARD.width}
+                    height={MARINER_SOURCE_BOARD.height}
+                  >
+                    <rect width={MARINER_SOURCE_BOARD.width} height={MARINER_SOURCE_BOARD.height} fill="black" />
+                    <SourceSymbolClone href={href} fill="white" stroke="none" />
+                  </mask>
+                  <rect
+                    width={MARINER_SOURCE_BOARD.width}
+                    height={MARINER_SOURCE_BOARD.height}
+                    fill={marketDropTarget === "hover" ? "#f59e0b" : "#fcd34d"}
+                    mask={`url(#mariner-market-drop-mask-${isle.boardIsleId})`}
+                    opacity={marketDropTarget === "hover" ? 0.52 : 0.3}
+                  />
+                  <SourceSymbolClone
+                    href={href}
+                    fill="none"
+                    stroke={marketDropTarget === "hover" ? "#b45309" : "#d97706"}
+                    strokeWidth={marketDropTarget === "hover" ? 3 : 2}
+                  />
+                </g>
+              )}
               {ravage > 0 && (
                 <g data-isle-ravage pointerEvents="none">
                   <mask

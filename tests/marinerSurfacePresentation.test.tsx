@@ -4857,3 +4857,88 @@ describe("M5.4 Mariner UX refinement (Body A)", () => {
     container.remove();
   });
 });
+
+function marketDropTarget(container: HTMLElement, boardIsleId: string): string | null {
+  return isleHit(container, boardIsleId).getAttribute("data-market-drop-target");
+}
+
+function marketDropFillPresent(container: HTMLElement, boardIsleId: string): boolean {
+  return isleHit(container, boardIsleId).querySelector("[data-market-drop-fill]") !== null;
+}
+
+describe("M5.4 Mariner Market drop highlighting (Body A correction)", () => {
+  it("marks eligible Isles when an existing Market drag begins and excludes blocked Isles", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    await beginPieceDrag(marketPiece(container, "ishana"), isleHit(container, "orrery"), 801);
+    expect(isleDropFamily(container, "orrery")).toBe("market");
+    expect(marketDropTarget(container, "orrery")).toMatch(/^(eligible|hover)$/);
+    expect(marketDropFillPresent(container, "orrery")).toBe(true);
+    expect(marketDropTarget(container, "scuttleport")).toBeNull();
+    expect(marketDropFillPresent(container, "scuttleport")).toBe(false);
+    expect(marketDropTarget(container, "ishana")).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("escalates hover on the eligible Isle under the pointer and relaxes when the pointer leaves", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    const piece = marketPiece(container, "ishana");
+    (piece as Element & { setPointerCapture?: (id: number) => void }).setPointerCapture = vi.fn();
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => isleHit(container, "orrery"),
+    });
+    await act(async () => {
+      piece.dispatchEvent(new PointerEvent("pointerdown", {
+        bubbles: true,
+        clientX: 15,
+        clientY: 15,
+        pointerId: 802,
+        isPrimary: true,
+        button: 0,
+      }));
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 30, clientY: 15, pointerId: 802 }));
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 210, clientY: 210, pointerId: 802 }));
+    });
+    expect(marketDropTarget(container, "orrery")).toBe("hover");
+    expect(marketDropTarget(container, "sage_atoll")).toBe("eligible");
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => seaHit(container, "sunken_fleet"),
+    });
+    await act(async () => {
+      window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: 120, clientY: 120, pointerId: 802 }));
+    });
+    expect(marketDropTarget(container, "orrery")).toBe("eligible");
+    expect(marketDropTarget(container, "sage_atoll")).toBe("eligible");
+    root.unmount();
+    container.remove();
+  });
+
+  it("clears Market destination highlighting when the drag ends", async () => {
+    const { container, root } = renderSurface(initializedMariner(), WIZARD);
+    await beginPieceDrag(marketPiece(container, "ishana"), isleHit(container, "orrery"), 803);
+    expect(marketDropTarget(container, "orrery")).not.toBeNull();
+    releasePointer(803);
+    expect(marketDropTarget(container, "orrery")).toBeNull();
+    expect(marketDropFillPresent(container, "orrery")).toBe(false);
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps existing Market relocation semantics on drop", async () => {
+    const start = initializedMariner();
+    const expected = expectedForMoveMarket(captureOperabilityBoard(start), "ishana", "orrery");
+    const { container, root } = renderSurface(start, WIZARD);
+    await dragMarketPiece(container, "ishana", isleHit(container, "orrery"), 804);
+    expect(mockMutations["m3Commands.moveMarinerMarket"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.moveMarinerMarket"].mock.calls[0][0]).toMatchObject({
+      sourceBoardIsleId: "ishana",
+      destinationBoardIsleId: "orrery",
+      expectedSourceMarket: expected.expectedSourceMarket,
+      expectedDestinationMarket: expected.expectedDestinationMarket,
+    });
+    root.unmount();
+    container.remove();
+  });
+});
