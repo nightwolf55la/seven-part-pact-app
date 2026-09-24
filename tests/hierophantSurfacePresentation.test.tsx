@@ -1487,9 +1487,11 @@ describe("Hierophant physical piece controls", () => {
     expect(header.querySelector("[data-piece-type-region]")?.contains(namedBadge)).toBe(true);
     expect(namedBadge.getAttribute("data-support-badge")).toBe("supported");
     expect(namedBadge.querySelector('[data-support-glyph="supported"]')?.textContent).toBe("✓");
-    expect(
-      named.querySelector("[data-supplicant-class] [aria-label]")?.getAttribute("aria-label"),
-    ).toBe("Peasant — supported by this Temple's Doctrine");
+    const namedPrimary = named.querySelector(":scope > button") as HTMLButtonElement;
+    expect(namedPrimary.getAttribute("aria-label")).toContain("Peasant — supported by this Temple's Doctrine");
+    expect(named.querySelector("[data-supplicant-class]")?.querySelector("[tabindex]")).toBeNull();
+    expect(named.querySelector("[data-supplicant-class] button")).toBeNull();
+    expect(named.querySelector("[data-supplicant-class]")?.getAttribute("tabindex")).toBeNull();
     expect(named.textContent).not.toMatch(/\bSupported\b/);
     expect(named.querySelector("[data-supplicant-woe-row] [data-woe-pips]")).not.toBeNull();
     expect(unnamed.querySelector('[data-support-badge="supported"]')?.querySelector('[data-support-glyph="supported"]')?.textContent).toBe("✓");
@@ -1498,9 +1500,10 @@ describe("Hierophant physical piece controls", () => {
     expect(header.contains(named.querySelector("[data-piece-type]") as HTMLElement)).toBe(true);
     expect(high.querySelector("[data-piece-header] [data-support-badge=\"unsupported\"]")).not.toBeNull();
     expect(high.querySelector('[data-support-glyph="unsupported"]')?.textContent).toBe("!");
-    expect(
-      high.querySelector("[data-supplicant-class] [aria-label]")?.getAttribute("aria-label"),
-    ).toBe("Gentry — not supported by this Temple's Doctrine");
+    const highPrimary = high.querySelector(":scope > button") as HTMLButtonElement;
+    expect(highPrimary.getAttribute("aria-label")).toContain("Gentry — not supported by this Temple's Doctrine");
+    expect(high.querySelector("[data-supplicant-class]")?.querySelector("[tabindex]")).toBeNull();
+    expect(high.querySelector("[data-supplicant-class] button")).toBeNull();
     expect(high.textContent).not.toMatch(/\bUnsupported\b/);
     expect(high.getAttribute("draggable")).toBe("true");
     expect(high.querySelector("[data-woe-pips]")).not.toBeNull();

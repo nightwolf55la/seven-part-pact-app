@@ -834,30 +834,14 @@ function SupplicantClassSupportBadge({
       data-supplicant-class=""
       onMouseEnter={() => setTipOpen(true)}
       onMouseLeave={() => setTipOpen(false)}
-      onFocusCapture={() => setTipOpen(true)}
-      onBlurCapture={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          setTipOpen(false);
-        }
-      }}
     >
-      <span
-        tabIndex={support === null ? undefined : 0}
-        aria-label={description}
-        className="inline-flex rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-700"
-        onMouseDown={stopNestedControlPointer}
-        onPointerDown={stopNestedControlPointer}
-        onClick={(event) => event.stopPropagation()}
-        onKeyDown={(event) => event.stopPropagation()}
-      >
-        <HierophantClassBadge
-          classId={classId}
-          label={label}
-          mark={glyph}
-          attention={support === "unsupported"}
-          support={support}
-        />
-      </span>
+      <HierophantClassBadge
+        classId={classId}
+        label={label}
+        mark={glyph}
+        attention={support === "unsupported"}
+        support={support}
+      />
       {showTip && (
         <span
           role="tooltip"
