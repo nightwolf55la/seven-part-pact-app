@@ -1981,6 +1981,8 @@ describe("Hierophant physical piece controls", () => {
     expect(pendingDepart).not.toBeNull();
     expect(pendingDepart.disabled).toBe(true);
     expect(named.querySelector("[data-piece-benefaction]")?.getAttribute("data-benefaction-ready")).toBe("false");
+    expect(pendingDepart.className).toMatch(/cursor-not-allowed/);
+    expect(pendingDepart.className).not.toMatch(/bg-emerald-100/);
     flushSync(() => { pendingDepart.click(); });
     expect(mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"]).not.toHaveBeenCalled();
     await settleQueuedMutation(() => release?.());

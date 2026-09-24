@@ -1096,7 +1096,11 @@ function SupplicantPiece({
           <div className="mt-1" data-piece-benefaction="" data-benefaction-ready={benefactionActionable ? "true" : "false"}>
             <button
               type="button"
-              className="w-full rounded-md border border-emerald-800/50 bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-950 hover:bg-emerald-200/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-400/40 dark:bg-emerald-950/50 dark:text-emerald-50 dark:hover:bg-emerald-900/60"
+              className={`w-full rounded-md border px-2 py-1 text-[11px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-800 ${
+                benefactionActionable
+                  ? "border-emerald-800/50 bg-emerald-100 text-emerald-950 hover:bg-emerald-200/90 dark:border-emerald-400/40 dark:bg-emerald-950/50 dark:text-emerald-50 dark:hover:bg-emerald-900/60"
+                  : "cursor-not-allowed border-stone-400/70 bg-stone-100 text-stone-600 dark:border-stone-500/60 dark:bg-stone-900/60 dark:text-stone-300"
+              }`}
               aria-label={`Benefaction & Depart ${subjectLabel}`}
               aria-busy={woeView.pending || benefactionPending}
               disabled={!benefactionActionable}
