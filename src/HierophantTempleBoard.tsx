@@ -27,7 +27,6 @@ import {
   formatVisionsResourceName,
   formatVisionsTempleWarnings,
   hostedProphets,
-  researcherOperationalLabel,
   startingOrdinaryTempleIds,
   supplementaryTemples,
   personPieceName,
@@ -452,6 +451,18 @@ function areaGroups(supplicants: readonly HierophantSupplicant[], isHestar: bool
 function prophetStatusText(denizens: readonly NamedDenizen[], denizenId: string): string {
   const status = denizens.find((denizen) => denizen.denizenId === denizenId)?.powerfulProfile?.status;
   return status === undefined || status === null ? "Shared status unset" : powerfulStatusLabel(status);
+}
+
+const RESEARCHER_RESPONSIBILITY_VISIBLE = "−1 Wealth → +2 Knowledge";
+
+function researcherAccessibleDescription(
+  name: string | null,
+  operationalThisMonth: boolean,
+): string {
+  const who = name === null ? "Researcher" : `Researcher ${name}`;
+  const duty = "Visions: remove 1 Wealth from this Temple for 2 Knowledge.";
+  if (operationalThisMonth) return `${who}. ${duty}`;
+  return `${who}. ${duty} Unavailable this month.`;
 }
 
 function ResourceCounter({
@@ -1916,23 +1927,52 @@ function TemplePiece({
         <ul className="flex flex-col gap-1 mt-1">
             {researchers.map((researcher) => {
               const researcherName = personPieceName(researcher.name);
+              const operational = researcher.operationalThisMonth;
               return (
               <li
                 key={researcher.denizenId}
                 data-researcher-piece={researcher.denizenId}
-                className="rounded-lg border-2 border-dashed border-slate-500 bg-slate-50 px-2 py-1 dark:border-slate-400 dark:bg-slate-900"
+                data-researcher-operational={operational ? "true" : "false"}
+                aria-label={researcherAccessibleDescription(researcherName, operational)}
+                className={
+                  operational
+                    ? "rounded-lg border-2 border-dashed border-slate-500 bg-slate-50 px-2 py-1 dark:border-slate-400 dark:bg-slate-900"
+                    : "rounded-lg border-2 border-dashed border-slate-400 bg-slate-100/80 px-2 py-1 opacity-80 dark:border-slate-600 dark:bg-slate-950/60"
+                }
               >
                 <PersonPieceHeader
                   type="Researcher"
                   name={researcherName}
-                  typeClassName="text-slate-500"
+                  typeClassName={operational ? "text-slate-500" : "text-slate-400"}
                 />
-                <div className="text-[11px] leading-tight text-slate-600 dark:text-slate-300">
-                  {researcherOperationalLabel(researcher.operationalThisMonth)}
-                  <span className="sr-only">
-                    {researcher.operationalThisMonth ? " operational" : " not operational this month"}
+                <div className="mt-0.5 flex items-baseline justify-between gap-2">
+                  <span
+                    data-researcher-phase=""
+                    className={`text-[10px] font-semibold uppercase tracking-wide ${
+                      operational ? "text-slate-500" : "text-slate-400"
+                    }`}
+                  >
+                    VISIONS
+                  </span>
+                  <span
+                    data-researcher-responsibility=""
+                    className={`text-[11px] leading-tight ${
+                      operational
+                        ? "text-slate-600 dark:text-slate-300"
+                        : "text-slate-500 dark:text-slate-400"
+                    }`}
+                  >
+                    {RESEARCHER_RESPONSIBILITY_VISIBLE}
                   </span>
                 </div>
+                {!operational && (
+                  <div
+                    data-researcher-unavailable=""
+                    className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-800 dark:text-rose-300"
+                  >
+                    Unavailable this month
+                  </div>
+                )}
               </li>
               );
             })}

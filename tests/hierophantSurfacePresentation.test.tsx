@@ -423,8 +423,17 @@ describe("Hierophant Temple board interactions", () => {
         ],
       }));
     });
-    expect(container2.innerHTML).toContain("Lina the Seer");
-    expect(container2.innerHTML).toContain("Unavailable this month");
+    const krolis = container2.querySelector('[data-temple-id="krolis"]') as HTMLElement;
+    const researcher = krolis.querySelector("[data-researcher-piece]") as HTMLElement;
+    expect(researcher.querySelector("[data-piece-name]")?.textContent).toBe("Lina the Seer");
+    expect(researcher.getAttribute("data-researcher-operational")).toBe("false");
+    expect(researcher.querySelector("[data-researcher-phase]")?.textContent).toBe("VISIONS");
+    expect(researcher.querySelector("[data-researcher-responsibility]")?.textContent).toBe("−1 Wealth → +2 Knowledge");
+    expect(researcher.querySelector("[data-researcher-unavailable]")?.textContent).toBe("Unavailable this month");
+    expect(researcher.getAttribute("aria-label")).toBe(
+      "Researcher Lina the Seer. Visions: remove 1 Wealth from this Temple for 2 Knowledge. Unavailable this month.",
+    );
+    expect(krolis.querySelector('[data-researcher-piece][data-researcher-operational="true"]')).toBeNull();
     expect(container2.innerHTML).not.toContain("Sea Scout");
     expect(container2.innerHTML).not.toContain("Vex");
     root2.unmount();
@@ -606,6 +615,13 @@ describe("Hierophant zero-click monthly board", () => {
     expect(krolis.textContent).toContain("Prophet Ilya");
     expect(krolis.textContent).not.toContain("Reliable Prophet production resolution required");
     expect(krolis.textContent).toContain("Lina the Seer");
+    const researcher = krolis.querySelector("[data-researcher-piece]") as HTMLElement;
+    expect(researcher.getAttribute("data-researcher-operational")).toBe("true");
+    expect(researcher.querySelector("[data-researcher-phase]")?.textContent).toBe("VISIONS");
+    expect(researcher.querySelector("[data-researcher-responsibility]")?.textContent).toBe("−1 Wealth → +2 Knowledge");
+    expect(researcher.textContent).not.toMatch(/Working this month/);
+    expect(researcher.textContent).not.toMatch(/Available this month/);
+    expect(researcher.textContent).not.toMatch(/Operational this month/);
     expect(buttonWithText(container, "Resolve Visions")).toBeUndefined();
     expect(ushin.textContent).toContain("Collapsed");
     expect(ushin.textContent).toContain("Blasphemous");
@@ -1490,6 +1506,77 @@ function renderPieces() {
   });
 }
 
+describe("Hierophant Temple Researcher information", () => {
+  it("shows the Visions responsibility on an operational Temple Researcher", () => {
+    const { container, root } = renderPieces();
+    const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
+    const researcher = krolis.querySelector("[data-researcher-piece]") as HTMLElement;
+    expect(researcher.querySelector("[data-piece-type]")?.textContent).toBe("Researcher");
+    expect(researcher.querySelector("[data-piece-name]")?.textContent).toBe("Lina the Seer");
+    expect(researcher.querySelector("[data-researcher-phase]")?.textContent).toBe("VISIONS");
+    expect(researcher.querySelector("[data-researcher-responsibility]")?.textContent).toContain("−1 Wealth");
+    expect(researcher.querySelector("[data-researcher-responsibility]")?.textContent).toContain("+2 Knowledge");
+    expect(researcher.querySelector("[data-researcher-responsibility]")?.textContent).toContain("Wealth");
+    expect(researcher.querySelector("[data-researcher-responsibility]")?.textContent).not.toContain("Abundance");
+    expect(researcher.querySelector("[data-researcher-responsibility]")?.textContent).not.toContain("Conviction");
+    expect(researcher.textContent).not.toMatch(/Working this month/);
+    expect(researcher.textContent).not.toMatch(/Available this month/);
+    expect(researcher.textContent).not.toMatch(/Operational this month/);
+    expect(researcher.getAttribute("data-researcher-operational")).toBe("true");
+    expect(researcher.querySelector("[data-researcher-unavailable]")).toBeNull();
+    expect(researcher.getAttribute("aria-label")).toBe(
+      "Researcher Lina the Seer. Visions: remove 1 Wealth from this Temple for 2 Knowledge.",
+    );
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps the responsibility and marks an unavailable Temple Researcher", () => {
+    const { container, root } = renderChoiceSurface(pieceState as typeof EMPTY_HIEROPHANT_STATE, pieceWorld, {
+      sorcererPresence: [
+        {
+          kind: "researcher",
+          denizenId: "den_00000000-0000-0000-0000-0000000000aa" as never,
+          name: "Lina the Seer",
+          operationalThisMonth: false,
+          positionId: "srp_temple_krolis",
+          target: { kind: "hierophant_temple", templeId: "krolis" },
+        },
+        {
+          kind: "researcher",
+          denizenId: "den_00000000-0000-0000-0000-0000000000ab" as never,
+          name: "Sea Scout",
+          operationalThisMonth: true,
+          positionId: "srp_sea_1",
+          target: { kind: "mariner_sea_region", seaRegionId: "bay_of_ishana" },
+        },
+        {
+          kind: "disruptive_arcanist",
+          denizenId: "den_00000000-0000-0000-0000-0000000000ac" as never,
+          name: "Vex",
+          school: { kind: "source", schoolId: "invocation" },
+          seatId: "necromancer",
+        },
+      ],
+    });
+    const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
+    const researcher = krolis.querySelector("[data-researcher-piece]") as HTMLElement;
+    expect(researcher.querySelector("[data-piece-name]")?.textContent).toBe("Lina the Seer");
+    expect(researcher.querySelector("[data-researcher-phase]")?.textContent).toBe("VISIONS");
+    expect(researcher.querySelector("[data-researcher-responsibility]")?.textContent).toBe("−1 Wealth → +2 Knowledge");
+    expect(researcher.querySelector("[data-researcher-unavailable]")?.textContent).toBe("Unavailable this month");
+    expect(researcher.getAttribute("data-researcher-operational")).toBe("false");
+    expect(researcher.getAttribute("aria-label")).toBe(
+      "Researcher Lina the Seer. Visions: remove 1 Wealth from this Temple for 2 Knowledge. Unavailable this month.",
+    );
+    expect(krolis.querySelectorAll("[data-researcher-piece]")).toHaveLength(1);
+    expect(container.textContent).not.toContain("Sea Scout");
+    expect(container.textContent).not.toContain("Vex");
+    root.unmount();
+    container.remove();
+  });
+});
+
 describe("Hierophant physical piece controls", () => {
   function woeTarget(piece: HTMLElement, value: number): HTMLButtonElement {
     return piece.querySelector(`[data-woe-target="${value}"]`) as HTMLButtonElement;
@@ -1558,6 +1645,16 @@ describe("Hierophant physical piece controls", () => {
     const researcher = container.querySelector('[data-researcher-piece]') as HTMLElement;
     expect(researcher.querySelector("[data-piece-type]")?.textContent).toBe("Researcher");
     expect(researcher.querySelector("[data-piece-name]")?.textContent).toBe("Lina the Seer");
+    expect(researcher.getAttribute("data-researcher-operational")).toBe("true");
+    expect(researcher.querySelector("[data-researcher-phase]")?.textContent).toBe("VISIONS");
+    expect(researcher.querySelector("[data-researcher-responsibility]")?.textContent).toBe("−1 Wealth → +2 Knowledge");
+    expect(researcher.querySelector("[data-researcher-unavailable]")).toBeNull();
+    expect(researcher.textContent).not.toMatch(/Working this month/);
+    expect(researcher.textContent).not.toMatch(/Available this month/);
+    expect(researcher.textContent).not.toMatch(/Operational this month/);
+    expect(researcher.getAttribute("aria-label")).toBe(
+      "Researcher Lina the Seer. Visions: remove 1 Wealth from this Temple for 2 Knowledge.",
+    );
     expect(container.querySelector('[aria-label="Supplicant supply"] [data-class-badge="gentry"]')).not.toBeNull();
     expect(container.querySelector('[data-temple-id="krolis"] [aria-label="Supports Artisan, Peasant"] [data-class-badge="artisan"]')).not.toBeNull();
     root.unmount();
