@@ -1306,7 +1306,7 @@ export default function HierophantSurface({
           setError("Visions still needs a choice on the board.");
           return;
         }
-        setError("Visions cannot be resolved automatically. Use the board cues.");
+        setError("Visions still has an unresolved condition on the board.");
       });
     } finally {
       visionsResolveInFlight.current = false;
@@ -1445,9 +1445,7 @@ export default function HierophantSurface({
               },
               resolveAvailable: visionsPlan.kind === "ready",
               resolvePending: pending,
-              resolveGuidance: visionsPlan.kind === "manual_resolution_required"
-                ? "Visions cannot be resolved automatically. Use the board cues."
-                : null,
+              resolveGuidance: null,
               onResolveVisions: () => {
                 void handleResolveVisions();
               },

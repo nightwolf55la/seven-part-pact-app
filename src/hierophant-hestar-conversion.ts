@@ -10,7 +10,7 @@ export function hestarDestinationResource(
 export function hierophantHestarConversionVisibleLabel(
   sourceResource: HierophantResourceKind,
 ): string {
-  return sourceResource === "abundance" ? "→ H:C" : "→ H:A";
+  return sourceResource === "abundance" ? "Hestar +C" : "Hestar +A";
 }
 
 export function hierophantHestarConversionAriaLabel(args: {

@@ -597,7 +597,7 @@ const TEMPLE_HEADER_CHIP_SHELL_BASE =
 const TEMPLE_HEADER_CHIP_SHELL =
   `${TEMPLE_HEADER_CHIP_SHELL_BASE} h-6 min-h-6 border`;
 const TEMPLE_HEADER_HOLIDAY_SHELL =
-  `${TEMPLE_HEADER_CHIP_SHELL_BASE} h-[25px] min-h-[25px] border-2`;
+  `${TEMPLE_HEADER_CHIP_SHELL_BASE} h-6 min-h-6 border-2 shadow-[inset_0_0_0_1px_rgba(146,64,14,0.28)]`;
 const TEMPLE_HEADER_CHIP_SLOT =
   "inline-flex h-3 w-3 shrink-0 items-center justify-center leading-none";
 
@@ -841,6 +841,7 @@ function SupplicantClassSupportBadge({
       className="relative inline-flex h-4 items-center"
       data-supplicant-class=""
       data-support-flyout={flyoutLabel ?? undefined}
+      data-support-tooltip-placement="below"
       onMouseEnter={() => setTipOpen(true)}
       onMouseLeave={() => setTipOpen(false)}
     >
@@ -855,7 +856,7 @@ function SupplicantClassSupportBadge({
         <span
           role="tooltip"
           data-support-tooltip=""
-          className="absolute left-0 z-40 mt-1 w-max max-w-[14rem] rounded-md border border-stone-500/40 bg-white px-1.5 py-1 text-left text-[11px] font-normal normal-case tracking-normal text-stone-800 shadow-lg dark:border-stone-300/30 dark:bg-slate-900 dark:text-stone-100"
+          className="pointer-events-none absolute left-0 top-full z-40 mt-0.5 w-max max-w-[14rem] rounded-md border border-stone-500/40 bg-white px-1.5 py-1 text-left text-[11px] font-normal normal-case tracking-normal text-stone-800 shadow-lg dark:border-stone-300/30 dark:bg-slate-900 dark:text-stone-100"
         >
           {flyoutLabel}
         </span>
@@ -1306,7 +1307,12 @@ function DoctrineSideControl({
           role="tooltip"
           className="absolute right-0 z-40 mt-1 w-56 rounded-md border border-stone-500/40 bg-white p-1.5 text-left text-[11px] leading-snug shadow-lg dark:border-stone-300/30 dark:bg-slate-900"
         >
-          <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">{pairPreviewLabel}</p>
+          <p
+            data-doctrine-pair-preview-label=""
+            className="text-[9px] font-semibold uppercase tracking-wide text-slate-500"
+          >
+            {pairPreviewLabel}
+          </p>
           <p>{pairPreviewText}</p>
         </div>
       )}
@@ -1384,7 +1390,7 @@ function OrdinaryDoctrineObject({
     : pair.kind === "blasphemy"
       ? { label: "Blasphemy", text: blasphemyText(pair.blasphemyId, hierophant.campaignDoctrines) }
       : pair.kind === "doctrine"
-        ? { label: "Doctrine", text: doctrineText(pair.doctrineId, hierophant.campaignDoctrines) }
+        ? { label: "Orthodoxy", text: doctrineText(pair.doctrineId, hierophant.campaignDoctrines) }
         : null;
   const chevronVisible = controlsRevealed || menuOpen;
   const supportedClassIds = templeSupportedClassIds(temple, hierophant.campaignDoctrines);
@@ -1487,17 +1493,19 @@ function OrdinaryDoctrineObject({
         )}
       </div>
       {supportedClassIds.length > 0 ? (
-        <div className="mt-1" aria-label={`Supports ${supportedClassIds.map((classId) => classLabel(classId, hierophant.campaignClasses)).join(", ")}`}>
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Supports</p>
-          <div className="mt-0.5 flex flex-wrap gap-1">
-            {supportedClassIds.map((classId) => (
-              <HierophantClassBadge
-                key={classId}
-                classId={classId}
-                label={classLabel(classId, hierophant.campaignClasses)}
-              />
-            ))}
-          </div>
+        <div
+          data-doctrine-supports=""
+          className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5"
+          aria-label={`Supports ${supportedClassIds.map((classId) => classLabel(classId, hierophant.campaignClasses)).join(", ")}`}
+        >
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Supports</span>
+          {supportedClassIds.map((classId) => (
+            <HierophantClassBadge
+              key={classId}
+              classId={classId}
+              label={classLabel(classId, hierophant.campaignClasses)}
+            />
+          ))}
         </div>
       ) : null}
       </div>
@@ -1522,7 +1530,7 @@ function HolidayChip({
       data-holiday-chip=""
       data-holiday-marked={marked ? "true" : "false"}
       data-holiday-pending={pending ? "true" : "false"}
-      data-holiday-optical="compensated"
+      data-holiday-optical="inset"
       data-temple-header-chip-shell=""
       aria-pressed={marked}
       aria-busy={pending}
@@ -1621,7 +1629,7 @@ function TemplePiece({
     <article
       data-temple-id={temple.templeId}
       aria-label={`${name} board`}
-      className={`rounded-xl border-2 p-3 flex flex-col gap-2 min-w-0 shadow-md ${
+      className={`relative rounded-xl border-2 p-3 flex flex-col gap-2 min-w-0 shadow-md ${
         isHestar
           ? "border-amber-500 dark:border-amber-400 bg-amber-50 dark:bg-amber-950/40"
           : status.kind === "collapsed"
@@ -1704,9 +1712,15 @@ function TemplePiece({
               className="mt-1 rounded-md border border-amber-900/20 bg-amber-50/80 px-2 py-1 dark:border-amber-200/20 dark:bg-amber-950/30"
             >
               <p data-doctrine-current="" className="text-sm">{doctrineStateLabel(temple, hierophant.campaignDoctrines)}</p>
-              <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500" aria-label="Supports all Classes">
-                Supports all
-              </p>
+              <div
+                data-doctrine-supports=""
+                className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5"
+                aria-label="Supports all Classes"
+              >
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Supports</span>
+                {" "}
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-stone-800 dark:text-stone-100">All</span>
+              </div>
             </div>
           </section>
         )}
@@ -1750,11 +1764,18 @@ function TemplePiece({
           zone="blocked"
           supply={supply}
           hostMove={hostMove}
-          className={supply?.activeClassId !== null || hostMove?.draggingDenizenId !== null ? "min-h-[1.75rem]" : ""}
+          className={`absolute inset-0 z-20 ${
+            supply?.activeClassId !== null || hostMove?.draggingDenizenId !== null
+              ? "pointer-events-auto"
+              : "pointer-events-none"
+          }`}
         >
-          <p className="text-xs font-semibold text-rose-800 dark:text-rose-200">
-            {supply?.blockNotice?.templeId === temple.templeId ? supply.blockNotice.reason : null}
-          </p>
+          <div data-collapsed-drop-overlay="" data-collapsed-drop-placement="overlay" className="pointer-events-none absolute inset-0" />
+          {supply?.blockNotice?.templeId === temple.templeId ? (
+            <p className="pointer-events-none absolute inset-x-2 bottom-2 text-xs font-semibold text-rose-800 dark:text-rose-200">
+              {supply.blockNotice.reason}
+            </p>
+          ) : null}
         </SupplyDropZone>
       )}
       {supply?.blockNotice?.templeId === temple.templeId && status.kind !== "collapsed" && (

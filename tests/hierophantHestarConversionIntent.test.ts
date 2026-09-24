@@ -20,8 +20,8 @@ describe("Hierophant Hestar conversion labels", () => {
   it("maps ordinary Abundance to Hestar Conviction and Conviction to Abundance", () => {
     expect(hestarDestinationResource("abundance")).toBe("conviction");
     expect(hestarDestinationResource("conviction")).toBe("abundance");
-    expect(hierophantHestarConversionVisibleLabel("abundance")).toBe("→ H:C");
-    expect(hierophantHestarConversionVisibleLabel("conviction")).toBe("→ H:A");
+    expect(hierophantHestarConversionVisibleLabel("abundance")).toBe("Hestar +C");
+    expect(hierophantHestarConversionVisibleLabel("conviction")).toBe("Hestar +A");
     expect(hierophantHestarConversionAriaLabel({
       templeName: "Temple Krolis",
       sourceResource: "conviction",

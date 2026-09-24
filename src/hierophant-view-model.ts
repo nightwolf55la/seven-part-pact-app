@@ -692,7 +692,7 @@ export function formatVisionsTempleWarnings(
   }
   if (preview.orderChoiceRequired) warnings.push("Choose Visions order");
   if (preview.reliableProphetProduction) {
-    warnings.push("Prophet affects this production · resolve at the table");
+    warnings.push("Reliable Prophet affects production");
   }
   return warnings;
 }
