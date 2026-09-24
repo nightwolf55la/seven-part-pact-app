@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import {
-  powerfulStatusLabel,
   type DenizenId,
   type HierophantProphet,
   type HierophantState,
@@ -448,12 +447,23 @@ function areaGroups(supplicants: readonly HierophantSupplicant[], isHestar: bool
   ];
 }
 
-function prophetStatusText(denizens: readonly NamedDenizen[], denizenId: string): string {
-  const status = denizens.find((denizen) => denizen.denizenId === denizenId)?.powerfulProfile?.status;
-  return status === undefined || status === null ? "Shared status unset" : powerfulStatusLabel(status);
-}
+const PROPHET_PRODUCTION_VISIBLE = "+1 matching resource";
 
 const RESEARCHER_RESPONSIBILITY_VISIBLE = "−1 Wealth → +2 Knowledge";
+
+function prophetAccessibleDescription(
+  name: string | null,
+  reliableOrDisruptive: "reliable" | "disruptive" | null,
+): string {
+  const who = name === null ? "Prophet" : `Prophet ${name}`;
+  if (reliableOrDisruptive === "reliable") {
+    return `${who}. Reliable. When this Temple produces Abundance or Conviction, gain 1 additional matching resource.`;
+  }
+  if (reliableOrDisruptive === "disruptive") {
+    return `${who}. Disruptive.`;
+  }
+  return `${who}. Shared status unset.`;
+}
 
 function researcherAccessibleDescription(
   name: string | null,
@@ -1877,25 +1887,23 @@ function TemplePiece({
               <li key={prophet.denizenId}>
                 <div
                   data-prophet-piece={prophet.denizenId}
+                  data-prophet-status-state={reliableOrDisruptive ?? "unset"}
+                  aria-label={prophetAccessibleDescription(prophetName, reliableOrDisruptive)}
                   className="w-full text-left rounded-lg border-2 border-violet-600 bg-violet-50 px-2 py-1 shadow-sm dark:border-violet-400 dark:bg-violet-950/40"
                 >
-                  <button
-                    type="button"
-                    className="w-full text-left cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700"
-                    aria-label={`${prophetName ?? "Prophet"}, Prophet`}
-                    onClick={onSelect}
-                    onKeyDown={(event) => activate(event, onSelect)}
-                  >
-                    <PersonPieceHeader
-                      type="Prophet"
-                      name={prophetName}
-                      typeClassName="text-violet-800 dark:text-violet-200"
-                    />
-                  </button>
-                  <div className="mt-0.5 flex items-center justify-between gap-2">
-                    <span className="text-[11px] leading-tight text-slate-600 dark:text-slate-300">
-                      {prophetStatusText(denizens, prophet.denizenId)} · Temple host
-                    </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="min-w-0 flex-1 text-left cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700"
+                      onClick={onSelect}
+                      onKeyDown={(event) => activate(event, onSelect)}
+                    >
+                      <PersonPieceHeader
+                        type="Prophet"
+                        name={prophetName}
+                        typeClassName="text-violet-800 dark:text-violet-200"
+                      />
+                    </button>
                     {reliableOrDisruptive !== null && (
                       <button
                         type="button"
@@ -1903,7 +1911,7 @@ function TemplePiece({
                         data-prophet-status-pending={prophetPending ? "true" : "false"}
                         aria-busy={prophetPending}
                         aria-label={`Record ${nextStatus === "reliable" ? "Reliable" : "Disruptive"}`}
-                        className="rounded border border-violet-700/50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700 disabled:opacity-60 dark:text-violet-50"
+                        className="shrink-0 rounded border border-violet-700/50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700 disabled:opacity-60 dark:text-violet-50"
                         disabled={prophetPending}
                         onClick={(event) => {
                           event.stopPropagation();
@@ -1911,9 +1919,26 @@ function TemplePiece({
                         }}
                       >
                         {reliableOrDisruptive === "reliable" ? "Reliable" : "Disruptive"}
+                        <span aria-hidden="true"> ▾</span>
                       </button>
                     )}
                   </div>
+                  {reliableOrDisruptive === "reliable" && (
+                    <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                      <span
+                        data-prophet-production-phase=""
+                        className="text-[10px] font-semibold uppercase tracking-wide text-violet-800/80 dark:text-violet-200/80"
+                      >
+                        PRODUCTION
+                      </span>
+                      <span
+                        data-prophet-production-effect=""
+                        className="text-[11px] leading-tight text-slate-600 dark:text-slate-300"
+                      >
+                        {PROPHET_PRODUCTION_VISIBLE}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </li>
               );

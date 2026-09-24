@@ -1506,6 +1506,113 @@ function renderPieces() {
   });
 }
 
+describe("Hierophant Temple Prophet information", () => {
+  function prophetWorldReliable(): WorldReference {
+    return {
+      ...pieceWorld,
+      denizens: pieceWorld.denizens.map((denizen) =>
+        denizen.denizenId === "den_prophet"
+          ? {
+              ...denizen,
+              powerfulProfile: {
+                taxonomies: [{ kind: "builtin", taxonomyId: "prophet" }],
+                status: { kind: "standard", value: "reliable" },
+                goal: null,
+                methods: [],
+                truths: [],
+              },
+            }
+          : denizen,
+      ),
+    };
+  }
+
+  function prophetWorldDisruptive(): WorldReference {
+    return {
+      ...pieceWorld,
+      denizens: [
+        ...pieceWorld.denizens,
+        {
+          denizenId: "den_prophet_disruptive" as never,
+          name: "Prophet Mara",
+          representation: "individual" as const,
+          description: null,
+          powerfulProfile: {
+            taxonomies: [{ kind: "builtin", taxonomyId: "prophet" }],
+            status: { kind: "standard", value: "disruptive" },
+            goal: null,
+            methods: [],
+            truths: [],
+          },
+        },
+      ],
+    };
+  }
+
+  const prophetStateDisruptive = {
+    ...pieceState,
+    prophets: [
+      ...pieceState.prophets,
+      {
+        denizenId: "den_prophet_disruptive" as never,
+        host: { kind: "temple" as const, templeId: "notor" as const },
+      },
+    ],
+  };
+
+  it("shows Reliable production effect without redundant host prose", () => {
+    const { container, root } = renderChoiceSurface(
+      pieceState as typeof EMPTY_HIEROPHANT_STATE,
+      prophetWorldReliable(),
+    );
+    const prophet = container.querySelector('[data-prophet-piece="den_prophet"]') as HTMLElement;
+    expect(prophet.querySelector("[data-piece-type]")?.textContent).toBe("Prophet");
+    expect(prophet.querySelector("[data-piece-name]")?.textContent).toBe("Prophet Ilya");
+    expect(prophet.querySelector("[data-prophet-status]")?.textContent).toMatch(/Reliable/);
+    expect(prophet.getAttribute("data-prophet-status-state")).toBe("reliable");
+    expect(prophet.querySelector("[data-prophet-production-phase]")?.textContent).toBe("PRODUCTION");
+    expect(prophet.querySelector("[data-prophet-production-effect]")?.textContent).toBe("+1 matching resource");
+    expect(prophet.textContent).not.toMatch(/Temple host/);
+    expect(prophet.textContent).not.toMatch(/Reliable ·/);
+    expect(prophet.getAttribute("aria-label")).toBe(
+      "Prophet Prophet Ilya. Reliable. When this Temple produces Abundance or Conviction, gain 1 additional matching resource.",
+    );
+    root.unmount();
+    container.remove();
+  });
+
+  it("shows Disruptive status without Reliable production bonus", () => {
+    const { container, root } = renderChoiceSurface(
+      prophetStateDisruptive as typeof EMPTY_HIEROPHANT_STATE,
+      prophetWorldDisruptive(),
+    );
+    const notor = container.querySelector('[data-temple-id="notor"]') as HTMLElement;
+    const prophet = notor.querySelector('[data-prophet-piece="den_prophet_disruptive"]') as HTMLElement;
+    expect(prophet.querySelector("[data-piece-type]")?.textContent).toBe("Prophet");
+    expect(prophet.querySelector("[data-piece-name]")?.textContent).toBe("Prophet Mara");
+    expect(prophet.querySelector("[data-prophet-status]")?.textContent).toMatch(/Disruptive/);
+    expect(prophet.getAttribute("data-prophet-status-state")).toBe("disruptive");
+    expect(prophet.querySelector("[data-prophet-production-effect]")).toBeNull();
+    expect(prophet.textContent).not.toMatch(/PRODUCTION/);
+    expect(prophet.textContent).not.toMatch(/matching resource/);
+    expect(prophet.getAttribute("aria-label")).toBe("Prophet Prophet Mara. Disruptive.");
+    root.unmount();
+    container.remove();
+  });
+
+  it("does not duplicate status as prose separate from the status control", () => {
+    const { container, root } = renderChoiceSurface(
+      pieceState as typeof EMPTY_HIEROPHANT_STATE,
+      prophetWorldReliable(),
+    );
+    const prophet = container.querySelector('[data-prophet-piece="den_prophet"]') as HTMLElement;
+    const statusMatches = prophet.textContent?.match(/Reliable/g) ?? [];
+    expect(statusMatches.length).toBe(1);
+    root.unmount();
+    container.remove();
+  });
+});
+
 describe("Hierophant Temple Researcher information", () => {
   it("shows the Visions responsibility on an operational Temple Researcher", () => {
     const { container, root } = renderPieces();
@@ -1642,6 +1749,8 @@ describe("Hierophant physical piece controls", () => {
     const prophet = container.querySelector('[data-prophet-piece="den_prophet"]') as HTMLElement;
     expect(prophet.querySelector("[data-piece-type]")?.textContent).toBe("Prophet");
     expect(prophet.querySelector("[data-piece-name]")?.textContent).toBe("Prophet Ilya");
+    expect(prophet.textContent).not.toMatch(/Temple host/);
+    expect(prophet.textContent).not.toMatch(/Reliable · Temple host/);
     const researcher = container.querySelector('[data-researcher-piece]') as HTMLElement;
     expect(researcher.querySelector("[data-piece-type]")?.textContent).toBe("Researcher");
     expect(researcher.querySelector("[data-piece-name]")?.textContent).toBe("Lina the Seer");
