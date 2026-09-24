@@ -425,7 +425,11 @@ export default function HierophantSurface({
     resourceIntents.observeAuthoritative(temple.templeId, "conviction", temple.conviction);
     conversionIntents.observeAuthoritative(temple.templeId, "abundance", temple.abundance);
     conversionIntents.observeAuthoritative(temple.templeId, "conviction", temple.conviction);
-    holidayIntents.observe(temple.templeId, hierophant.holidayTempleIds.includes(temple.templeId));
+    holidayIntents.observe(
+      temple.templeId,
+      hierophant.holidayTempleIds.includes(temple.templeId),
+      campaignRevision,
+    );
   }
   for (const person of hierophant.supplicants) {
     woeIntents.observeAuthoritative(person.denizenId, person.woe);
@@ -663,7 +667,7 @@ export default function HierophantSurface({
   function toggleHolidayMarker(templeId: string, marked: boolean): void {
     const currentlyMarked = hierophant.holidayTempleIds.some((id) => id === templeId);
     setError(null);
-    holidayIntentsRef.current?.request(templeId, marked, currentlyMarked);
+    holidayIntentsRef.current?.request(templeId, marked, currentlyMarked, campaignRevisionRef.current);
   }
 
   const initialized = isHierophantInitialized(hierophant);

@@ -3,12 +3,18 @@ export interface HierophantHolidayFieldView {
   readonly pending: boolean;
 }
 
+interface HolidayIntent {
+  readonly expected: boolean;
+  readonly requested: boolean;
+  readonly expectedRevision: number;
+}
+
 export function createHierophantHolidayIntentController(args: {
   readonly dispatch: (templeId: string, marked: boolean) => Promise<void>;
   readonly onError?: (message: string) => void;
   readonly onChange?: () => void;
 }) {
-  const requested = new Map<string, boolean>();
+  const intents = new Map<string, HolidayIntent>();
   const inFlight = new Set<string>();
 
   function notify(): void {
@@ -17,16 +23,26 @@ export function createHierophantHolidayIntentController(args: {
 
   return {
     view(templeId: string, authoritative: boolean): HierophantHolidayFieldView {
-      if (requested.has(templeId)) {
-        return { marked: requested.get(templeId)!, pending: true };
+      const intent = intents.get(templeId);
+      if (intent !== undefined) {
+        return { marked: intent.requested, pending: true };
       }
       return { marked: authoritative, pending: false };
     },
 
-    request(templeId: string, marked: boolean, authoritative: boolean): void {
-      if (inFlight.has(templeId) || requested.has(templeId)) return;
+    request(
+      templeId: string,
+      marked: boolean,
+      authoritative: boolean,
+      expectedRevision: number,
+    ): void {
+      if (inFlight.has(templeId) || intents.has(templeId)) return;
       if (authoritative === marked) return;
-      requested.set(templeId, marked);
+      intents.set(templeId, {
+        expected: authoritative,
+        requested: marked,
+        expectedRevision,
+      });
       inFlight.add(templeId);
       notify();
       void args.dispatch(templeId, marked).then(
@@ -36,7 +52,7 @@ export function createHierophantHolidayIntentController(args: {
         },
         (error: unknown) => {
           inFlight.delete(templeId);
-          requested.delete(templeId);
+          intents.delete(templeId);
           const message = error instanceof Error ? error.message : "Holiday marker failed.";
           args.onError?.(message);
           notify();
@@ -44,11 +60,20 @@ export function createHierophantHolidayIntentController(args: {
       );
     },
 
-    observe(templeId: string, authoritative: boolean): void {
-      if (!requested.has(templeId)) return;
-      if (authoritative === requested.get(templeId)) {
-        requested.delete(templeId);
+    observe(templeId: string, authoritative: boolean, revision: number): void {
+      const intent = intents.get(templeId);
+      if (intent === undefined) return;
+      if (authoritative === intent.requested) {
+        intents.delete(templeId);
         inFlight.delete(templeId);
+        notify();
+        return;
+      }
+      // Holiday is boolean: requested is always the opposite of expected, so the
+      // marker alone cannot distinguish "still waiting" from a later same-value
+      // authoritative revision. Campaign revision is the local settlement signal.
+      if (authoritative !== intent.expected || revision !== intent.expectedRevision) {
+        intents.delete(templeId);
         notify();
       }
     },
