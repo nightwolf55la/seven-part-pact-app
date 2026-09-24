@@ -519,33 +519,13 @@ function ResourceCounter({
         }
       }}
     >
-      <div className="flex w-full items-start justify-between gap-0.5">
-        <span className="text-[10px] font-semibold uppercase tracking-wide leading-none">{label}</span>
-        {conversion !== null && convertAria !== null && (
-          <button
-            type="button"
-            data-hestar-convert={resource}
-            data-hestar-convert-target={hestarDestinationResource(resource)}
-            data-hestar-convert-placement="inside"
-            className={`absolute right-0.5 top-0.5 z-10 whitespace-nowrap rounded px-0.5 py-px text-[9px] font-bold leading-none tracking-tight text-stone-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-stone-100 ${
-              revealed ? "opacity-100" : "pointer-events-none opacity-0"
-            }`}
-            aria-label={convertAria}
-            title={convertAria}
-            disabled={!convertAvailable || convertDisabled}
-            onMouseDown={stopNestedControlPointer}
-            onPointerDown={stopNestedControlPointer}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (!convertAvailable || convertDisabled) return;
-              conversion.onConvert();
-            }}
-          >
-            {hierophantHestarConversionVisibleLabel(resource)}
-          </button>
-        )}
-      </div>
-      <div className="flex items-center gap-0.5">
+      <span
+        data-resource-label=""
+        className="w-full text-center text-[10px] font-semibold uppercase tracking-wide leading-none"
+      >
+        {label}
+      </span>
+      <div data-resource-value-line="" className="mt-0.5 flex items-center justify-center gap-0.5">
         <button
           type="button"
           className={`${controlClass} disabled:pointer-events-none`}
@@ -579,6 +559,31 @@ function ResourceCounter({
         >
           +
         </button>
+        {conversion !== null && convertAria !== null && (
+          <button
+            type="button"
+            data-hestar-convert={resource}
+            data-hestar-convert-target={hestarDestinationResource(resource)}
+            data-hestar-convert-placement="value"
+            className={`whitespace-nowrap rounded px-0.5 py-px text-[9px] font-bold leading-none tracking-tight text-stone-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-amber-700 dark:text-stone-100 ${
+              revealed
+                ? "opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+                : "pointer-events-none opacity-0"
+            }`}
+            aria-label={convertAria}
+            title={convertAria}
+            disabled={!convertAvailable || convertDisabled}
+            onMouseDown={stopNestedControlPointer}
+            onPointerDown={stopNestedControlPointer}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (!convertAvailable || convertDisabled) return;
+              conversion.onConvert();
+            }}
+          >
+            {hierophantHestarConversionVisibleLabel(resource)}
+          </button>
+        )}
       </div>
       {view.pending && <span className="sr-only">Saving {label}</span>}
       {view.error !== null && (
@@ -1099,7 +1104,7 @@ function TempleStatusControl({
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         aria-label={`Temple status ${status.label}`}
-        className={`inline-flex shrink-0 items-center gap-0.5 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
+        className={`inline-flex h-6 shrink-0 items-center gap-0.5 rounded-md px-2 text-[10px] font-bold uppercase tracking-wide focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
           status.kind === "collapsed"
             ? "bg-stone-800 text-stone-100"
             : "bg-emerald-800 text-emerald-50"
@@ -1166,10 +1171,15 @@ function DoctrineSideControl({
   readonly onFlip: () => void;
 }) {
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useDismissibleOpen(menuOpen, () => setMenuOpen(false), rootRef);
   const orthodox = currentKind === "doctrine";
   return (
     <div
+      ref={rootRef}
       className="relative"
+      data-doctrine-side-control=""
       onMouseEnter={() => setPreviewOpen(true)}
       onMouseLeave={() => setPreviewOpen(false)}
       onFocusCapture={() => setPreviewOpen(true)}
@@ -1184,23 +1194,26 @@ function DoctrineSideControl({
         data-doctrine-side={orthodox ? "orthodox" : "blasphemous"}
         data-doctrine-pair-action=""
         aria-busy={pending}
-        aria-label={orthodox ? "Mark this Doctrine Blasphemous" : "Restore paired Orthodox Doctrine"}
-        className={`inline-flex items-center gap-0.5 rounded border px-1 py-px text-[9px] font-bold uppercase tracking-wide focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        aria-label={orthodox ? "Doctrine side Orthodox" : "Doctrine side Blasphemous"}
+        className={`inline-flex h-6 shrink-0 items-center gap-0.5 rounded-md px-2 text-[10px] font-bold uppercase tracking-wide focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
           orthodox
-            ? "border-emerald-700/50 text-emerald-950 dark:text-emerald-50"
-            : "border-rose-700/50 text-rose-950 dark:text-rose-50"
-        }`}
+            ? "bg-emerald-800 text-emerald-50"
+            : "bg-rose-800 text-rose-50"
+        } ${pending ? "ring-1 ring-amber-700/40 dark:ring-amber-300/30" : ""}`}
         onMouseDown={stopNestedControlPointer}
         onPointerDown={stopNestedControlPointer}
         onClick={(event) => {
           event.stopPropagation();
-          onFlip();
+          setPreviewOpen(false);
+          setMenuOpen((open) => !open);
         }}
       >
         {orthodox ? "Orthodox" : "Blasphemous"}
-        <span aria-hidden="true">↔</span>
+        <span aria-hidden="true">▾</span>
       </button>
-      {previewOpen && (
+      {previewOpen && !menuOpen && (
         <div
           data-doctrine-pair-preview=""
           role="tooltip"
@@ -1208,6 +1221,47 @@ function DoctrineSideControl({
         >
           <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">{pairPreviewLabel}</p>
           <p>{pairPreviewText}</p>
+        </div>
+      )}
+      {menuOpen && (
+        <div
+          role="menu"
+          data-doctrine-side-menu=""
+          data-board-overlay=""
+          className="absolute right-0 z-40 mt-1 min-w-[10rem] rounded-md border border-stone-500/40 bg-white p-1 shadow-lg dark:border-stone-300/30 dark:bg-slate-900"
+        >
+          {(["doctrine", "blasphemy"] as const).map((choice) => {
+            const selected = currentKind === choice;
+            const label = choice === "doctrine" ? "Orthodox" : "Blasphemous";
+            return (
+              <button
+                key={choice}
+                type="button"
+                role="menuitemradio"
+                aria-checked={selected}
+                data-doctrine-side-choice={choice === "doctrine" ? "orthodox" : "blasphemous"}
+                className="flex w-full flex-col items-start gap-0.5 rounded px-1.5 py-1 text-left text-[11px] font-semibold hover:bg-amber-100 dark:hover:bg-amber-950/60"
+                onMouseDown={stopNestedControlPointer}
+                onPointerDown={stopNestedControlPointer}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setMenuOpen(false);
+                  if (pending || selected) return;
+                  onFlip();
+                }}
+              >
+                <span className="inline-flex items-center gap-1">
+                  <span className="inline-block w-3 text-[10px]" aria-hidden="true">{selected ? "✓" : ""}</span>
+                  {label}
+                </span>
+                {!selected && (
+                  <span className="pl-4 text-[10px] font-normal leading-snug text-slate-600 dark:text-slate-300">
+                    {pairPreviewText}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -1262,22 +1316,32 @@ function OrdinaryDoctrineObject({
         }
       }}
     >
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-center justify-between gap-2">
         <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Doctrine</p>
-        <div className="flex items-center gap-1">
-          {pair !== null && pairPreview !== null && (temple.doctrine.kind === "doctrine" || temple.doctrine.kind === "blasphemy") && (
-            <DoctrineSideControl
-              currentKind={temple.doctrine.kind}
-              pairPreviewLabel={pairPreview.label}
-              pairPreviewText={pairPreview.text}
-              pending={pending}
-              onFlip={() => onRecord(pair)}
-            />
-          )}
+        {pair !== null && pairPreview !== null && (temple.doctrine.kind === "doctrine" || temple.doctrine.kind === "blasphemy") && (
+          <DoctrineSideControl
+            currentKind={temple.doctrine.kind}
+            pairPreviewLabel={pairPreview.label}
+            pairPreviewText={pairPreview.text}
+            pending={pending}
+            onFlip={() => onRecord(pair)}
+          />
+        )}
+      </div>
+      <div
+        data-doctrine-value-row=""
+        data-doctrine-menu-anchor=""
+        className="relative mt-0.5"
+      >
+        <p
+          data-doctrine-current=""
+          className={`text-sm ${temple.doctrine.kind === "unset" ? "italic text-slate-600 dark:text-slate-300" : ""}`}
+        >
+          {templeDoctrineSummary(temple, hierophant.campaignDoctrines)}
           <button
             type="button"
             data-doctrine-change=""
-            className={`rounded border border-amber-800/40 px-1 py-px text-[10px] font-semibold leading-none text-amber-950 transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 dark:text-amber-50 ${
+            className={`ml-1 inline-flex align-text-top rounded border border-amber-800/40 px-1 py-px text-[10px] font-semibold leading-none text-amber-950 transition-opacity focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 dark:text-amber-50 ${
               chevronVisible ? "opacity-100" : "opacity-0"
             }`}
             aria-expanded={menuOpen}
@@ -1293,14 +1357,47 @@ function OrdinaryDoctrineObject({
           >
             ▾
           </button>
-        </div>
+        </p>
+        {menuOpen && (
+          <div
+            role="listbox"
+            data-doctrine-menu=""
+            data-board-overlay=""
+            className="absolute left-0 right-0 top-full z-40 mt-0.5 max-h-40 overflow-auto rounded border border-amber-800/30 bg-white p-1 text-left shadow-lg dark:border-amber-500/30 dark:bg-slate-900"
+          >
+            {reliableProphet && (
+              <p data-doctrine-prophet-warning="" className="mb-1 px-1.5 py-1 text-[11px] leading-snug text-slate-600 dark:text-slate-300">
+                Reliable Prophet here — changing Doctrine is associated with Prophet disruption, Cult creation, and the former Doctrine becoming Blasphemous.
+              </p>
+            )}
+            {choices.map((choice) => {
+              const selected = temple.doctrine.kind === "doctrine" && temple.doctrine.doctrineId === choice.doctrineId;
+              return (
+                <div key={choice.doctrineId} role="none">
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    data-doctrine-choice={choice.doctrineId}
+                    className="w-full rounded px-1.5 py-1 text-left text-[11px] font-medium hover:bg-amber-100 dark:hover:bg-amber-950/60 disabled:opacity-60"
+                    disabled={selected}
+                    onMouseDown={stopNestedControlPointer}
+                    onPointerDown={stopNestedControlPointer}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (selected) return;
+                      onRecord({ kind: "doctrine", doctrineId: choice.doctrineId as never });
+                      setMenuOpen(false);
+                    }}
+                  >
+                    {choice.text}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
-      <p
-        data-doctrine-current=""
-        className={`text-sm ${temple.doctrine.kind === "unset" ? "italic text-slate-600 dark:text-slate-300" : ""}`}
-      >
-        {templeDoctrineSummary(temple, hierophant.campaignDoctrines)}
-      </p>
       {supportedClassIds.length > 0 ? (
         <div className="mt-1" aria-label={`Supports ${supportedClassIds.map((classId) => classLabel(classId, hierophant.campaignClasses)).join(", ")}`}>
           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Supports</p>
@@ -1315,45 +1412,6 @@ function OrdinaryDoctrineObject({
           </div>
         </div>
       ) : null}
-      {menuOpen && (
-        <div
-          role="listbox"
-          data-doctrine-menu=""
-          data-board-overlay=""
-          className="absolute left-0 right-0 z-40 mt-1 max-h-40 overflow-auto rounded border border-amber-800/30 bg-white p-1 text-left shadow-lg dark:border-amber-500/30 dark:bg-slate-900"
-        >
-          {reliableProphet && (
-            <p data-doctrine-prophet-warning="" className="mb-1 px-1.5 py-1 text-[11px] leading-snug text-slate-600 dark:text-slate-300">
-              Reliable Prophet here — changing Doctrine is associated with Prophet disruption, Cult creation, and the former Doctrine becoming Blasphemous.
-            </p>
-          )}
-          {choices.map((choice) => {
-            const selected = temple.doctrine.kind === "doctrine" && temple.doctrine.doctrineId === choice.doctrineId;
-            return (
-              <div key={choice.doctrineId} role="none">
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={selected}
-                  data-doctrine-choice={choice.doctrineId}
-                  className="w-full rounded px-1.5 py-1 text-left text-[11px] font-medium hover:bg-amber-100 dark:hover:bg-amber-950/60 disabled:opacity-60"
-                  disabled={selected}
-                  onMouseDown={stopNestedControlPointer}
-                  onPointerDown={stopNestedControlPointer}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (selected) return;
-                    onRecord({ kind: "doctrine", doctrineId: choice.doctrineId as never });
-                    setMenuOpen(false);
-                  }}
-                >
-                  {choice.text}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
@@ -1382,9 +1440,9 @@ function HolidayChip({
           ? `Clear Holiday marker from ${templeName}`
           : `Mark ${templeName} as celebrating a Holiday`
       }
-      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
+      className={`inline-flex h-6 shrink-0 items-center rounded-full px-2 text-[10px] font-bold uppercase tracking-wide focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700 ${
         marked
-          ? "border-2 border-amber-600 bg-amber-200 text-amber-950 dark:border-amber-300 dark:bg-amber-700 dark:text-amber-50"
+          ? "border border-amber-600 bg-amber-200 text-amber-950 dark:border-amber-300 dark:bg-amber-700 dark:text-amber-50"
           : "border border-dashed border-amber-700/50 bg-transparent text-amber-900/80 dark:border-amber-400/50 dark:text-amber-100/80"
       } ${pending ? "ring-1 ring-amber-700/40 dark:ring-amber-300/30" : ""}`}
       onMouseDown={stopNestedControlPointer}
@@ -1482,7 +1540,7 @@ function TemplePiece({
       } ${selected ? "ring-2 ring-amber-600 dark:ring-amber-300" : ""}`}
     >
       <header className="flex flex-col gap-2">
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center justify-between gap-2">
           <button
             type="button"
             className="text-left cursor-pointer min-w-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-700"
@@ -1496,7 +1554,7 @@ function TemplePiece({
               {isHestar ? " · Hestar" : ""}
             </h3>
           </button>
-          <div className="flex shrink-0 items-start gap-1.5">
+          <div data-temple-header-rail="" className="flex shrink-0 items-center gap-1.5">
             <HolidayChip
               templeName={name}
               marked={holidayView.marked}

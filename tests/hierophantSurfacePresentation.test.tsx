@@ -2384,13 +2384,28 @@ describe("Hierophant primary board Body A controls", () => {
     expect(krolis.querySelector("[data-doctrine-pair]")).toBeNull();
     expect(krolis.textContent).not.toContain("Record paired Blasphemy");
     expect(krolis.textContent).not.toContain("normally done by a Sermon");
-    expect(krolis.querySelector("[data-doctrine-side]")?.getAttribute("data-doctrine-side")).toBe("orthodox");
+    expect(krolis.textContent).not.toContain("↔");
+    const side = krolis.querySelector("[data-doctrine-side]") as HTMLButtonElement;
+    expect(side.getAttribute("data-doctrine-side")).toBe("orthodox");
+    expect(side.getAttribute("aria-haspopup")).toBe("menu");
+    expect(side.getAttribute("aria-expanded")).toBe("false");
+    expect(side.getAttribute("aria-label")).toBe("Doctrine side Orthodox");
+    expect(side.textContent).toContain("Orthodox");
+    expect(side.textContent).toContain("▾");
+    expect(side.textContent).not.toContain("↔");
     expect(krolis.querySelector("[data-doctrine-pair-preview]")).toBeNull();
-    const flip = krolis.querySelector("[data-doctrine-pair-action]") as HTMLButtonElement;
-    expect(flip.getAttribute("aria-label")).toBe("Mark this Doctrine Blasphemous");
-    flushSync(() => { flip.focus(); });
+    expect(krolis.querySelector("[data-doctrine-side-menu]")).toBeNull();
+    flushSync(() => { side.focus(); });
     expect(krolis.querySelector("[data-doctrine-pair-preview]")?.textContent).toMatch(/old land demands the blood/i);
-    flushSync(() => { flip.click(); });
+    flushSync(() => { side.click(); });
+    expect(mockMutations["m3Commands.updateTemple"]).not.toHaveBeenCalled();
+    expect(krolis.querySelector("[data-doctrine-pair-preview]")).toBeNull();
+    const sideMenu = krolis.querySelector("[data-doctrine-side-menu]") as HTMLElement;
+    expect(sideMenu.getAttribute("data-board-overlay")).toBe("");
+    expect(sideMenu.className).toMatch(/absolute/);
+    expect(sideMenu.querySelector('[data-doctrine-side-choice="orthodox"]')?.getAttribute("aria-checked")).toBe("true");
+    expect(sideMenu.querySelector('[data-doctrine-side-choice="blasphemous"]')?.textContent).toMatch(/old land demands the blood/i);
+    flushSync(() => { (sideMenu.querySelector('[data-doctrine-side-choice="blasphemous"]') as HTMLButtonElement).click(); });
     await settleQueuedMutation();
     expect(mockMutations["m3Commands.updateTemple"]).toHaveBeenCalledTimes(1);
     expect(mockMutations["m3Commands.updateTemple"].mock.calls[0][0].fields.doctrine.value).toEqual({
@@ -2445,6 +2460,7 @@ describe("Hierophant primary board Body A controls", () => {
     expect(krolis.querySelector("[data-doctrine-pair]")).toBeNull();
     expect(krolis.querySelector("[data-doctrine-pair-action]")).toBeNull();
     expect(krolis.querySelector("[data-doctrine-side]")).toBeNull();
+    expect(krolis.querySelector("[data-doctrine-side-menu]")).toBeNull();
     root.unmount();
     container.remove();
   });
@@ -2455,10 +2471,18 @@ describe("Hierophant primary board Body A controls", () => {
     mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {});
     const { container, root } = renderPieces();
     const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
+    const rail = krolis.querySelector("[data-temple-header-rail]") as HTMLElement;
     const status = krolis.querySelector("[data-temple-status]") as HTMLButtonElement;
+    const holiday = krolis.querySelector("[data-holiday-chip]") as HTMLButtonElement;
+    expect(rail).not.toBeNull();
+    expect(rail.contains(status)).toBe(true);
+    expect(rail.contains(holiday)).toBe(true);
     expect(status.getAttribute("data-temple-status")).toBe("active");
+    expect(status.getAttribute("aria-haspopup")).toBe("menu");
     expect(status.textContent).toContain("Active");
     expect(status.textContent).toContain("▾");
+    expect(holiday.getAttribute("aria-pressed")).toBe("false");
+    expect(holiday.getAttribute("aria-haspopup")).toBeNull();
     expect(krolis.querySelector("[data-temple-status-menu]")).toBeNull();
     expect(krolis.textContent).not.toMatch(/Collapse ordinarily/);
     expect(krolis.querySelector("[data-doctrine-current]")?.textContent).not.toMatch(/^Blasphemous/);
@@ -2487,7 +2511,12 @@ describe("Hierophant primary board Body A controls", () => {
     const second = renderChoiceSurface(ushin as typeof EMPTY_HIEROPHANT_STATE, pieceWorld);
     const ushinBoard = second.container.querySelector('[data-temple-id="ushin"]') as HTMLElement;
     expect(ushinBoard.querySelector("[data-temple-status]")?.getAttribute("data-temple-status")).toBe("active");
-    expect(ushinBoard.querySelector("[data-doctrine-side]")?.getAttribute("data-doctrine-side")).toBe("blasphemous");
+    const ushinSide = ushinBoard.querySelector("[data-doctrine-side]") as HTMLButtonElement;
+    expect(ushinSide.getAttribute("data-doctrine-side")).toBe("blasphemous");
+    expect(ushinSide.getAttribute("aria-haspopup")).toBe("menu");
+    expect(ushinSide.textContent).toContain("Blasphemous");
+    expect(ushinSide.textContent).toContain("▾");
+    expect(ushinSide.textContent).not.toContain("↔");
     expect(ushinBoard.textContent).not.toMatch(/Hestar Collapse is especially severe/);
     second.root.unmount();
     second.container.remove();
@@ -2530,11 +2559,18 @@ describe("Hierophant primary board Body A controls", () => {
     };
     const { container, root, rerender } = renderChoiceSurface(marked as typeof EMPTY_HIEROPHANT_STATE, pieceWorld);
     const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
+    const rail = krolis.querySelector("[data-temple-header-rail]") as HTMLElement;
     const chip = krolis.querySelector("[data-holiday-chip]") as HTMLButtonElement;
+    const status = krolis.querySelector("[data-temple-status]") as HTMLButtonElement;
     expect(krolis.querySelectorAll("[data-holiday-chip]")).toHaveLength(1);
     expect(krolis.querySelector("[data-holiday-toggle]")).toBeNull();
     expect(krolis.querySelector('[data-holiday-marker="persisted"]')).toBeNull();
     expect(buttonWithText(krolis, "Clear marker")).toBeUndefined();
+    expect(rail.contains(chip)).toBe(true);
+    expect(rail.contains(status)).toBe(true);
+    expect(chip.getAttribute("aria-pressed")).toBe("true");
+    expect(chip.getAttribute("aria-haspopup")).toBeNull();
+    expect(status.getAttribute("aria-haspopup")).toBe("menu");
     expect(chip.getAttribute("data-holiday-marked")).toBe("true");
     expect(chip.getAttribute("aria-label")).toBe("Clear Holiday marker from Temple Krolis");
     expect(chip.className).toMatch(/bg-amber-200|bg-amber-700/);
@@ -2587,7 +2623,11 @@ describe("Hierophant primary board Body A controls", () => {
     const { container, root } = renderChoiceSurface(pieceState as typeof EMPTY_HIEROPHANT_STATE, prophetWorld());
     const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
     const doctrine = krolis.querySelector("[data-doctrine-object]") as HTMLElement;
+    const valueRow = doctrine.querySelector("[data-doctrine-value-row]") as HTMLElement;
     const chevron = doctrine.querySelector("[data-doctrine-change]") as HTMLButtonElement;
+    expect(valueRow.contains(chevron)).toBe(true);
+    expect(valueRow.contains(doctrine.querySelector("[data-doctrine-current]") as HTMLElement)).toBe(true);
+    expect(valueRow.getAttribute("data-doctrine-menu-anchor")).toBe("");
     expect(doctrine.querySelector("[data-doctrine-menu]")).toBeNull();
     expect(doctrine.querySelector("[data-doctrine-prophet-warning]")).toBeNull();
     expect(krolis.textContent).not.toContain("normally done by a Sermon");
@@ -2598,8 +2638,10 @@ describe("Hierophant primary board Body A controls", () => {
     flushSync(() => { chevron.click(); });
     expect(chevron.getAttribute("aria-expanded")).toBe("true");
     const menu = doctrine.querySelector("[data-doctrine-menu]") as HTMLElement;
+    expect(valueRow.querySelector("[data-doctrine-menu]")).toBe(menu);
     expect(menu.getAttribute("data-board-overlay")).toBe("");
     expect(menu.className).toMatch(/absolute/);
+    expect(menu.className).toMatch(/top-full/);
     expect(menu.querySelector("[data-doctrine-prophet-warning]")?.textContent).toMatch(/Reliable Prophet here/);
     flushSync(() => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
@@ -2655,9 +2697,17 @@ describe("Hierophant primary board Body B Hestar conversion", () => {
     expect(buttonWithText(container, "Send to...")).toBeUndefined();
     expect(buttonWithText(container, "Take from...")).toBeUndefined();
     expect(buttonWithText(container, "Provide")).toBeUndefined();
+    expect(krolisAbundance.querySelector("[data-resource-label]")?.textContent).toBe("Abundance");
+    expect(krolisConviction.querySelector("[data-resource-label]")?.textContent).toBe("Conviction");
+    expect(krolisAbundance.querySelector("[data-resource-value-line]")?.contains(
+      krolisAbundance.querySelector("[data-hestar-convert]") as HTMLElement,
+    )).toBe(true);
+    expect(krolisAbundance.querySelector("[data-resource-label]")?.contains(
+      krolisAbundance.querySelector("[data-hestar-convert]") as Node,
+    )).toBe(false);
     expect(krolisAbundance.className).toContain("min-w-[3.75rem]");
-    expect(krolisAbundance.querySelector("[data-hestar-convert]")?.getAttribute("data-hestar-convert-placement")).toBe("inside");
-    expect(krolisAbundance.querySelector("[data-hestar-convert]")?.className).toMatch(/absolute/);
+    expect(krolisAbundance.querySelector("[data-hestar-convert]")?.getAttribute("data-hestar-convert-placement")).toBe("value");
+    expect(krolisAbundance.querySelector("[data-hestar-convert]")?.className).not.toMatch(/absolute/);
     expect(krolisAbundance.querySelector("[data-hestar-convert]")?.className).not.toMatch(/top-full/);
     expect(krolisAbundance.className).not.toMatch(/min-h-\[1\.1rem\]/);
     root.unmount();
