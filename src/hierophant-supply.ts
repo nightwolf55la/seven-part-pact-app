@@ -10,7 +10,7 @@ export const HIEROPHANT_SUPPLY_CLASS_IDS = [
 
 export type HierophantSupplyClassId = (typeof HIEROPHANT_SUPPLY_CLASS_IDS)[number];
 
-export type HierophantSupplyZone = "courtyard" | "agiary" | "hestar" | "blocked";
+export type HierophantSupplyZone = "courtyard" | "agiary" | "hestar" | "people" | "blocked";
 
 export interface HierophantPendingSupplyCreate {
   readonly commandId: string;
@@ -119,6 +119,22 @@ export function resolveHierophantSupplyDestination(
       templeId: temple.templeId,
       reason: HIEROPHANT_SUPPLY_BLOCKED_REASON,
       highlight: "reject",
+    };
+  }
+  if (zone === "people") {
+    if (temple.kind === "hestar") {
+      return {
+        kind: "place",
+        templeId: "hestar",
+        area: null,
+        highlight: "alternative",
+      };
+    }
+    return {
+      kind: "place",
+      templeId: temple.templeId,
+      area: null,
+      highlight: "recommended",
     };
   }
   if (temple.kind === "hestar") {

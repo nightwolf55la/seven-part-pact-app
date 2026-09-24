@@ -130,7 +130,7 @@ import {
 } from "./hierophant-holiday-intent";
 import {
   hierophantSupplicantHostEqual,
-  hierophantSupplicantHostFromDrop,
+  hierophantSupplicantHostFromPrimaryDrop,
 } from "./hierophant-supplicant-move";
 import {
   resolveSteerAllocationChoice,
@@ -549,7 +549,7 @@ export default function HierophantSurface({
     if (person === undefined) return;
     selectSupplicantForInspector(denizenId);
     setSelectedTempleId(temple.templeId);
-    const requested = hierophantSupplicantHostFromDrop(temple, zone);
+    const requested = hierophantSupplicantHostFromPrimaryDrop(person, temple, zone);
     if (hierophantSupplicantHostEqual(person.host, requested)) {
       setHostMoveNotice(null);
       return;

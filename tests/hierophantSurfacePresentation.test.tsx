@@ -755,14 +755,20 @@ describe("Hierophant zero-click monthly board", () => {
     const { container, root, board } = renderMonthly();
     const notor = board!.querySelector('[data-temple-id="notor"]') as HTMLElement;
     expect(notor.textContent).toContain("Temple Notor");
-    expect(notor.textContent).toContain("Courtyard");
-    expect(notor.textContent).toContain("Agiary");
+    expect(notor.querySelector('[data-temple-people]')).not.toBeNull();
+    expect(notor.querySelector('[aria-label="People"]')).not.toBeNull();
     expect(notor.textContent).not.toMatch(/\bNone\b/);
-    expect(notor.textContent).not.toContain("No Researcher");
+    expect(notor.textContent).not.toContain("Courtyard");
+    expect(notor.textContent).not.toContain("Agiary");
+    expect(notor.textContent).not.toContain("Area unresolved");
+    expect(notor.textContent).not.toContain("Hosted at Hestar");
     expect(notor.querySelector('[aria-label="Prophets"]')).toBeNull();
+    expect(notor.querySelector('[aria-label="Sorcerer Researcher"]')).toBeNull();
     const krolis = board!.querySelector('[data-temple-id="krolis"]') as HTMLElement;
-    expect(krolis.querySelector('[aria-label="Courtyard"]')?.textContent).toContain("Acolyte Ann");
-    expect(krolis.querySelector('[aria-label="Agiary"]')?.textContent).toContain("Weary Bran");
+    const people = krolis.querySelector('[data-people-list]') as HTMLElement;
+    expect(people.querySelector('[data-supplicant-piece="den_ann"]')).not.toBeNull();
+    expect(people.querySelector('[data-supplicant-piece="den_highwoe"]')).not.toBeNull();
+    expect(people.querySelectorAll("[data-supplicant-piece]")).toHaveLength(3);
     expect(krolis.textContent).toContain("Prophet Ilya");
     expect(krolis.textContent).toContain("Lina the Seer");
     root.unmount();
@@ -1256,7 +1262,7 @@ describe("Hierophant Supplicant supply placement", () => {
     mockMutations["m3Commands.createHierophantSupplicant"] = vi.fn(async () => {});
     const { container, root } = renderChoiceSurface(supplyState as typeof EMPTY_HIEROPHANT_STATE);
     const piece = supplyPiece(container, "peasant")!;
-    const zone = supplyDrop(container, "krolis", "courtyard")!;
+    const zone = supplyDrop(container, "krolis", "people")!;
     piece.dispatchEvent(new Event("dragstart", { bubbles: true }));
     const over = new Event("dragover", { bubbles: true, cancelable: true });
     zone.dispatchEvent(over);
@@ -1269,7 +1275,7 @@ describe("Hierophant Supplicant supply placement", () => {
     expect(mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[0][0]).toMatchObject({
       classId: "peasant",
       templeId: "krolis",
-      area: "courtyard",
+      area: null,
       woe: 0,
       name: "Peasant",
     });
@@ -1282,36 +1288,36 @@ describe("Hierophant Supplicant supply placement", () => {
     mockMutations["m3Commands.addSupplicant"] = vi.fn(async () => {});
     mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {});
     const { container, root } = renderChoiceSurface(supplyState as typeof EMPTY_HIEROPHANT_STATE);
-    dragSupplyTo(supplyPiece(container, "peasant")!, supplyDrop(container, "krolis", "courtyard")!);
+    dragSupplyTo(supplyPiece(container, "peasant")!, supplyDrop(container, "krolis", "people")!);
     expect(receiveForm(container)).toBeNull();
     await Promise.resolve();
     expect(mockMutations["m3Commands.createHierophantSupplicant"]).toHaveBeenCalledTimes(1);
-    const courtyard = mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[0][0];
-    expect(courtyard).toMatchObject({
+    const first = mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[0][0];
+    expect(first).toMatchObject({
       expectedCampaignId: CAMPAIGN_ID,
       classId: "peasant",
       woe: 0,
       templeId: "krolis",
-      area: "courtyard",
+      area: null,
       expectedTempleStatus: "active",
       name: "Peasant",
     });
-    expect(courtyard.commandId).toMatch(/^cmd_/);
-    expect(courtyard.denizenId).toMatch(/^den_/);
+    expect(first.commandId).toMatch(/^cmd_/);
+    expect(first.denizenId).toMatch(/^den_/);
 
-    dragSupplyTo(supplyPiece(container, "artisan")!, supplyDrop(container, "krolis", "agiary")!);
+    dragSupplyTo(supplyPiece(container, "artisan")!, supplyDrop(container, "krolis", "people")!);
     await Promise.resolve();
     expect(mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[1][0]).toMatchObject({
       classId: "artisan",
       templeId: "krolis",
-      area: "agiary",
+      area: null,
       woe: 0,
       name: "Artisan",
     });
-    expect(mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[1][0].commandId).not.toBe(courtyard.commandId);
-    expect(mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[1][0].denizenId).not.toBe(courtyard.denizenId);
+    expect(mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[1][0].commandId).not.toBe(first.commandId);
+    expect(mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[1][0].denizenId).not.toBe(first.denizenId);
 
-    dragSupplyTo(supplyPiece(container, "merchant")!, supplyDrop(container, "hestar", "hestar")!);
+    dragSupplyTo(supplyPiece(container, "merchant")!, supplyDrop(container, "hestar", "people")!);
     await Promise.resolve();
     expect(mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[2][0]).toMatchObject({
       classId: "merchant",
@@ -1340,14 +1346,14 @@ describe("Hierophant Supplicant supply placement", () => {
     expect(receiveForm(container)).toBeNull();
     expect(mutationCallCount()).toBe(before);
 
-    dragSupplyTo(supplyPiece(container, "peasant")!, supplyDrop(container, "zephon", "courtyard")!);
+    dragSupplyTo(supplyPiece(container, "peasant")!, supplyDrop(container, "zephon", "people")!);
     expect(receiveForm(container)).toBeNull();
     expect(container.querySelector('[data-temple-id="zephon"]')?.textContent).toContain("Blasphemous");
     expect(mockMutations["m3Commands.createHierophantSupplicant"]).toHaveBeenCalledTimes(1);
     expect(mockMutations["m3Commands.createHierophantSupplicant"].mock.calls[0][0]).toMatchObject({
       classId: "peasant",
       templeId: "zephon",
-      area: "courtyard",
+      area: null,
     });
     root.unmount();
     container.remove();
@@ -1364,7 +1370,7 @@ describe("Hierophant Supplicant supply placement", () => {
     expect(blocked.className).toMatch(/absolute/);
     expect(blocked.className).toMatch(/inset-0/);
     expect(ushin.querySelector("[data-collapsed-drop-overlay]")?.getAttribute("data-collapsed-drop-placement")).toBe("overlay");
-    expect(ushin.querySelector('[data-supply-drop="courtyard"]')).not.toBeNull();
+    expect(ushin.querySelector('[data-supply-drop="people"]')).not.toBeNull();
     expect(ushin.querySelector("[data-doctrine-current]")?.textContent).toMatch(/law of the wolf/i);
     dragSupplyTo(supplyPiece(container, "gentry")!, blocked);
     expect(ushin.textContent).toContain("Receive Supplicant is not available at a collapsed Temple");
@@ -1380,7 +1386,7 @@ describe("Hierophant Supplicant supply placement", () => {
     expect(collapsedKrolis.querySelector('[data-supply-drop="blocked"]')?.className).toMatch(/absolute/);
     expect(collapsedKrolis.querySelector('[data-resource-counter="abundance"]')?.getAttribute("aria-label")).toBe("Abundance 5");
     expect(collapsedKrolis.querySelector("[data-doctrine-current]")?.textContent).toContain("worth");
-    expect(collapsedKrolis.querySelector('[data-supply-drop="courtyard"]')).not.toBeNull();
+    expect(collapsedKrolis.querySelector('[data-supply-drop="people"]')).not.toBeNull();
     root.unmount();
     container.remove();
   });
@@ -1415,7 +1421,7 @@ describe("Hierophant Supplicant supply placement", () => {
     }));
     mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {});
     const { container, root } = renderChoiceSurface(supplyState as typeof EMPTY_HIEROPHANT_STATE);
-    dragSupplyTo(supplyPiece(container, "peasant")!, supplyDrop(container, "krolis", "courtyard")!);
+    dragSupplyTo(supplyPiece(container, "peasant")!, supplyDrop(container, "krolis", "people")!);
     expect(receiveForm(container)).toBeNull();
     const pending = container.querySelector("[data-supply-create-pending]");
     expect(pending?.textContent).toMatch(/Adding Peasant/);
@@ -1506,6 +1512,141 @@ function renderPieces() {
   });
 }
 
+describe("Hierophant unified People board", () => {
+  function mixedPeopleWorld(): WorldReference {
+    return {
+      ...pieceWorld,
+      denizens: pieceWorld.denizens.map((denizen) =>
+        denizen.denizenId === "den_prophet"
+          ? {
+              ...denizen,
+              powerfulProfile: {
+                taxonomies: [{ kind: "builtin", taxonomyId: "prophet" }],
+                status: { kind: "standard", value: "reliable" },
+                goal: null,
+                methods: [],
+                truths: [],
+              },
+            }
+          : denizen,
+      ),
+    };
+  }
+
+  const mixedPeopleState = {
+    ...pieceState,
+    supplicants: [
+      {
+        denizenId: "den_ann" as never,
+        classId: "peasant" as const,
+        woe: 1,
+        host: { kind: "temple" as const, templeId: "krolis" as const, area: "courtyard" as const },
+      },
+      {
+        denizenId: "den_blank" as never,
+        classId: "peasant" as const,
+        woe: 5,
+        host: { kind: "temple" as const, templeId: "krolis" as const, area: "agiary" as const },
+      },
+      {
+        denizenId: "den_unresolved" as never,
+        classId: "peasant" as const,
+        woe: 2,
+        host: { kind: "temple" as const, templeId: "krolis" as const, area: null },
+      },
+    ],
+  };
+
+  it("uses one People section without Courtyard, Agiary, or type subsections on the Primary board", () => {
+    const { container, root } = renderChoiceSurface(
+      mixedPeopleState as typeof EMPTY_HIEROPHANT_STATE,
+      {
+        ...mixedPeopleWorld(),
+        denizens: [
+          ...mixedPeopleWorld().denizens,
+          { denizenId: "den_unresolved", name: "Peasant", representation: "individual", description: null },
+        ],
+      },
+      {
+        sorcererPresence: [
+          {
+            kind: "researcher",
+            denizenId: "den_00000000-0000-0000-0000-0000000000aa" as never,
+            name: "Lina the Seer",
+            operationalThisMonth: true,
+            positionId: "srp_temple_krolis",
+            target: { kind: "hierophant_temple", templeId: "krolis" },
+          },
+        ],
+      },
+    );
+    const krolis = container.querySelector('[data-temple-id="krolis"]') as HTMLElement;
+    expect(krolis.querySelector('[data-temple-people]')).not.toBeNull();
+    expect(krolis.querySelector('[aria-label="People"] h4')?.textContent).toBe("People");
+    expect(krolis.textContent).not.toContain("Courtyard");
+    expect(krolis.textContent).not.toContain("Agiary");
+    expect(krolis.textContent).not.toContain("Area unresolved");
+    expect(krolis.textContent).not.toContain("Hosted at Hestar");
+    expect(krolis.querySelector('[aria-label="Prophets"]')).toBeNull();
+    expect(krolis.querySelector('[aria-label="Sorcerer Researcher"]')).toBeNull();
+    expect(krolis.querySelector('[data-supply-drop="people"]')).not.toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
+  it("orders Supplicants before Prophets before Researchers and renders each persisted area once", () => {
+    const { container, root } = renderChoiceSurface(
+      mixedPeopleState as typeof EMPTY_HIEROPHANT_STATE,
+      {
+        ...mixedPeopleWorld(),
+        denizens: [
+          ...mixedPeopleWorld().denizens,
+          { denizenId: "den_unresolved", name: "Peasant", representation: "individual", description: null },
+        ],
+      },
+      {
+        sorcererPresence: [
+          {
+            kind: "researcher",
+            denizenId: "den_00000000-0000-0000-0000-0000000000aa" as never,
+            name: "Lina the Seer",
+            operationalThisMonth: true,
+            positionId: "srp_temple_krolis",
+            target: { kind: "hierophant_temple", templeId: "krolis" },
+          },
+        ],
+      },
+    );
+    const list = container.querySelector('[data-temple-id="krolis"] [data-people-list]') as HTMLElement;
+    const markers = [...list.children].map((child) => {
+      const row = child as HTMLElement;
+      if (row.querySelector("[data-supplicant-piece]")) return "supplicant";
+      if (row.querySelector("[data-prophet-piece]")) return "prophet";
+      if (row.matches("[data-researcher-piece]") || row.querySelector("[data-researcher-piece]")) return "researcher";
+      return "other";
+    });
+    expect(markers).toEqual(["supplicant", "supplicant", "supplicant", "prophet", "researcher"]);
+    expect(list.querySelectorAll("[data-supplicant-piece]")).toHaveLength(3);
+    expect(list.querySelectorAll('[data-supplicant-piece="den_ann"]')).toHaveLength(1);
+    expect(list.querySelectorAll('[data-supplicant-piece="den_blank"]')).toHaveLength(1);
+    expect(list.querySelectorAll('[data-supplicant-piece="den_unresolved"]')).toHaveLength(1);
+    root.unmount();
+    container.remove();
+  });
+
+  it("keeps unnamed person cards complete via visible type labels", () => {
+    const { container, root } = renderPieces();
+    const blank = container.querySelector('[data-supplicant-piece="den_blank"]') as HTMLElement;
+    expect(blank.querySelector("[data-piece-type]")?.textContent).toBe("Supplicant");
+    expect(blank.querySelector("[data-piece-name]")).toBeNull();
+    expect(blank.textContent).not.toContain("Unnamed");
+    const researcher = container.querySelector("[data-researcher-piece]") as HTMLElement;
+    expect(researcher.querySelector("[data-piece-type]")?.textContent).toBe("Researcher");
+    root.unmount();
+    container.remove();
+  });
+});
+
 describe("Hierophant Temple Prophet information", () => {
   function prophetWorldReliable(): WorldReference {
     return {
@@ -1575,7 +1716,7 @@ describe("Hierophant Temple Prophet information", () => {
     expect(prophet.textContent).not.toMatch(/Temple host/);
     expect(prophet.textContent).not.toMatch(/Reliable ·/);
     expect(prophet.getAttribute("aria-label")).toBe(
-      "Prophet Prophet Ilya. Reliable. When this Temple produces Abundance or Conviction, gain 1 additional matching resource.",
+      "Prophet Ilya. Reliable. When this Temple produces Abundance or Conviction, gain 1 additional matching resource.",
     );
     root.unmount();
     container.remove();
@@ -1595,7 +1736,7 @@ describe("Hierophant Temple Prophet information", () => {
     expect(prophet.querySelector("[data-prophet-production-effect]")).toBeNull();
     expect(prophet.textContent).not.toMatch(/PRODUCTION/);
     expect(prophet.textContent).not.toMatch(/matching resource/);
-    expect(prophet.getAttribute("aria-label")).toBe("Prophet Prophet Mara. Disruptive.");
+    expect(prophet.getAttribute("aria-label")).toBe("Prophet Mara. Disruptive.");
     root.unmount();
     container.remove();
   });
@@ -1871,7 +2012,7 @@ describe("Hierophant physical piece controls", () => {
     mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {});
     const { container, root } = renderPieces();
     const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
-    const zone = supplyDrop(container, "notor", "courtyard")!;
+    const zone = supplyDrop(container, "notor", "people")!;
     expect(named.getAttribute("data-steer-time")).toBe("none");
     expect(named.getAttribute("data-host-draggable")).toBe("true");
     flushSync(() => { named.dispatchEvent(new Event("dragstart", { bubbles: true })); });
@@ -1890,7 +2031,7 @@ describe("Hierophant physical piece controls", () => {
       fields: {
         host: {
           expected: { kind: "temple", templeId: "krolis", area: "courtyard" },
-          value: { kind: "temple", templeId: "notor", area: "courtyard" },
+          value: { kind: "temple", templeId: "notor", area: null },
         },
       },
     });
@@ -1898,29 +2039,30 @@ describe("Hierophant physical piece controls", () => {
     container.remove();
   });
 
-  it("records Courtyard to Agiary, ordinary Temple to Hestar, and Woe 0 host moves without Steer", async () => {
+  it("preserves legacy area on same-Temple people drops and records cross-Temple moves without Steer", async () => {
     mockMutations["m3Commands.steerHierophantSupplicant"] = vi.fn(async () => {});
     mockMutations["m3Commands.updateSupplicant"] = vi.fn(async () => {});
     mockMutations["m3Commands.departHierophantSupplicantWithBenefaction"] = vi.fn(async () => {});
     const { container, root } = renderPieces();
     const named = container.querySelector('[data-supplicant-piece="den_ann"]') as HTMLElement;
     const ready = container.querySelector('[data-supplicant-piece="den_ready"]') as HTMLElement;
-    const agiary = supplyDrop(container, "krolis", "agiary")!;
+    const krolisPeople = supplyDrop(container, "krolis", "people")!;
     flushSync(() => { named.dispatchEvent(new Event("dragstart", { bubbles: true })); });
-    flushSync(() => { agiary.dispatchEvent(new Event("drop", { bubbles: true })); });
+    flushSync(() => { krolisPeople.dispatchEvent(new Event("drop", { bubbles: true })); });
     flushSync(() => { named.dispatchEvent(new Event("dragend", { bubbles: true })); });
     await Promise.resolve();
-    expect(mockMutations["m3Commands.updateSupplicant"].mock.calls[0][0].fields.host.value).toEqual({
-      kind: "temple",
-      templeId: "krolis",
-      area: "agiary",
-    });
-    const hestar = supplyDrop(container, "hestar", "hestar")!;
+    expect(mockMutations["m3Commands.updateSupplicant"]).not.toHaveBeenCalled();
+    const hestar = supplyDrop(container, "hestar", "people")!;
     flushSync(() => { ready.dispatchEvent(new Event("dragstart", { bubbles: true })); });
-    flushSync(() => { hestar.dispatchEvent(new Event("drop", { bubbles: true })); });
+    flushSync(() => {
+      hestar.dispatchEvent(new Event("dragenter", { bubbles: true }));
+      hestar.dispatchEvent(new Event("dragover", { bubbles: true }));
+      hestar.dispatchEvent(new Event("drop", { bubbles: true }));
+    });
     flushSync(() => { ready.dispatchEvent(new Event("dragend", { bubbles: true })); });
     await Promise.resolve();
-    expect(mockMutations["m3Commands.updateSupplicant"].mock.calls[1][0]).toMatchObject({
+    expect(mockMutations["m3Commands.updateSupplicant"]).toHaveBeenCalledTimes(1);
+    expect(mockMutations["m3Commands.updateSupplicant"].mock.calls[0][0]).toMatchObject({
       denizenId: "den_ready",
       fields: {
         host: {
@@ -2424,7 +2566,7 @@ describe("Hierophant physical piece controls", () => {
     const counter = container.querySelector('[data-resource-counter="abundance"]') as HTMLElement;
     flushSync(() => { counter.dispatchEvent(new Event("mouseenter", { bubbles: true })); });
     expect(mockMutations["m3Commands.adjustTempleResources"]).not.toHaveBeenCalled();
-    dragSupplyTo(supplyPiece(container, "pariah")!, supplyDrop(container, "krolis", "courtyard")!);
+    dragSupplyTo(supplyPiece(container, "pariah")!, supplyDrop(container, "krolis", "people")!);
     expect(receiveForm(container)).toBeNull();
     await Promise.resolve();
     expect(mockMutations["m3Commands.createHierophantSupplicant"]).toHaveBeenCalledTimes(1);

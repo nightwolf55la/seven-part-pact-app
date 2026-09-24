@@ -411,19 +411,12 @@ function doctrineStateLabel(temple: HierophantTemple, campaignDoctrines: Hieroph
   return templeDoctrineSummary(temple, campaignDoctrines);
 }
 
-function pendingCreatesForZone(
+function pendingCreatesForTemple(
   pending: readonly HierophantPendingSupplyCreate[] | undefined,
   templeId: string,
-  groupKey: string,
 ): readonly HierophantPendingSupplyCreate[] {
   if (pending === undefined) return [];
-  return pending.filter((item) => {
-    if (item.templeId !== templeId) return false;
-    if (groupKey === "courtyard") return item.area === "courtyard";
-    if (groupKey === "agiary") return item.area === "agiary";
-    if (groupKey === "hestar") return item.area === null;
-    return false;
-  });
+  return pending.filter((item) => item.templeId === templeId);
 }
 
 function PendingSupplyGhost({ item }: { readonly item: HierophantPendingSupplyCreate }) {
@@ -436,18 +429,20 @@ function PendingSupplyGhost({ item }: { readonly item: HierophantPendingSupplyCr
   );
 }
 
-function areaGroups(supplicants: readonly HierophantSupplicant[], isHestar: boolean) {
-  if (isHestar) {
-    return [{ key: "hestar", label: "Hosted at Hestar", people: [...supplicants] }];
-  }
-  return [
-    { key: "courtyard", label: "Courtyard", people: supplicants.filter((person) => person.host.kind === "temple" && person.host.area === "courtyard") },
-    { key: "agiary", label: "Agiary", people: supplicants.filter((person) => person.host.kind === "temple" && person.host.area === "agiary") },
-    { key: "unresolved", label: "Area unresolved", people: supplicants.filter((person) => person.host.kind === "temple" && person.host.area === null) },
-  ];
-}
-
 const PROPHET_PRODUCTION_VISIBLE = "+1 matching resource";
+
+function personTypeAccessibleIdentity(
+  typeLabel: "Prophet" | "Researcher",
+  displayName: string | null,
+): string {
+  if (displayName === null) return typeLabel;
+  const trimmed = displayName.trim();
+  if (trimmed === "") return typeLabel;
+  const lower = trimmed.toLowerCase();
+  const typeLower = typeLabel.toLowerCase();
+  if (lower === typeLower || lower.startsWith(`${typeLower} `)) return trimmed;
+  return `${typeLabel} ${trimmed}`;
+}
 
 const RESEARCHER_RESPONSIBILITY_VISIBLE = "−1 Wealth → +2 Knowledge";
 
@@ -455,7 +450,7 @@ function prophetAccessibleDescription(
   name: string | null,
   reliableOrDisruptive: "reliable" | "disruptive" | null,
 ): string {
-  const who = name === null ? "Prophet" : `Prophet ${name}`;
+  const who = personTypeAccessibleIdentity("Prophet", name);
   if (reliableOrDisruptive === "reliable") {
     return `${who}. Reliable. When this Temple produces Abundance or Conviction, gain 1 additional matching resource.`;
   }
@@ -469,7 +464,7 @@ function researcherAccessibleDescription(
   name: string | null,
   operationalThisMonth: boolean,
 ): string {
-  const who = name === null ? "Researcher" : `Researcher ${name}`;
+  const who = personTypeAccessibleIdentity("Researcher", name);
   const duty = "Visions: remove 1 Wealth from this Temple for 2 Knowledge.";
   if (operationalThisMonth) return `${who}. ${duty}`;
   return `${who}. ${duty} Unavailable this month.`;
@@ -1617,7 +1612,8 @@ function TemplePiece({
   const prophets = hostedProphets(hierophant.prophets, { kind: "temple", templeId: temple.templeId });
   const researchers = templeResearchers(presence, temple.templeId);
   const holidayView = pieces.holidayView(temple.templeId, hierophant.holidayTempleIds.includes(temple.templeId));
-  const groups = areaGroups(hosted, isHestar);
+  const pendingCreates = pendingCreatesForTemple(supply?.pendingCreates, temple.templeId);
+  const peopleEmpty = hosted.length === 0 && prophets.length === 0 && researchers.length === 0 && pendingCreates.length === 0;
   const status = templePhysicalStatus(temple);
   const blasphemousDoctrine = temple.kind === "ordinary" && temple.doctrine.kind === "blasphemy";
   const name = templeDisplayName(temple, places);
@@ -1802,26 +1798,21 @@ function TemplePiece({
       {supply?.blockNotice?.templeId === temple.templeId && status.kind !== "collapsed" && (
         <p className="text-xs font-semibold text-rose-800 dark:text-rose-200">{supply.blockNotice.reason}</p>
       )}
-      {groups.filter((group) => group.people.length > 0 || group.key === "courtyard" || group.key === "agiary" || group.key === "hestar").map((group) => {
-        const zone: HierophantSupplyZone | null =
-          group.key === "courtyard" || group.key === "agiary" || group.key === "hestar"
-            ? group.key
-            : null;
-        const pendingCreates = pendingCreatesForZone(supply?.pendingCreates, temple.templeId, group.key);
-        const section = (
-        <section aria-label={group.label} className="text-sm">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">{group.label}</h4>
-          {group.people.length === 0 && pendingCreates.length === 0 ? (
+      <SupplyDropZone temple={temple} zone="people" supply={supply} hostMove={hostMove}>
+        <section data-temple-people="" aria-label="People" className="text-sm">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">People</h4>
+          {peopleEmpty ? (
             <div
-              className="mt-1 min-h-[2.25rem] rounded-md border border-dashed border-amber-900/20 bg-amber-50/40 dark:border-amber-200/15 dark:bg-amber-950/20"
+              data-people-empty=""
+              className="mt-1 min-h-[1.25rem] rounded-md border border-dashed border-amber-900/20 bg-amber-50/40 dark:border-amber-200/15 dark:bg-amber-950/20"
               aria-hidden="true"
             />
           ) : (
-            <ul className="flex flex-col gap-1.5 mt-1">
+            <ul data-people-list="" className="mt-1 flex flex-col gap-1.5">
               {pendingCreates.map((item) => (
                 <PendingSupplyGhost key={item.denizenId} item={item} />
               ))}
-              {group.people.map((person) => (
+              {hosted.map((person) => (
                 <SupplicantPiece
                   key={person.denizenId}
                   person={person}
@@ -1859,151 +1850,130 @@ function TemplePiece({
                   woeView={pieces.woeView(person.denizenId, person.woe)}
                 />
               ))}
+              {prophets.map((prophet: HierophantProphet) => {
+                const prophetName = personPieceName(denizenLabel(denizens, prophet.denizenId));
+                const statusValue = denizens.find((denizen) => denizen.denizenId === prophet.denizenId)?.powerfulProfile?.status;
+                const reliableOrDisruptive = statusValue?.kind === "standard"
+                  && (statusValue.value === "reliable" || statusValue.value === "disruptive")
+                  ? statusValue.value
+                  : null;
+                const nextStatus = reliableOrDisruptive === "reliable" ? "disruptive" : "reliable";
+                const prophetPending = pieces.prophetPendingDenizenIds.has(prophet.denizenId);
+                return (
+                <li key={prophet.denizenId}>
+                  <div
+                    data-prophet-piece={prophet.denizenId}
+                    data-prophet-status-state={reliableOrDisruptive ?? "unset"}
+                    aria-label={prophetAccessibleDescription(prophetName, reliableOrDisruptive)}
+                    className="w-full text-left rounded-lg border-2 border-violet-600 bg-violet-50 px-2 py-1 shadow-sm dark:border-violet-400 dark:bg-violet-950/40"
+                  >
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 text-left cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700"
+                        onClick={onSelect}
+                        onKeyDown={(event) => activate(event, onSelect)}
+                      >
+                        <PersonPieceHeader
+                          type="Prophet"
+                          name={prophetName}
+                          typeClassName="text-violet-800 dark:text-violet-200"
+                        />
+                      </button>
+                      {reliableOrDisruptive !== null && (
+                        <button
+                          type="button"
+                          data-prophet-status={reliableOrDisruptive}
+                          data-prophet-status-pending={prophetPending ? "true" : "false"}
+                          aria-busy={prophetPending}
+                          aria-label={`Record ${nextStatus === "reliable" ? "Reliable" : "Disruptive"}`}
+                          className="shrink-0 rounded border border-violet-700/50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700 disabled:opacity-60 dark:text-violet-50"
+                          disabled={prophetPending}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            pieces.onRecordProphetStatus(prophet.denizenId, nextStatus);
+                          }}
+                        >
+                          {reliableOrDisruptive === "reliable" ? "Reliable" : "Disruptive"}
+                          <span aria-hidden="true"> ▾</span>
+                        </button>
+                      )}
+                    </div>
+                    {reliableOrDisruptive === "reliable" && (
+                      <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <span
+                          data-prophet-production-phase=""
+                          className="text-[10px] font-semibold uppercase tracking-wide text-violet-800/80 dark:text-violet-200/80"
+                        >
+                          PRODUCTION
+                        </span>
+                        <span
+                          data-prophet-production-effect=""
+                          className="text-[11px] leading-tight text-slate-600 dark:text-slate-300"
+                        >
+                          {PROPHET_PRODUCTION_VISIBLE}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </li>
+                );
+              })}
+              {researchers.map((researcher) => {
+                const researcherName = personPieceName(researcher.name);
+                const operational = researcher.operationalThisMonth;
+                return (
+                <li
+                  key={researcher.denizenId}
+                  data-researcher-piece={researcher.denizenId}
+                  data-researcher-operational={operational ? "true" : "false"}
+                  aria-label={researcherAccessibleDescription(researcherName, operational)}
+                  className={
+                    operational
+                      ? "rounded-lg border-2 border-dashed border-slate-500 bg-slate-50 px-2 py-1 dark:border-slate-400 dark:bg-slate-900"
+                      : "rounded-lg border-2 border-dashed border-slate-400 bg-slate-100/80 px-2 py-1 opacity-80 dark:border-slate-600 dark:bg-slate-950/60"
+                  }
+                >
+                  <PersonPieceHeader
+                    type="Researcher"
+                    name={researcherName}
+                    typeClassName={operational ? "text-slate-500" : "text-slate-400"}
+                  />
+                  <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <span
+                      data-researcher-phase=""
+                      className={`text-[10px] font-semibold uppercase tracking-wide ${
+                        operational ? "text-slate-500" : "text-slate-400"
+                      }`}
+                    >
+                      VISIONS
+                    </span>
+                    <span
+                      data-researcher-responsibility=""
+                      className={`text-[11px] leading-tight ${
+                        operational
+                          ? "text-slate-600 dark:text-slate-300"
+                          : "text-slate-500 dark:text-slate-400"
+                      }`}
+                    >
+                      {RESEARCHER_RESPONSIBILITY_VISIBLE}
+                    </span>
+                  </div>
+                  {!operational && (
+                    <div
+                      data-researcher-unavailable=""
+                      className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-800 dark:text-rose-300"
+                    >
+                      Unavailable this month
+                    </div>
+                  )}
+                </li>
+                );
+              })}
             </ul>
           )}
         </section>
-        );
-        if (zone === null) return <div key={group.key}>{section}</div>;
-        return (
-          <SupplyDropZone key={group.key} temple={temple} zone={zone} supply={supply} hostMove={hostMove}>
-            {section}
-          </SupplyDropZone>
-        );
-      })}
-      {prophets.length > 0 && (
-      <section aria-label="Prophets" className="text-sm">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Prophets</h4>
-        <ul className="flex flex-col gap-1 mt-1">
-            {prophets.map((prophet: HierophantProphet) => {
-              const prophetName = personPieceName(denizenLabel(denizens, prophet.denizenId));
-              const statusValue = denizens.find((denizen) => denizen.denizenId === prophet.denizenId)?.powerfulProfile?.status;
-              const reliableOrDisruptive = statusValue?.kind === "standard"
-                && (statusValue.value === "reliable" || statusValue.value === "disruptive")
-                ? statusValue.value
-                : null;
-              const nextStatus = reliableOrDisruptive === "reliable" ? "disruptive" : "reliable";
-              const prophetPending = pieces.prophetPendingDenizenIds.has(prophet.denizenId);
-              return (
-              <li key={prophet.denizenId}>
-                <div
-                  data-prophet-piece={prophet.denizenId}
-                  data-prophet-status-state={reliableOrDisruptive ?? "unset"}
-                  aria-label={prophetAccessibleDescription(prophetName, reliableOrDisruptive)}
-                  className="w-full text-left rounded-lg border-2 border-violet-600 bg-violet-50 px-2 py-1 shadow-sm dark:border-violet-400 dark:bg-violet-950/40"
-                >
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className="min-w-0 flex-1 text-left cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700"
-                      onClick={onSelect}
-                      onKeyDown={(event) => activate(event, onSelect)}
-                    >
-                      <PersonPieceHeader
-                        type="Prophet"
-                        name={prophetName}
-                        typeClassName="text-violet-800 dark:text-violet-200"
-                      />
-                    </button>
-                    {reliableOrDisruptive !== null && (
-                      <button
-                        type="button"
-                        data-prophet-status={reliableOrDisruptive}
-                        data-prophet-status-pending={prophetPending ? "true" : "false"}
-                        aria-busy={prophetPending}
-                        aria-label={`Record ${nextStatus === "reliable" ? "Reliable" : "Disruptive"}`}
-                        className="shrink-0 rounded border border-violet-700/50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-700 disabled:opacity-60 dark:text-violet-50"
-                        disabled={prophetPending}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          pieces.onRecordProphetStatus(prophet.denizenId, nextStatus);
-                        }}
-                      >
-                        {reliableOrDisruptive === "reliable" ? "Reliable" : "Disruptive"}
-                        <span aria-hidden="true"> ▾</span>
-                      </button>
-                    )}
-                  </div>
-                  {reliableOrDisruptive === "reliable" && (
-                    <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                      <span
-                        data-prophet-production-phase=""
-                        className="text-[10px] font-semibold uppercase tracking-wide text-violet-800/80 dark:text-violet-200/80"
-                      >
-                        PRODUCTION
-                      </span>
-                      <span
-                        data-prophet-production-effect=""
-                        className="text-[11px] leading-tight text-slate-600 dark:text-slate-300"
-                      >
-                        {PROPHET_PRODUCTION_VISIBLE}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </li>
-              );
-            })}
-        </ul>
-      </section>
-      )}
-      {researchers.length > 0 && (
-      <section aria-label="Sorcerer Researcher" className="text-sm">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Researcher</h4>
-        <ul className="flex flex-col gap-1 mt-1">
-            {researchers.map((researcher) => {
-              const researcherName = personPieceName(researcher.name);
-              const operational = researcher.operationalThisMonth;
-              return (
-              <li
-                key={researcher.denizenId}
-                data-researcher-piece={researcher.denizenId}
-                data-researcher-operational={operational ? "true" : "false"}
-                aria-label={researcherAccessibleDescription(researcherName, operational)}
-                className={
-                  operational
-                    ? "rounded-lg border-2 border-dashed border-slate-500 bg-slate-50 px-2 py-1 dark:border-slate-400 dark:bg-slate-900"
-                    : "rounded-lg border-2 border-dashed border-slate-400 bg-slate-100/80 px-2 py-1 opacity-80 dark:border-slate-600 dark:bg-slate-950/60"
-                }
-              >
-                <PersonPieceHeader
-                  type="Researcher"
-                  name={researcherName}
-                  typeClassName={operational ? "text-slate-500" : "text-slate-400"}
-                />
-                <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <span
-                    data-researcher-phase=""
-                    className={`text-[10px] font-semibold uppercase tracking-wide ${
-                      operational ? "text-slate-500" : "text-slate-400"
-                    }`}
-                  >
-                    VISIONS
-                  </span>
-                  <span
-                    data-researcher-responsibility=""
-                    className={`text-[11px] leading-tight ${
-                      operational
-                        ? "text-slate-600 dark:text-slate-300"
-                        : "text-slate-500 dark:text-slate-400"
-                    }`}
-                  >
-                    {RESEARCHER_RESPONSIBILITY_VISIBLE}
-                  </span>
-                </div>
-                {!operational && (
-                  <div
-                    data-researcher-unavailable=""
-                    className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-800 dark:text-rose-300"
-                  >
-                    Unavailable this month
-                  </div>
-                )}
-              </li>
-              );
-            })}
-        </ul>
-      </section>
-      )}
+      </SupplyDropZone>
     </article>
   );
 }

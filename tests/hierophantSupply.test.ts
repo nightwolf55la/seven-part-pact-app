@@ -65,6 +65,27 @@ describe("Hierophant supply destinations", () => {
     expect(resolveHierophantSupplyDestination(krolis, "hestar")).toBeNull();
   });
 
+  it("places active ordinary and Hestar Supplicants at Temple level through the people zone", () => {
+    expect(resolveHierophantSupplyDestination(krolis, "people")).toEqual({
+      kind: "place",
+      templeId: "krolis",
+      area: null,
+      highlight: "recommended",
+    });
+    expect(resolveHierophantSupplyDestination(hestar, "people")).toEqual({
+      kind: "place",
+      templeId: "hestar",
+      area: null,
+      highlight: "alternative",
+    });
+    expect(resolveHierophantSupplyDestination(collapsed, "people")).toEqual({
+      kind: "blocked",
+      templeId: "ushin",
+      reason: HIEROPHANT_SUPPLY_BLOCKED_REASON,
+      highlight: "reject",
+    });
+  });
+
   it("treats Hestar as a quieter alternative host and collapsed Temples as blocked", () => {
     expect(resolveHierophantSupplyDestination(hestar, "hestar")).toEqual({
       kind: "place",

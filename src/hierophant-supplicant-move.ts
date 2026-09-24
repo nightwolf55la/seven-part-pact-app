@@ -1,4 +1,9 @@
-import type { HierophantSupplicantHost, HierophantTemple, HierophantTempleArea } from "../shared/domain";
+import type {
+  HierophantSupplicant,
+  HierophantSupplicantHost,
+  HierophantTemple,
+  HierophantTempleArea,
+} from "../shared/domain";
 import type { HierophantSupplyZone } from "./hierophant-supply";
 
 export const HIEROPHANT_SUPPLICANT_HOST_DRAG_MIME = "application/x-7pp-hierophant-supplicant-host";
@@ -22,9 +27,29 @@ export function hierophantSupplicantHostFromDrop(
   if (temple.kind === "hestar") {
     return { kind: "temple", templeId: temple.templeId, area: null };
   }
+  if (zone === "people") {
+    return { kind: "temple", templeId: temple.templeId, area: null };
+  }
   const area: HierophantTempleArea | null =
     zone === "courtyard" || zone === "agiary" ? zone : null;
   return { kind: "temple", templeId: temple.templeId, area };
+}
+
+export function hierophantSupplicantHostFromPrimaryDrop(
+  person: Pick<HierophantSupplicant, "host">,
+  temple: HierophantTemple,
+  zone: HierophantSupplyZone,
+): HierophantSupplicantHost {
+  const requested = hierophantSupplicantHostFromDrop(temple, zone);
+  if (
+    zone === "people"
+    && person.host.kind === "temple"
+    && requested.kind === "temple"
+    && person.host.templeId === requested.templeId
+  ) {
+    return person.host;
+  }
+  return requested;
 }
 
 function readTransferType(dataTransfer: DataTransfer, type: string): string | null {
