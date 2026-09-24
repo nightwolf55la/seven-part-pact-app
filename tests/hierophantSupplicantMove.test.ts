@@ -43,7 +43,11 @@ describe("hierophantSupplicantHostFromDrop", () => {
 
   it("preserves legacy area on same-Temple people drops", () => {
     const person = {
-      host: { kind: "temple" as const, templeId: "krolis", area: "courtyard" as const },
+      host: {
+        kind: "temple" as const,
+        templeId: "krolis" as const,
+        area: "courtyard" as const,
+      },
     };
     expect(hierophantSupplicantHostFromPrimaryDrop(person, courtyard, "people")).toEqual({
       kind: "temple",
@@ -51,7 +55,13 @@ describe("hierophantSupplicantHostFromDrop", () => {
       area: "courtyard",
     });
     expect(hierophantSupplicantHostFromPrimaryDrop(
-      { host: { kind: "temple", templeId: "krolis", area: "agiary" } },
+      {
+        host: {
+          kind: "temple",
+          templeId: "krolis" as const,
+          area: "agiary" as const,
+        },
+      },
       courtyard,
       "people",
     )).toEqual({
@@ -60,7 +70,13 @@ describe("hierophantSupplicantHostFromDrop", () => {
       area: "agiary",
     });
     expect(hierophantSupplicantHostFromPrimaryDrop(
-      { host: { kind: "temple", templeId: "krolis", area: "courtyard" } },
+      {
+        host: {
+          kind: "temple",
+          templeId: "krolis" as const,
+          area: "courtyard" as const,
+        },
+      },
       { kind: "ordinary", templeId: "notor" } as HierophantTemple,
       "people",
     )).toEqual({
